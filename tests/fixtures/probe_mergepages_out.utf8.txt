@@ -1,0 +1,32 @@
+==== A: mergeSame=98 on extending column, 40 rows ====
+pageCount=4 xPages=1 yPages=4
+  page 1 rows=14
+  page 2 rows=14
+  page 3 rows=14
+  page 4 rows=1
+  merged total=36
+      page 1: merged=12 r∈[2,13] pageRows=14 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+      page 2: merged=12 r∈[2,13] pageRows=14 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+      page 3: merged=12 r∈[2,13] pageRows=14 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+      page 4: merged=0 r∈[-,0] pageRows=1 rm/cm=[]
+  VERDICT page-local r : YES
+  VERDICT every page has merged cells : false
+
+==== B: template merge A2:A3, 40 rows ====
+pageCount=6 xPages=1 yPages=6
+  page 1 rows=14
+  page 2 rows=14
+  page 3 rows=14
+  page 4 rows=14
+  page 5 rows=14
+  page 6 rows=12
+  merged total=70
+      page 1: merged=12 r∈[2,13] pageRows=14 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+      page 2: merged=12 r∈[2,13] pageRows=14 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+      page 3: merged=12 r∈[2,13] pageRows=14 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+      page 4: merged=12 r∈[2,13] pageRows=14 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+      page 5: merged=12 r∈[2,13] pageRows=14 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+      page 6: merged=10 r∈[2,11] pageRows=12 rm/cm=[2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1, 2/1]
+  VERDICT page-local r : YES
+  VERDICT every page has merged cells : true
+

@@ -1,0 +1,86 @@
+== D1a: sum(range) over literal cells, no dataset
+[D1a] D2=sum(B2:B4)  E2=sum(B3:B4)
+[D1a] calculated grid: 6 rows x 4 cols
+[D1a] (1,1) value="label" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "label"}
+[D1a] (1,2) value="qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "qty"}
+[D1a] (1,3) value="sumAll" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "sumAll"}
+[D1a] (1,4) value="sumMid" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "sumMid"}
+[D1a] (2,1) value=null src=(2,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(2,1) null}
+[D1a] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(2,2) Integer(100)}
+[D1a] (2,3) value=Integer(100) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(100)}
+[D1a] (2,4) value=Integer(200) src=(2,4) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,4) Integer(200)}
+[D1a] (3,1) value=null src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(3,1) null}
+[D1a] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(3,2) Integer(200)}
+[D1a] (3,3) value=null src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(3,3) null}
+[D1a] (3,4) value=null src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(3,4) null}
+[D1a] (4,1) value=null src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(4,1) null}
+[D1a] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(4,2) Integer(150)}
+[D1a] (4,3) value=null src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(4,3) null}
+[D1a] (4,4) value=null src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(4,4) null}
+[D1a] (5,1) value=null src=(5,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[D1a] (5,2) value=null src=(5,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[D1a] (5,3) value=null src=(5,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[D1a] (5,4) value=null src=(5,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,4) null}
+[D1a] (6,1) value=null src=(6,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[D1a] (6,2) value=null src=(6,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[D1a] (6,3) value=null src=(6,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+[D1a] (6,4) value=null src=(6,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
+== D1b: sum(range) over the extended dataset grid
+[D1b] calculated grid: 8 rows x 5 cols
+[D1b] (1,1) value="region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "region"}
+[D1b] (1,2) value="qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "qty"}
+[D1b] (1,3) value="sumB2B4" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "sumB2B4"}
+[D1b] (1,4) value="sumB3B5" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "sumB3B5"}
+[D1b] (1,5) value="sumB4B6" src=(1,5) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,5) "sumB4B6"}
+[D1b] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[D1b] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[D1b] (2,3) value=Integer(100) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(100)}
+[D1b] (2,4) value=Double(0.0) src=(2,4) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,4) Double(0.0)}
+[D1b] (2,5) value=Double(0.0) src=(2,5) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,5) Double(0.0)}
+[D1b] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[D1b] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[D1b] (3,3) value=Integer(100) src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[D1b] (3,4) value=Double(0.0) src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,4) null}
+[D1b] (3,5) value=Double(0.0) src=(3,5) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,5) null}
+[D1b] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[D1b] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[D1b] (4,3) value=Integer(100) src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+[D1b] (4,4) value=Double(0.0) src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
+[D1b] (4,5) value=Double(0.0) src=(4,5) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,5) null}
+[D1b] (5,1) value=null src=(5,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(7,1) null}
+[D1b] (5,2) value=null src=(5,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(7,2) null}
+[D1b] (5,3) value=null src=(5,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(7,3) null}
+[D1b] (5,4) value=null src=(5,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(7,4) null}
+[D1b] (5,5) value=null src=(5,5) rowMerge=1 colMerge=1 extend=16 subCells=1 {(7,5) null}
+[D1b] (6,1) value=null src=(6,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(8,1) null}
+[D1b] (6,2) value=null src=(6,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(8,2) null}
+[D1b] (6,3) value=null src=(6,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(8,3) null}
+[D1b] (6,4) value=null src=(6,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(8,4) null}
+[D1b] (6,5) value=null src=(6,5) rowMerge=1 colMerge=1 extend=16 subCells=1 {(8,5) null}
+[D1b] (7,1) value=null
+[D1b] (7,2) value=null
+[D1b] (7,3) value=null
+[D1b] (7,4) value=null
+[D1b] (7,5) value=null
+[D1b] (8,1) value=null
+[D1b] (8,2) value=null
+[D1b] (8,3) value=null
+[D1b] (8,4) value=null
+[D1b] (8,5) value=null
+== D1c: sum() forms over literal cells B2=100 B3=200 B4=150
+[D1c] sum(B2:B4)  (one operand, range) -> Integer(100)
+[D1c] sum(B2)  (one operand, single cell) -> Integer(100)
+[D1c] sum(B2:B4, value())  (range then current-cell value) -> FAIL ReportError: : 单元格：C2中有错误，C2-C2-C2存在循环引用
+错误来源：C2-C2-C2存在循环引用
+[D1c] sum(value(), B2:B4)  (current-cell value then range) -> FAIL ReportError: 单元格C2中有错误: 表达式：sum(value(), B2:B4)中: 函数参数无效
+[D1c] sum(B2, B2:B4)  (expr B2 over range) -> FAIL ReportError: 单元格C2中有错误: 表达式：sum(B2, B2:B4)中: 函数参数无效
+[D1c] sum(B2:B4, B2)  (range then expr B2) -> FAIL ReportError: 单元格C2中有错误: 表达式：sum(B2:B4, B2)中: 函数参数无效
+[D1c] expected true aggregation would be 450
+== D1d: list-producing sum forms, dataset North=100 East=200 South=150
+[D1d] ds1.sum(qty)  (dataset aggregate (DS function)) -> Integer(450)  gridRows=6
+[D1d] sum(ds1.select(qty))  (sum over a List operand) -> Integer(450)  gridRows=6
+[D1d] ds1.avg(qty)  (dataset average) -> Double(150.0)  gridRows=6
+[D1d] ds1.max(qty)  (dataset max) -> Integer(200)  gridRows=6
+[D1d] ds1.count()  (dataset row count) -> Integer(3)  gridRows=6
+----
+DISAMBIG OK

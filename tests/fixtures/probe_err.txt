@@ -1,0 +1,142 @@
+[2026-10-12 14:05:37] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:37] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:37] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:37] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:37] 
+INFO: 开始运算报表，首先取数......
+
+: 报表系统中保存的应用对象ServletContext为空，可能报表系统没有正常完成初始化，请检查应用日志信息
+	at com.raqsoft.reportl.dataset.FileDataSetFactory.createDataSetM(Unknown Source:85)
+	at com.raqsoft.reportl.usermodel.Engine.calcDataSet(Engine.java:147)
+	at com.raqsoft.reportl.usermodel.Engine.calcDataSet(Engine.java:131)
+	at com.raqsoft.reportl.usermodel.Engine.calc(Engine.java:85)
+	at rpx.fixtures.CalcProbe.calc(CalcProbe.java:131)
+	at rpx.fixtures.ProbeCalc.phaseB(ProbeCalc.java:73)
+	at rpx.fixtures.ProbeCalc.main(ProbeCalc.java:43)
+[2026-10-12 14:05:37] 
+SEVERE: 产生数据工厂com.raqsoft.reportl.dataset.FileDataSetFactory失败。
+: 报表系统中保存的应用对象ServletContext为空，可能报表系统没有正常完成初始化，请检查应用日志信息
+	at com.raqsoft.reportl.dataset.FileDataSetFactory.createDataSetM(Unknown Source:85)
+	at com.raqsoft.reportl.usermodel.Engine.calcDataSet(Engine.java:147)
+	at com.raqsoft.reportl.usermodel.Engine.calcDataSet(Engine.java:131)
+	at com.raqsoft.reportl.usermodel.Engine.calc(Engine.java:85)
+	at rpx.fixtures.CalcProbe.calc(CalcProbe.java:131)
+	at rpx.fixtures.ProbeCalc.phaseB(ProbeCalc.java:73)
+	at rpx.fixtures.ProbeCalc.main(ProbeCalc.java:43)
+
+[2026-10-12 14:05:37] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:37] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:37] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:37] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:37] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:37] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:38] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:38] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:38] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:38] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:38] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:38] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:38] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:38] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:38] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:38] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:38] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:38] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:38] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:38] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:38] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:38] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:38] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:38] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:38] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:38] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:38] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:38] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:38] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:38] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:38] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:38] 
+INFO: 计算结束！
+
+[2026-10-12 14:05:38] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 14:05:38] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 14:05:38] 
+INFO: 报表图片处理......
+
+[2026-10-12 14:05:38] 
+INFO: 计算结束！
+

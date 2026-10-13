@@ -1,0 +1,87 @@
+=== 带 cs 的形状（cs=ExtCellSet）===
+--- lefthead(A1)    （带 cs：左头函数基线（应为 17））
+    树根 priority=17  isOperator=false  isExtended=false
+    LeftHead  pri=17  op=false  ext=false  left=null  right=null
+--- -lefthead(A1)    （带 cs：前缀 18 后接 17（分叉形状））
+    树根 priority=17  isOperator=false  isExtended=false
+    LeftHead  pri=17  op=false  ext=false  left=null  right=null
+--- -sum(A1)    （带 cs 对照：前缀 18 后接 19）
+    树根 priority=18  isOperator=true  isExtended=false
+    Negative  pri=18  op=true  ext=false  left=null  right=Sum
+      Sum  pri=19  op=false  ext=false  left=null  right=null
+--- not lefthead(A1)    （带 cs 对照：前缀 16 后接 17）
+    树根 priority=16  isOperator=true  isExtended=false
+    Not  pri=16  op=true  ext=false  left=null  right=LeftHead
+      LeftHead  pri=17  op=false  ext=false  left=null  right=null
+--- lefthead(A1)+2    （带 cs 对照：中缀 13 后接 17）
+    树根 priority=13  isOperator=true  isExtended=false
+    Add  pri=13  op=true  ext=false  left=LeftHead  right=Constant
+      LeftHead  pri=17  op=false  ext=false  left=null  right=null
+      Constant  pri=19  op=false  ext=false  left=null  right=null
+--- -lefthead(A1)*2    （带 cs：前缀 18 → 17 → 中缀 14）
+    树根 priority=14  isOperator=true  isExtended=false
+    Multiply  pri=14  op=true  ext=false  left=LeftHead  right=Constant
+      LeftHead  pri=17  op=false  ext=false  left=null  right=null
+      Constant  pri=19  op=false  ext=false  left=null  right=null
+=== 不带 cs 的形状（只有不需要引擎矩阵的函数能建成）===
+--- lefthead(1)    （基线：左头函数 17）
+    建表达式失败：java.lang.NullPointerException msg=null
+      at com.raqsoft.reportl.model.expression.function.LeftHead.setParameter(Unknown Source:31)
+      at com.raqsoft.reportl.model.expression.Expression.createNode(Unknown Source:259)
+      at com.raqsoft.reportl.model.expression.Expression.create(Unknown Source:507)
+--- tophead(1)    （基线：顶头函数 17）
+    建表达式失败：java.lang.NullPointerException msg=null
+      at com.raqsoft.reportl.model.expression.function.TopHead.setParameter(Unknown Source:31)
+      at com.raqsoft.reportl.model.expression.Expression.createNode(Unknown Source:259)
+      at com.raqsoft.reportl.model.expression.Expression.create(Unknown Source:507)
+--- mcorder(1)    （基线：mcorder 16）
+    树根 priority=16  isOperator=false  isExtended=false
+    McOrder  pri=16  op=false  ext=false  left=null  right=null
+--- sum(1)    （基线：普通函数 19（对照组））
+    树根 priority=19  isOperator=false  isExtended=false
+    Sum  pri=19  op=false  ext=false  left=null  right=null
+--- -lefthead(1)    （分叉形状：前缀 18 后接 17）
+    建表达式失败：java.lang.NullPointerException msg=null
+      at com.raqsoft.reportl.model.expression.function.LeftHead.setParameter(Unknown Source:31)
+      at com.raqsoft.reportl.model.expression.Expression.createNode(Unknown Source:259)
+      at com.raqsoft.reportl.model.expression.Expression.create(Unknown Source:507)
+--- -sum(1)    （对照组：前缀 18 后接 19）
+    树根 priority=18  isOperator=true  isExtended=false
+    Negative  pri=18  op=true  ext=false  left=null  right=Sum
+      Sum  pri=19  op=false  ext=false  left=null  right=null
+--- -mcorder(1)    （分叉形状：前缀 18 后接 16）
+    树根 priority=16  isOperator=false  isExtended=false
+    McOrder  pri=16  op=false  ext=false  left=null  right=null
+--- not lefthead(1)    （对照组：前缀 16 后接 17）
+    建表达式失败：java.lang.NullPointerException msg=null
+      at com.raqsoft.reportl.model.expression.function.LeftHead.setParameter(Unknown Source:31)
+      at com.raqsoft.reportl.model.expression.Expression.createNode(Unknown Source:259)
+      at com.raqsoft.reportl.model.expression.Expression.create(Unknown Source:507)
+--- lefthead(1)+2    （对照组：中缀 13 后接 17）
+    建表达式失败：java.lang.NullPointerException msg=null
+      at com.raqsoft.reportl.model.expression.function.LeftHead.setParameter(Unknown Source:31)
+      at com.raqsoft.reportl.model.expression.Expression.createNode(Unknown Source:259)
+      at com.raqsoft.reportl.model.expression.Expression.create(Unknown Source:507)
+--- -lefthead(1)+2    （组合：前缀 18 → 17 → 中缀 13）
+    建表达式失败：java.lang.NullPointerException msg=null
+      at com.raqsoft.reportl.model.expression.function.LeftHead.setParameter(Unknown Source:31)
+      at com.raqsoft.reportl.model.expression.Expression.createNode(Unknown Source:259)
+      at com.raqsoft.reportl.model.expression.Expression.create(Unknown Source:507)
+--- -mcorder(1)*2    （组合：前缀 18 → 16 → 中缀 14）
+    树根 priority=14  isOperator=true  isExtended=false
+    Multiply  pri=14  op=true  ext=false  left=McOrder  right=Constant
+      McOrder  pri=16  op=false  ext=false  left=null  right=null
+      Constant  pri=19  op=false  ext=false  left=null  right=null
+--- mcorder(1)+2    （对照组：中缀 13 后接 16）
+    树根 priority=13  isOperator=true  isExtended=false
+    Add  pri=13  op=true  ext=false  left=McOrder  right=Constant
+      McOrder  pri=16  op=false  ext=false  left=null  right=null
+      Constant  pri=19  op=false  ext=false  left=null  right=null
+--- not mcorder(1)    （对照组：前缀 16 后接 16）
+    树根 priority=16  isOperator=false  isExtended=false
+    McOrder  pri=16  op=false  ext=false  left=null  right=null
+--- lefthead(A1)    （左头函数换真格引用）
+    建表达式失败：java.lang.NullPointerException msg=null
+      at com.raqsoft.reportl.model.expression.function.LeftHead.setParameter(Unknown Source:31)
+      at com.raqsoft.reportl.model.expression.Expression.createNode(Unknown Source:259)
+      at com.raqsoft.reportl.model.expression.Expression.create(Unknown Source:507)

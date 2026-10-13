@@ -1,0 +1,200 @@
+  [S1 minus90 + group(3 keys)] TEMPLATE rowTypes={1:-91 2:-90 3:-91}
+[2026-10-12 16:07:24] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 16:07:24] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 16:07:24] 
+INFO: 报表图片处理......
+
+[2026-10-12 16:07:24] 
+INFO: 计算结束！
+
+  [S1 minus90 + group(3 keys)] CALC rows=6 rowTypes={1:-91 2:-90 3:-90 4:-90 5:-91 6:-91} minus90=3 hasGroupHeader=true
+[S1 minus90 + group(3 keys)] calculated grid: 6 rows x 3 cols
+[S1 minus90 + group(3 keys)] (1,1) value="region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "region"}
+[S1 minus90 + group(3 keys)] (1,2) value="qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "qty"}
+[S1 minus90 + group(3 keys)] (1,3) value="grp" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "grp"}
+[S1 minus90 + group(3 keys)] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[S1 minus90 + group(3 keys)] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[S1 minus90 + group(3 keys)] (2,3) value="North" src=(2,3) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,3) "North"}
+[S1 minus90 + group(3 keys)] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[S1 minus90 + group(3 keys)] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[S1 minus90 + group(3 keys)] (3,3) value="East" src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[S1 minus90 + group(3 keys)] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[S1 minus90 + group(3 keys)] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[S1 minus90 + group(3 keys)] (4,3) value="South" src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+  [S2 plain + group(3 keys) CONTROL] TEMPLATE rowTypes={1:-91 2:-91 3:-91}
+[2026-10-12 16:07:24] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 16:07:24] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 16:07:24] 
+INFO: 报表图片处理......
+
+[2026-10-12 16:07:24] 
+INFO: 计算结束！
+
+  [S2 plain + group(3 keys) CONTROL] CALC rows=6 rowTypes={1:-91 2:-91 3:-91 4:-91 5:-91 6:-91} minus90=0 hasGroupHeader=false
+[S2 plain + group(3 keys) CONTROL] calculated grid: 6 rows x 3 cols
+[S2 plain + group(3 keys) CONTROL] (1,1) value="region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "region"}
+[S2 plain + group(3 keys) CONTROL] (1,2) value="qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "qty"}
+[S2 plain + group(3 keys) CONTROL] (1,3) value="grp" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "grp"}
+[S2 plain + group(3 keys) CONTROL] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[S2 plain + group(3 keys) CONTROL] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[S2 plain + group(3 keys) CONTROL] (2,3) value="North" src=(2,3) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,3) "North"}
+[S2 plain + group(3 keys) CONTROL] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[S2 plain + group(3 keys) CONTROL] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[S2 plain + group(3 keys) CONTROL] (3,3) value="East" src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[S2 plain + group(3 keys) CONTROL] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[S2 plain + group(3 keys) CONTROL] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[S2 plain + group(3 keys) CONTROL] (4,3) value="South" src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+  [S3 minus90 + literal (static baseline)] TEMPLATE rowTypes={1:-91 2:-90 3:-91}
+[2026-10-12 16:07:24] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 16:07:24] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 16:07:24] 
+INFO: 报表图片处理......
+
+[2026-10-12 16:07:24] 
+INFO: 计算结束！
+
+  [S3 minus90 + literal (static baseline)] CALC rows=6 rowTypes={1:-91 2:-90 3:-90 4:-90 5:-91 6:-91} minus90=3 hasGroupHeader=true
+[S3 minus90 + literal (static baseline)] calculated grid: 6 rows x 3 cols
+[S3 minus90 + literal (static baseline)] (1,1) value="region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "region"}
+[S3 minus90 + literal (static baseline)] (1,2) value="qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "qty"}
+[S3 minus90 + literal (static baseline)] (1,3) value="grp" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "grp"}
+[S3 minus90 + literal (static baseline)] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[S3 minus90 + literal (static baseline)] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[S3 minus90 + literal (static baseline)] (2,3) value="static header" src=(2,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(2,3) "static header"}
+[S3 minus90 + literal (static baseline)] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[S3 minus90 + literal (static baseline)] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[S3 minus90 + literal (static baseline)] (3,3) value="static header" src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[S3 minus90 + literal (static baseline)] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[S3 minus90 + literal (static baseline)] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[S3 minus90 + literal (static baseline)] (4,3) value="static header" src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+  [S4 minus90 + group(1 key)] TEMPLATE rowTypes={1:-91 2:-90 3:-91}
+[2026-10-12 16:07:24] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 16:07:24] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 16:07:24] 
+INFO: 报表图片处理......
+
+[2026-10-12 16:07:24] 
+INFO: 计算结束！
+
+  [S4 minus90 + group(1 key)] CALC rows=6 rowTypes={1:-91 2:-90 3:-90 4:-90 5:-91 6:-91} minus90=3 hasGroupHeader=true
+[S4 minus90 + group(1 key)] calculated grid: 6 rows x 3 cols
+[S4 minus90 + group(1 key)] (1,1) value="region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "region"}
+[S4 minus90 + group(1 key)] (1,2) value="qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "qty"}
+[S4 minus90 + group(1 key)] (1,3) value="grp" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "grp"}
+[S4 minus90 + group(1 key)] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "North"} {(4,1) "North"}
+[S4 minus90 + group(1 key)] (2,2) value=Integer(1) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(1)}
+[S4 minus90 + group(1 key)] (2,3) value="North" src=(2,3) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,3) "North"}
+[S4 minus90 + group(1 key)] (3,1) value="North" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[S4 minus90 + group(1 key)] (3,2) value=Integer(2) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[S4 minus90 + group(1 key)] (3,3) value="North" src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[S4 minus90 + group(1 key)] (4,1) value="North" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[S4 minus90 + group(1 key)] (4,2) value=Integer(3) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[S4 minus90 + group(1 key)] (4,3) value="North" src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+  [S5 minus90 + group(40 rows)] TEMPLATE rowTypes={1:-91 2:-90 3:-91}
+[2026-10-12 16:07:24] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 16:07:24] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 16:07:24] 
+INFO: 报表图片处理......
+
+[2026-10-12 16:07:24] 
+INFO: 计算结束！
+
+  [S5 40-row dataset] CALC rows=43 rowTypes={1:-91 2:-90 3:-90 4:-90 5:-90 6:-90 7:-90 8:-90 9:-90 10:-90 11:-90 12:-90 13:-90 14:-90 15:-90 16:-90 17:-90 18:-90 19:-90 20:-90 21:-90 22:-90 23:-90 24:-90 25:-90 26:-90 27:-90 28:-90 29:-90 30:-90 31:-90 32:-90 33:-90 34:-90 35:-90 36:-90 37:-90 38:-90 39:-90 40:-90 41:-90 42:-91 43:-91} minus90=40 hasGroupHeader=true
+[S5] FAIL: java.lang.NullPointerException: null
+[S5]   at com.raqsoft.reportl.model.engine.SimplePager.createPages(Unknown Source:261)
+[S5]   at com.raqsoft.reportl.usermodel.PageBuilder.init1(PageBuilder.java:406)
+[S5]   at com.raqsoft.reportl.usermodel.PageBuilder.init(PageBuilder.java:378)
+[S5]   at com.raqsoft.reportl.usermodel.PageBuilder.<init>(PageBuilder.java:305)
+[S5]   at com.raqsoft.reportl.usermodel.PageBuilder.<init>(PageBuilder.java:299)
+[S5]   at rpx.fixtures.CalcProbe.dumpPages(CalcProbe.java:212)
+  [S6 group on row3 (row3 never -90)] TEMPLATE rowTypes={1:-91 2:-91 3:-91}
+[2026-10-12 16:07:24] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 16:07:24] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 16:07:24] 
+INFO: 报表图片处理......
+
+[2026-10-12 16:07:24] 
+INFO: 计算结束！
+
+  [S6 group on row3 (row3 never -90)] CALC rows=8 rowTypes={1:-91 2:-91 3:-91 4:-91 5:-91 6:-91 7:-91 8:-91} minus90=0 hasGroupHeader=false
+[S6 group on row3 (row3 never -90)] calculated grid: 8 rows x 3 cols
+[S6 group on row3 (row3 never -90)] (1,1) value="region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "region"}
+[S6 group on row3 (row3 never -90)] (1,2) value="qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "qty"}
+[S6 group on row3 (row3 never -90)] (1,3) value="grp" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "grp"}
+[S6 group on row3 (row3 never -90)] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[S6 group on row3 (row3 never -90)] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[S6 group on row3 (row3 never -90)] (3,1) value="East" src=(3,1) rowMerge=3 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[S6 group on row3 (row3 never -90)] (3,2) value=Integer(200) src=(3,2) rowMerge=3 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[S6 group on row3 (row3 never -90)] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(8,1) null}
+[S6 group on row3 (row3 never -90)] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(8,2) null}
+[S6 group on row3 (row3 never -90)] (5,3) value="North"
+[S6 group on row3 (row3 never -90)] (6,3) value="East"
+[S6 group on row3 (row3 never -90)] (7,3) value="South"
+  [S7 CONTROL: -90 NOT on anchor] TEMPLATE rowTypes={1:-91 2:-90 3:-91}
+[2026-10-12 16:07:24] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 16:07:24] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 16:07:24] 
+INFO: 报表图片处理......
+
+[2026-10-12 16:07:24] 
+INFO: 计算结束！
+
+  [S7 40-row dataset] CALC rows=44 rowTypes={1:-91 2:-90 3:-91 4:-91 5:-91 6:-91 7:-91 8:-91 9:-91 10:-91 11:-91 12:-91 13:-91 14:-91 15:-91 16:-91 17:-91 18:-91 19:-91 20:-91 21:-91 22:-91 23:-91 24:-91 25:-91 26:-91 27:-91 28:-91 29:-91 30:-91 31:-91 32:-91 33:-91 34:-91 35:-91 36:-91 37:-91 38:-91 39:-91 40:-91 41:-91 42:-91 43:-91 44:-91} minus90=1 hasGroupHeader=true
+[S7 CONTROL paginate] pageCount=11 xPages=1 yPages=11 rowNumPerPage=20
+[S7 CONTROL paginate] page 1: rows=5 | r1="region" r3="R1" r4="R2" r5="R3" 
+[S7 CONTROL paginate] page 2: rows=5 | r2="R4" r3="R5" r4="R6" r5="R7" 
+[S7 CONTROL paginate] page 3: rows=5 | r2="R8" r3="R9" r4="R10" r5="R11" 
+[S7 CONTROL paginate] page 4: rows=5 | r2="R12" r3="R13" r4="R14" r5="R15" 
+[S7 CONTROL paginate] page 5: rows=5 | r2="R16" r3="R17" r4="R18" r5="R19" 
+[S7 CONTROL paginate] page 6: rows=5 | r2="R20" r3="R21" r4="R22" r5="R23" 
+[S7 CONTROL paginate] page 7: rows=5 | r2="R24" r3="R25" r4="R26" r5="R27" 
+[S7 CONTROL paginate] page 8: rows=5 | r2="R28" r3="R29" r4="R30" r5="R31" 
+[S7 CONTROL paginate] page 9: rows=5 | r2="R32" r3="R33" r4="R34" r5="R35" 
+[S7 CONTROL paginate] page 10: rows=5 | r2="R36" r3="R37" r4="R38" r5="R39" 
+[S7 CONTROL paginate] page 11: rows=4 | r2="R40" 
+  [S7] PAGINATION OK -- -90 off the anchor does NOT NPE
+  [S8 CONTROL: -90 on anchor, 3 rows] TEMPLATE rowTypes={1:-91 2:-90 3:-91}
+[2026-10-12 16:07:24] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-12 16:07:24] 
+INFO: 取数结束,开始运算
+
+[2026-10-12 16:07:24] 
+INFO: 报表图片处理......
+
+[2026-10-12 16:07:24] 
+INFO: 计算结束！
+
+  [S8 3-row dataset] CALC rows=6 rowTypes={1:-91 2:-90 3:-90 4:-90 5:-91 6:-91} minus90=3 hasGroupHeader=true
+[S8 CONTROL paginate] pageCount=1 xPages=1 yPages=1 rowNumPerPage=20
+[S8 CONTROL paginate] page 1: rows=6 | r1="region" r2="North" r3="East" r4="South" 
+  [S8] PAGINATION OK -- few rows does NOT NPE

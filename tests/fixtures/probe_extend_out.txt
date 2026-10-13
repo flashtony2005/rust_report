@@ -1,0 +1,49 @@
+== D2: extendMode 16 / 18 / 17 against a 5-row dataset
+[D2] EXTEND_DEFAULT(16) -> calc grid 6 rows x 3 cols anchor subCells=5 anchor extend=18 effective extend=18
+[D2]   row 1 col1="region"
+[D2]   row 2 col1="R1"
+[D2]   row 3 col1="R2"
+[D2]   row 4 col1="R3"
+[D2]   row 5 col1="R4"
+[D2]   row 6 col1="R5"
+[D2] EXTEND_VERTICAL(18) -> calc grid 6 rows x 3 cols anchor subCells=5 anchor extend=18 effective extend=18
+[D2]   row 1 col1="region"
+[D2]   row 2 col1="R1"
+[D2]   row 3 col1="R2"
+[D2]   row 4 col1="R3"
+[D2]   row 5 col1="R4"
+[D2]   row 6 col1="R5"
+[D2] EXTEND_NONE(17) -> calc grid 6 rows x 3 cols anchor subCells=1 anchor extend=17 effective extend=17
+[D2]   row 1 col1="region"
+[D2]   row 2 col1=ArrayList([R1, R2, R3, R4, R5])
+[D2]   row 3 col1=ArrayList([R1, R2, R3, R4, R5])
+[D2]   row 4 col1=ArrayList([R1, R2, R3, R4, R5])
+[D2]   row 5 col1=ArrayList([R1, R2, R3, R4, R5])
+[D2]   row 6 col1=ArrayList([R1, R2, R3, R4, R5])
+[D2] EXTEND_HORIZONTAL(19) -> calc grid 6 rows x 7 cols anchor subCells=5 anchor extend=19 effective extend=19
+[D2]   row 1 col1="region"
+[D2]   row 2 col1="R1"
+[D2]   row 3 col1="R1"
+[D2]   row 4 col1="R1"
+[D2]   row 5 col1="R1"
+[D2]   row 6 col1="R1"
+== D2b: EXTEND_HORIZONTAL(19) from column 1 vs last column
+[D2b] template cols=3 mode19 at col 1 -> calc grid 2x7 | row2: 1="R1" 2="R2" 3="R3" 4="R4" 5="R5" 6=null 7=null 
+[D2b] template cols=4 mode19 at col 4 -> calc grid 2x8 | row2: 1=null 2=null 3=null 4="R1" 5="R2" 6="R3" 7="R4" 8="R5" 
+== D3: pagination baseline, explicit unit
+[D3] unit=1 (1=mm) rowHeight=20 calc grid 42 rows
+[D3] pageCount=3 xPages=1 yPages=3 rowNumPerPage=20
+[D3] page 1: rows=14 | r1="region" r2="R1" r3="R2" r4="R3" r5="R4" r6="R5" r7="R6" r8="R7" r9="R8" r10="R9" r11="R10" r12="R11" r13="R12" r14="R13" 
+[D3] page 2: rows=14 | r1="R14" r2="R15" r3="R16" r4="R17" r5="R18" r6="R19" r7="R20" r8="R21" r9="R22" r10="R23" r11="R24" r12="R25" r13="R26" r14="R27" 
+[D3] page 3: rows=14 | r1="R28" r2="R29" r3="R30" r4="R31" r5="R32" r6="R33" r7="R34" r8="R35" r9="R36" r10="R37" r11="R38" r12="R39" r13="R40" 
+== D4: group header row variants
+[D4v1] -90 on anchor row -> 42 rows, hasGroupHeader=true, row types: 1:-91 2:-90 3:-90 4:-90 5:-90 6:-90 
+[D4v1] FAIL (expected): java.lang.NullPointerException
+[D4v2] dedicated -90 group row -> 43 rows, hasGroupHeader=true, row types: 1:-91 2:-90 3:-91 4:-91 5:-91 6:-91 
+[D4v2] pageCount=4 xPages=1 yPages=4 rowNumPerPage=20
+[D4v2] page 1: rows=14 | r1="region" r2="group: R*" r3="R1" r4="R2" r5="R3" r6="R4" r7="R5" r8="R6" r9="R7" r10="R8" r11="R9" r12="R10" r13="R11" r14="R12" 
+[D4v2] page 2: rows=14 | r1="group: R*" r2="R13" r3="R14" r4="R15" r5="R16" r6="R17" r7="R18" r8="R19" r9="R20" r10="R21" r11="R22" r12="R23" r13="R24" r14="R25" 
+[D4v2] page 3: rows=14 | r1="group: R*" r2="R26" r3="R27" r4="R28" r5="R29" r6="R30" r7="R31" r8="R32" r9="R33" r10="R34" r11="R35" r12="R36" r13="R37" r14="R38" 
+[D4v2] page 4: rows=4 | r1="group: R*" r2="R39" r3="R40" 
+----
+EXTEND OK

@@ -1,0 +1,8 @@
+[package]
+name = "rpx-cli"
+version = "0.1.0"
+edition.workspace = true
+description = "ReportLite .rpx inspector CLI (print command)"
+
+[dependencies]
+rpx-core = { path = "../rpx-core" }

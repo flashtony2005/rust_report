@@ -1,0 +1,49 @@
+==== PART 1: literal cells (in-memory vs .rpx read-back) ====
+[lit] planted 12 typed literals
+[lit-inmem] (2,1) L1:Integer	 value=100 type=int
+[lit-inmem] (2,2) L2:Long	 value=1234567890123 type=long
+[lit-inmem] (2,3) L3:Double	 value=100 type=double
+[lit-inmem] (2,4) L4:Double	 value=92.5 type=double
+[lit-inmem] (2,5) L5:Float	 value=1.5 type=float
+[lit-inmem] (2,6) L6:BigDecimal	 value=100.00 type=decimal
+[lit-inmem] (2,7) L7:BigDecimal	 value=3.14159 type=decimal
+[lit-inmem] (2,8) L8:Boolean	 value=true type=boolean
+[lit-inmem] (2,9) L9:Boolean	 value=false type=boolean
+[lit-inmem] (2,10) L10:String	 value="txt" type=string
+[lit-inmem] (2,11) L11:Short	 value=7 type=Short
+[lit-inmem] (2,12) L12:Byte	 value=9 type=Byte
+[lit-readback] (2,1) L1:Integer	 value=100 type=int
+[lit-readback] (2,2) L2:Long	 value=1234567890123 type=long
+[lit-readback] (2,3) L3:Double	 value=100 type=double
+[lit-readback] (2,4) L4:Double	 value=92.5 type=double
+[lit-readback] (2,5) L5:Float	 value=1.5 type=float
+[lit-readback] (2,6) L6:BigDecimal	 value=100.00 type=decimal
+[lit-readback] (2,7) L7:BigDecimal	 value=3.14159 type=decimal
+[lit-readback] (2,8) L8:Boolean	 value=true type=boolean
+[lit-readback] (2,9) L9:Boolean	 value=false type=boolean
+[lit-readback] (2,10) L10:String	 value="txt" type=string
+[lit-readback] (2,11) L11:Short	 value=7 type=Short
+[lit-readback] (2,12) L12:Byte	 value=9 type=Byte
+[lit] ROUND-TRIP OK: every literal type survived .rpx
+==== PART 2: expressions (no dataset) ====
+[exp A2/3] (3,1) value=33.333333333333336 type=double
+[exp A2*1.0] (3,1) value=100 type=double
+[exp A2/2] (3,1) value=50 type=double
+[exp A2+B2] (3,1) value=300 type=int
+[exp A2*C2] (3,1) value=200 type=double
+[exp A2-B2] (3,1) value=-100 type=int
+[exp A2/C2] (3,1) value=50 type=double
+[exp A2*100000000000] (3,1) value=10000000000000 type=long
+[exp A2>B2] (3,1) value=false type=boolean
+[exp A2==B2] (3,1) value=false type=boolean
+[exp D2*2] (3,1) value=6 type=decimal
+[exp A2/D2] (3,1) value=33.33333333333333333333 type=decimal
+==== PART 3: dataset aggregates ====
+[agg] (3,1) ds1.sum(qty)	 value=450 type=int
+[agg] (3,2) sum(ds1.select(qty))	 value=450 type=int
+[agg] (3,3) ds1.count()	 value=3 type=int
+[agg] (3,4) ds1.avg(qty)	 value=150 type=double
+[agg] (3,5) ds1.max(qty)	 value=200 type=int
+[agg] (3,6) ds1.min(qty)	 value=100 type=int
+==== PART 4: typeName coverage of the shipped fixtures ====
+[note] see _shape_audit.py for the full histogram

@@ -1,0 +1,20 @@
+=== 0. 源码规则（Escape.java:173-214，已逐行读）===
+  \t→9  \r→13  \n→10
+  其它 \x → 只留 x（丢反斜杠）        :203-206 default
+  非 escape 字符原样                     :208-210
+  ? 结尾的孤立 \ → 整段丢弃（不是保留）   :188 if (++i == len) break;
+
+=== A. 字符串字面量（Escape.remove 直调）===
+  字面量 'a\tb'             → 值="a	b"  类型=String
+  字面量 'a\nb'             → 值="a
+b"  类型=String
+  字面量 'a\xb'             → 值="axb"  类型=String
+  字面量 'a\\b'             → 值="a\b"  类型=String
+  字面量 'a\"b'             → 值="a"b"  类型=String
+
+=== B. `$[...]` 常量（先 trim 再 Escape.remove）===
+  表达式 $[abc]             → 值="abc"  类型=String
+  表达式 $[ a b ]           → 值="a b"  类型=String
+  表达式 $[a\tb]            → 值="a	b"  类型=String
+  表达式 $[a\xb]            → 值="axb"  类型=String
+  表达式 $[a\]              → 抛异常 ReportError "单元格A2中有错误: 表达式：$[a\]中: 未知的单元格：$"

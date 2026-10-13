@@ -1,0 +1,25 @@
+# Rust 构建产物（本机 target/ 约 2.3G，禁止入库）
+/target
+
+# 根目录散落调试日志
+/_c.log
+/_mut.log
+/_t.log
+/_test_base.txt
+/_test_ws.log
+/_v2.txt
+
+# tests/fixtures 下的临时探针产物
+/tests/fixtures/_bdo
+/tests/fixtures/_probe_mergepages.csv
+/tests/fixtures/_probe_mergepages.rpx
+/tests/fixtures/_shape_audit.py
+
+# 编译后的 Java 探针产物
+*.class
+/out/
+
+# 操作系统 / 编辑器
+.DS_Store
+Thumbs.db
+*.swp

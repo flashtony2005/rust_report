@@ -1,0 +1,9 @@
+[workspace]
+members = ["crates/rpx-core", "crates/rpx-cli", "crates/rpx-engine"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+
+[profile.dev]
+opt-level = 0

@@ -1,0 +1,11 @@
+# 强制以 LF 入库，避免 Windows autocrlf 把源码改写 CRLF
+* text=auto eol=lf
+
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.java text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.py text eol=lf
+*.txt text eol=lf

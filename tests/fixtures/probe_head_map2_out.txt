@@ -1,0 +1,34 @@
+=== 0. 本探针要回答的问题 ===
+  S1: _$2 的首分支（sameRowTypeAs && containCol && 19==extend）能不能命中？
+  S2: 两个 19 扩展格上下相邻时，上 head 取**最近**（递减）还是**最远**（递增）？
+  S3: 同行两个 18 扩展格时，左 head 取最近还是最远？（受控判别样本）
+  S4: 连续三格能否拿到「头的头」（_$3/_$2 的第二条返回路径）？
+  判读：结果若是 cell00 ? 该分支未命中；若是具体坐标 ? 命中，且坐标本身判别方向
+
+=== S1 上 head 的 19 分支 ===
+  S1 grid=3x6
+    模板(1,1) → 计算格(1,1) extend=19 leftHead=cell00 topHead=cell00
+    模板(2,1) → 计算格(2,1) extend=16 leftHead=cell00 topHead=(1,1)
+    模板(3,1) → 计算格(3,1) extend=16 leftHead=cell00 topHead=(1,1)
+
+=== S2 上 head 的方向（两个 19 扩展格上下相邻）===
+  S2 grid=6x6
+    模板(1,1) → 计算格(1,1) extend=19 leftHead=cell00 topHead=cell00
+    模板(3,1) → 计算格(3,1) extend=19 leftHead=cell00 topHead=(1,1)
+    模板(6,1) → 计算格(6,1) extend=16 leftHead=cell00 topHead=(3,1)
+  判读：若 (6,1) 的 topHead = (3,1) ? **递减**（最近）；= (1,1) ? 递增（最远）
+
+=== S3 左 head 的方向（同行两个 18 扩展格，受控）===
+  S3 grid=6x5
+    模板(2,1) → 计算格(2,1) extend=18 leftHead=cell00 topHead=cell00
+    模板(2,3) → 计算格(2,3) extend=18 leftHead=(2,1) topHead=cell00
+    模板(2,5) → 计算格(2,5) extend=16 leftHead=(2,3) topHead=cell00
+  判读：若 (2,5) 的 leftHead = (2,3) ? **递减**（最近）；= (2,1) ? 递增（最远）
+
+=== S4 连续三格：能否拿到「头的头」===
+  S4 grid=7x6
+    模板(2,1) → 计算格(2,1) extend=18 leftHead=cell00 topHead=cell00
+    模板(2,2) → 计算格(2,2) extend=18 leftHead=(2,1) topHead=cell00
+    模板(2,3) → 计算格(2,3) extend=18 leftHead=(2,2) topHead=cell00
+    模板(2,4) → 计算格(2,4) extend=16 leftHead=(2,3) topHead=cell00
+    模板(2,5) → 计算格(2,5) extend=16 leftHead=(2,3) topHead=cell00

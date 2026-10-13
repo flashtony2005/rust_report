@@ -1,0 +1,151 @@
+== Phase A: headless calc, no dataset (./simple.rpx)
+[A] calculated grid: 5 rows x 4 cols
+[A] (1,1) value="ReportLite" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "ReportLite"}
+[A] (1,2) value="Sales" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "Sales"}
+[A] (1,3) value="Region" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "Region"}
+[A] (1,4) value="Qty" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "Qty"}
+[A] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(2,1) "North"}
+[A] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(2,2) Integer(100)}
+[A] (2,3) value="East" src=(2,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(2,3) "East"}
+[A] (2,4) value=Integer(200) src=(2,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(2,4) Integer(200)}
+[A] (3,1) value="South" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(3,1) "South"}
+[A] (3,2) value=Integer(150) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(3,2) Integer(150)}
+[A] (3,3) value="West" src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(3,3) "West"}
+[A] (3,4) value=Integer(120) src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(3,4) Integer(120)}
+[A] (4,1) value="Total" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(4,1) "Total"}
+[A] (4,2) value=Integer(370) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(4,2) Integer(370)}
+[A] (5,1) value="Avg" src=(5,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) "Avg"}
+[A] (5,2) value=Double(92.5) src=(5,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) Double(92.5)}
+== Phase B: calc with FileDataSetConfig, data.csv absent (./full.rpx)
+[B] calc threw: com.raqsoft.commonl.ReportError: : 产生数据工厂com.raqsoft.reportl.dataset.FileDataSetFactory失败。 (数据集名称):ds1 
+错误来源：: 报表系统中保存的应用对象ServletContext为空，可能报表系统没有正常完成初始化，请检查应用日志信息
+[B] -> a missing dataset source IS fatal unless the dataset
+[B]    is pre-injected into Context (see Phase D)
+== Phase C: calc through the real FileDataSetFactory
+[C] wrote .\data.csv
+[C] calculated grid: 8 rows x 4 cols
+[C] (1,1) value="Region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "Region"}
+[C] (1,2) value="Qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "Qty"}
+[C] (1,3) value="Doubled" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "Doubled"}
+[C] (1,4) value="Running" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "Running"}
+[C] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[C] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[C] (2,3) value=Integer(200) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(200)}
+[C] (2,4) value=Integer(100) src=(2,4) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,4) Integer(100)}
+[C] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[C] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[C] (3,3) value=Integer(400) src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[C] (3,4) value=Integer(200) src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,4) null}
+[C] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[C] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[C] (4,3) value=Integer(300) src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+[C] (4,4) value=Integer(150) src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
+== Phase D: in-memory DataSet injection + expression cells
+[D] calculated grid: 8 rows x 4 cols
+[D] (1,1) value="Region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "Region"}
+[D] (1,2) value="Qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "Qty"}
+[D] (1,3) value="Doubled" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "Doubled"}
+[D] (1,4) value="Running" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "Running"}
+[D] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[D] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[D] (2,3) value=Integer(200) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(200)}
+[D] (2,4) value=Integer(100) src=(2,4) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,4) Integer(100)}
+[D] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[D] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[D] (3,3) value=Integer(400) src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[D] (3,4) value=Integer(200) src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,4) null}
+[D] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[D] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[D] (4,3) value=Integer(300) src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+[D] (4,4) value=Integer(150) src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
+== Phase E: TextReport view over the calculated grid
+[E] TextReport length=1298 first line:                                                                                                                     
+== Phase F: expression variants over the extended grid
+[F] --- sum($B2:B2)  (range, absolute col, single cell)
+[F] calculated grid: 8 rows x 4 cols
+[F] (1,1) value="Region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "Region"}
+[F] (1,2) value="Qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "Qty"}
+[F] (1,3) value="Doubled" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "Doubled"}
+[F] (1,4) value="Running" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "Running"}
+[F] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[F] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[F] (2,3) value=Integer(200) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(200)}
+[F] (2,4) value=Integer(100) src=(2,4) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,4) Integer(100)}
+[F] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[F] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[F] (3,3) value=Integer(400) src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[F] (3,4) value=Integer(200) src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,4) null}
+[F] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[F] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[F] (4,3) value=Integer(300) src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+[F] (4,4) value=Integer(150) src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
+[F] --- sum(B2:B2)  (range, relative, single cell)
+[F] calculated grid: 8 rows x 4 cols
+[F] (1,1) value="Region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "Region"}
+[F] (1,2) value="Qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "Qty"}
+[F] (1,3) value="Doubled" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "Doubled"}
+[F] (1,4) value="Running" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "Running"}
+[F] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[F] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[F] (2,3) value=Integer(200) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(200)}
+[F] (2,4) value=Integer(100) src=(2,4) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,4) Integer(100)}
+[F] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[F] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[F] (3,3) value=Integer(400) src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[F] (3,4) value=Integer(200) src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,4) null}
+[F] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[F] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[F] (4,3) value=Integer(300) src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+[F] (4,4) value=Integer(150) src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
+[F] --- sum($B2:B4)  (range, absolute col, multi cell)
+[F] calculated grid: 8 rows x 4 cols
+[F] (1,1) value="Region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "Region"}
+[F] (1,2) value="Qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "Qty"}
+[F] (1,3) value="Doubled" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "Doubled"}
+[F] (1,4) value="Running" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "Running"}
+[F] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[F] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[F] (2,3) value=Integer(200) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(200)}
+[F] (2,4) value=Integer(100) src=(2,4) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,4) Integer(100)}
+[F] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[F] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[F] (3,3) value=Integer(400) src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[F] (3,4) value=Integer(200) src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,4) null}
+[F] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[F] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[F] (4,3) value=Integer(300) src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+[F] (4,4) value=Integer(150) src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
+[F] --- B2*2  (plain cell ref arithmetic (control))
+[F] calculated grid: 8 rows x 4 cols
+[F] (1,1) value="Region" src=(1,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,1) "Region"}
+[F] (1,2) value="Qty" src=(1,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,2) "Qty"}
+[F] (1,3) value="Doubled" src=(1,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,3) "Doubled"}
+[F] (1,4) value="Running" src=(1,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(1,4) "Running"}
+[F] (2,1) value="North" src=(2,1) rowMerge=1 colMerge=1 extend=18 subCells=3 {(2,1) "North"} {(3,1) "East"} {(4,1) "South"}
+[F] (2,2) value=Integer(100) src=(2,2) rowMerge=1 colMerge=1 extend=18 subCells=1 {(2,2) Integer(100)}
+[F] (2,3) value=Integer(200) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(200)}
+[F] (2,4) value=Integer(200) src=(2,4) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,4) Integer(200)}
+[F] (3,1) value="East" src=(3,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,1) null}
+[F] (3,2) value=Integer(200) src=(3,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,2) null}
+[F] (3,3) value=Integer(400) src=(3,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,3) null}
+[F] (3,4) value=Integer(400) src=(3,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(5,4) null}
+[F] (4,1) value="South" src=(4,1) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,1) null}
+[F] (4,2) value=Integer(150) src=(4,2) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,2) null}
+[F] (4,3) value=Integer(300) src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
+[F] (4,4) value=Integer(300) src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
+== Phase G: pagination via PageBuilder
+[G] pageCount=3 xPages=1 yPages=3 rowNumPerPage=20
+[G] page 1: rows=14 | r1="Region" r2="R1" r3="R2" r4="R3" r5="R4" r6="R5" r7="R6" r8="R7" r9="R8" r10="R9" r11="R10" r12="R11" r13="R12" r14="R13" 
+[G] page 2: rows=14 | r1="R14" r2="R15" r3="R16" r4="R17" r5="R18" r6="R19" r7="R20" r8="R21" r9="R22" r10="R23" r11="R24" r12="R25" r13="R26" r14="R27" 
+[G] page 3: rows=14 | r1="R28" r2="R29" r3="R30" r4="R31" r5="R32" r6="R33" r7="R34" r8="R35" r9="R36" r10="R37" r11="R38" r12="R39" r13="R40" 
+== Phase H: group header rows in pagination
+[H] calc grid 42 rows x 3 cols, hasGroupHeader=true, first row types: 1:-91 2:-90 3:-90 4:-90 5:-90 6:-90 7:-90 8:-90 
+[H] FAIL: java.lang.NullPointerException: null
+[H]   at com.raqsoft.reportl.model.engine.SimplePager.createPages(Unknown Source:261)
+[H]   at com.raqsoft.reportl.usermodel.PageBuilder.init1(PageBuilder.java:406)
+[H]   at com.raqsoft.reportl.usermodel.PageBuilder.init(PageBuilder.java:378)
+[H]   at com.raqsoft.reportl.usermodel.PageBuilder.<init>(PageBuilder.java:305)
+[H]   at com.raqsoft.reportl.usermodel.PageBuilder.<init>(PageBuilder.java:299)
+[H]   at rpx.fixtures.CalcProbe.dumpPages(CalcProbe.java:212)
+----
+PROBE PARTIAL: 1 phase(s) blocked

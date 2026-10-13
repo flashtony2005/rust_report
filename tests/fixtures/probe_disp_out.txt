@@ -1,0 +1,39 @@
+=== DISP-0 模板态：写进去的值 / 显示值 ===
+  (2,1) value="North" type=String dispValue="北区"
+  (2,2) value=Integer(100) type=Integer dispValue="100.00"
+  (2,3) value=null type=null dispValue="仅显示值"
+  (2,4) value=null type=null dispValue="6 件"
+  (3,1) value=null type=null dispValue="Q"
+
+=== DISP-1 计算态：dispValue 是否存活 ===
+  grid 6 x 4
+  (1,1) value="A" type=String dispValue=null
+  (1,2) value="B" type=String dispValue=null
+  (1,3) value="C" type=String dispValue=null
+  (1,4) value="D" type=String dispValue=null
+  (2,1) value="North" type=String dispValue="北区"   <== 非平凡显示值
+  (2,2) value=Integer(100) type=Integer dispValue="100.00"   <== 非平凡显示值
+  (2,3) value=null type=null dispValue="仅显示值"   <== 非平凡显示值
+  (2,4) value=Integer(6) type=Integer dispValue="6 件"   <== 非平凡显示值
+  (3,1) value=Integer(100) type=Integer dispValue="Q"   <== 非平凡显示值
+  (4,1) value=Integer(200) type=Integer dispValue="Q"   <== 非平凡显示值
+  (5,1) value=Integer(150) type=Integer dispValue="Q"   <== 非平凡显示值
+  DISP-4 锚点(3,1) extend=18 subCells=3 rowMerge=1 colMerge=1
+    sub[0] (3,1) value=Integer(100) dispValue="Q"
+    sub[1] (4,1) value=Integer(200) dispValue="Q"
+    sub[2] (5,1) value=Integer(150) dispValue="Q"
+  DISP-1 判决：非平凡 dispValue 存活格数 = 7（存活）
+
+=== DISP-2 只设 dispValue、value=null 的格 (2,3) ===
+  模板态：value=null type=null dispValue="仅显示值"
+  计算态：value=null type=null dispValue="仅显示值"
+
+=== DISP-3 .rpx 写→读 是否携带 dispValue ===
+  写出 .\out\disp_probe.rpx 3114 字节
+  (2,1) 写[value="North" type=String dispValue="北区"] 读[value="North" type=String dispValue="北区"]  OK
+  (2,2) 写[value=Integer(100) type=Integer dispValue="100.00"] 读[value=Integer(100) type=Integer dispValue="100.00"]  OK
+  (2,3) 写[value=null type=null dispValue="仅显示值"] 读[value=null type=null dispValue="仅显示值"]  OK
+  (2,4) 写[value=null type=null dispValue="6 件"] 读[value=null type=null dispValue="6 件"]  OK
+  (3,1) 写[value=null type=null dispValue="Q"] 读[value=null type=null dispValue="Q"]  OK
+  DISP-3 判决：回读一致 5/5 格
+[DISP] exit 0
