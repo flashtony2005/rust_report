@@ -37,7 +37,7 @@ M3 = 把 M1/M2 的**库能力**变成可用的**服务**：
 | M3-04 | 报表资产库：本地 SQLite（`.rpx` BLOB + 元信息 + 参数清单）✅ **已达成**（2026-10-15；libSQL→sqlx/sqlite 偏离定案见 §3.5） | `rpx-ds`（AssetStore）+ `rpx-server`（三路由） |
 | M3-05 | `rpx-server`：axum 路由 + `POST /render` 主链路                                 | 新 crate                   |
 | M3-06 | 分页真实口径：`/render` 按 `print_setup` 驱动 `pagination`（探针口径仅为对拍保留）               | `rpx-engine` 接口 + server 接线 |
-| M3-07 | 门禁扩展（G1–G7 覆盖新 crate + 依赖分层 G5）+ e2e 冒烟                                  | `scripts/gate.sh` + tests |
+| M3-07 | 门禁扩展（G1–G7 覆盖新 crate + **G8 分层矩阵**）+ e2e 冒烟 ✅ **已达成**（2026-10-15） | `scripts/gate.sh`（G8）+ `scripts/e2e_smoke.sh` |
 | M3-08 | 快照协议：Univer `IWorkbookData` 映射（含**样式直通**；动态样式宏后置）⚠ **提为关键路径，v1 先行**（契约已定 `spec-m4.md` §4） | `rpx-server`（dev bin + HTTP 双通道均已就绪） |
 
 ### 2.2 明确不做
@@ -158,7 +158,7 @@ schema（蓝图 §8.2 草稿落地）：`reports(id, name, rpx BLOB, version, cr
 | M3-04 | 报表资产     | ✅ **已达成**（2026-10-15）：`POST /reports`（multipart `file`，`rpx_core::open_bytes` 魔数预检 → BLOB + 参数清单**上传时**落库）/ `GET /reports` / `GET /reports/{id}/meta`（读库即答；`is_static` 按 `Param.paramType==0`（`PARAM_NORMAL`，`Param.java:22-24`）派生，原样存 `param_type` 不归并）；坏魔数 400 / 缺 id 404 与空清单可区分；单测 4 + HTTP 3（`full.rpx` 的 startDate/topN 真实参数） | P0  |
 | M3-05 | `/render` 快照 | ✅ **已达成**（2026-10-14）：`POST /render` 返回快照 JSON（multipart：`report`/`dataset`/`params`）；同输入下与引擎库函数直调**逐字节一致**（`tests/render_http.rs` 6 用例：真 socket + 对拍基准）；GBK/参数/缺文件/坏魔数/未知字段全覆盖；浏览器端到端实测通过（截图 `tests/fixtures/out/m4-render-http.png`） | P0  |
 | M3-06 | 分页真实口径   | ✅ **已达成**（2026-10-14）：`/render` 的 `pagination` = **模板真值口径**（`paginate_with_setup`：纸码表 80 码 + 模板边距 → 可用 pt，`PagerInfo.getPageFormat(true)` 同构；快照 `pagination` 块见 `spec-m4.md` §4.5）；`pagerStyle != 2`/多栏（`columnMode`/`tableColumnNum`/重复组头）/列区带（`colType != -79`）/可用尺寸非正全部显式 `UnsupportedPaging`；探针口径保留为夹具对拍专用（双口径共用同一套 `split_rows`/`split_cols`）；换行回填**静态守卫不可行**（`-64` = `INormalCell.TYPE_NORMAL` 普通格默认类型，`guard.rs` 尾注） | P0  |
-| M3-07 | 门禁与端到端   | G1–G7 **必须**扩到新 crate（含依赖分层）；e2e 冒烟：上传 → render → 断言快照键集                                                                                                               | P0  |
+| M3-07 | 门禁与端到端   | ✅ **已达成**（2026-10-15）：G1–G4/G6/G7 本就全仓扫描（fmt/clippy/test/行数/bash 陷阱/文档引用天然覆盖新 crate）；**G5** 白名单含 rpx-ds（sqlx+tokio）与 rpx-server（axum+tokio+serde_json）且死条目同查；**新增 G8 crate 分层矩阵**（path 依赖方向越界即 FAIL，`cli->ds` 变异必红/撤后必绿）；**e2e 冒烟** `scripts/e2e_smoke.sh`：真二进制 serve --db → 上传 full.rpx → meta 静态参数 → render GBK 断言快照键集（id/sheetOrder/mergeData/cellData/rowData/columnData/pagination/page_w_pt）+ 中文数据 → 坏魔数 400 不入库 | P0  |
 | M3-08 | 快照协议     | 快照**必须**含样式槽（模板静态属性直通）；动态样式宏**必须**在响应中显式标注「未应用」而非静默缺失                                                                                                              | P1  |
 
 ## 5. 支持范围声明（继承 M2 带账）
@@ -215,6 +215,7 @@ schema（蓝图 §8.2 草稿落地）：`reports(id, name, rpx BLOB, version, cr
 | ---------- | ------------------------ | ----------------------------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead，阶段 0）  | 总监批准「务实路」后启动 M3；本档承接 `spec-m2.md` §6.2 的准入 v2；阶段 0 出口 = 本文件经总监确认 |
 | 2026-10-14 | v0.2：M4 并行推进 + M3-08 提关键路径 | 总监令「M3 M4 一起推进，这样可以看到报表显示」；前端立档 `docs/spec-m4.md`，快照契约 v1 已定 |
+| 2026-10-15 | v0.9：**M3-07 闭合（M3 全任务验收达成）** | gate.sh 新增 **G8 crate 分层矩阵**（path 依赖方向 = 架构；awk 段落模式 bug 被变异测试当场抓出——RS= 使逐行匹配全失效，改必红/撤必绿闭环）；**e2e 冒烟** `scripts/e2e_smoke.sh`（真二进制全链路 + 负路径）；AssetStore 改收**纯文件路径**（sqlite URL 两坑：`//target` host 化、`///relative` 绝对化，`SqliteConnectOptions::filename()` 绕开解析层）；417 测试全绿 + G1–G8 全绿 + e2e 全绿；RUNLOG §30 |
 | 2026-10-15 | v0.8：**M3-04 闭合**（资产库） | `rpx-ds::asset::AssetStore`（sqlx/sqlite，**libSQL→sqlx 偏离定案 §3.5**：libsql 不在离线缓存，文件格式同 SQLite 兼容）+ `rpx-server` 三路由（POST /reports 上传预检魔数 / GET /reports / GET /reports/{id}/meta 读库即答）；参数清单上传时落库（`is_static` = `param_type==0` 派生，`param_type`/`data_type` 原样保存）；`serve --db`（默认 rpx.db）；417 测试全绿 + G1–G7 全绿；RUNLOG §29（含 **Rust 字符串续行吃前导空白** 与 axum 0.8 `{id}` 路由两坑） |
 | 2026-10-15 | v0.7：**M3-03 定案 + rpx-ds 骨架闭合** | 类型归属定案（§3.4）：`Value`+`RowSet` 下沉 `rpx-core`，`rpx-ds` 只依赖 core（供数方不依赖消费方）；`rpx-ds` 新 crate（`DataSource` trait + `SqlSource`/`AnyPool` + 方言表，sqlx 0.9 过 G5 登记）；sqlite 内存库真连冒烟 5/5；`From<RowSet>` 桥（`ds.rs` 单测）；410 测试全绿 + G1–G7 全绿 |
 | 2026-10-14 | v0.6：**M3-06 闭合**（分页真实口径） | `pager/paper.rs`（`gen_paper_table.py` 生成 80 码纸码表 + `usable_page_pt`）+ `paginate_with_setup`（真值口径，与探针口径共用 `split_rows`/`split_cols`）；`/render` 与 dev bin 的 `pagination` 切真值 + 快照 `pagination` 块（`spec-m4.md` §4.5）；守卫补 `tableColumnNum`/列区带；换行回填核对结论 = 静态守卫不可行（带账）；`PageInfo` 加 `row_range`/`col_range`（emit 不序列化，对拍不变）；RUNLOG §27 |

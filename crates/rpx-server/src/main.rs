@@ -115,7 +115,9 @@ fn snapshot_cmd(path: Option<&str>, out: Option<&str>) -> Result<(), Box<dyn std
 async fn serve_cmd(addr: Option<&str>, db: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     let addr: std::net::SocketAddr = addr.unwrap_or("127.0.0.1:8090").parse()?;
     let db = db.unwrap_or("rpx.db");
-    let store = std::sync::Arc::new(rpx_ds::AssetStore::open(&format!("sqlite://{db}")).await?);
+    // AssetStore::open 收纯文件路径（不走 sqlite URL——host/绝对化两坑，
+    // asset.rs 模块文档）。
+    let store = std::sync::Arc::new(rpx_ds::AssetStore::open(db).await?);
     eprintln!(
         "rpx-server listening on http://{addr}（POST /render + /reports 资产三路由；\
          资产库 {db}，契约 docs/spec-m3.md §3.2）"

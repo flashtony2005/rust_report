@@ -2931,3 +2931,47 @@ libSQL（蓝图 §7.1）→ **sqlx/sqlite 承载**：libsql 不在离线缓存�
 | `rpx-ds` asset 单测 | 4 条：坏魔数拒收且不落库 / `full.rpx` 参数清单往返（startDate DT_STRING=11 默认 2024-01-01、topN DT_INT=1 默认 10，`Types2.java:22/:32`）/ 列表+缺 id 404 / 三类 param_type 分组纯映射（无名参数跳过） |
 | `render_http.rs` | 11/11（+3）：上传→列表→meta 全链路 / 坏魔数 400 且 `GET /reports` 仍 `[]` / 缺 id 404 |
 | workspace | **417 测试全绿** + **G1–G7 全绿** |
+
+## §30 M3-07 收官：G8 分层矩阵 + e2e 冒烟（2026-10-15 晨）
+
+### 30.1 G8 crate 分层矩阵（gate.sh）
+
+path 依赖方向 = 架构：`core <- {engine, ds} <- {cli, server}`（M3-03 定案）。
+越界 / 未登记 crate 均 FAIL。**变异测试闭环**：rpx-cli 临时加 `rpx-ds` → G8 红
+（`分层违规 rpx-cli -> rpx-ds`）；撤 → 绿。
+
+⚠ 变异测试还抓出 G8 初版自身 bug：awk 多写了 `-v RS=`（段落模式），
+逐行匹配全失效——变异注入「该红却绿」，正中本仓「改夹具必红」纪律的靶心。
+G5 一直没有 RS= 是对的（同一套 FNR 逻辑）。
+
+### 30.2 e2e 冒烟（scripts/e2e_smoke.sh）
+
+真二进制全链路（与 cargo test 集成测试的区别：覆盖 main.rs 参数解析 +
+AssetStore 建库 + 编译产物可执行这一层）：
+health → `POST /reports`（full.rpx）→ `GET /meta`（startDate/topN 静态参数 +
+默认值）→ `POST /render`（engine_gbk）断言快照键集（id/sheetOrder/mergeData/
+cellData/rowData/columnData/pagination/page_w_pt）+ GBK 中文数据 → 坏魔数 400
+且 `GET /reports` 仍 `[]`。trap 清理服务与临时库。
+
+### 30.3 本轮三坑
+
+1. **sqlite URL 两形态都炸**（code 14 unable to open database file）：
+   `sqlite://target/x.db` 把 `target` 当 URL **host**；`sqlite:///target/x.db`
+   又把相对路径**拔高成绝对**（Windows 下落 `C:/target`）。根治 =
+   `AssetStore::open` 改收**纯文件路径**，内部
+   `SqliteConnectOptions::filename()` + `create_if_missing(true)`，绕开 URL
+   解析层（`:memory:` 照常特殊文件名）。
+2. **`cd X && cmd &` 老坑三连**（§26.4 记过又踩）：cd 被吞进后台子 shell ⇒
+   主 shell cwd 漂移，后续相对路径全落空（本轮 python/cargo/mkdir 全中招）。
+   e2e 冒烟脚本因此把临时库放**仓库内相对路径**并依赖脚本自身的 `cd "$ROOT"`。
+3. Bash 工具的 cwd **每次调用重置**到会话初始目录——上一条里 cd 过不代表
+   下一条还在；所有多步操作要么单条内闭环、要么绝对路径。
+
+### 30.4 验证矩阵
+
+| 证据 | 结果 |
+|---|---|
+| G8 变异 | `cli->ds` 注入必红 / 撤销必绿 |
+| e2e 冒烟 | 全绿（6 步断言） |
+| workspace | 417 测试全绿 |
+| G1–G8 | 全绿 |

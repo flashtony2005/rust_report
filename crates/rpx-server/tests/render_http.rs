@@ -77,7 +77,7 @@ async fn post_to(addr: &str, path: &str, body: Vec<u8>, content_type: &str) -> (
 /// 起服务（ephemeral 端口），返回 `127.0.0.1:<port>`。
 /// 资产库用内存库——每个测试独享，互不串数据。
 async fn spawn() -> String {
-    let store = std::sync::Arc::new(rpx_ds::AssetStore::open("sqlite::memory:").await.unwrap());
+    let store = std::sync::Arc::new(rpx_ds::AssetStore::open(":memory:").await.unwrap());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {

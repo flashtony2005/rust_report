@@ -96,12 +96,20 @@ pub struct AssetSummary {
 }
 
 impl AssetStore {
-    /// 打开（不存在则建表）。`url` 是 sqlite 连接串：
-    /// `sqlite::memory:`（测试）/ `sqlite://rpx.db`（部署）。
-    pub async fn open(url: &str) -> Result<Self, AssetError> {
+    /// 打开（不存在则建表）。`path` 是**纯文件路径**：
+    /// `:memory:`（测试）/ `rpx.db` / `target/x.db`（部署，相对 exe cwd）。
+    ///
+    /// ⚠ 不走 sqlite URL：`sqlite://target/x.db` 把 `target` 当 URL host、
+    /// `sqlite:///relative` 又把相对路径拔高成绝对（Windows 下落 C://target）
+    /// ——两条路都 code 14（2026-10-15 冒烟实测）。`SqliteConnectOptions::
+    /// filename()` 直接收路径，绕开 URL 解析层。
+    pub async fn open(path: &str) -> Result<Self, AssetError> {
+        let opts = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(path)
+            .create_if_missing(true);
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
-            .connect(url)
+            .connect_with(opts)
             .await?;
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS reports(\
@@ -252,7 +260,7 @@ mod tests {
 
     #[tokio::test]
     async fn put_rejects_bad_magic_loudly() {
-        let store = AssetStore::open("sqlite::memory:").await.unwrap();
+        let store = AssetStore::open(":memory:").await.unwrap();
         let err = store
             .put("bad", b"NOT_AN_RPX_FILE_AT_ALL")
             .await
@@ -264,7 +272,7 @@ mod tests {
 
     #[tokio::test]
     async fn put_parses_param_manifest_and_meta_round_trips() {
-        let store = AssetStore::open("sqlite::memory:").await.unwrap();
+        let store = AssetStore::open(":memory:").await.unwrap();
         let id = store.put("full", &full_rpx()).await.unwrap();
         let meta = store.meta(id).await.unwrap();
         let names: Vec<&str> = meta.iter().map(|p| p.name.as_str()).collect();
@@ -284,7 +292,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_and_missing_id_behave() {
-        let store = AssetStore::open("sqlite::memory:").await.unwrap();
+        let store = AssetStore::open(":memory:").await.unwrap();
         let id = store.put("full", &full_rpx()).await.unwrap();
         let items = store.list().await.unwrap();
         assert_eq!(items.len(), 1);

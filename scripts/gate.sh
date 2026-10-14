@@ -162,6 +162,61 @@ else
 fi
 printf '\n'
 
+# ---- G8 crate 分层矩阵（M3-07：依赖方向 = 架构，越界即 FAIL）------------------
+# 允许矩阵（docs/spec-m3.md §3.1）：数据/引擎向下，供数方（rpx-ds）不依赖消费方
+# （rpx-engine）——M3-03 定案。新 crate 进仓必须在这里登记它的行，默认拒绝。
+# 实现：扫描各 crate [dependencies] 的 path 依赖，对照矩阵；越界 / 未知 crate 均红。
+hr
+printf '>>> G8 crate 分层矩阵（path 依赖方向）\n'
+hr
+layer_out="$(awk '
+  BEGIN {
+    # allowed["crate dep"] = 1
+    allowed["rpx-engine rpx-core"] = 1
+    allowed["rpx-ds rpx-core"] = 1
+    allowed["rpx-cli rpx-core"] = 1
+    allowed["rpx-cli rpx-engine"] = 1
+    allowed["rpx-server rpx-core"] = 1
+    allowed["rpx-server rpx-engine"] = 1
+    allowed["rpx-server rpx-ds"] = 1
+    known["rpx-core"] = 1; known["rpx-engine"] = 1; known["rpx-ds"] = 1
+    known["rpx-cli"] = 1; known["rpx-server"] = 1
+  }
+  FNR == 1 {
+    crate = FILENAME
+    sub(/^crates\//, "", crate); sub(/\/Cargo.toml$/, "", crate)
+    insec = 0
+  }
+  /^\[dependencies\]/ { insec = 1; next }
+  /^\[/               { insec = 0 }
+  insec {
+    line = $0
+    sub(/#.*/, "", line); gsub(/^[ \t]+|[ \t]+$/, "", line)
+    if (line == "" || line !~ /path[ \t]*=/) next
+    if (!match(line, /^[A-Za-z0-9_-]+/)) next
+    dep = substr(line, 1, RLENGTH)
+    if (dep == crate) next
+    if (!(crate in known)) {
+      printf "  未登记 crate   %s —— 新 crate 必须先在 G8 矩阵登记允许的依赖行\n", crate
+      bad = 1; next
+    }
+    if (!((crate " " dep) in allowed)) {
+      printf "  分层违规      %s -> %s —— 越出允许矩阵（docs/spec-m3.md §3.1）\n", crate, dep
+      bad = 1
+    }
+  }
+  END { exit bad }
+' crates/*/Cargo.toml)"
+if [ -z "$layer_out" ]; then
+  printf '全部 path 依赖在分层矩阵内（core <- {engine, ds} <- {cli, server}）。\n'
+  RESULTS+=("PASS  G8 crate 分层矩阵")
+else
+  printf '%s\n' "$layer_out"
+  RESULTS+=("FAIL  G8 crate 分层矩阵（越界依赖 / 未登记 crate）")
+  FAILED=1
+fi
+printf '\n'
+
 # ---- 汇总 ----------------------------------------------------------------
 hr
 printf '汇总\n'

@@ -94,6 +94,7 @@ HEAD blob / index / 工作区三者 sha256 完全相同，git 却报 150 增 150
 | G5 | 依赖策略 | 零依赖层只许 path + 受审层登记（见 §3.2） | ✅ 绿 |
 | G6 | shell 陷阱 | `python3 scripts/scan_sh_trap.py scripts` | ✅ 绿 |
 | G7 | 文档引用 | `python3 scripts/check_doc_refs.py`（见 §3.3） | ✅ 绿（125 个引用） |
+| G8 | crate 分层 | `gate.sh` 内置 awk：path 依赖方向对照允许矩阵（core ← {engine, ds} ← {cli, server}，M3-03 定案 §3.4 / spec-m3 §3.1）；越界/未登记 crate 均 FAIL；**变异测试闭环**（cli 加依赖 rpx-ds 必红、撤后必绿） | ✅ 绿（2026-10-15 M3-07 立） |
 
 `scripts/gate.sh` 已落地，一键跑 G1–G7 并按 gate 报 PASS/FAIL。
 **2026-10-13 起 G1–G7 全绿**（G4 在文件长度阈值调到 500 之后转绿，见 §3.1；
