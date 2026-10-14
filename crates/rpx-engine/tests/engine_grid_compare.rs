@@ -2,7 +2,7 @@
 //!
 //! # 这条链路验收什么
 //!
-//! 对 12 个引擎夹具各跑一遍：「`.rpx` 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
+//! 对 14 个引擎夹具各跑一遍：「`.rpx` 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
 //! → `emit::render_document()` 渲染成 `expected.json` 同 schema 的 JSON」，再交给
 //! [`common::compare_actual_text`] 与夹具**逐格**比（值 / 类型 / `disp_value` /
 //! `source` 的 6 个子字段 / `sub_values` / `left_head` / `top_head` / 网格尺寸 /
@@ -82,7 +82,7 @@ fn engine_text(name: &str) -> String {
 }
 
 // =====================================================================
-// 第 1 组：12 夹具逐格对拍（主验收）
+// 第 1 组：14 夹具逐格对拍（主验收）
 // =====================================================================
 
 /// 每个夹具：引擎文本 vs 夹具逐格比，只放行 `engine_rowheight` 的分页两维。

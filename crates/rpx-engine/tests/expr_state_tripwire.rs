@@ -1,4 +1,4 @@
-//! ⛔ **前提钉子（夹具级）**：12 个引擎夹具里的**全部 40 条公式**，`get_state() == 4`。
+//! ⛔ **前提钉子（夹具级）**：14 个引擎夹具里的**全部 78 条公式**，`get_state() == 4`。
 //!
 //! # 为什么这条前提必须被钉住
 //!
@@ -32,13 +32,19 @@ mod common;
 
 use common::{all_names, load};
 
-/// 13 个引擎夹具的公式总数（= `EngineModels*.java` 里写进 `.rpx` 的表达式条数）。
+/// 14 个引擎夹具的公式总数（= `EngineModels*.java` 里写进 `.rpx` 的表达式条数）。
 /// 更新它必须同时说明"新加了什么形态、`get_state()` 为什么仍是 4"。
 ///
 /// 2026-10-14：`engine_avgrange` 加入 4 条 `sum/avg/max/min(B2:B4)` 区域形态
 /// （M2-12），均为「格引用 + 聚合调用」，无 DS 函数/无挂起 ⇒ `get_state()==4`，
 /// 故 40 → 44。
-const TOTAL_FORMULAS: usize = 44;
+///
+/// 2026-10-14（M2-12 Text-Text）：`engine_collate` 加入 34 条 —— 文本 `>`/`<`/`>=`
+/// `/`<=` 比较（16 条）、全可忽略字符 U+0301 的截断（6 条）、收缩键 + 规范
+/// 重排（6 条）、由 `["…"]` 值列表驱动的文本 `max`/`min`（4 条）+ 两条 `==`
+/// 精确相等（2 条）。全部是 Binary/RegularCall ⇒ 全部 `get_state()==4`，
+/// 故 44 → 78。
+const TOTAL_FORMULAS: usize = 78;
 
 #[test]
 fn every_fixture_formula_is_state_four() {

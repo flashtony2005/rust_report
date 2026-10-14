@@ -116,7 +116,15 @@ pub(crate) fn num_neg(v: &Value) -> Result<Value> {
 }
 
 /// 数值比较（仅 GT/GE/LT/LE 路径；NaN 视为 Equal——夹具无 NaN 面）。
+///
+/// `Text-Text` 走产品字典序 [`crate::collation::compare_text`]（`Variant2.compare2:426`
+/// 的 String 分支 → `ChineseComparator`），**不是** UTF-16/字典序 —— 二者会给出相反答案
+/// （如 `"一"` vs `"丁"`，见 `docs/m2-collation.md` §4 与 `docs/m2-engine-design.md` §14）。
+/// 该分支必须在取 `to_f64` **之前**判断，否则两个文本会落进"非数值 ⇒ 报错"。
 pub(crate) fn num_cmp(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
+    if let (Value::Text(x), Value::Text(y)) = (a, b) {
+        return Ok(crate::collation::compare_text(x, y));
+    }
     match (to_f64(a), to_f64(b)) {
         (Some(x), Some(y)) => Ok(x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)),
         _ => Err(EngineError::UnsupportedExpr {
@@ -127,6 +135,11 @@ pub(crate) fn num_cmp(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
 
 /// 相等判断：数值面走 `f64` 比较（Java `Variant2.compareObjects` 的语义），
 /// 非数值（Text/Bool/Null）退回结构相等。
+///
+/// ⛔ **`Text-Text` 走精确字符串相等，不经过 collator。** 依据 `Variant2.equals:469-470`：
+/// 两个同类型对象先 `getSingleValue`，`String` 分支再用 `String.equals` —— 与
+/// `ChineseComparator` 无关。故 `"\u{301}" == ""` 为 **false**（字符串不同），
+/// 尽管 collation 下二者相等（`CE("\u{301}") == []`）。别把这里改成走 collation。
 pub(crate) fn val_eq(a: &Value, b: &Value) -> bool {
     match (to_f64(a), to_f64(b)) {
         (Some(x), Some(y)) => x == y,
@@ -140,11 +153,10 @@ pub(crate) fn val_eq(a: &Value, b: &Value) -> bool {
 ///
 /// 1. 多一支 `Bool-Bool`（`compare2:453-455` → `compare(boolean,boolean):351-359`，
 ///    `false < true`）；
-/// 2. `Text-Text` **显式报错而不是静默给 0** —— 产品走 `ChineseComparator`
-///    （`compare2:425-427`），而那是一个 `RuleBasedCollator`
-///    （`ChineseComparator.java:34`），规则表 `com/raqsoft/commonl/rule.txt`
-///    **打在 JAR 里、不在本仓库**（`find . -name rule.txt` 为空）⇒ 无法复刻，
-///    只能诚实不支持。这与 `ds_column` 的 Root 态同属"事实源缺失"。
+/// 2. `Text-Text` 走产品字典序 [`crate::collation::compare_text`]（`compare2:425-427` 的
+///    String 分支 → `ChineseComparator`，即 `reportlite/lib/reportlite.jar!`
+///    `/com/raqsoft/commonl/rule.txt` → JDK `RuleBasedCollator`）。复刻依据与坑见
+///    `docs/m2-collation.md`。
 ///
 /// ⚠ 本函数**继承** `to_f64` 的全部数值语义，即 `merge/tripwire.rs` 记录的
 /// 7 处分歧在这里同样成立：`Decimal` 与数值混比会报错（分歧 A 的后果）、
@@ -153,9 +165,7 @@ pub(crate) fn val_eq(a: &Value, b: &Value) -> bool {
 pub(crate) fn aggregate_cmp(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
     match (a, b) {
         (Value::Bool(x), Value::Bool(y)) => Ok(x.cmp(y)),
-        (Value::Text(_), Value::Text(_)) => Err(EngineError::UnsupportedExpr {
-            expr: format!("{a:?} 与 {b:?} 的字典序需要 ChineseComparator/rule.txt（不在仓库）"),
-        }),
+        (Value::Text(x), Value::Text(y)) => Ok(crate::collation::compare_text(x, y)),
         _ => num_cmp(a, b),
     }
 }

@@ -10,11 +10,10 @@
 //!
 //! 三个**纯函数**形态在 [`super::eval::evaluate_call`] 分发、**DS** 形态
 //! （`ds.avg(col)`）在本文件的 [`ds_call`] 分发，两路共用同一批 List 聚合。
-//! 两条已知边界（都显式报错，不静默）：
 //!
-//! * `Text-Text` 的字典序需要 `ChineseComparator` 的 `rule.txt`（不在仓库）；
-//! * `avg`/`max`/`min` 的**非叶子参数**（`avg(A:B)` 区域形态）未建模 ——
-//!   产品该路走 `_$1(ctx)` 逐格循环，与 `sum(A:B)` 同类。
+//! * `Text-Text` 的字典序走产品 [`crate::collation::compare_text`]
+//!   （`ChineseComparator`，复刻与坑见 `docs/m2-collation.md`），**不再**报"缺 rule.txt"；
+//! * `avg`/`max`/`min(A:B)` 的**区域形态**在 [`super::eval::region_aggregate`]（单格 else 分支）。
 //!
 //! 循环依赖说明：`ds_call`/`eval_ds_arg` 要回调 [`super::eval::evaluate`]，
 //! 而 `eval.rs` 的分发又要进来调 [`ds_call`] —— Rust 模块间互指是合法的，

@@ -252,7 +252,7 @@ M2 宣称达成，但它的两个 P0（M2-08 / M2-21）**正好落在对拍豁�
 
 ### 状态补记（2026-10-14）
 
-本审计主体与附录命令是 2026-10-13 快照，保留其历史口径。此后 M2-11 分页已落地；M2-22 的 RowCell/ColCell/NormalCell 内置 `expMap` 属性计算第一阶段也已接入，`engine_rowheight` 的计算行高与分页逐项全段对拍，分页豁免删除。M2 仍未整体闭合：自定义属性表达式/ExtCellSet-cellGraph 对象路径及 state 8 属性队列、M2-12 的 `A:B` 与 Text-Text 字典序缺口、M2-14 真实产品夹具缺口仍待处理。详见 `docs/spec-m2.md` §6.2 与 `docs/m2-engine-design.md` §5.4.7。
+本审计主体与附录命令是 2026-10-13 快照，保留其历史口径。此后 M2-11 分页已落地；M2-22 的 RowCell/ColCell/NormalCell 内置 `expMap` 属性计算第一阶段也已接入，`engine_rowheight` 的计算行高与分页逐项全段对拍，分页豁免删除；M2-12 的 `Text-Text` 字典序也已于 2026-10-14 落地（移植产品 `ChineseComparator`，见 `docs/m2-collation.md`），`M2-14` 凭 `engine_types` 产品夹具升级 ✅。M2 仍未整体闭合：自定义属性表达式/ExtCellSet-cellGraph 对象路径及 state 8 属性队列、M2-12 的 `A:B` List 逐格分支仍待处理。详见 `docs/spec-m2.md` §6.2 与 `docs/m2-engine-design.md` §5.4.7。
 
 ---
 

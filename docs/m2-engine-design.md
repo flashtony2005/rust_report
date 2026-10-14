@@ -1821,16 +1821,18 @@ sum(ds1.select(qty))
 | `ds.avg/max/min(col)` | ✅ | `dsfn.rs::ds_call`；Root 态聚合，Row 态与 `ds.sum` 同形返回当前行（reportlite 树里这三个**没有** DS 包装类，故沿用 `DSSum.java:46` 的 `return cur;`） |
 | `sum(List)` 过 `getSingleValue` | ✅ | 与 `merge::same_value` 共用 `value::single_value`（顺带修掉的**第 8 处分歧**：原先 `sum(List[List(1)])` 会报错，产品返回 `1`） |
 | `avg/max/min(A:B)` 区域形态 | ✅（2026-10-14） | 只落 `_$1` 的 else 单格分支；**avg 操作数反转**且恒 `Double`，sum/max/min 取操作数1；真值表与缺口见 §14.5 |
-| `Text-Text` 字典序 | ❌ | 需要 `ChineseComparator` 的 `com/raqsoft/commonl/rule.txt`（**不在仓库**）；显式报错并在报错里说明缺的是哪个依赖，**不静默给 Equal** |
+| `Text-Text` 字典序 | ✅（2026-10-14） | 移植产品 `ChineseComparator`：规则表 `reportlite/lib/reportlite.jar!/com/raqsoft/commonl/rule.txt`（85,231 B）经 `ChineseComparator.java:34` 构造成 JDK `RuleBasedCollator`，按实测行为导出为 `crates/rpx-engine/data/collation.bin`（13 段）+ `src/collation*`；算法/数据布局/三条坑见 **`docs/m2-collation.md`**。⛔ `==` 仍走精确 `String.equals`（`Variant2.equals:470`），**不**经 collator |
 | `Bool-Bool` 排序 | ✅ | `compare2:453-455` → `compare(boolean,boolean)`，`false < true` |
 
 ### 14.4 测试与自证
 
 - `crates/rpx-engine/src/expr/tests_aggregate.rs`：11 条，每条钉一处差别
-  （含"报错内容必须说清缺哪个依赖"与 `sum` 的解包回归）。
+  （含"`Text-Text` 用产品序而非码点序"与 `sum` 的解包回归）。
+- `Text-Text` 字典序（2026-10-14）：`tests/collation_golden.rs` 5 条金标准（全 BMP+增补逐点 CE、
+  SORT/PAIR、NFD、收缩/截断、参照值）+ 指纹钉子；端到端 `engine_collate` 进 `engine_grid_compare` 逐格。
 - 故障注入 17 条（15 期望红 + 2 期望绿对照，按错误类分组）：**15/15 抓到、2/2 对照保持全绿、0 条注入不合格**。
   覆盖的类：常量/分支错、语义错（成对钉方向）、边界/顺序错、类型错、分支漏掉、比较方向错（max/min 各一条）、
-  复刻偏差、吞掉错误、**报错内容错**、接线错、回归到已修分歧。
+  复刻偏差、吞掉错误、**报错内容错**（ⓘ 该类随 2026-10-14 `Text-Text` 报错路径退役而失效，此处保留为**当时**的记录）、接线错、回归到已修分歧。
 
 ### 14.5 `avg/max/min(A:B)` 区域形态（2026-10-14 追加）
 

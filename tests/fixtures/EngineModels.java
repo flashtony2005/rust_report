@@ -59,6 +59,9 @@ final class EngineModels {
 		if ("engine_avgrange".equals(name)) {
 			return EngineModelsRange.avgRangeFixture();
 		}
+		if ("engine_collate".equals(name)) {
+			return EngineModelsCollate.collateFixture();
+		}
 		return EngineModelsP0.samemergeFixture();
 	}
 

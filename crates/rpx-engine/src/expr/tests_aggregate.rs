@@ -10,7 +10,6 @@
 //! 故每条差别都单开一条用例。
 
 use super::tests_eval::Fake;
-use crate::error::EngineError;
 use crate::expr::ds::DataSet;
 use crate::expr::eval::evaluate;
 use crate::expr::parse;
@@ -170,27 +169,46 @@ fn min_keeps_the_raw_list_element_where_max_unwraps() {
     ));
 }
 
-/// ⑧ `Text-Text` 字典序**显式报错**（`ChineseComparator` 的 `rule.txt` 不在仓库），
-///    不是静默给 0 —— 否则"报错内容错"会被当成"支持了"。
-///    除"报没报错"外还钉**报错内容**：必须说清缺的是哪个依赖
-///    （"报错了但原因不对"对用户是一样糟，本项目明确要避免的失败模式）。
+/// ⑧ `Text-Text` 走**产品字典序**（`ChineseComparator`）而不是码点序 —— 复刻与坑见
+///    `docs/m2-collation.md`。参照值：阿(294) < 一(18183) < 张(19926)。
+///    另钉一条"码点序与产品序相反"：一 U+4E00 < 丁 U+4E01，但产品序 丁(3322) < 一(18183)。
+///    本条取代旧的"`Text-Text` 应显式报错"失效断言（那断言基于"rule.txt 不在仓库"的错误认知）。
 #[test]
-fn text_text_ordering_errors_instead_of_silently_agreeing() {
+fn text_text_uses_product_collation_order_not_code_point_order() {
+    use crate::expr::num::aggregate_cmp;
+    use std::cmp::Ordering;
+    let t = |s: &str| Value::Text(s.into());
+    assert_eq!(aggregate_cmp(&t("阿"), &t("一")).unwrap(), Ordering::Less);
+    assert_eq!(
+        aggregate_cmp(&t("张"), &t("一")).unwrap(),
+        Ordering::Greater
+    );
+    assert_eq!(
+        aggregate_cmp(&t("一"), &t("丁")).unwrap(),
+        Ordering::Greater
+    );
+
+    // 端到端：`max`/`min` 也走同一比较（不是只改了单测入口）。
     let mut f = Fake::new();
     f.push_ds(ds_vals(
         "ds1",
         "s",
-        &[Value::Text("b".into()), Value::Text("a".into())],
+        &[Value::Text("张".into()), Value::Text("阿".into())],
     ));
-    match evaluate(&parse("max(ds1.select(s))").unwrap(), &mut f) {
-        Err(EngineError::UnsupportedExpr { expr }) => {
-            assert!(
-                expr.contains("ChineseComparator") || expr.contains("rule.txt"),
-                "报错必须说明缺的是哪个依赖，而不是一句空泛的\"未支持\": {expr}"
-            );
-        }
-        other => panic!("Text-Text 字典序应显式报错，得到 {other:?}"),
-    }
+    assert!(matches!(
+        evaluate(&parse("max(ds1.select(s))").unwrap(), &mut f).unwrap(),
+        Value::Text(v) if v == "张"
+    ));
+    let mut g = Fake::new();
+    g.push_ds(ds_vals(
+        "ds1",
+        "s",
+        &[Value::Text("张".into()), Value::Text("阿".into())],
+    ));
+    assert!(matches!(
+        evaluate(&parse("min(ds1.select(s))").unwrap(), &mut g).unwrap(),
+        Value::Text(v) if v == "阿"
+    ));
 }
 
 /// ⑨ `Bool-Bool` 可排序（`compare2:453-455` → `compare(boolean,boolean)`，false < true）。

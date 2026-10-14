@@ -2216,3 +2216,174 @@ sha256(probe_out.txt)=b29f1e24c1c99aafc51f31e026bfe7b6d37f79e177dccc8a00b20f026c
     ds=ds1 dataRows=3 currentRow=1 isLeftTop=false current=Group(root=true rows=3 value=null)
          rootGroup=Group(root=true rows=3 value=null)
 ```
+
+---
+
+# 20. M2-12 Text-Text 字典序：Rust 数据表 + 引擎夹具（`collation-data`）
+
+> 边界：**不修改** `crates/rpx-engine/src/`（Rust collation 模块属他人）。本轮只产数据、golden、
+> 第 14 个夹具，以及 `crates/rpx-engine/tests/` 里被夹具数影响的**计数**。
+> 产物：`GenCollationData.java`（+ 拆出的 `CollationData.java` / `CollationGoldens.java` / `CollationCcc.java`）、
+> `crates/rpx-engine/data/collation.bin`、三个 golden、`engine_collate` 夹具。
+
+## 20.1 产物与 SHA-256
+
+```
+bin.path = crates/rpx-engine/data/collation.bin
+bytes    = 81444
+sha256   = 9b2d81c25b7d6bfcc512bed5f51e2830fdd12855b07ee4a6d7e08118cd11b3cb
+```
+
+13 段（固定序，全小端，段表 4 字节对齐）：
+
+```
+sec[0]  cjk_primary     2 uc 20902     sec[7]  ccc_val         1 uc 653
+sec[1]  singles         4 uc 933       sec[8]  contract_starter4 uc 25
+sec[2]  nfd_cp          4 uc 2053      sec[9]  contract_count  1 uc 25
+sec[3]  nfd_off         4 uc 2053      sec[10] contract_key    4 uc 54
+sec[4]  nfd_len         1 uc 2053      sec[11] contract_key_ce 2 uc 54
+sec[5]  nfd_pool        4 uc 3390      sec[12] ignorable       1 uc 25
+sec[6]  ccc_cp          4 uc 653
+```
+
+## 20.2 复现命令（Git Bash，classpath 段必须整体双引号）
+
+```bash
+cd F:/project/report/rpx/tests/fixtures
+CP="F:/project/report/reportlite/lib/*;F:/project/report/rpx/tests/fixtures/out"
+D:/Tools/jdk-21.0.2/bin/javac.exe --release 8 -Xlint:none -cp "$CP" -d out *.java
+F:/project/report/common/jre/bin/java.exe -cp "$CP" rpx.fixtures.GenCollationData \
+  tests/fixtures/_collation_dump.tsv tests/fixtures crates/rpx-engine/data/collation.bin
+```
+
+原始输出（节选，逐字）：
+
+```
+GEN OK sections[0=20902 1=933 2=2053 3=2053 4=2053 5=3390 6=653 7=653 8=25 9=25 10=54 11=54 12=25]
+GEN OK cross-check: SUMMARY bmp=0/63488 pairs=0/595984 fuzzCE=0/30000 fuzzCMP=0/8000 singles=21837 contracts=25
+GEN OK supplementary: checked=384 mismatched=0
+GEN OK CE dump: rows=63872 ce=151485 supplementary=384 (all secondary/tertiary == 0)
+GEN OK ccc: sun.text.normalizer.NormalizerImpl.getCombiningClass(int) via reflection
+GEN OK nfd golden rows=2186 | contract keys=54 ignorable=12
+GEN OK bin bytes=81444 sha256=9b2d81c25b7d6bfcc512bed5f51e2830fdd12855b07ee4a6d7e08118cd11b3cb
+```
+
+golden（`tests/fixtures/`）：`_collation_nfd_golden.tsv` 2186 行（输入列已确认无重复）、
+`_collation_contract_golden.tsv` 66 行 = 54 键行 + 12 `IGNORABLE` 行、`_collation_summary.txt`。
+
+## 20.3 ccc 的取得方式
+
+**反射优先**：`sun.text.normalizer.NormalizerImpl.getCombiningClass(int)`（候选还包括 JDK 9+ 的
+`getCanonicalClass`、`sun.text.Normalizer.*`），逐码点取值，过滤 v==0。反射**全部**失败时退到黑盒推导：
+对不自我分解的 mark，按 `NFD(a+b)` 是否交换 a/b 定序，得到同序重编码（`rank = 1 + #{q: ccc(p)>ccc(q)}`）。
+本次真机走的是反射路径（见 20.2 `ccc:` 行）。
+
+## 20.4 独立复核（不经过 Rust 加载器）
+
+`python tests/fixtures/tools_decode_collation_bin.py` → **`RESULT PASS`**：
+
+```
+cjk.count=20902 singles.count=933 nfd.count=2053 nfd_pool.count=3390 ccc.count=653
+starters=25 sum(contract_count)=54 keys=54 sum(ignorable)=9
+singles_sorted/nfd_cp_sorted/ccc_cp_sorted=True  keys_in_range=True  nfd off/len in pool=True
+structure bad=0
+SUMMARY bmp=0/63488 supp=0/384 sort=0/3200 pair=0/58 nfd=0/2186
+```
+
+`singles` 比 dump 少两个（`0x2F800`/`0x2FA00`）：二者是**补充平面**码点（cp>0xFFFF），不进 BMP singles 段。
+
+## 20.5 引擎夹具 `engine_collate`（8×6，全部无扩展）
+
+```bash
+F:/project/report/common/jre/bin/java.exe -cp "$CP" rpx.fixtures.GenEngineFixtures .
+F:/project/report/common/jre/bin/java.exe -cp "$CP" rpx.fixtures.GenEngineFixtures --verify .
+# → PASS engine_collate: 8560 bytes round-trip to expected.json
+# → VERIFY OK: 14 engine fixtures generated   (exit 0)
+```
+
+8×6 = 48 格**全非空且全部带 source**（`SHAPE` 行 = `("engine_collate", 8, 6, 8, 6, 48, 48, 0)`）。
+覆盖：文本 `>`/`<`/`>=`/`<=`（张/阿、b/a、一/丁 —— 后者码点序与产品序**相反**）、
+全可忽略 U+0301 的截断（6 条）、收缩键 + ccc 重排（6 条）、`["…"]` 值列表的文本 `max`/`min`（6 条）。
+
+夹具**不带数据集**：产品 `CalcProbe.writeCsv` 用 **GBK** 写 CSV，而 Rust 加载器要求 ASCII/UTF-8，
+故 R8 的 `max`/`min` 改用**值列表** `["张","阿"]`（产品的真聚合形态），避免非 ASCII CSV。
+
+## 20.6 与 brief 的 4 处口径差异（以真机实测为准）
+
+1. **收缩键 = 54，不是 79**。79 是 `_collation_tables/contract.tsv` 的总行数 = 25 个 starter 头行 + 54 键行。
+2. **bin 段 12 的 `ignorable` = 9**（25 个 starter 中 9 个 value=-1）；brief 的「12」指
+   **golden 里的 `IGNORABLE` 行数** = 9 个 starter + 3 个经 NFD 归零的码点（U+0340/U+0341/U+0344）。
+3. **`nfd_len` 最小值 = 1，不是恒 ≥2**：存在 1017 个「单码点分解」（如 U+0340→U+0300）；
+   `sec[2]=2053`（1493 BMP + 560 补充平面）。
+4. 段 8 高 16 位读作**段 10 的偏移**（`[10][off .. off+count)`），这是使 (starter,count) 自洽的唯一读法。
+
+## 20.7 ⛔ 当前集成状态：未绿（根因在引擎侧，不在本轮）
+
+`cargo test --workspace --no-fail-fast`：**20 个 target 全跑，唯一红灯 1 条**：
+
+```
+engine_grid_compare::engine_output_matches_every_fixture_cell_by_cell ... FAILED
+  panicked: 未建模的引擎错误，无法映射 class：
+            unsupported expression: Text("张") <=> Text("阿")
+```
+
+同一轮里被夹具数影响的**计数类**测试全绿（证明账本已对齐）：
+
+```
+test every_fixture_formula_is_state_four ... ok            (TOTAL_FORMULAS == 78)
+test all_fixtures_load_and_self_identify ... ok            (all_names().len() == 14)
+test template_dims_match_product_output ... ok
+test calculated_dims_and_source_counts_match_product_output ... ok   (SHAPE 48/48/0)
+```
+
+**根因**：`crates/rpx-engine/src/` 内**没有任何** collation 代码
+（`grep -ri "collation\|collate\|314C4352" crates/rpx-engine/src/` 为空；无 `*collat*` 文件；
+`collation.bin` 未被任何 src 引用）。Text-Text 比较的 **Rust 实现尚未落地**，
+故新夹具 `engine_collate` 必然红。该实现**不在本任务边界内**，需由 Rust 侧落地后转绿。
+`engine_grid_compare` 明确写了「不再设夹具级豁免」，所以不应对该夹具开白名单 —— 红是**正确信号**。
+
+`cargo clippy --all-targets -- -D warnings` 实测 **exit 0**（零告警）。
+
+## 20.8 口径钉死（下轮 spec 更新的直接依据）
+
+### (a) `engine_collate` 的覆盖范围 / 未覆盖范围 —— 中文**只走公式字面量路径**
+
+本夹具的中文（张/阿/一/丁）**只**出现在**公式字面量**里（`"张">"阿"`、`max(["张","阿"])`），
+**不经过数据集路径**。原因是**既有**缺口（非本轮引入）：
+
+- 产品 `CalcProbe.java:260-262` 的 `writeCsv` 用 **GBK** 写夹具 CSV（产品 `FileDataSetFactory` 按 GBK 读）；
+- `crates/rpx-engine/src/dataset.rs:16-17` 明确声明「非 ASCII 的 GBK 内容本 crate 不覆盖」，
+  Rust 加载器对夹具只接受 ASCII/UTF-8。
+
+⇒ **不得**据此认为「数据集里带中文」已被验证 —— 本夹具**未覆盖**该形态。
+实证：全部引擎夹具 CSV **非 ASCII 字节数 = 0**（`engine_collate.csv` / `engine_types.csv` /
+`engine_disp.csv` 均 44 字节）。故 R8 的 `max`/`min` 用**值列表** `["张","阿"]`（产品的真聚合形态），
+而非 `ds1.select(region)` —— 这是**正确收敛，不是绕路**。
+
+### (b) 三处"看起来不一致"的计数 —— 语义不同，不可互推
+
+| 数字 | 出处 | 含义 |
+|------|------|------|
+| `sec[10] = sec[11] = 54` | `collation.bin` 段 10/11 | 收缩表**前向键**总数（25 个 starter 的键之和） |
+| `sec[12]` 中 `1` 的个数 = **9** | `collation.bin` 段 12（25 个 u8） | 25 个 starter 中 value=-1（**起始字符级**可忽略）的个数 |
+| `IGNORABLE` 行 = **12** | `_collation_contract_golden.tsv` | CE 流为空的 BMP 码点总数 = 9 个起始字符 **+** U+0340/U+0341/U+0344 |
+
+后 3 个（U+0340/U+0341/U+0344）**不是**收缩表起始字符，它们**经 NFD** 才归零
+（→ U+0300/U+0301/U+0308）。`_collation_summary.txt` 的 `contract.golden` 行现已写成
+`keys=54 ignorable_rows=12(9 starters + 3 via NFD)`，避免 12 与 9 混淆。
+brief 里的「12」指**第三行**（golden 的 IGNORABLE 行数），**不是**段 12 里 1 的个数（9）。
+
+### (c) 三处台账改动的文件与行号（夹具数 12→14 的连带修正）
+
+| 文件 | 行 | 改动 |
+|------|----|------|
+| `crates/rpx-engine/tests/common/loader.rs` | 14–15 | `all_names()` 13→**14** 个名 + 追加 `engine_collate` |
+| `crates/rpx-engine/tests/fixture_loader.rs` | 18 | `GRID_FIXTURES: [&str; 12]` → `[&str; 13]` + 追加 `engine_collate` |
+| 同上 | 40 / 53 | `SHAPE: [ShapeRow; 12]` → `[13]`；新增 `("engine_collate", 8, 6, 8, 6, 48, 48, 0)` |
+| 同上 | 58 | `assert_eq!(all_names().len(), 13)` → `14` |
+| `crates/rpx-engine/tests/expr_state_tripwire.rs` | 47 | `TOTAL_FORMULAS` 44 → **78**（+34 条 engine_collate 公式，全 `get_state()==4`） |
+
+**注释类同步**（只把「12 个夹具」改「14 个」，无逻辑）：
+`engine_grid_compare.rs:5,87`、`m09_compare.rs:85`、`schema_sentinel.rs:17`。
+凡**未被夹具数触及**的数字**一律未改** —— 例如 `engine_rowheight_pager.rs` 的「克隆 12 次」
+是**行克隆数**不是夹具数，保持 12（首版盲目 12→14 曾误伤，已回退）。

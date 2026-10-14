@@ -96,6 +96,7 @@
 //! | **分页：纸张口径 / 断页判据 / 分组头重复 / 横断** | [`pager`] 模块文档（含逐行出处）；设计说明见 `docs/m2-engine-design.md` **§15** |
 //! | 扩展方式改写与行数口径（[`extend`]） | `docs/format-contract.md` 附件 H.4、H.7.1 |
 //! | 求值语义 / 聚合 / 类型保真 | `docs/format-contract.md` 附件 H.1、H.2、H.3 |
+//! | **`Text-Text` 字典序 `ChineseComparator` 移植**（[`collation`]） | `docs/m2-collation.md` |
 //! | 阶段 B 三段顺序（role → head → 改写 → 归一） | `docs/m2-engine-design.md` §4 |
 //! | 字面量取值 / `BigDecimal.toString`（[`literal`]） | `docs/m2-engine-design.md` §4、`docs/format-contract.md` 附件 H.3 |
 //! | `$` 语义 / 循环引用检测 | `docs/format-contract.md` 附件 G.1、G.3、H.8 |
@@ -104,6 +105,7 @@
 
 pub mod arena;
 pub mod calc;
+pub mod collation;
 pub mod dataset;
 pub mod emit;
 pub mod error;

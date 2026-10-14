@@ -82,7 +82,7 @@ fn fixture_text(name: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {} 失败：{e}", path.display()))
 }
 
-/// ① 空跑自测：12 个夹具与自身对比必须零差异。
+/// ① 空跑自测：14 个夹具与自身对比必须零差异。
 ///
 /// 这一条同时证明"零差异"**不是恒真式** —— 若比对逻辑把稀疏格全报成 missing、
 /// 或漏比某个维度，这里立刻红。
