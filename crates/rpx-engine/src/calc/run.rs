@@ -57,6 +57,10 @@ use crate::value::Value;
 /// 一张 `HeadState` 只跑一次（`prepareCalculate` 的改写不可逆，`ctx.rs` 文档）；
 /// 重入守卫 `_$14 <= 4` 在本形态下天然成立（每次新建 ctx，state 从 0 起）。
 pub fn calculate(rd: &ReportDefine, ds: &[DataSet]) -> Result<CalcGrid> {
+    // 分页支持性守卫（`spec-m2.md` §6.2 带账项）：`pagerStyle != 2` / 多栏配置下，
+    // 本实现的分页会**静默**按 `pagerStyle==2` 单栏分支算（`pager.rs::ensure_supported`）。
+    // 放最前：输入校验失败不跑计算。
+    crate::pager::ensure_supported(&rd.print_setup)?;
     let sb = prepare_calculate(rd)?;
     let mut ctx = CalcCtx::new(sb.grid, ds.to_vec());
     run_orchestration(&mut ctx)?;

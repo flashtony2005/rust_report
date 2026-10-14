@@ -2467,3 +2467,39 @@ E 列 else 对照。CSV 复用 `EngineModelsRange.rows()`（B 列 100/200/120，
 可达条件（元素是「空 List 或首元素为 null 的 List」）**产品夹具无此形态** ⇒ 属已声明边界
 （`docs/m2-engine-design.md` §14.6 ⑤.4/⑦）。
 **同族未改**：`num_cmp`（`<`/`>`）的 null 分支仍缺 —— 无夹具、跨 AC 线，已在 §14.6 ⑦ 声明。
+
+---
+
+# 22. pager 支持性守卫落地 + `pager.rs` 模块拆分（2026-10-14 晚，team-lead）
+
+> 背景：总监批准「M3 准入务实路」；M2 三条余留边界的处置定案见 `docs/spec-m2.md` §6.2 末条，
+> M3 范围见 `docs/spec-m3.md`。本节只记**代码侧**的守卫与拆分。
+
+## 22.1 为什么必须守（本轮核出的真问题）
+
+`rpx-core` 早已解析 `PrintSetup.pager_style`（槽 23，`print_setup.rs:35/123`，默认 2），
+但**引擎完全不读它** —— `pager::paginate` 连 style 形参都没有（分页走**探针口径**三常量
+`PAPER_W_PT` / `PAPER_H_PT` / `COLUMNS`）。⇒ `pagerStyle 0/1`、多栏
+（`columnMode` / `isColumnRepeatedGroupHeader`）此前是**静默按 2**：模板命中时产出错误分页
+而调用方无从知晓。这正是「诚实失败优于静默错」要消灭的形态。
+
+## 22.2 守卫（2026-10-14 落地）
+
+| 件 | 内容 |
+|----|------|
+| `EngineError::UnsupportedPaging { detail }`（`error.rs`） | **已声明边界**（非产品行为；产品支持这些配置）；Display + 单测各一 |
+| `pager::ensure_supported(&PrintSetup)`（`pager/guard.rs`） | 三字段非默认即报错：`pager_style != 2` / `column_mode != 0` / `column_repeated_group_header` |
+| 调用点 | `calc::calculate()` **入口**（输入校验失败不跑计算；`calc/run.rs:59-63`） |
+| 单测 | `pager/tests.rs`：默认放行 / `pagerStyle ∈ {0,1,3}` 拒绝 / 多栏两开关各自拒绝 |
+| 集成 | `tests/pager_guard.rs`：① **15 夹具模板全在支持范围内**（不误伤）② 三字段逐一拒绝且**先于计算**（空数据集也先报 `UnsupportedPaging`） |
+| 回归 | `engine_grid_compare` 全量对拍 7 passed（`engine_output_matches_every_fixture_cell_by_cell` ok） |
+
+## 22.3 顺带的模块拆分（G4：`pager.rs` 一度 535 行 > 500）
+
+| 文件 | 行数 | 内容 |
+|------|-----|------|
+| `pager/guard.rs`（新） | 39 | `ensure_supported`（从 pager.rs 拆出） |
+| `pager/arith.rs`（新） | 47 | 三条算术：`paper_size_pt` / `unit_to_pt` / `breaks` + `fits`（含 `TOLERANCE`） |
+| `pager.rs` | 465 | `pub use arith::{paper_size_pt, unit_to_pt}` / `pub use guard::ensure_supported` 保持原外部路径不变 |
+
+`fits` / `breaks` 用 `pub(super)`：`pager.rs` 与 `pager/tests.rs` 均可见，外部不可见。

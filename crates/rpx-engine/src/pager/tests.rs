@@ -11,7 +11,9 @@
 //! 端到端的真夹具对拍在 `tests/engine_grid_compare.rs`。
 
 use super::*;
+use crate::error::EngineError;
 use crate::value::Value;
+use rpx_core::print_setup::PrintSetup;
 
 /// 造一个只有几何、没有格的网格。
 fn geom(rows: i32, cols: i32, h_mm: f32, w_mm: f32) -> CalcGrid {
@@ -397,4 +399,54 @@ fn a_second_column_page_reads_its_own_first_column() {
     );
     // 反证不是永真式：若两页取的是同一列，上面两条断言会同时成立。
     assert_ne!(cv[0], cv[1], "两页首列值相同 ⇒ 本测试是永真式");
+}
+
+// =====================================================================
+// 支持性守卫（`ensure_supported`）
+// =====================================================================
+
+/// 默认配置（夹具的全部口径）必须放行 —— 反证：守卫若恒 `Err`，本测试红。
+#[test]
+fn guard_accepts_default_print_setup() {
+    assert!(ensure_supported(&PrintSetup::default_values()).is_ok());
+}
+
+/// `pagerStyle` 非 2（0=单页短路 / 1=按行数断页 / 越界值）都必须报错。
+#[test]
+fn guard_rejects_non_default_pager_style() {
+    for style in [0i8, 1, 3] {
+        let mut s = PrintSetup::default_values();
+        s.pager_style = style;
+        match ensure_supported(&s) {
+            Err(EngineError::UnsupportedPaging { detail }) => {
+                assert!(
+                    detail.contains("pagerStyle") && detail.contains(&style.to_string()),
+                    "style={style} 的 detail 应点名字段与值：{detail}"
+                );
+            }
+            other => panic!("pagerStyle={style} 应报 UnsupportedPaging，实际 {other:?}"),
+        }
+    }
+}
+
+/// 多栏的两个开关各自独立触发：`columnMode != 0` 与重复组头。
+#[test]
+fn guard_rejects_multi_column_configs() {
+    let mut s = PrintSetup::default_values();
+    s.column_mode = 1;
+    match ensure_supported(&s) {
+        Err(EngineError::UnsupportedPaging { detail }) => {
+            assert!(detail.contains("columnMode"), "{detail}");
+        }
+        other => panic!("columnMode=1 应报 UnsupportedPaging，实际 {other:?}"),
+    }
+
+    let mut s = PrintSetup::default_values();
+    s.column_repeated_group_header = true;
+    match ensure_supported(&s) {
+        Err(EngineError::UnsupportedPaging { detail }) => {
+            assert!(detail.contains("RepeatedGroupHeader"), "{detail}");
+        }
+        other => panic!("重复组头应报 UnsupportedPaging，实际 {other:?}"),
+    }
 }

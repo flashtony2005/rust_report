@@ -789,8 +789,8 @@ avail_h     = printable_h - repeat_h - header_h - footer_h   <i>// 页眉页脚�
 <tr><td>跨库方言差异</td><td>同一张报表模板换库时，SQL 里的日期函数/布尔/字符串拼接可能不兼容</td><td>方言层收敛差异点；模板标注推荐库种；对拍矩阵覆盖 PG/MySQL/SQLite 三库</td><td class="c">⏳ M3</td></tr>
 <tr><td>AnyPool 无编译期校验</td><td>SQL 错误只能在渲染期暴露</td><td>CLI 对拍 + 渲染期错误带 SQL 上下文回显；平台库 libSQL 可加 <code>named_params!</code> 减少错位</td><td class="c">⏳ M3</td></tr>
 <tr><td>Turso 写并发</td><td>SQLite 系单写者，报表上传/缓存写入会排队</td><td>写路径极短（单行 insert）；渲染是读路径不受影响；纯本地模式下无同步冲突问题</td><td class="c">⏳ M3</td></tr>
-<tr><td>数据集中文（GBK）</td><td>数据集文本路径只解 ASCII；财政场景中文列名/值必现</td><td>M3 取数前补齐 GBK/GB18030 解码并补夹具（spec §6.2 未闭合项 ③）</td><td class="c">⏳ 缺口</td></tr>
-<tr><td>分页边界</td><td>pagerStyle 0/1、跨页合并拆分、列区带、文本换行、多栏——均无夹具（spec §6.2 未闭合项 ②）</td><td>逐项探针 + 产品夹具后再实现；<b>M2 未整体闭合前不启动 M3</b>（spec 硬规定）</td><td class="c">⏳ 缺口</td></tr>
+<tr><td>数据集中文（GBK）</td><td>数据集文本路径只解 ASCII；财政场景中文列名/值必现。失败是<b>显式</b>的（<code>from_utf8</code> → <code>EngineError::Invariant</code>），非静默乱码</td><td>转 M3 第一梯队：GBK/GB18030 解码 + 夹具（参考 <code>collation.bin</code> 冻结表模式保零依赖）</td><td class="c">⏳ M3 承接</td></tr>
+<tr><td>分页边界</td><td>pagerStyle 0/1、多栏两开关此前<b>静默按 2</b>（2026-10-14 加显式守卫）；跨页合并拆分、列区带、文本换行无夹具</td><td><b>已收敛</b>：非默认配置报 <code>UnsupportedPaging</code>（<code>pager.rs::ensure_supported</code>），不再静默错；余项带账，逐项探针 + 产品夹具后再实现</td><td class="c">✅ 守卫 / ⏳ 带账</td></tr>
 <tr><td>授权合规</td><td>逆向实现的边界</td><td>仅做互操作（读公开格式 + 重实现语义），不搬运混淆字节码</td><td class="c">✅ 持续</td></tr>
 </table>
 
@@ -798,8 +798,8 @@ avail_h     = printable_h - repeat_h - header_h - footer_h   <i>// 页眉页脚�
 <table>
 <tr><th style="width:56px">阶段</th><th>目标</th><th>验收标准</th><th style="width:170px">实际状态（2026-10-14）</th></tr>
 <tr><td class="c">M1</td><td>rpx-core：解析器 + 模型</td><td>真实 .rpx → 内存模型，字段/属性码全对；CLI 打印矩阵</td><td class="c">✅ 完成（4 夹具；CLI <code>print</code> 可用）</td></tr>
-<tr><td class="c">M2</td><td>rpx-engine：扩展 + 计算 + 合并 + 分页</td><td>CLI 渲染 → JSON，与 Java 版导出逐格对拍一致</td><td class="c">✅ 主链闭合：15 产品夹具逐格对拍 + G1–G7；M2-11/12/21/22 已交付<br>⚠ <b>边界未清</b>（见 spec §6.2 末条）</td></tr>
-<tr><td class="c">M3</td><td>rpx-ds + axum 主链路</td><td>POST /render：Turso 读报表资产 + AnyPool 连业务库取数 → 出快照；参数注入生效</td><td class="c">⏳ 未启动（<b>准入门槛：M2 全部边界闭合</b>）</td></tr>
+<tr><td class="c">M2</td><td>rpx-engine：扩展 + 计算 + 合并 + 分页</td><td>CLI 渲染 → JSON，与 Java 版导出逐格对拍一致</td><td class="c">✅ 主链闭合：15 产品夹具逐格对拍 + G1–G7；M2-11/12/21/22 已交付<br>✅ <b>边界已定案</b>（2026-10-14 务实路：守卫 + 显式带账，见 spec §6.2 末条）</td></tr>
+<tr><td class="c">M3</td><td>rpx-ds + axum 主链路</td><td>POST /render：Turso 读报表资产 + AnyPool 连业务库取数 → 出快照；参数注入生效</td><td class="c">🟡 <b>阶段 0 就绪</b>（2026-10-14 准入 v2：pager 守卫已落 + 三项边界显式带账，见 <code>docs/spec-m3.md</code>）</td></tr>
 <tr><td class="c">M4</td><td>Univer 前端</td><td>浏览器打开看到带合并/样式的报表；翻页可用</td><td class="c">⏳ 未启动</td></tr>
 <tr><td class="c">M5</td><td>rpx-export xlsx + rpx-print PDF</td><td>导出的 xlsx 与 Java 版结构比对通过；PDF 分页/重复表头/边距与润乾打印一致</td><td class="c">⏳ 未启动（打印配置已随 M1 解析）</td></tr>
 <tr><td class="c">M6</td><td>缓存 + 预算 + 大报表分页 + 打印预览</td><td>BigEngine 等价分页、render_cache 命中、PerfMonitor 预算熔断、/pages 预览可用</td><td class="c">⏳ 未启动</td></tr>
@@ -807,7 +807,7 @@ avail_h     = printable_h - repeat_h - header_h - footer_h   <i>// 页眉页脚�
 
 <div class="box key">
 <b>最短闭环路径</b>：M1+M2 用 <code>rpx-cli</code> 单机验证（不碰数据库和前端），对拍通过后再上 M3/M4。
-——<b>2026-10-14 状态：M1 ✅、M2 主链闭合</b>；M2 尚未整体闭合（边界清单见 spec §6.2 末条），按 spec 规定<b>不得据此启动 M3</b>。
+——<b>2026-10-14 状态：M1 ✅、M2 主链闭合</b>；<b>M3 准入 v2 已定</b>（pager 守卫落地 + 三项边界显式带账；见 spec §6.2 末条与 <code>docs/spec-m3.md</code>），<b>M3 阶段 0 就绪</b>。
 . rpx 格式与算法都已是确定知识，这条路径没有未知技术风险，只有工作量。
 </div>
 
@@ -816,6 +816,7 @@ avail_h     = printable_h - repeat_h - header_h - footer_h   <i>// 页眉页脚�
 <tr><th style="width:56px">版本</th><th style="width:110px">日期</th><th>变更</th></tr>
 <tr><td class="c">v1</td><td class="c">2026-10-12</td><td>初版：Univer 查证、六 crate 蓝图、数据源 / API / 前端 / 导出 / 打印全链路设计</td></tr>
 <tr><td class="c">v2</td><td class="c">2026-10-14</td><td>同步 M1/M2 实际落地：新增 §〇（文档地位 + 修订对照）；§二 / §三 / §六 / §12 / §13 补状态标注；<b>三处设计更正</b>（§五 双矩阵、§6.2 异常即值 Flow、§6.1 三阶段执行）；§11.3 补 <code>print_setup.rs</code> 已落地事实；§12 更正数值精度方案（<code>rust_decimal</code> → 零依赖 <code>Value::Decimal</code>）并补两条 M2 缺口行</td></tr>
+<tr><td class="c">v2.1</td><td class="c">2026-10-14</td><td>M3 准入定案（务实路）：pager 静默降级纠正（<code>ensure_supported</code> 守卫，非默认报 <code>UnsupportedPaging</code>）；三项 M2 边界改「显式带账」；§12 两行缺口状态更新；§13 M3 状态改「阶段 0 就绪」（配套 <code>docs/spec-m3.md</code>）</td></tr>
 </table>
 
 </div></body></html>

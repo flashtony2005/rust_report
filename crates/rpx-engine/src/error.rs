@@ -42,6 +42,17 @@ pub enum EngineError {
     /// 产品把 extend 拼错成 entend，**逐字保留，别纠正**）。
     /// 目前无夹具覆盖（附件 I.10 建议补）。
     EntendCol { row: i32 },
+    /// 分页配置超出当前实现的支持范围 —— M2 的**已声明边界**（`spec-m2.md`
+    /// §6.2 的带账项；`pager.rs` 模块文档的「未实现」清单）。
+    ///
+    /// 触发条件（`pager::ensure_supported`）：`PrintSetup` 的三个**分页算法
+    /// 分支字段**非默认 —— `pager_style != 2`（0=单页短路 / 1=按行数断页）、
+    /// `column_mode != 0`（多栏）、`column_repeated_group_header`（多栏重复组头）。
+    ///
+    /// ⛔ **不是产品行为**：产品支持这些配置；本实现只覆盖
+    /// `pagerStyle==2 && columns==1` 单栏分支（`SimplePager._$5`）。
+    /// 显式报错优于静默按 2 产出错误分页（"诚实失败优于静默错"）。
+    UnsupportedPaging { detail: String },
     /// 产品源码里的"不可能状态"（Java 侧会 NPE/越界）：Rust 侧显式报错、
     /// 不 panic（附件 I.10 的同类纪律）。`detail` 写明出处与状态。
     Invariant { detail: String },
@@ -86,6 +97,9 @@ impl fmt::Display for EngineError {
             EngineError::EntendCol { row } => {
                 write!(f, "ExtCellSet.entendCol: row {row} is not a row-header row")
             }
+            EngineError::UnsupportedPaging { detail } => {
+                write!(f, "unsupported paging configuration: {detail}")
+            }
             EngineError::Invariant { detail } => write!(f, "engine invariant broken: {detail}"),
             EngineError::Suspend(s) => write!(f, "suspend (state {})", s.state),
         }
@@ -114,5 +128,16 @@ mod tests {
         let a = EngineError::UnknownCell { id: "$B$2".into() };
         let b = EngineError::UnknownCell { id: "$B$2".into() };
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn unsupported_paging_is_a_declared_boundary_not_a_product_error() {
+        let e = EngineError::UnsupportedPaging {
+            detail: "pagerStyle=1（本实现只覆盖 2=按页高断页）".into(),
+        };
+        assert_eq!(
+            e.to_string(),
+            "unsupported paging configuration: pagerStyle=1（本实现只覆盖 2=按页高断页）"
+        );
     }
 }

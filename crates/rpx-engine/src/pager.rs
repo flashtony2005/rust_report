@@ -24,7 +24,8 @@
 //!
 //! **未实现（逐条说明为什么现在不做）**：
 //!
-//! * **`pagerStyle == 1`（按行数断页）与 `== 0`（单页短路）** —— 夹具全是默认 `2`。
+//! * **`pagerStyle == 1`（按行数断页）与 `== 0`（单页短路）** —— 夹具全是默认 `2`；
+//!   2026-10-14 起有显式守卫（[`ensure_supported`]，`guard.rs`），不再静默按 `2`。
 //! * **跨页合并格拆分**（`_$1(row, currPageRows, …):1536-1700`）—— 夹具的合并区都不跨页
 //!   （多页夹具 `merged.cells` 全空）。
 //! * **行/列不可见与手动分页符** —— 属性表达式先由 `calcProperties` 求值；不可见行仍
@@ -34,7 +35,7 @@
 //!   故数据列范围固定取 `1..=cols`。
 //! * **文本自动换行回填行高**（`_$1(…):1557-1573` 的 `-64`/`-56` 分支）—— 夹具无此类型格。
 //! * **多栏布局**（`columns > 1`、`columnMode == 1`、`isColumnRepeatedGroupHeader`）——
-//!   探针固定传 `columns = 1`。
+//!   探针固定传 `columns = 1`。⚠ 同受守卫（`columnMode` / 重复组头非默认即报）。
 //!
 //! # 行高的来源（与 M2-22 的关系）
 //!
@@ -44,6 +45,15 @@
 
 use crate::arena::CalcGrid;
 use crate::value::Value;
+
+/// 算术层（[`paper_size_pt`] / [`unit_to_pt`] / 断页条件）——同批拆出。
+mod arith;
+/// 支持性守卫（[`ensure_supported`]）——2026-10-14 拆出（G4 行数门禁）。
+mod guard;
+
+use arith::fits;
+pub use arith::{paper_size_pt, unit_to_pt};
+pub use guard::ensure_supported;
 
 /// 探针的纸张口径：`CalcJson.renderPages(ecs, 595, 842, 1)` 的三个实参。
 ///
@@ -61,9 +71,6 @@ pub const ROW_NUM_PER_PAGE: i32 = 20;
 
 /// `IRowCell.TYPE_GROUP_HEADER`：分组头行。
 pub const ROW_TYPE_GROUP_HEADER: i8 = -90;
-
-/// 千分位容差常数（`SimplePager._$8`）。
-const TOLERANCE: f64 = 1000.0;
 
 /// 一页的观测值（`CalcJson.renderPages` 的 `po` 对象，`tests/fixtures/CalcJson.java:165-175`）。
 #[derive(Debug, Clone, PartialEq)]
@@ -127,45 +134,6 @@ impl Pagination {
     pub fn page_count(&self) -> i32 {
         self.page_count
     }
-}
-
-/// 纸张 pt → mm → pt：复刻 `setPaperSize`（float32）与 `getPageHeight`（double）。
-///
-/// `(float)width * 25.4f / 72.0f` 是 **float32 左结合**运算；`mmToPixel` 在 double 上做。
-/// `isHighPrecision == true` ⇒ **不取整**。842pt 的往返结果是 `841.9999730868603`。
-pub fn paper_size_pt(pt: f32) -> f64 {
-    let mm = pt * 25.4_f32 / 72.0_f32;
-    f64::from(mm) * 72.0 / 25.4
-}
-
-/// `Pager.unitTransfer(f, unit, scale = 1.0f, isHighPrecision = true)`（`Pager.java:160-172`）。
-///
-/// * `unit == 2`（英寸）⇒ `* 72.0`；
-/// * `unit == 1`（毫米，报表默认）⇒ `* 72.0 / 25.4`；
-/// * 其余（`0` 等）⇒ 原值；
-/// * `isHighPrecision` 为真 ⇒ **不 `Math.ceil`**。
-pub fn unit_to_pt(v: f32, unit: i8) -> f64 {
-    let d = f64::from(v);
-    match unit {
-        2 => d * 72.0,
-        1 => d * 72.0 / 25.4,
-        _ => d,
-    }
-}
-
-/// Java 的**断页条件**（`SimplePager._$1:1513`、`_$2:2363` 的同一个式子）：
-/// `cost > ceil((limit - used) * 1000) / 1000` 才放不下。
-///
-/// 与 [`fits`] 是同一式的两面。**故意拆成两个函数**：`>`（Java 原文）与取反分开写，
-/// 免得读者把 `!(a > b)` 读成"方向变了"（clippy 的 `neg_cmp_op_on_partial_ord`
-/// 也正是这条顾虑）。
-fn breaks(cost: f64, used: f64, limit: f64) -> bool {
-    cost > ((limit - used) * TOLERANCE).ceil() / TOLERANCE
-}
-
-/// 这一页/这一栏**还放得下** ⇒ `!breaks(...)`。
-fn fits(cost: f64, used: f64, limit: f64) -> bool {
-    !breaks(cost, used, limit)
 }
 
 /// 一页消耗的行。`kind` 决定它是**数据区行**（按数据序各出现一次）、
