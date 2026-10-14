@@ -1,27 +1,27 @@
 //! rpx-server —— ReportLite 报表服务端（M3）。
 //!
-//! 当前形态（2026-10-14）：**快照映射 + dev bin**，尚不含 HTTP。
-//! HTTP 面（axum + `POST /render`）在 M3-05 接入（`docs/spec-m3.md` §2.1）；
-//! 数据源层（`rpx-ds`）在 M3-03；本 bin 的加载路径与将来 server 共用同一代码。
+//! 两个子命令（库面见 `lib.rs`）：
+//!
+//! * `snapshot`：模板 + 数据集 → 快照 JSON 文件/stdout（M4 开发期数据管道）；
+//! * `serve`：起 HTTP 服务，`POST /render` 主链路（M3-05，`docs/spec-m3.md` §3.2）。
 //!
 //! 用法：
 //!
 //! ```text
 //! rpx-server snapshot <file.rpx> [-o out.json]
+//! rpx-server serve [--addr 127.0.0.1:8090]
 //! ```
 //!
 //! 输出 Univer `IWorkbookData` JSON —— 契约 `docs/spec-m4.md` §4（字段表）。
-//! 前端开发期用它直出真实快照（`spec-m4.md` §6 工作流第 1 步）。
 
-use std::fs::File;
-use std::path::Path;
 use std::process::ExitCode;
 
-mod snapshot;
+use rpx_server::{http, snapshot};
 
-fn main() -> ExitCode {
+#[tokio::main]
+async fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
-    match run(&args) {
+    match run(&args).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
@@ -31,17 +31,22 @@ fn main() -> ExitCode {
 }
 
 /// 手写解析（与 `rpx-cli` 同风格，不引第三方参数库）。
-fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+async fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd: Option<&str> = None;
     let mut path: Option<&str> = None;
     let mut out: Option<&str> = None;
+    let mut addr: Option<&str> = None;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "snapshot" => cmd = Some("snapshot"),
+            cmd_name @ ("snapshot" | "serve") => cmd = Some(cmd_name),
             "-o" => {
                 i += 1;
                 out = args.get(i).map(String::as_str);
+            }
+            "--addr" => {
+                i += 1;
+                addr = args.get(i).map(String::as_str);
             }
             other if !other.starts_with('-') => path = Some(other),
             other => {
@@ -53,8 +58,11 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     match cmd {
         Some("snapshot") => snapshot_cmd(path, out),
+        Some("serve") => serve_cmd(addr).await,
         _ => {
-            eprintln!("usage: rpx-server snapshot <file.rpx> [-o out.json]");
+            eprintln!(
+                "usage: rpx-server snapshot <file.rpx> [-o out.json]\n       rpx-server serve [--addr 127.0.0.1:8090]"
+            );
             std::process::exit(2);
         }
     }
@@ -63,20 +71,22 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 /// `snapshot` 子命令：模板 + 数据集 → 计算 → 快照 JSON。
 ///
 /// 步骤与 `/render` 主链路（`spec-m3.md` §3.2 的 ①②③④⑤..⑩）同构，
-/// 只是 ① 从「libSQL 取 BLOB」换成「本地文件」。
+/// 只是 ① 从「multipart 上传」换成「本地文件」。
 fn snapshot_cmd(path: Option<&str>, out: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     let Some(path) = path else {
         eprintln!("usage: rpx-server snapshot <file.rpx> [-o out.json]");
         std::process::exit(2);
     };
-    let file = File::open(path)?;
+    let file = std::fs::File::open(path)?;
     let rd = rpx_core::open(file)?;
     // 数据集：模板 `FileDataSetConfig` 指向的 CSV（与 `.rpx` 同目录）。
     // 纯字面量模板无文件数据集 ⇒ 空切片，`calculate` 照常跑（M2 同口径）。
-    let dir = Path::new(path).parent().unwrap_or(Path::new("."));
+    let dir = std::path::Path::new(path)
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
     let ds = rpx_engine::dataset::load_datasets(dir, &rd)?;
     let grid = rpx_engine::calculate(&rd, &ds)?;
-    let name = Path::new(path)
+    let name = std::path::Path::new(path)
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("report");
@@ -85,5 +95,14 @@ fn snapshot_cmd(path: Option<&str>, out: Option<&str>) -> Result<(), Box<dyn std
         Some(p) => std::fs::write(p, json)?,
         None => println!("{json}"),
     }
+    Ok(())
+}
+
+/// `serve` 子命令：HTTP 服务（M3-05）。默认 `127.0.0.1:8090`
+/// （端口约定 `docs/spec-m4.md` §3：web dev 5288 / server 8090）。
+async fn serve_cmd(addr: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    let addr: std::net::SocketAddr = addr.unwrap_or("127.0.0.1:8090").parse()?;
+    eprintln!("rpx-server listening on http://{addr}（POST /render，契约 docs/spec-m3.md §3.2）");
+    http::serve(addr).await?;
     Ok(())
 }

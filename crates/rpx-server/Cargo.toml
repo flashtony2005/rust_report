@@ -5,6 +5,13 @@ edition.workspace = true
 description = "ReportLite render server (M3): Univer IWorkbookData snapshot mapping + dev bin"
 
 [dependencies]
+axum = { version = "0.8", features = ["multipart"] }
 rpx-core = { path = "../rpx-core" }
 rpx-engine = { path = "../rpx-engine" }
 serde_json = "1"
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+] }

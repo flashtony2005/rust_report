@@ -1,9 +1,12 @@
 /**
- * 快照装载（M4）：取 JSON → Univer 工作簿。
+ * 快照装载（M4）：文件 → Univer 工作簿。
  *
- * 契约：`docs/spec-m4.md` §1/§2 —— 前端**零业务逻辑**，只负责装载；
- * 数据管道 v1 = 本地文件 `/snapshot.json`（`rpx-server snapshot` 产物，§6 工作流）；
- * v2（M4-06，M3-05 后）= 换 `POST /api/reports/{id}/render`，仅改 [`fetchSnapshot`]。
+ * 契约：`docs/spec-m4.md` §1/§2 —— 前端**零业务逻辑**，只负责装载。
+ * 数据管道 v2（M4-06，2026-10-14）：`POST /api/render`（multipart）——
+ * `report` = .rpx 模板，`dataset` = 模板引用的 CSV（可多个，文件名须与
+ * 模板 `FileDataSetConfig.file_name` 一致），`params` 可选（参数 JSON）。
+ * 请求/响应契约见 `docs/spec-m3.md` §3.2 与 `docs/spec-m4.md` §4；
+ * vite dev 把 `/api` 代理到 rpx-server（127.0.0.1:8090，`vite.config.ts`）。
  *
  * ⚠ import 路径以本机安装的 Univer 1.0.4 实际结构为准（2026-10-14 校准，见
  * `web/node_modules/@univerjs/preset-sheets-core`）。
@@ -14,13 +17,25 @@ import UniverPresetSheetsCoreZhCN from '@univerjs/preset-sheets-core/locales/zh-
 import '@univerjs/preset-sheets-core/lib/index.css'
 
 /** 取服务端快照 JSON（`IWorkbookData`，契约见 `docs/spec-m4.md` §4）。 */
-export async function fetchSnapshot(): Promise<unknown> {
-  // v1：vite `public/` 静态文件；v2 换 fetch('/api/reports/1/render', { method: 'POST' })
-  const resp = await fetch('/snapshot.json')
+export async function fetchSnapshot(files: File[]): Promise<unknown> {
+  const report = files.find((f) => f.name.toLowerCase().endsWith('.rpx'))
+  if (!report) {
+    throw new Error('未选择 .rpx 模板文件（可同时选中模板引用的 CSV，一起上传）')
+  }
+  const form = new FormData()
+  form.append('report', report, report.name)
+  // 其余文件一律按数据集 CSV 上传；服务端按文件名与模板引用对齐
+  // （少给一个文件会显式报「缺少数据集文件：<文件名>」）。
+  for (const f of files) {
+    if (f !== report) form.append('dataset', f, f.name)
+  }
+  const resp = await fetch('/api/render', { method: 'POST', body: form })
   if (!resp.ok) {
-    throw new Error(
-      `取快照失败：HTTP ${resp.status} —— 先跑 \`cargo run -p rpx-server -- snapshot <file.rpx> -o web/public/snapshot.json\``,
-    )
+    // 错误体是 `{"error": "..."}`（rpx-server `src/http.rs` 的 error_json）——原样上屏。
+    const detail = await resp.json().catch(() => null)
+    const msg =
+      detail && typeof detail.error === 'string' ? detail.error : `HTTP ${resp.status}`
+    throw new Error(`渲染失败：${msg}`)
   }
   return resp.json()
 }

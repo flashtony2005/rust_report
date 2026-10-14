@@ -177,6 +177,8 @@ libsql / sqlx / axum / rust_xlsxwriter / printpdf / nom / rust_decimal。旧 G5 
 | crate | 依赖 | 为什么需要 | 替代方案为何不行 |
 |---|---|---|---|
 | `rpx-server` | `serde_json` | 快照映射（M3-08 v1）：`CalcGrid` → Univer `IWorkbookData` 的 **JSON 文本**（契约 `docs/spec-m4.md` §4；`/render` 响应体同源） | ① 手写 JSON 序列化：转义 / 浮点 / 大整数边界全靠自证；且 M3-05 的 axum 栈**必然**引入 serde 生态，现在省下的依赖下一个任务就还回去；② 无 std 内建 JSON，替代只有自研 |
+| `rpx-server` | `axum`（features = `multipart`） | M3-05 `POST /render` 主链路：HTTP 路由 + multipart 表单解析（`report`/`dataset`/`params` 三字段，`form.rs`）。蓝图 §8.1 路由表的既定选型 | ① 手写 HTTP/1.1 + multipart 编解码：multipart 边界/CRLF/Content-Disposition 解析是典型的"写起来简单、边界全是坑"，无基准可对拍；② `spec-m3.md` §3.1 已定 axum，另起炉灶等于违背架构文档 |
+| `rpx-server` | `tokio`（features = `rt-multi-thread`/`macros`/`net`/`io-util`） | axum 0.8 的运行时底座：`#[tokio::main]` + `TcpListener`（`serve` 子命令）+ 集成测试的异步 socket 客户端（`tests/render_http.rs`） | axum 的 `serve`/`Router` 全部构建在 tokio 之上，没有"用 axum 但不引 tokio"的路径；std 无异步运行时，替代只有自研 executor（axum 不接受） |
 
 ⛔ **不许做的事**：删掉 G5、把 `rpx-core`/`rpx-engine` 挪进受审层、
 或往白名单里塞没写理由的条目。

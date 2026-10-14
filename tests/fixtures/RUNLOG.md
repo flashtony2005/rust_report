@@ -2731,3 +2731,55 @@ encoding.rs         include_bytes!("../data/gbk.bin")，二分查找，零运行
 | workspace 测试 | 全绿（260 单测 + 全部集成；`all_names` 15→17、tripwire 94→97、SHAPE 表 +1 行） |
 | Java round-trip | `VERIFY OK: 17 engine fixtures generated` |
 | 既有 16 夹具回归 | 全绿（ASCII 按 GBK 解逐字节等价，行为不变） |
+
+## §26 M3-05 `POST /render` 主链路：axum 落地 + 浏览器全链路实测（2026-10-14 深夜）
+
+### 26.1 形态与契约
+
+`rpx-server` 从「快照映射 + dev bin」扩为 **HTTP 服务端**（`spec-m3.md` §3.2 十步
+主链路的 HTTP 版）。库/bin 分层（`src/lib.rs` 导出 `form`/`http`/`snapshot`），
+集成测试可 import 主链路纯函数 `http::render_request`，与真 socket 响应体双轨对拍。
+
+| 请求字段 | 次数 | 内容 |
+|---|---|---|
+| `report` | 1 | `.rpx` 字节（魔数 `rpx_core::open_bytes` 校验） |
+| `dataset` | 0..n | CSV，multipart `filename` = 模板 `FileDataSetConfig.file_name` |
+| `params` | 0..1 | 参数 JSON（口径与夹具 loader 互逆：`1`→Int、`1.5`/`1e2`→Double、数组→List） |
+
+错误分级：表单/模板/引擎问题 → 400 + `{"error": …}`；快照不变式违反 → 500。
+上传完整性**预检**：模板引用的 CSV 必须都在表单里，按**文件名**报缺
+（引擎的 `MissingDataset` 只带 `ds1` 这种数据集名，上传用户只认文件名）。
+
+### 26.2 引擎侧唯一改动：闭包字节源
+
+`load_datasets` 重构为委托 `load_datasets_with(rd, read: Fn(&str) -> Option<Vec<u8>>)`
+——磁盘路径与 HTTP 上传**共用同一份** parse/物化代码（否则两份口径必漂移）。
+单测：内存字节 ≡ 磁盘字节（`engine_sum` 双数据集逐格相等），缺文件显式
+`MissingDataset`。
+
+### 26.3 验证矩阵
+
+| 证据 | 结果 |
+|---|---|
+| `tests/render_http.rs`（真 socket + 手写 HTTP/1.1 客户端，零新测试依赖） | 6/6：响应体与库函数直调**逐字节一致** / GBK 中文过网 / params 过网（List 扩到第 5 行）/ 缺文件 400 点名文件名 / 坏魔数 400 / 未知字段 400 |
+| 服务端 curl 冒烟 | `POST /render`（engine_gbk）200，快照含「区域/华北/华南/华东」；`/api` 404 坑见 §26.4 |
+| 浏览器端到端（playwright 库直驱 + `setInputFiles`） | **E2E_OK**：选 engine_gbk.rpx + csv → `POST /api/render` 200 → Univer canvas 装载；截图 `tests/fixtures/out/m4-render-http.png`（表头 区域/数量/备注 + 华北/华南/华东 + 扩展行 华东站） |
+| workspace 测试 | 394 全绿（含引擎新单测 + form 4 条 + http 集成 6 条） |
+| 前端 | `tsc --noEmit` 0 错；`vite build` exit 0 |
+
+### 26.4 排查实录：vite 代理「不生效」的根因（不是代理坏）
+
+现象：浏览器 `POST /api/render` → 404；`GET /api/health` 经 vite 空响应/404，
+而直连 `127.0.0.1:8090` 全好。逐跳定位：
+
+1. 调试插件证明请求到达 proxy 中间件但**没到**后置中间件 ⇒ proxy 接了请求；
+2. 换 node 嗅探服务器当代理目标 → 200 ⇒ vite 代理本身没坏；
+3. 原始 TCP dump：转发字节完全正常（`GET /api/health HTTP/1.1`，Host 已改写）；
+4. 中间人转发器插在 vite 与 rpx-server 之间 ⇒ **实锤：路径是 `/api/health`
+   （`/api` 前缀没剥）**，服务端只有 `/render` 路由 → axum 默认 404 空体。
+
+**根因**：vite 的 `server.proxy` 默认**原样转发全路径**（与经典 http-proxy 一致），
+`'/api': 'http://127.0.0.1:8090'` 不会剥前缀。修法 =
+`rewrite: (path) => path.replace(/^\/api/, '')`（`web/vite.config.ts`）。
+教训：proxy 类的 404 要先打路径再打代理组件——「代理没生效」的直觉这次是错的。
+附带记录：vite 不带 `--host 127.0.0.1` 绑 IPv6 `::1`（§7 已记）。

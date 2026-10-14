@@ -7,7 +7,17 @@ export default defineConfig({
   server: {
     port: 5288,
     strictPort: true,
-    // M3-05（axum）就绪后启用：把 /api 转发到 rpx-server
-    // proxy: { '/api': 'http://127.0.0.1:8090' },
+    // M3-05/M4-06：`POST /api/render`（multipart 上传 .rpx + CSV）转发到 rpx-server。
+    // 起服务：`cargo run -p rpx-server -- serve`（默认 127.0.0.1:8090）。
+    // ⚠ rewrite 剥 `/api` 前缀：vite/http-proxy 默认**原样转发全路径**，
+    // 而服务端路由是 `/render`（`docs/spec-m3.md` §3.2）——不剥就是 404
+    // （2026-10-14 实测：MITM 抓到 `/api/health` 原样进引擎）。
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8090',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
 })

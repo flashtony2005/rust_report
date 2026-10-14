@@ -1,0 +1,238 @@
+//! `POST /render` 端到端（M3-05）：**真 socket + 真 multipart 字节**。
+//!
+//! 不引 reqwest / tower（守 G5 零新依赖）：手写 ~40 行 HTTP/1.1 客户端
+//! （tokio `TcpStream`）。断言口径（`docs/spec-m3.md` §4 M3-05）：
+//! 响应体与**库函数直调**（[`rpx_server::http::render_request`]）逐字节一致
+//! —— 同输入下 HTTP 面不得与引擎库输出有差；另覆盖 GBK 字节过网、参数
+//! 过网、缺文件 / 坏魔数 / 未知字段四条负路径。
+
+use std::path::PathBuf;
+
+use rpx_engine::params::ParamTable;
+use rpx_engine::value::Value;
+use rpx_server::form::RenderRequest;
+use rpx_server::http::{app, render_request};
+
+const BOUNDARY: &str = "rpx-e2e-boundary";
+
+fn fixture(name: &str) -> Vec<u8> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures")
+        .join(name);
+    std::fs::read(&path).unwrap_or_else(|e| panic!("读夹具失败 {}：{e}", path.display()))
+}
+
+/// 拼 multipart 体（parts = (字段名, Option<文件名>, 字节)）。
+fn multipart(parts: &[(&str, Option<&str>, &[u8])]) -> (Vec<u8>, String) {
+    let mut body = Vec::new();
+    for (name, filename, bytes) in parts {
+        body.extend_from_slice(format!("--{BOUNDARY}\r\n").as_bytes());
+        match filename {
+            Some(f) => body.extend_from_slice(
+                format!("Content-Disposition: form-data; name=\"{name}\"; filename=\"{f}\"\r\n")
+                    .as_bytes(),
+            ),
+            None => body.extend_from_slice(
+                format!("Content-Disposition: form-data; name=\"{name}\"\r\n").as_bytes(),
+            ),
+        }
+        body.extend_from_slice(b"Content-Type: application/octet-stream\r\n\r\n");
+        body.extend_from_slice(bytes);
+        body.extend_from_slice(b"\r\n");
+    }
+    body.extend_from_slice(format!("--{BOUNDARY}--\r\n").as_bytes());
+    (body, format!("multipart/form-data; boundary={BOUNDARY}"))
+}
+
+/// 真 socket POST（`Connection: close` + 读到 EOF）→ (状态码, 响应体)。
+async fn post(addr: &str, body: Vec<u8>, content_type: &str) -> (u16, String) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let head = format!(
+        "POST /render HTTP/1.1\r\nHost: {addr}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    stream.write_all(head.as_bytes()).await.unwrap();
+    stream.write_all(&body).await.unwrap();
+    let mut resp = Vec::new();
+    stream.read_to_end(&mut resp).await.unwrap();
+    let text = String::from_utf8_lossy(&resp).into_owned();
+    let status = text
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let body_text = text
+        .split_once("\r\n\r\n")
+        .map(|(_, b)| b.to_string())
+        .unwrap_or_default();
+    (status, body_text)
+}
+
+/// 起服务（ephemeral 端口），返回 `127.0.0.1:<port>`。
+async fn spawn() -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(listener, app()).await.unwrap();
+    });
+    format!("127.0.0.1:{port}")
+}
+
+/// 库函数直调（对拍基准；`csv_files` = 全部 CSV **完整文件名** —— 第二个
+/// 数据集在夹具里就叫 `engine_sum.csv2`，不是 `engine_sum2.csv`）。
+fn library(name: &str, csv_files: &[&str], params: ParamTable) -> String {
+    let req = RenderRequest {
+        report: fixture(&format!("{name}.rpx")),
+        report_name: name.to_string(),
+        datasets: csv_files
+            .iter()
+            .map(|f| (f.to_string(), fixture(f)))
+            .collect(),
+        params,
+    };
+    render_request(&req).unwrap()
+}
+
+/// 快照 JSON 的 sheet 段（键集断言用）。
+fn sheet_of(json_text: &str) -> serde_json::Value {
+    let j: serde_json::Value = serde_json::from_str(json_text).unwrap();
+    j["sheets"]["rpx-sheet-1"].clone()
+}
+
+#[tokio::test]
+async fn render_http_matches_library_output() {
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[
+        ("report", Some("engine_sum.rpx"), &fixture("engine_sum.rpx")),
+        (
+            "dataset",
+            Some("engine_sum.csv"),
+            &fixture("engine_sum.csv"),
+        ),
+        (
+            "dataset",
+            Some("engine_sum.csv2"),
+            &fixture("engine_sum.csv2"),
+        ),
+    ]);
+    let (status, resp) = post(&addr, body, &ct).await;
+    assert_eq!(status, 200, "响应体：{resp}");
+    // 同输入下 HTTP 面与库函数直调**逐字节一致**。
+    assert_eq!(
+        resp,
+        library(
+            "engine_sum",
+            &["engine_sum.csv", "engine_sum.csv2"],
+            ParamTable::EMPTY
+        )
+    );
+    // 键集（契约 `docs/spec-m4.md` §4）：IWorkbookData 顶层 + sheet 槽。
+    let j: serde_json::Value = serde_json::from_str(&resp).unwrap();
+    for key in [
+        "id",
+        "name",
+        "appVersion",
+        "locale",
+        "styles",
+        "sheetOrder",
+        "sheets",
+    ] {
+        assert!(j.get(key).is_some(), "缺顶层键 {key}");
+    }
+    for key in ["cellData", "mergeData", "rowData", "columnData"] {
+        assert!(sheet_of(&resp).get(key).is_some(), "缺 sheet 键 {key}");
+    }
+}
+
+#[tokio::test]
+async fn gbk_csv_decodes_over_http() {
+    // M3-02 × M3-05：GBK 字节过 multipart 不得被 UTF-8 化（静默乱码回归网）。
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[
+        ("report", Some("engine_gbk.rpx"), &fixture("engine_gbk.rpx")),
+        (
+            "dataset",
+            Some("engine_gbk.csv"),
+            &fixture("engine_gbk.csv"),
+        ),
+    ]);
+    let (status, resp) = post(&addr, body, &ct).await;
+    assert_eq!(status, 200, "响应体：{resp}");
+    assert_eq!(
+        resp,
+        library("engine_gbk", &["engine_gbk.csv"], ParamTable::EMPTY)
+    );
+    for s in ["区域", "华北", "华南", "华东"] {
+        assert!(resp.contains(s), "GBK 中文 {s} 应正确解码进快照");
+    }
+}
+
+#[tokio::test]
+async fn params_flow_over_http() {
+    // M3-01 × M3-05：params JSON → 引擎计算；List 参数驱动扩展（矩阵 3→5 行）。
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[
+        (
+            "report",
+            Some("engine_param.rpx"),
+            &fixture("engine_param.rpx"),
+        ),
+        (
+            "dataset",
+            Some("engine_param.csv"),
+            &fixture("engine_param.csv"),
+        ),
+        ("params", None, br#"{"p":[1,2,3],"s":7}"#),
+    ]);
+    let (status, resp) = post(&addr, body, &ct).await;
+    assert_eq!(status, 200, "响应体：{resp}");
+    let mut params = ParamTable::new();
+    params.insert(
+        "p",
+        Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]),
+    );
+    params.insert("s", Value::Int(7));
+    assert_eq!(resp, library("engine_param", &["engine_param.csv"], params));
+    // List 参数把矩阵扩到第 5 行 ⇒ cellData 应有 0 起行键 "4"（`@s` 落该行）。
+    let cd = sheet_of(&resp)["cellData"].clone();
+    assert!(
+        cd.get("4").is_some(),
+        "List 参数应把矩阵扩到第 5 行，实得 cellData 行键：{:?}",
+        cd.as_object().map(|o| o.keys().collect::<Vec<_>>())
+    );
+}
+
+#[tokio::test]
+async fn missing_dataset_file_is_400() {
+    // 只传 .rpx 不传 CSV ⇒ 400，且消息点名**文件名**（不是数据集名）。
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[("report", Some("engine_sum.rpx"), &fixture("engine_sum.rpx"))]);
+    let (status, resp) = post(&addr, body, &ct).await;
+    assert_eq!(status, 400, "响应体：{resp}");
+    assert!(
+        resp.contains("engine_sum.csv"),
+        "应点名缺失文件，实得：{resp}"
+    );
+}
+
+#[tokio::test]
+async fn bad_magic_is_400() {
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[("report", Some("junk.rpx"), b"not an rpx file at all")]);
+    let (status, resp) = post(&addr, body, &ct).await;
+    assert_eq!(status, 400, "响应体：{resp}");
+    assert!(resp.contains("\"error\""), "错误体应为 JSON，实得：{resp}");
+}
+
+#[tokio::test]
+async fn unknown_form_field_is_400() {
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[
+        ("report", Some("engine_sum.rpx"), &fixture("engine_sum.rpx")),
+        ("evil", Some("x.txt"), b"x"),
+    ]);
+    let (status, resp) = post(&addr, body, &ct).await;
+    assert_eq!(status, 400, "响应体：{resp}");
+    assert!(resp.contains("未知字段"), "实得：{resp}");
+}

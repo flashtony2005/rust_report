@@ -38,7 +38,7 @@ M3 = 把 M1/M2 的**库能力**变成可用的**服务**：
 | M3-05 | `rpx-server`：axum 路由 + `POST /render` 主链路                                 | 新 crate                   |
 | M3-06 | 分页真实口径：`/render` 按 `print_setup` 驱动 `pagination`（探针口径仅为对拍保留）               | `rpx-engine` 接口 + server 接线 |
 | M3-07 | 门禁扩展（G1–G7 覆盖新 crate + 依赖分层 G5）+ e2e 冒烟                                  | `scripts/gate.sh` + tests |
-| M3-08 | 快照协议：Univer `IWorkbookData` 映射（含**样式直通**；动态样式宏后置）⚠ **提为关键路径，v1 先行**（契约已定 `spec-m4.md` §4） | `rpx-server`（dev bin 先出，HTTP 后接） |
+| M3-08 | 快照协议：Univer `IWorkbookData` 映射（含**样式直通**；动态样式宏后置）⚠ **提为关键路径，v1 先行**（契约已定 `spec-m4.md` §4） | `rpx-server`（dev bin + HTTP 双通道均已就绪） |
 
 ### 2.2 明确不做
 
@@ -58,7 +58,7 @@ M3 = 把 M1/M2 的**库能力**变成可用的**服务**：
 
 ```text
 rpx-core ── rpx-engine ──┬── rpx-cli（已有，M1/M2 对拍入口）
-   │                     └── rpx-server（新，已立骨架：快照映射 + dev bin；axum/http 后接）
+   │                     └── rpx-server（M3-05 起含 HTTP 面：axum `POST /render` + dev bin）
    └── rpx-ds（新，数据源层）
 ```
 
@@ -106,7 +106,7 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | M3-02 | 数据集编码    | ✅ **已达成**（2026-10-14）：While CSV 为 GBK 且含中文，列名与值**必须**正确解码（`encoding.rs` 按 `FileDataSetConfig.encoding` 缺省 GBK 解码；`engine_gbk` 夹具中文全链路逐格对拍）；⛔ 不得静默乱码（非法字节显式 `MalformedEncoding`）——GB18030 四字节序列**带账**（§8），与产品默认 `GBK` charset 行为一致 |
 | M3-03 | rpx-ds 取数 | While 数据源配置指向 `postgres://` / `mysql://` / `sqlite://`，**必须**经 AnyPool 取到行集并物化为引擎 `DataSet`；换库只换 URL（蓝图 §7.2）                                                        | P0  |
 | M3-04 | 报表资产     | While 上传 `.rpx`，**必须**魔数校验后存 libSQL BLOB；`GET /meta` **必须**返回参数清单（静态/动态两套 MetaData）                                                                                  | P0  |
-| M3-05 | /render 快照 | `POST /render` **必须**返回快照 JSON；且同输入下与引擎库函数输出**逐格一致**（集成测试断言网格/合并/分页三段）                                                                                          | P0  |
+| M3-05 | `/render` 快照 | ✅ **已达成**（2026-10-14）：`POST /render` 返回快照 JSON（multipart：`report`/`dataset`/`params`）；同输入下与引擎库函数直调**逐字节一致**（`tests/render_http.rs` 6 用例：真 socket + 对拍基准）；GBK/参数/缺文件/坏魔数/未知字段全覆盖；浏览器端到端实测通过（截图 `tests/fixtures/out/m4-render-http.png`） | P0  |
 | M3-06 | 分页真实口径   | While 模板 `print_setup` 非默认（纸张/边距），`/render` 的 `pagination` **必须**按模板值计算；`pagerStyle != 2` 与多栏**必须**走 `UnsupportedPaging` 守卫（不静默）                                             | P0  |
 | M3-07 | 门禁与端到端   | G1–G7 **必须**扩到新 crate（含依赖分层）；e2e 冒烟：上传 → render → 断言快照键集                                                                                                               | P0  |
 | M3-08 | 快照协议     | 快照**必须**含样式槽（模板静态属性直通）；动态样式宏**必须**在响应中显式标注「未应用」而非静默缺失                                                                                                              | P1  |
@@ -164,5 +164,6 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | ---------- | ------------------------ | ----------------------------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead，阶段 0）  | 总监批准「务实路」后启动 M3；本档承接 `spec-m2.md` §6.2 的准入 v2；阶段 0 出口 = 本文件经总监确认 |
 | 2026-10-14 | v0.2：M4 并行推进 + M3-08 提关键路径 | 总监令「M3 M4 一起推进，这样可以看到报表显示」；前端立档 `docs/spec-m4.md`，快照契约 v1 已定 |
+| 2026-10-14 | v0.5：**M3-05 闭合**（`POST /render` 主链路） | axum 0.8 + tokio 入 `rpx-server`（库/bin 分层：`lib.rs` + `http.rs`/`form.rs`，集成测试可 import 主链路纯函数与真 socket 双轨对拍）；引擎加 `load_datasets_with` 闭包字节源（磁盘/HTTP 上传共用一份口径）；上传完整性预检按**文件名**报缺；错误 400/500 分级；G5 登记 axum/tokio（理由见 `code-review.md` §3.2）；RUNLOG §26 |
 | 2026-10-14 | v0.4：**M3-02 GBK 闭合**（`encoding.rs` + `gbk.bin` 冻结表 + `engine_gbk` 夹具 17 对拍全绿）；M3-01 状态同步 | `ProbeEncoding.java` dump JDK 全定义域 23,940 对 → 生成器只加头 → `include_bytes!`；`parse_csv` 按 `FileDataSetConfig.encoding` 缺省 GBK 解；GB18030 四字节显式带账；RUNLOG §25 |
 | 2026-10-14 | v0.3：**M3-01 闭合**（阶段 1 出口达成） | 参数全景探针（`ProbeParamFull`）+ 建树期内联定案（`parse_with`/`calculate_with`/`ParamTable`，删除被证伪的求值期兜底）+ `engine_param` 夹具（16 夹具主对拍全绿）+ 两扩展格同行实证带账（RUNLOG §24） |

@@ -140,19 +140,24 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 | M4-03 | 快照装载    | While 加载 `rpx-server snapshot` 产出的 JSON，**必须**显示：网格值 / 合并区 / 行高列宽 / 样式（§4.3 表内字段）；断言：`mergeData.length == 去重后锚点数`（§4.4） | P0  |
 | M4-04 | 参数表单    | While 报表带参数清单，**必须**生成可提交的参数表单（静态从模板 `Param` 读，v1 手工核对）                                                               | P1  |
 | M4-05 | 翻页      | While 报表多页，**必须**可翻页（多 sheet 或 `pno` 拉取）；**依赖 M3-06 真实口径**，可后置                                                             | P1  |
-| M4-06 | HTTP 联调  | While M3-05 就绪，**必须**由 `POST /render` 直连替换本地文件（仅换 URL）                                                                 | P1  |
+| M4-06 | HTTP 联调  | ✅ **已达成**（2026-10-14）：`fetchSnapshot(files)` 走 `POST /api/render`（multipart：`.rpx` → `report`，其余 → `dataset`）；vite dev 代理 `/api` → `127.0.0.1:8090`；错误体 `{"error":…}` 原样上屏；浏览器实测中文报表全链路（截图 `tests/fixtures/out/m4-render-http.png`） | P1  |
 
 ## 6. 本地开发工作流
 
 ```bash
-# 1) 出快照（Rust 侧，真实数据）
-cargo run -p rpx-server -- snapshot tests/fixtures/<某个>.rpx -o web/public/snapshot.json
+# 1) 起报表服务端（M3-05）：POST /render 主链路（默认 127.0.0.1:8090）
+cargo run -p rpx-server -- serve
 
-# 2) 起前端（本机 npx 不可用，直连 node）
-cd web && node node_modules/vite/bin/vite.js --port 5288
+# 2) 起前端（本机 npx 不可用，直连 node；--host 127.0.0.1 必须，否则绑 IPv6 ::1）
+cd web && node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5288
 
-# 3) 浏览器打开 http://127.0.0.1:5288 —— 应看到报表网格
+# 3) 浏览器打开 http://127.0.0.1:5288 —— 选中 .rpx 模板**及其同目录 CSV**
+#    （多选一起上传；少给 CSV 会显式报「缺少数据集文件：<文件名>」）
 ```
+
+产物即所见：GBK CSV → 引擎计算 → 快照 JSON → Univer 装载（2026-10-14 实测截图
+`tests/fixtures/out/m4-render-http.png`）。v1 的静态文件管道（`web/public/snapshot.json`）
+已退役（文件已删），快照只从服务端来。
 
 ## 7. 已知坑与待验证项
 
@@ -167,9 +172,12 @@ cd web && node node_modules/vite/bin/vite.js --port 5288
 | `styles` 去重   | 后置   | v1 内联样式，JSON 体积偏大（可接受）                                                             |
 | 多页 / 真实口径      | 依赖   | M4-05 依赖 M3-06；v1 单 sheet 全量行                                                      |
 | 前端构建不入门禁      | 声明   | G1–G7 只管 Rust 侧；前端自审（build exit 0 + 控制台无错）；门禁扩展在 M3-07                             |
+| **vite 代理不剥前缀** | ✅ 已定位（2026-10-14 实测） | vite 的 `server.proxy` 默认**原样转发全路径**：`'/api': 'http://127.0.0.1:8090'` 会把 `/api/health` 转成目标上的 `/api/health` → 服务端 404（现象是"代理没生效"，极易误判为代理坏）。修法 = `rewrite: (path) => path.replace(/^\/api/, '')`（见 `web/vite.config.ts` 注释）；定位手段：中间人转发器逐跳打印路径 |
+| vite 绑 `localhost`  | ✅ 已知（IPv6） | 不带 `--host 127.0.0.1` 时绑 `::1`，curl/浏览器走 `127.0.0.1` 连不上（连接被拒，非代理问题） |
 
 ## 8. 变更记录
 
 | 日期         | 变更                      | 原因                                    |
 | ---------- | ----------------------- | ------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead）      | 总监令「M3 M4 一起推进，看到报表显示」；M3-08 提为关键路径 |
+| 2026-10-14 | v0.2：**M4-06 闭合**（HTTP 联调） | `fetchSnapshot(files)` 走 `POST /api/render`；静态快照管道退役；工作流 §6 更新；记录 vite 代理剥前缀 + IPv6 绑定两坑（§7）；浏览器实测中文报表全链路 |

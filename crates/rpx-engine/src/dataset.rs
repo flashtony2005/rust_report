@@ -37,7 +37,23 @@ use crate::value::Value;
 ///
 /// 只处理 `file` 非空且带 `file_name` 的条目（其余配置类无文件可读，跳过）。
 /// 数据集名取配置基类的 `name` 槽（`attachFileDataSet` 写入的 `ds1`/`ds2`）。
+///
+/// 磁盘路径版（dev bin / 夹具对拍用）；HTTP 上传场景（内存字节，没有目录）
+/// 走 [`load_datasets_with`] —— 两条路径共用同一份解析代码。
 pub fn load_datasets(dir: &Path, rd: &ReportDefine) -> Result<Vec<DataSet>> {
+    load_datasets_with(rd, |file_name| std::fs::read(dir.join(file_name)).ok())
+}
+
+/// 同 [`load_datasets`]，但 CSV 字节由调用方闭包提供。
+///
+/// **存在理由**：`POST /render`（`docs/spec-m3.md` §3.2 主链路 ③④）的输入是
+/// multipart 上传的字节，服务端没有"`.rpx` 同目录"可读。若给 HTTP 另写一份
+/// 读取+解析，就是两份口径、必漂移；共用本函数，磁盘/内存只差一个闭包。
+/// 闭包返回 `None` ⇒ 该文件缺失（[`EngineError::MissingDataset`]）。
+pub fn load_datasets_with<F>(rd: &ReportDefine, read: F) -> Result<Vec<DataSet>>
+where
+    F: Fn(&str) -> Option<Vec<u8>>,
+{
     let mut out = Vec::new();
     for entry in &rd.datasets {
         let Some(file) = entry.file.as_ref() else {
@@ -47,19 +63,20 @@ pub fn load_datasets(dir: &Path, rd: &ReportDefine) -> Result<Vec<DataSet>> {
             continue;
         };
         let name = file.name.as_deref().unwrap_or(file_name);
-        out.push(load_one(dir, file_name, name, file.encoding.as_deref())?);
+        let Some(bytes) = read(file_name) else {
+            return Err(EngineError::MissingDataset {
+                name: name.to_string(),
+            });
+        };
+        out.push(load_one(&bytes, name, file.encoding.as_deref())?);
     }
     Ok(out)
 }
 
-/// 读一个 CSV 文件并建成 [`DataSet`]。`encoding` 是模板声明的 charset
+/// CSV 字节 → [`DataSet`]。`encoding` 是模板声明的 charset
 /// （缺省按产品默认 GBK，见 [`crate::encoding`]）。
-fn load_one(dir: &Path, file_name: &str, name: &str, encoding: Option<&str>) -> Result<DataSet> {
-    let path = dir.join(file_name);
-    let bytes = std::fs::read(&path).map_err(|_| EngineError::MissingDataset {
-        name: name.to_string(),
-    })?;
-    let (cols, rows) = parse_csv(&bytes, name, encoding)?;
+fn load_one(bytes: &[u8], name: &str, encoding: Option<&str>) -> Result<DataSet> {
+    let (cols, rows) = parse_csv(bytes, name, encoding)?;
     let col_refs: Vec<&str> = cols.iter().map(String::as_str).collect();
     Ok(DataSet::new(name, &col_refs, rows))
 }
@@ -113,6 +130,7 @@ fn parse_cell(text: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
     use std::path::PathBuf;
 
     fn fixtures_dir() -> PathBuf {
@@ -180,5 +198,27 @@ mod tests {
         // 不静默乱码——这正是 M3-02 之前 UTF-8 硬编码会走到的坑）。
         assert!(parse_csv(&bytes, "ds1", Some("UTF-8")).is_err());
         assert!(parse_csv(&bytes, "ds1", Some("Big5")).is_err());
+    }
+
+    #[test]
+    fn load_datasets_with_matches_the_disk_path() {
+        // M3-05：HTTP 上传走闭包供字节的 `load_datasets_with`，与磁盘路径
+        // `load_datasets` 必须同解（共用一份 parse_csv/物化代码的回归网）。
+        let dir = fixtures_dir();
+        let rd = rpx_core::open(File::open(dir.join("engine_sum.rpx")).unwrap()).unwrap();
+        let from_disk = load_datasets(&dir, &rd).unwrap();
+        let from_mem = load_datasets_with(&rd, |f| std::fs::read(dir.join(f)).ok()).unwrap();
+        assert_eq!(from_disk.len(), from_mem.len());
+        for (a, b) in from_disk.iter().zip(from_mem.iter()) {
+            assert_eq!(a.name, b.name);
+            assert_eq!(a.cols, b.cols);
+            assert_eq!(a.rows, b.rows);
+        }
+        // 闭包给不出字节 ⇒ 显式 MissingDataset（不静默当空数据集算）。
+        let missing = load_datasets_with(&rd, |_| None);
+        assert!(
+            matches!(missing, Err(EngineError::MissingDataset { .. })),
+            "缺文件必须显式报错，实得：{missing:?}"
+        );
     }
 }
