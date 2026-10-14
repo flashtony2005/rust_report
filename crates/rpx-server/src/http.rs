@@ -15,9 +15,10 @@
 //! 消息显式（前端原样上屏）；快照不变式违反 → **500**（服务端缺陷，不该发生）。
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use axum::{
-    extract::Multipart,
+    extract::{Multipart, Path, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -26,25 +27,152 @@ use axum::{
 use serde_json::json;
 
 use rpx_core::RpxError;
+use rpx_ds::{AssetError, AssetStore};
 use rpx_engine::EngineError;
 
 use crate::{form, snapshot};
 
 /// 应用（[`serve`] 与集成测试共用同一份路由；监听地址由调用方决定）。
-pub fn app() -> Router {
+///
+/// 资产库（M3-04）：`reports` 三路由挂在同一个 [`AssetStore`] 上——
+/// 路径不含 `/api` 前缀（web 的 vite 代理剥 `/api`，与 `/render` 同约定）。
+pub fn app(store: Arc<AssetStore>) -> Router {
     Router::new()
         .route("/render", post(render))
+        .route("/reports", post(upload_report).get(list_reports))
+        .route("/reports/{id}/meta", get(report_meta))
         .route("/health", get(health))
+        .with_state(store)
 }
 
 /// 起服务（`rpx-server serve` 子命令）：阻塞到进程结束。
-pub async fn serve(addr: SocketAddr) -> std::io::Result<()> {
+pub async fn serve(addr: SocketAddr, store: Arc<AssetStore>) -> std::io::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app()).await
+    axum::serve(listener, app(store)).await
 }
 
 async fn health() -> &'static str {
     "ok"
+}
+
+/// `POST /reports`（M3-04）：multipart 上传 `.rpx` → 魔数校验 → 存 BLOB +
+/// 参数清单（蓝图 §八 路由表）。
+///
+/// 表单字段：`file`（**文件名**去扩展名 = 报表名，与 `/render` 的 `report_name`
+/// 同口径）。返回 `{"id": …, "name": …}`。
+async fn upload_report(State(store): State<Arc<AssetStore>>, mut multipart: Multipart) -> Response {
+    let (name, bytes) = match read_upload(&mut multipart).await {
+        Ok(v) => v,
+        // Err 是 `Box<Response>`（clippy result_large_err：Response 体量大）。
+        Err(e) => return (*e).into_response(),
+    };
+    match store.put(&name, &bytes).await {
+        Ok(id) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
+            json!({ "id": id, "name": name }).to_string(),
+        )
+            .into_response(),
+        Err(e) => asset_error_response(e),
+    }
+}
+
+/// `GET /reports`：列表（名称/版本/时间）。
+async fn list_reports(State(store): State<Arc<AssetStore>>) -> Response {
+    match store.list().await {
+        Ok(items) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
+            json!(items
+                .iter()
+                .map(|a| json!({
+                    "id": a.id, "name": a.name, "version": a.version,
+                    "created_at": a.created_at,
+                }))
+                .collect::<Vec<_>>())
+            .to_string(),
+        )
+            .into_response(),
+        Err(e) => asset_error_response(e),
+    }
+}
+
+/// `GET /reports/{id}/meta`：参数清单（**读库即答**——清单在上传时解析落库，
+/// 本路由不碰解析器；蓝图 §八：静态/动态两套 MetaData 供前端生成参数表单）。
+async fn report_meta(State(store): State<Arc<AssetStore>>, Path(id): Path<i64>) -> Response {
+    match store.meta(id).await {
+        Ok(items) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
+            json!(items
+                .iter()
+                .map(|p| json!({
+                    "name": p.name, "param_type": p.param_type,
+                    "is_static": p.is_static, "data_type": p.data_type,
+                    "default_val": p.default_val, "description": p.description,
+                }))
+                .collect::<Vec<_>>())
+            .to_string(),
+        )
+            .into_response(),
+        Err(e) => asset_error_response(e),
+    }
+}
+
+/// `AssetError` → HTTP 映射（本地辅助函数——`AssetError` 是外来类型，
+/// 本仓不能给它 impl `IntoResponse`，E0117）：
+/// 坏模板 400 / 不存在 404 / 库故障 500。
+fn asset_error_response(e: AssetError) -> Response {
+    match e {
+        AssetError::Parse(e) => error_json(StatusCode::BAD_REQUEST, &format!("模板解析失败：{e}")),
+        AssetError::NotFound(id) => {
+            error_json(StatusCode::NOT_FOUND, &format!("报表不存在：id={id}"))
+        }
+        AssetError::Sql(e) => error_json(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("资产库操作失败：{e}"),
+        ),
+    }
+}
+
+/// 从 multipart 取上传：字段名 `file`（没有则退回第一个带文件名的字段）。
+/// 报表名 = 文件名去扩展名（[`crate::form`] 的 `report_name` 同口径）。
+async fn read_upload(multipart: &mut Multipart) -> Result<(String, Vec<u8>), Box<Response>> {
+    let mut fallback: Option<(String, Vec<u8>)> = None;
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        Box::new(error_json(
+            StatusCode::BAD_REQUEST,
+            &format!("表单错误：{e}"),
+        ))
+    })? {
+        let Some(file_name) = field.file_name().map(str::to_string) else {
+            continue;
+        };
+        let is_file_field = field.name() == Some("file");
+        let bytes = field.bytes().await.map_err(|e| {
+            Box::new(error_json(
+                StatusCode::BAD_REQUEST,
+                &format!("表单错误：{e}"),
+            ))
+        })?;
+        let name = std::path::Path::new(&file_name)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("report")
+            .to_string();
+        if is_file_field {
+            return Ok((name, bytes.to_vec()));
+        }
+        if fallback.is_none() {
+            fallback = Some((name, bytes.to_vec()));
+        }
+    }
+    fallback.ok_or_else(|| {
+        Box::new(error_json(
+            StatusCode::BAD_REQUEST,
+            "缺少上传字段：`file`（.rpx 字节）",
+        ))
+    })
 }
 
 /// `POST /render`：multipart → 快照 JSON（`IWorkbookData`）。

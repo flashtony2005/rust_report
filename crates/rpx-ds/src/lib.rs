@@ -6,9 +6,11 @@
 //!
 //! 本 crate **不依赖** `rpx-engine`（供数方不依赖消费方，§3.4 理由 1）。
 
+pub mod asset;
 pub mod dialect;
 pub mod sql_source;
 
+pub use asset::{AssetError, AssetParam, AssetStore, AssetSummary};
 pub use sql_source::{DsError, SqlSource};
 
 /// 数据源统一入口（蓝图 §七 的 `trait DataSource`）。

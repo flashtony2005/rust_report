@@ -46,10 +46,15 @@ fn multipart(parts: &[(&str, Option<&str>, &[u8])]) -> (Vec<u8>, String) {
 
 /// 真 socket POST（`Connection: close` + 读到 EOF）→ (状态码, 响应体)。
 async fn post(addr: &str, body: Vec<u8>, content_type: &str) -> (u16, String) {
+    post_to(addr, "/render", body, content_type).await
+}
+
+/// multipart POST 到指定路径（M3-04 的 `/reports` 上传复用同一拼装器）。
+async fn post_to(addr: &str, path: &str, body: Vec<u8>, content_type: &str) -> (u16, String) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
     let head = format!(
-        "POST /render HTTP/1.1\r\nHost: {addr}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "POST {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
     );
     stream.write_all(head.as_bytes()).await.unwrap();
@@ -70,11 +75,13 @@ async fn post(addr: &str, body: Vec<u8>, content_type: &str) -> (u16, String) {
 }
 
 /// 起服务（ephemeral 端口），返回 `127.0.0.1:<port>`。
+/// 资产库用内存库——每个测试独享，互不串数据。
 async fn spawn() -> String {
+    let store = std::sync::Arc::new(rpx_ds::AssetStore::open("sqlite::memory:").await.unwrap());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
-        axum::serve(listener, app()).await.unwrap();
+        axum::serve(listener, app(store)).await.unwrap();
     });
     format!("127.0.0.1:{port}")
 }
@@ -319,4 +326,94 @@ async fn unknown_form_field_is_400() {
     let (status, resp) = post(&addr, body, &ct).await;
     assert_eq!(status, 400, "响应体：{resp}");
     assert!(resp.contains("未知字段"), "实得：{resp}");
+}
+
+// ---- M3-04 资产库三路由（`docs/spec-m3.md` §4 M3-04）----
+
+/// 上传 → 列表 → meta 全链路：`full.rpx` 声明两个**静态**参数
+/// （`Fixtures.java:261-266`：startDate DT_STRING 默认 "2024-01-01"、
+/// topN DT_INT 默认 "10"）。meta 是**读库即答**——响应必须含
+/// 静态/动态分组语义（`is_static`）与默认值，供前端生成参数表单。
+#[tokio::test]
+async fn asset_upload_list_meta_round_trip() {
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[("file", Some("full.rpx"), &fixture("full.rpx"))]);
+    let (status, resp) = post_to(&addr, "/reports", body, &ct).await;
+    assert_eq!(status, 200, "响应体：{resp}");
+    let j: serde_json::Value = serde_json::from_str(&resp).unwrap();
+    assert_eq!(j["name"], "full", "报表名 = 文件名去扩展名");
+    let id = j["id"].as_i64().expect("id 应为整数");
+
+    // 列表含该条目。
+    let list_body = raw_get(&addr, "/reports").await;
+    let list: serde_json::Value = serde_json::from_str(&list_body).unwrap();
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list[0]["name"], "full");
+
+    // meta：静态参数清单 + 默认值（Types2.DT_STRING=11 / DT_INT=1，Types2.java:22/:32）。
+    let meta_body = raw_get(&addr, &format!("/reports/{id}/meta")).await;
+    let meta: serde_json::Value = serde_json::from_str(&meta_body).unwrap();
+    let items = meta.as_array().unwrap();
+    assert_eq!(items.len(), 2, "{meta_body}");
+    assert_eq!(items[0]["name"], "startDate");
+    assert_eq!(items[0]["is_static"], true);
+    assert_eq!(items[0]["param_type"], 0);
+    assert_eq!(items[0]["data_type"], 11);
+    assert_eq!(items[0]["default_val"], "2024-01-01");
+    assert_eq!(items[1]["name"], "topN");
+    assert_eq!(items[1]["is_static"], true);
+    assert_eq!(items[1]["data_type"], 1);
+    assert_eq!(items[1]["default_val"], "10");
+}
+
+/// 坏魔数：`AssetStore::put` 的 `rpx_core::open_bytes` 预检 → 400。
+#[tokio::test]
+async fn asset_bad_magic_is_400() {
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[("file", Some("junk.rpx"), b"not an rpx file at all")]);
+    let (status, resp) = post_to(&addr, "/reports", body, &ct).await;
+    assert_eq!(status, 400, "响应体：{resp}");
+    assert!(resp.contains("模板解析失败"), "实得：{resp}");
+    // 拒收即不落库。
+    let list_body = raw_get(&addr, "/reports").await;
+    assert_eq!(list_body, "[]", "坏魔数不得入库：{list_body}");
+}
+
+/// 不存在的 id：meta 显式 404（与空清单可区分）。
+#[tokio::test]
+async fn asset_meta_missing_id_is_404() {
+    let addr = spawn().await;
+    let resp = raw_get(&addr, "/reports/999/meta").await;
+    assert!(resp.contains("报表不存在"), "实得：{resp}");
+    let status = raw_get_status(&addr, "/reports/999/meta").await;
+    assert_eq!(status, 404);
+}
+
+/// 裸 GET（不带 body；`post` 是 multipart 专用）。
+async fn raw_get(addr: &str, path: &str) -> String {
+    raw_get_status_body(addr, path).await.1
+}
+
+async fn raw_get_status(addr: &str, path: &str) -> u16 {
+    raw_get_status_body(addr, path).await.0
+}
+
+async fn raw_get_status_body(addr: &str, path: &str) -> (u16, String) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let head = format!("GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");
+    stream.write_all(head.as_bytes()).await.unwrap();
+    let mut resp = Vec::new();
+    stream.read_to_end(&mut resp).await.unwrap();
+    let text = String::from_utf8_lossy(&resp).into_owned();
+    let status = text
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let body = text
+        .split_once("\r\n\r\n")
+        .map(|(_, b)| b.to_string())
+        .unwrap_or_default();
+    (status, body)
 }

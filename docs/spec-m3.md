@@ -34,7 +34,7 @@ M3 = 把 M1/M2 的**库能力**变成可用的**服务**：
 | M3-01 | 参数通道：`calculate_with()` 参数入口 + **建树期内联**（`parse_with`）+ 参数夹具 ✅ | `rpx-engine`              |
 | M3-02 | 数据集编码：GBK/GB18030 解码 + `FileDataSetConfig` 高级槽位核对                        | `rpx-engine`（或随取数迁移至 `rpx-ds`） |
 | M3-03 | `rpx-ds`：`trait DataSource` / 方言层 / 数据集物化 / cross（蓝图 §七）✅ **骨架+sqlite 冒烟已达成**（2026-10-15）；PG/MySQL 真连冒烟带账；模板级 `SqlDataSetConfig` 接入待反逆向 | `rpx-ds`                   |
-| M3-04 | 报表资产库：libSQL 本地模式（`.rpx` BLOB + 元信息 + 参数清单）                                | 新 crate（server 内或 `rpx-ds`） |
+| M3-04 | 报表资产库：本地 SQLite（`.rpx` BLOB + 元信息 + 参数清单）✅ **已达成**（2026-10-15；libSQL→sqlx/sqlite 偏离定案见 §3.5） | `rpx-ds`（AssetStore）+ `rpx-server`（三路由） |
 | M3-05 | `rpx-server`：axum 路由 + `POST /render` 主链路                                 | 新 crate                   |
 | M3-06 | 分页真实口径：`/render` 按 `print_setup` 驱动 `pagination`（探针口径仅为对拍保留）               | `rpx-engine` 接口 + server 接线 |
 | M3-07 | 门禁扩展（G1–G7 覆盖新 crate + 依赖分层 G5）+ e2e 冒烟                                  | `scripts/gate.sh` + tests |
@@ -131,6 +131,23 @@ rpx-engine: expr::ds::DataSet { name/cols/rows + current/selected }     ← 运�
 M3-03 验收 = 模板 SQL 原样透传（报表 SQL 是用户资产，单实例可信输入，§8 SQL 注入面同口径）。
 sqlite:// 冒烟用内存库真连；postgres/mysql 真连冒烟**带账**（沙箱无服务器）。
 
+### 3.5 资产库选型偏离定案（M3-04，2026-10-15）
+
+蓝图 §7.1 选 libSQL（Turso 本地模式）；本期**用 sqlx 的 sqlite 驱动承载**
+（`AssetStore` 住 `rpx-ds`——蓝图 §7 本就把平台库（7.1）与业务数据源（7.2）
+放同一章）。理由（硬事实）：① `libsql` crate **不在本机离线缓存**，沙箱无法
+下载验证——按「禁止无基准对拍」纪律不引跑不起来的依赖；② 蓝图自注：本地模式
+下 libSQL 增量价值仅 async API + Turso CLI 生态，**文件格式仍与 SQLite 兼容**
+——sqlx sqlite 给出同样的 async API 与文件格式；③ sqlx 已因 M3-03 入仓入
+白名单，零新增依赖面；④ 升级路径保留：日后换 libSQL 只动 `asset.rs`（构造与
+执行层），调用方零改动——与蓝图「new_local 换 new_remote_replica 一行」同精神。
+
+schema（蓝图 §8.2 草稿落地）：`reports(id, name, rpx BLOB, version, created_at)`
++ `report_params(report_id, name, param_type, data_type, default_val, description)`
+（比草稿多存 `param_type`/`data_type`/`description` 原样——语义不丢，
+`is_static` 只是 `param_type==0` 的派生）。参数清单**上传时**解析落库 ⇒
+`GET /meta` 读库即答，前端生成参数表单不依赖解析器。
+
 ## 4. 验收标准（EARS）
 
 | 编号   | 功能       | 验收标准                                                                                                                                                                | 级别  |
@@ -138,7 +155,7 @@ sqlite:// 冒烟用内存库真连；postgres/mysql 真连冒烟**带账**（沙
 | M3-01 | 参数注入生效   | While `POST /render` 携带 `params`，引擎**必须**按参数值计算：标量参数格不变；**List 参数必须**把该格包成扩展格（矩阵按子格数放大）；未登记参数**必须**报错（等价产品 `unknownParam`）；全部断言**必须**有产品夹具逐格对拍 | P0  |
 | M3-02 | 数据集编码    | ✅ **已达成**（2026-10-14）：While CSV 为 GBK 且含中文，列名与值**必须**正确解码（`encoding.rs` 按 `FileDataSetConfig.encoding` 缺省 GBK 解码；`engine_gbk` 夹具中文全链路逐格对拍）；⛔ 不得静默乱码（非法字节显式 `MalformedEncoding`）——GB18030 四字节序列**带账**（§8），与产品默认 `GBK` charset 行为一致 |
 | M3-03 | rpx-ds 取数 | ✅ **部分达成**（2026-10-15）：`rpx-ds` 骨架（`DataSource` trait + `SqlSource`/`AnyPool` + 方言表）——sqlite:// 内存库**真连真取**物化 `RowSet` 5/5；`From<RowSet>` 桥进引擎 `DataSet`（`ds.rs` 单测钉死）。带账：PG/MySQL 真连冒烟（沙箱无服务器）；sqlite 声明 `BOOLEAN` 列 Any 层不可取（Long 0/1 承载）；`NUMERIC`/BLOB 列显式报错；模板级 `SqlDataSetConfig`（.rpx 里声明 SQL 数据集）未反逆向，暂无模板路径接入 | P0  |
-| M3-04 | 报表资产     | While 上传 `.rpx`，**必须**魔数校验后存 libSQL BLOB；`GET /meta` **必须**返回参数清单（静态/动态两套 MetaData）                                                                                  | P0  |
+| M3-04 | 报表资产     | ✅ **已达成**（2026-10-15）：`POST /reports`（multipart `file`，`rpx_core::open_bytes` 魔数预检 → BLOB + 参数清单**上传时**落库）/ `GET /reports` / `GET /reports/{id}/meta`（读库即答；`is_static` 按 `Param.paramType==0`（`PARAM_NORMAL`，`Param.java:22-24`）派生，原样存 `param_type` 不归并）；坏魔数 400 / 缺 id 404 与空清单可区分；单测 4 + HTTP 3（`full.rpx` 的 startDate/topN 真实参数） | P0  |
 | M3-05 | `/render` 快照 | ✅ **已达成**（2026-10-14）：`POST /render` 返回快照 JSON（multipart：`report`/`dataset`/`params`）；同输入下与引擎库函数直调**逐字节一致**（`tests/render_http.rs` 6 用例：真 socket + 对拍基准）；GBK/参数/缺文件/坏魔数/未知字段全覆盖；浏览器端到端实测通过（截图 `tests/fixtures/out/m4-render-http.png`） | P0  |
 | M3-06 | 分页真实口径   | ✅ **已达成**（2026-10-14）：`/render` 的 `pagination` = **模板真值口径**（`paginate_with_setup`：纸码表 80 码 + 模板边距 → 可用 pt，`PagerInfo.getPageFormat(true)` 同构；快照 `pagination` 块见 `spec-m4.md` §4.5）；`pagerStyle != 2`/多栏（`columnMode`/`tableColumnNum`/重复组头）/列区带（`colType != -79`）/可用尺寸非正全部显式 `UnsupportedPaging`；探针口径保留为夹具对拍专用（双口径共用同一套 `split_rows`/`split_cols`）；换行回填**静态守卫不可行**（`-64` = `INormalCell.TYPE_NORMAL` 普通格默认类型，`guard.rs` 尾注） | P0  |
 | M3-07 | 门禁与端到端   | G1–G7 **必须**扩到新 crate（含依赖分层）；e2e 冒烟：上传 → render → 断言快照键集                                                                                                               | P0  |
@@ -198,6 +215,7 @@ sqlite:// 冒烟用内存库真连；postgres/mysql 真连冒烟**带账**（沙
 | ---------- | ------------------------ | ----------------------------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead，阶段 0）  | 总监批准「务实路」后启动 M3；本档承接 `spec-m2.md` §6.2 的准入 v2；阶段 0 出口 = 本文件经总监确认 |
 | 2026-10-14 | v0.2：M4 并行推进 + M3-08 提关键路径 | 总监令「M3 M4 一起推进，这样可以看到报表显示」；前端立档 `docs/spec-m4.md`，快照契约 v1 已定 |
+| 2026-10-15 | v0.8：**M3-04 闭合**（资产库） | `rpx-ds::asset::AssetStore`（sqlx/sqlite，**libSQL→sqlx 偏离定案 §3.5**：libsql 不在离线缓存，文件格式同 SQLite 兼容）+ `rpx-server` 三路由（POST /reports 上传预检魔数 / GET /reports / GET /reports/{id}/meta 读库即答）；参数清单上传时落库（`is_static` = `param_type==0` 派生，`param_type`/`data_type` 原样保存）；`serve --db`（默认 rpx.db）；417 测试全绿 + G1–G7 全绿；RUNLOG §29（含 **Rust 字符串续行吃前导空白** 与 axum 0.8 `{id}` 路由两坑） |
 | 2026-10-15 | v0.7：**M3-03 定案 + rpx-ds 骨架闭合** | 类型归属定案（§3.4）：`Value`+`RowSet` 下沉 `rpx-core`，`rpx-ds` 只依赖 core（供数方不依赖消费方）；`rpx-ds` 新 crate（`DataSource` trait + `SqlSource`/`AnyPool` + 方言表，sqlx 0.9 过 G5 登记）；sqlite 内存库真连冒烟 5/5；`From<RowSet>` 桥（`ds.rs` 单测）；410 测试全绿 + G1–G7 全绿 |
 | 2026-10-14 | v0.6：**M3-06 闭合**（分页真实口径） | `pager/paper.rs`（`gen_paper_table.py` 生成 80 码纸码表 + `usable_page_pt`）+ `paginate_with_setup`（真值口径，与探针口径共用 `split_rows`/`split_cols`）；`/render` 与 dev bin 的 `pagination` 切真值 + 快照 `pagination` 块（`spec-m4.md` §4.5）；守卫补 `tableColumnNum`/列区带；换行回填核对结论 = 静态守卫不可行（带账）；`PageInfo` 加 `row_range`/`col_range`（emit 不序列化，对拍不变）；RUNLOG §27 |
 | 2026-10-14 | v0.5：**M3-05 闭合**（`POST /render` 主链路） | axum 0.8 + tokio 入 `rpx-server`（库/bin 分层：`lib.rs` + `http.rs`/`form.rs`，集成测试可 import 主链路纯函数与真 socket 双轨对拍）；引擎加 `load_datasets_with` 闭包字节源（磁盘/HTTP 上传共用一份口径）；上传完整性预检按**文件名**报缺；错误 400/500 分级；G5 登记 axum/tokio（理由见 `code-review.md` §3.2）；RUNLOG §26 |

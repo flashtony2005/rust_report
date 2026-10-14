@@ -2885,3 +2885,49 @@ arena/expr/pager 全拖进取数 crate）；② `DataSet` 整体下沉不可行�
 | core/engine 桥 | `RowSet` 单测 + `from_rowset` 对拍（name/cols/rows 字段级一致 + 与 `new` 直构等价） |
 | 既有面 | `Value` 下沉后 engine 内部与 server/cli 引用**零改动**（re-export）；17 夹具对拍不变 |
 | workspace | **410 测试全绿** + **G1–G7 全绿** |
+
+## §29 M3-04 报表资产库：AssetStore + 三路由（2026-10-15 凌晨）
+
+### 29.1 选型偏离定案（spec-m3 §3.5）
+
+libSQL（蓝图 §7.1）→ **sqlx/sqlite 承载**：libsql 不在离线缓存（沙箱无法验证），
+而蓝图自注本地模式下其增量仅 async API（文件格式同 SQLite）；sqlx 已入仓零新增
+依赖面；升级路径保留（只动 `asset.rs`）。schema 按蓝图 §8.2 落地并加存
+`param_type`/`data_type`/`description` 原样（`is_static` = `param_type==0` 派生，
+`Param.java:22-24`：NORMAL=0/DYNAMIC=1/ATTRIBUTE=2）。
+
+### 29.2 行为要点
+
+* **参数清单上传时落库**：`put` = `rpx_core::open_bytes` 魔数预检 → 解析
+  `rd.params` → 事务写 BLOB + 清单 ⇒ `GET /meta` 读库即答（前端生成参数表单
+  不依赖解析器）；空清单与不存在**可区分**（`[]` vs 404——先证存在性）。
+* 三路由（`http.rs`）：`POST /reports`（multipart `file`，文件名去扩展名 =
+  报表名，与 `/render` 同口径）/ `GET /reports` / `GET /reports/{id}/meta`；
+  `serve --db rpx.db`（默认 rpx.db，蓝图 §7.1 单文件部署）。
+* 外来类型不许 impl 本仓 trait（E0117）：`AssetError` 的 IntoResponse 改为
+  本地辅助函数 `asset_error_response`。
+* `AssetStore` 住 `rpx-ds`（蓝图 §7 同章逻辑）；`rpx-server` 加 path 依赖
+  `rpx-ds`（G5 不涉及 path 依赖）。
+
+### 29.3 本轮新坑（各值一条纪律）
+
+1. **Rust 字符串续行 `\`+换行会剥掉下一行全部前导空白**——
+   `"…, description\` + `\n FROM …"` 拼成 `descriptionFROM`，SQL 被静默破坏
+   （报错还是误导性的 `no such column: name`）。逐级二分（schema dump →
+   逐条语句试跑 → 按名取值）才定位到字符串本体。**排查实录**：schema 正确、
+   INSERT 成功、裸 SELECT 全过，唯 meta() 挂——最后对比发现唯一差异是续行。
+   修法 = SQL 字符串一律单行；全仓扫描确认其余续行均安全（`(` 前不需空格 /
+   行尾自带空格 / 中文拼接无损）。
+2. **axum 0.8 路由捕获语法是 `{id}`**，`:id` 在运行时 panic
+   （`Path segments must not start with ':'`）——0.7 的写法到 0.8 是**运行时炸**
+   而非编译期。
+3. 测试辅助 `post()` 写死 `/render` 路径——加 `post_to(addr, path, …)`，
+   旧签名转发保持既有用例不动。
+
+### 29.4 验证矩阵
+
+| 证据 | 结果 |
+|---|---|
+| `rpx-ds` asset 单测 | 4 条：坏魔数拒收且不落库 / `full.rpx` 参数清单往返（startDate DT_STRING=11 默认 2024-01-01、topN DT_INT=1 默认 10，`Types2.java:22/:32`）/ 列表+缺 id 404 / 三类 param_type 分组纯映射（无名参数跳过） |
+| `render_http.rs` | 11/11（+3）：上传→列表→meta 全链路 / 坏魔数 400 且 `GET /reports` 仍 `[]` / 缺 id 404 |
+| workspace | **417 测试全绿** + **G1–G7 全绿** |
