@@ -47,7 +47,8 @@ public class GenEngineFixtures {
 	private static final String[] NAMES = { "engine_sum", "engine_ext",
 			"engine_expr", "engine_pager", "engine_merge", "engine_cycle",
 			"engine_samemerge", "engine_disp", "engine_types",
-			"engine_rowheight", "engine_head_top", "engine_head_left" };
+			"engine_rowheight", "engine_head_top", "engine_head_left",
+			"engine_avgrange" };
 
 	public static void main(String[] args) throws Exception {
 		String dir = args.length > 0 ? args[0] : ".";

@@ -32,9 +32,13 @@ mod common;
 
 use common::{all_names, load};
 
-/// 12 个引擎夹具的公式总数（= `EngineModels*.java` 里写进 `.rpx` 的表达式条数）。
+/// 13 个引擎夹具的公式总数（= `EngineModels*.java` 里写进 `.rpx` 的表达式条数）。
 /// 更新它必须同时说明"新加了什么形态、`get_state()` 为什么仍是 4"。
-const TOTAL_FORMULAS: usize = 40;
+///
+/// 2026-10-14：`engine_avgrange` 加入 4 条 `sum/avg/max/min(B2:B4)` 区域形态
+/// （M2-12），均为「格引用 + 聚合调用」，无 DS 函数/无挂起 ⇒ `get_state()==4`，
+/// 故 40 → 44。
+const TOTAL_FORMULAS: usize = 44;
 
 #[test]
 fn every_fixture_formula_is_state_four() {

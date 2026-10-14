@@ -28,8 +28,11 @@
 //!
 //! # 已知边界（诚实声明）
 //!
-//! - `avg`/`max`/`min`/`group`/`sort`/`Move`/`Offset`/`Select{}` 的 `left`、
-//!   区间与 `In`/`Eval` 运算之外的面 → `UnsupportedExpr`；
+//! - `group`/`sort`/`Move`/`Offset`/`Select{}`、`avg/max/min` 的 `left` 形式、
+//!   其它区间运算与 `In`/`Eval` → `UnsupportedExpr`；
+//!   （`avg/max/min(A:B)` 的**单格 else 分支**已实现，见 [`region_aggregate`]；
+//!   `sum/avg/max/min` 的 **List 逐格分支**要求 cellSet 求值为 List，普通单元格
+//!   区间触达不到、无夹具，仍缺——与 `sum_link` 同一处已声明缺口。）
 //! - `firstLeft` 序列化门、`option 'r'`、`num/distinct` 参数未建模（夹具不用）。
 
 use crate::arena::CellId;
@@ -180,6 +183,12 @@ fn evaluate_call(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
         "sum" if c.param_kind == crate::expr::ast::ParamKind::Colon && c.args.len() == 2 => {
             sum_link(c, ctx)
         }
+        // ── M2-12：avg / max / min 的 `A:B` 区域形态（单格 else 分支）──
+        "avg" | "max" | "min"
+            if c.param_kind == crate::expr::ast::ParamKind::Colon && c.args.len() == 2 =>
+        {
+            region_aggregate(c, ctx)
+        }
         "sum" if c.args.len() == 1 => {
             let v = evaluate(&c.args[0], ctx)?;
             if v.is_null() {
@@ -250,6 +259,61 @@ fn sum_link(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
     ctx.resume_current();
     let v = r?;
     Ok(if v.is_null() { Value::Double(0.0) } else { v })
+}
+
+/// `avg/max/min(A:B)` 的区域处理器 —— 只实现**单格 else 分支**（与 [`sum_link`]
+/// 同源：`Sum.java:174-206` / `Max.java:136-185` / `Min.java:136-185` /
+/// `Average.java:155-207`）。
+///
+/// **操作数角色：avg 与 sum/max/min 相反**（`engine_avgrange` 夹具定案，
+/// B2=100,B3=200,B4=120，产品实跑值）：
+/// - `sum/max/min(A:B)`：`cellSet = sub1`（args[1]），求值 `sub0`（args[0]）
+///   ⇒ 返回**操作数1**。实测 `sum/max/min(B2:B4)` 全 = `100`（=B2），
+///   ⛔ 不是区域聚合（否则 `max` 会是 200）。
+/// - `avg(A:B)`：`cellSet = sub0`（args[0]），求值 `sub1`（args[1]）
+///   ⇒ 返回**操作数2**，且 `Variant2.divide(_, count=1)` 恒升 Double。
+///   实测 `avg(B2:B4)` = `Double(120)`（=B4），⛔ 不是均值 140、不是操作数1。
+///   （`Average.java:145-149` 的 `cellSet=sub0` 与 Sum/Max/Min 的 `cellSet=sub1`
+///   是**原文的不对称**，见 `docs/m2-engine-design.md` §14。）
+///
+/// ⛔ 真正的 List 逐格分支（`if (cellSet instanceof List)`）要求 cellSet 求值成
+/// List，普通单元格区间语法**永远触达不到**（本夹具 + `ProbeAvgRange.java` 实证：
+/// `max(B2:B4)`=100 而非 200）⇒ 与 `sum_link` 一致只落单格分支；List 分支无夹具，
+/// 属已声明缺口（`sum_link` 的文档同理）。
+fn region_aggregate(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
+    let is_avg = c.name == "avg";
+    // avg 的 cellSet 是 sub0、求值 sub1；sum/max/min 反之（见函数文档）。
+    let (cellset_idx, value_idx) = if is_avg { (0, 1) } else { (1, 0) };
+    let cell = match &c.args[cellset_idx] {
+        Expr::CellRef {
+            id,
+            absolute,
+            provisional: _,
+        } => super::resolve::resolve_cell(ctx, id, *absolute)
+            .ok_or_else(|| EngineError::UnknownCell { id: id.clone() })?,
+        other => {
+            return Err(EngineError::UnsupportedExpr {
+                expr: format!("{} cellSet 不是格引用: {other:?}", c.name),
+            })
+        }
+    };
+    ctx.save_current(); // `ecs.saveCurrent()`（Sum.java:150 等）
+    ctx.set_current(cell); // `ecs.setCurrent(cell)`
+    let r = evaluate(&c.args[value_idx], ctx);
+    ctx.resume_current(); // `finally { ecs.resumeCurrent() }`（即使失败也回卷）
+    let v = r?;
+    if is_avg {
+        // Average.java:146-147 cellSet==null→Double(0.0)；:203 result==null→Double(0.0)；
+        // :206 `divide(result, count=1)` 恒 Double（§14.1#4：整除也升 Double）。
+        if v.is_null() {
+            Ok(Value::Double(0.0))
+        } else {
+            num_div(&v, &Value::Int(1))
+        }
+    } else {
+        // Max/Min.java:157 `obj==null ⇒ result 保持 null`，无 Double(0.0) 兜底。
+        Ok(v)
+    }
 }
 
 fn evaluate_unary(op: UnOp, rhs: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {

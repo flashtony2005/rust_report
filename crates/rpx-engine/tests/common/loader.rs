@@ -11,8 +11,8 @@ use std::path::PathBuf;
 use super::json::{self, Json};
 use super::model::*;
 
-/// 12 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致）。
-pub fn all_names() -> [&'static str; 12] {
+/// 13 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致）。
+pub fn all_names() -> [&'static str; 13] {
     [
         "engine_sum",
         "engine_ext",
@@ -26,6 +26,7 @@ pub fn all_names() -> [&'static str; 12] {
         "engine_rowheight",
         "engine_head_top",
         "engine_head_left",
+        "engine_avgrange",
     ]
 }
 

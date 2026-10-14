@@ -1789,7 +1789,7 @@ sum(ds1.select(qty))
 
 ---
 
-## 14. M2-12 `avg` / `max` / `min`（2026-10-13 落地）
+## 14. M2-12 `avg` / `max` / `min`（2026-10-13 落地；`A:B` 区域形态 2026-10-14 追加，见 §14.5）
 
 事实源：`reportlite/03-model/.../expression/function/Average.java`、`Max.java`、`Min.java`
 （与 `Sum.java` 同目录）。三者的**叶子路径同构、聚合路径各不同**，本节逐条钉差别，不许"顺手统一"。
@@ -1820,7 +1820,7 @@ sum(ds1.select(qty))
 | `avg/max/min(<叶子表达式>)` 纯函数 | ✅ | `eval.rs::evaluate_call` 分发；标量透传、`List` 才聚合 |
 | `ds.avg/max/min(col)` | ✅ | `dsfn.rs::ds_call`；Root 态聚合，Row 态与 `ds.sum` 同形返回当前行（reportlite 树里这三个**没有** DS 包装类，故沿用 `DSSum.java:46` 的 `return cur;`） |
 | `sum(List)` 过 `getSingleValue` | ✅ | 与 `merge::same_value` 共用 `value::single_value`（顺带修掉的**第 8 处分歧**：原先 `sum(List[List(1)])` 会报错，产品返回 `1`） |
-| `avg/max/min(A:B)` 区域形态 | ❌ | 产品该路走 `_$1(ctx)` 逐格循环，与 `sum(A:B)` 同类；显式报 `UnsupportedExpr` |
+| `avg/max/min(A:B)` 区域形态 | ✅（2026-10-14） | 只落 `_$1` 的 else 单格分支；**avg 操作数反转**且恒 `Double`，sum/max/min 取操作数1；真值表与缺口见 §14.5 |
 | `Text-Text` 字典序 | ❌ | 需要 `ChineseComparator` 的 `com/raqsoft/commonl/rule.txt`（**不在仓库**）；显式报错并在报错里说明缺的是哪个依赖，**不静默给 Equal** |
 | `Bool-Bool` 排序 | ✅ | `compare2:453-455` → `compare(boolean,boolean)`，`false < true` |
 
@@ -1831,6 +1831,45 @@ sum(ds1.select(qty))
 - 故障注入 17 条（15 期望红 + 2 期望绿对照，按错误类分组）：**15/15 抓到、2/2 对照保持全绿、0 条注入不合格**。
   覆盖的类：常量/分支错、语义错（成对钉方向）、边界/顺序错、类型错、分支漏掉、比较方向错（max/min 各一条）、
   复刻偏差、吞掉错误、**报错内容错**、接线错、回归到已修分歧。
+
+### 14.5 `avg/max/min(A:B)` 区域形态（2026-10-14 追加）
+
+事实源：`Sum.java:128-144` / `Max.java:115-131` / `Min.java:115-131` / `Average.java:139-149`
+的区域处理器 `_$1(ecs, cellSet, param2, ctx)`，与 `sum(A:B)` 同一条路（机制见 §5.2）。
+
+**① 操作数不对称是原文，不是笔误**：
+
+| 函数 | `cellSet`（被设为 current 的格） | `param2`（被求值一次的表达式） |
+|------|------|------|
+| `sum` / `max` / `min` | `sub1`（range 侧，即 `B2:B4` 的 B4） | `sub0`（=A，即 B2） |
+| `avg` | **`sub0`（=A，即 B2）** | **`sub1`（range 侧，即 B4）** |
+
+⇒ 相对引用落在不同操作数里时，`avg` 与 `sum/max/min` 的 current 格**不同**，可观测。
+
+**② 普通单元格区间恒走 else 单格分支**（`Sum.java:163-180`）：
+`saveCurrent()` → `cellSet` 解出格（`CSVariable.getCell()` 或 `ExtCell`）→ `setCurrent(cell)`
+→ `param2.calculate(ctx)` 一次 → `finally { resumeCurrent() }`。
+List 逐格分支（`cellSet instanceof List`）要求 cellSet 求值成 `List`，而格引用语法求值出的是
+`CSVariable` 单格 ⇒ **永远触达不到**（实证：`max(B2:B4)`=100 而非 200，若是区域聚合应得 200）。
+
+**③ 产品真值**（`engine_avgrange`：B2=100/B3=200/B4=120；`ProbeAvgRange.java` 8 形态同结论）：
+
+| 公式 | 产品值 | ⛔ 直觉错误答案 |
+|------|--------|--------|
+| `sum(B2:B4)` | `100`（int，=B2） | 420（区域和） |
+| `avg(B2:B4)` | `Double(120)`（=B4） | 140（均值）、`120` 保持 int |
+| `max(B2:B4)` | `100`（int，=B2） | 200（区域 max） |
+| `min(B2:B4)` | `100`（int，=B2） | ——（恰同值，无区分力） |
+
+`avg` 恒升 `Double`：`Average.java:206` `Variant2.divide(result, count=1)`（else 分支 `count` 保持初值 1，
+`bContainNull` 不影响单格路），`Variant2.divide` 无整型分支（§14.1 #4）。
+`avg` 的 result 为 null → `Double(0.0)`（`Average.java:203-205`），`max/min` 的 `obj==null` 时
+result 保持 null、**无** `Double(0.0)` 兜底（`Max.java`/`Min.java:157`）——又一处不对称。
+
+**④ 已声明缺口**：List 逐格分支无夹具（与 `sum_link` 同一缺口）；cellSet 操作数不是格引用时
+Rust 显式报 `UnsupportedExpr`（Java 该路先 `calculate(ctx)` 再判 `instanceof CSVariable/ExtCell`，
+Rust 无对应中间值，不静默猜）。实现：`eval.rs::region_aggregate`（函数文档含上述 `file:line`）；
+对拍：`engine_avgrange` 进 `engine_grid_compare` 逐格（值 + 类型）。
 
 ---
 

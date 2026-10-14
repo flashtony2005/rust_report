@@ -56,6 +56,9 @@ final class EngineModels {
 		if ("engine_types".equals(name)) {
 			return EngineModelsTypes.typesFixture();
 		}
+		if ("engine_avgrange".equals(name)) {
+			return EngineModelsRange.avgRangeFixture();
+		}
 		return EngineModelsP0.samemergeFixture();
 	}
 
@@ -247,6 +250,9 @@ final class EngineModels {
 		}
 		if ("engine_samemerge".equals(fixture)) {
 			return EngineModelsP0.sameRows();
+		}
+		if ("engine_avgrange".equals(fixture)) {
+			return EngineModelsRange.rows();
 		}
 		return new String[][] { { "North", "100" }, { "East", "200" },
 				{ "South", "150" } };
