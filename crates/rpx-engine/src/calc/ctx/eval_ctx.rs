@@ -195,11 +195,6 @@ impl EvalCtx for CalcCtx {
         self.ds.iter().position(|d| d.name == name)
     }
 
-    fn param(&self, _name: &str, _is_macro: bool) -> Option<Value> {
-        // 12 夹具无报表参数；见模块文档。
-        None
-    }
-
     fn note_ds_row(&mut self, ds: usize, row: usize) {
         self.note_row = Some((ds, row));
     }

@@ -117,6 +117,9 @@ pub fn cell_role(
 /// `expression` 传 `None` 等价于「该格没有表达式」；传 `Some("")` 则是「有表达式但是空串」
 /// —— 两者**不等价**，别混。
 ///
+/// `params` 是报表参数值表（M3-01）：`is_extend` 会对表达式**整树重建**，其中
+/// `@名`/裸参数名要在建树期绑定值（`@名` 未登记 ⇒ 直接报错，见 [`crate::params`]）。
+///
 /// # 错误
 ///
 /// 表达式解析失败时**返回错误**而不是退回 `false`：静默假设「不扩展」会把
@@ -126,11 +129,12 @@ pub fn cell_role_of(
     expression: Option<&str>,
     declared: ExtendMode,
     cell_type: i8,
+    params: &crate::params::ParamTable,
 ) -> crate::error::Result<CellRole> {
     let Some(src) = expression else {
         return Ok(cell_role(false, declared, false, cell_type));
     };
-    let expr_is_extend = crate::expr::is_extend(src)?;
+    let expr_is_extend = crate::expr::is_extend(src, params)?;
     Ok(cell_role(true, declared, expr_is_extend, cell_type))
 }
 

@@ -1,0 +1,119 @@
+=== 0. 前置事实（与 ProbeParamList 一致，此探针不重复验证） ===
+  值∈{标量,List} 决定 isExtend（RUNLOG §15.2）；本探针补四个缺口。
+
+=== A. 空 List `List[]` 的 calc 完整后果 ===
+[2026-10-14 18:00:58] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 18:00:58] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 18:00:58] 
+INFO: 报表图片处理......
+
+[2026-10-14 18:00:58] 
+INFO: 计算结束！
+
+  [空List] 计算态矩阵 = 3x2
+    (1,1) value="值"  source=extend=16 subCells=1
+    (1,2) value="旁注"  source=extend=16 subCells=1
+    (2,1) value=null  source=extend=18 subCells=1
+    (2,2) value="空List"  source=extend=16 subCells=1
+    (3,1) value=null  source=extend=16 subCells=1
+    (3,2) value=null  source=extend=16 subCells=1
+[2026-10-14 18:00:58] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 18:00:58] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 18:00:58] 
+INFO: 报表图片处理......
+
+[2026-10-14 18:00:58] 
+INFO: 计算结束！
+
+  [单元素List[9]] 计算态矩阵 = 3x2
+    (1,1) value="值"  source=extend=16 subCells=1
+    (1,2) value="旁注"  source=extend=16 subCells=1
+    (2,1) value=Integer(9)  source=extend=18 subCells=1
+    (2,2) value="单元素List[9]"  source=extend=16 subCells=1
+    (3,1) value=null  source=extend=16 subCells=1
+    (3,2) value=null  source=extend=16 subCells=1
+[2026-10-14 18:00:58] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 18:00:58] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 18:00:58] 
+INFO: 报表图片处理......
+
+[2026-10-14 18:00:58] 
+INFO: 计算结束！
+
+  [三元素List[1,2,3]] 计算态矩阵 = 5x2
+    (1,1) value="值"  source=extend=16 subCells=1
+    (1,2) value="旁注"  source=extend=16 subCells=1
+    (2,1) value=Integer(1)  source=extend=18 subCells=3
+    (2,2) value="三元素List[1,2,3]"  source=extend=16 subCells=1
+    (3,1) value=Integer(2)  source=extend=16 subCells=1
+    (3,2) value="三元素List[1,2,3]"  source=extend=16 subCells=1
+    (4,1) value=Integer(3)  source=null
+    (4,2) value="三元素List[1,2,3]"  source=null
+    (5,1) value=null  source=null
+    (5,2) value=null  source=null
+
+=== B. `@@q` 未登记（ctx 无 q）的 calc ===
+[2026-10-14 18:00:58] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 18:00:58] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 18:00:58] 
+INFO: 报表图片处理......
+
+[2026-10-14 18:00:58] 
+INFO: 计算结束！
+
+  [@@q 未登记] 计算态矩阵 = 3x2
+    (1,1) value="值"  source=extend=16 subCells=1
+    (1,2) value=null  source=extend=16 subCells=1
+    (2,1) value=null  source=extend=17 subCells=1
+    (2,2) value="@@q 未登记"  source=extend=16 subCells=1
+    (3,1) value=null  source=extend=16 subCells=1
+    (3,2) value=null  source=extend=16 subCells=1
+  @@q 独立建树 isExtend=false 树根=Constant 值=null
+
+=== C. `@p` 未登记（ctx 无 p）的报错原文 ===
+[2026-10-14 18:00:58] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 18:00:58] 
+INFO: 取数结束,开始运算
+
+  异常类 = com.raqsoft.commonl.ReportError
+  消息   = 单元格A2中有错误: 表达式：@p中: 未知的参数：@p
+
+=== D. Types.getProperData(dataType, 输入) 转换矩阵 ===
+  type=1            输入=[10]         ? Integer(10)  类=java.lang.Integer
+  type=1            输入=[ 10 ]       ? Integer(10)  类=java.lang.Integer
+  type=1            输入=[abc]        ? 抛 java.lang.NumberFormatException / For input string: "abc"
+  type=2            输入=[42]         ? Long(42)  类=java.lang.Long
+  type=3            输入=[7]          ? Short(7)  类=java.lang.Short
+  type=5            输入=[1.5]        ? Float(1.5)  类=java.lang.Float
+  type=6            输入=[3.14]       ? Double(3.14)  类=java.lang.Double
+  type=7            输入=[2.500]      ? BigDecimal(2.500)  类=java.math.BigDecimal
+  type=11           输入=[abc]        ? "abc"  类=java.lang.String
+  type=11           输入=[ pad ]      ? " pad "  类=java.lang.String
+  type=11           输入=[]           ? null  类=null
+  type=1            输入=[]           ? null  类=null
+  type=12           输入=[true]       ? Boolean(true)  类=java.lang.Boolean
+  type=12           输入=[TRUE]       ? Boolean(true)  类=java.lang.Boolean
+  type=12           输入=[yes]        ? null  类=null
+  type=51           输入=[1,2,3]      ? ArrayList([1, 2, 3])  类=java.util.ArrayList
+  type=61           输入=[a,b,c]      ? ArrayList([a, b, c])  类=java.util.ArrayList
+  type=61           输入=[a, ,c]      ? ArrayList([a, null, c])  类=java.util.ArrayList
+
+=== E. 完成 ===

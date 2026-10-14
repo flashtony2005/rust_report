@@ -19,7 +19,8 @@ fn cell_role_of_resolves_a_select_into_an_extender() {
         cell_role_of(
             Some("ds1.select(region)"),
             ExtendMode::Default16,
-            NORMAL_TYPE
+            NORMAL_TYPE,
+            &crate::params::ParamTable::EMPTY
         )
         .unwrap(),
         CellRole::Extender
@@ -30,7 +31,13 @@ fn cell_role_of_resolves_a_select_into_an_extender() {
 fn cell_role_of_a_plain_arithmetic_formula_is_not_an_extender() {
     // 声明 16 + 不驱动扩展的表达式 ⇒ PlainFormula（随后无条件置 17）
     assert_eq!(
-        cell_role_of(Some("B2*2"), ExtendMode::Default16, NORMAL_TYPE).unwrap(),
+        cell_role_of(
+            Some("B2*2"),
+            ExtendMode::Default16,
+            NORMAL_TYPE,
+            &crate::params::ParamTable::EMPTY
+        )
+        .unwrap(),
         CellRole::PlainFormula
     );
 }
@@ -39,7 +46,13 @@ fn cell_role_of_a_plain_arithmetic_formula_is_not_an_extender() {
 fn cell_role_of_no_expression_keeps_the_declared_literal() {
     // 无表达式 + 声明 16 ⇒ Literal，声明值原样保留（**不改写**）
     assert_eq!(
-        cell_role_of(None, ExtendMode::Default16, NORMAL_TYPE).unwrap(),
+        cell_role_of(
+            None,
+            ExtendMode::Default16,
+            NORMAL_TYPE,
+            &crate::params::ParamTable::EMPTY
+        )
+        .unwrap(),
         CellRole::Literal
     );
 }
@@ -52,11 +65,23 @@ fn cell_role_of_declared_18_wins_even_without_an_expression() {
     // 由运行时 `result instanceof List` 决定是否真扩展 —— 见附件 I.1b）。
     // 我第一版把它断言成 Literal，被这条顺序纠正了 —— 顺序写错会静默改变扩展行数。
     assert_eq!(
-        cell_role_of(None, ExtendMode::Vertical18, NORMAL_TYPE).unwrap(),
+        cell_role_of(
+            None,
+            ExtendMode::Vertical18,
+            NORMAL_TYPE,
+            &crate::params::ParamTable::EMPTY
+        )
+        .unwrap(),
         CellRole::Extender
     );
     assert_eq!(
-        cell_role_of(None, ExtendMode::Horizontal19, NORMAL_TYPE).unwrap(),
+        cell_role_of(
+            None,
+            ExtendMode::Horizontal19,
+            NORMAL_TYPE,
+            &crate::params::ParamTable::EMPTY
+        )
+        .unwrap(),
         CellRole::Extender
     );
 }
@@ -67,7 +92,13 @@ fn cell_role_of_excluded_cell_type_never_becomes_an_extender() {
     // 图形/子报表/条形码也退回普通格规则（有表达式就 17）。
     for t in EXTEND_EXCLUDED_CELL_TYPES {
         assert_eq!(
-            cell_role_of(Some("ds1.select(region)"), ExtendMode::Vertical18, t).unwrap(),
+            cell_role_of(
+                Some("ds1.select(region)"),
+                ExtendMode::Vertical18,
+                t,
+                &crate::params::ParamTable::EMPTY
+            )
+            .unwrap(),
             CellRole::PlainFormula,
             "cellType={t} 必须被短路排除"
         );
@@ -78,7 +109,12 @@ fn cell_role_of_excluded_cell_type_never_becomes_an_extender() {
 fn cell_role_of_propagates_a_parse_error_instead_of_silently_false() {
     // ⛔ 静默假设 false 会把本该扩展的格判成 PlainFormula ⇒ 扩展行数算少，
     // 且报错点离根因极远。解析失败必须返回错误。
-    let bad = cell_role_of(Some("ds1.select("), ExtendMode::Default16, NORMAL_TYPE);
+    let bad = cell_role_of(
+        Some("ds1.select("),
+        ExtendMode::Default16,
+        NORMAL_TYPE,
+        &crate::params::ParamTable::EMPTY,
+    );
     assert!(bad.is_err(), "残缺表达式必须报错，实际 {bad:?}");
 }
 
@@ -103,12 +139,13 @@ fn cell_role_of_agrees_with_the_manual_form() {
         let manual = match exp {
             None => cell_role(false, declared, false, ctype),
             Some(src) => {
-                let e = crate::expr::is_extend(src).expect("表达式应可解析");
+                let e = crate::expr::is_extend(src, &crate::params::ParamTable::EMPTY)
+                    .expect("表达式应可解析");
                 cell_role(true, declared, e, ctype)
             }
         };
         assert_eq!(
-            cell_role_of(exp, declared, ctype).unwrap(),
+            cell_role_of(exp, declared, ctype, &crate::params::ParamTable::EMPTY).unwrap(),
             manual,
             "exp={exp:?} declared={declared:?} ctype={ctype}"
         );

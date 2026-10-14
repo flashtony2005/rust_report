@@ -39,6 +39,7 @@
 //! 只有当这些函数与前缀/后缀混写时树形才可能不同，§13.5 已登记为未覆盖。
 
 use crate::error::Result;
+use crate::params::ParamTable;
 
 use super::ast::{Expr, UnOp};
 use super::atom::unary;
@@ -54,14 +55,34 @@ const PREFIX_NOT_BP: u8 = 16;
 const PREFIX_SIGN_BP: u8 = 18;
 
 /// 解析一条完整表达式（顶层）。要求整串被消费完。
+///
+/// **无参数表**版本（等价 [`ParamTable::EMPTY`]）：表达式里出现 `@名` 会在
+/// 建树期报 [`crate::error::EngineError::UnknownParam`]（显式失败，不静默当
+/// 无参数算）。需要参数语义的调用点用 [`parse_with`]。
 pub fn parse(src: &str) -> Result<Expr> {
+    parse_with(src, &ParamTable::EMPTY)
+}
+
+/// 带参数表解析（M3-01 参数通道）：`@名` / `@@名` 在建树期把参数值**内联**成
+/// [`Expr::Const`]（与产品 `Expression.java:183-188` 的 `Constant(getParamValue(id))`
+/// 同构；完整语义见 [`crate::params`] 模块文档）。
+pub fn parse_with(src: &str, params: &ParamTable) -> Result<Expr> {
     let toks = lex(src)?;
-    parse_tokens(&toks)
+    parse_tokens_with(&toks, params)
+}
+
+/// 在给定 token 切片上解析一条表达式（无参数表版，见 [`parse`]）。
+pub fn parse_tokens(toks: &[Tok]) -> Result<Expr> {
+    parse_tokens_with(toks, &ParamTable::EMPTY)
 }
 
 /// 在给定 token 切片上解析一条表达式（参数/列表的每个子段都走这里）。
-pub fn parse_tokens(toks: &[Tok]) -> Result<Expr> {
-    let mut p = Parser { toks, pos: 0 };
+pub fn parse_tokens_with(toks: &[Tok], params: &ParamTable) -> Result<Expr> {
+    let mut p = Parser {
+        toks,
+        pos: 0,
+        params,
+    };
     let e = p.parse_bp(0)?;
     if !matches!(p.peek(), Tok::Eof) {
         return Err(err(format!(
@@ -76,6 +97,8 @@ pub fn parse_tokens(toks: &[Tok]) -> Result<Expr> {
 pub(super) struct Parser<'a> {
     pub(super) toks: &'a [Tok],
     pub(super) pos: usize,
+    /// 参数表（M3-01）：`atom.rs` 的 `@名`/`@@名` 分支在建树期查它绑定值。
+    pub(super) params: &'a ParamTable,
 }
 
 impl<'a> Parser<'a> {

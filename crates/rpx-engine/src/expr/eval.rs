@@ -124,11 +124,13 @@ pub trait EvalCtx {
     fn test_value_gate(&mut self, _c: CellId) -> Result<()> {
         Ok(())
     }
-    // ── 数据集与参数 ──
+    // ── 数据集 ──
+    //
+    // ⛔ **没有求值期参数查询**（M3-01 删除）：参数值在建树期就内联成
+    // [`Expr::Const`]（`params.rs` 模块文档），求值期不需要也不应该认识"参数"。
     fn ds(&mut self, name: &str) -> Option<&mut DataSet>;
     /// 数据集名 → 稳定下标（DS 旁路与 `DsCurrentHost` 都要用它寻址）。
     fn ds_index(&self, name: &str) -> Option<usize>;
-    fn param(&self, name: &str, is_macro: bool) -> Option<Value>;
     // ── DS 值归属旁路（见 `docs/m2-engine-design.md` §5.4 的建模缺口）──
     /// 记下「本次表达式求值的最终结果就是**第 `ds` 号数据集的第 `row` 行**」。
     ///
@@ -169,19 +171,6 @@ pub fn evaluate(expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
         }
         // CSCurrent（`@`）：当前格的值
         Expr::CurrentCell => Ok(ctx.cell_value(ctx.current())),
-        // ParamNode / Constant(参数值)
-        Expr::Param {
-            name,
-            is_macro,
-            value,
-        } => match value {
-            Some(v) => Ok(v.clone()),
-            None => ctx
-                .param(name, *is_macro)
-                .ok_or_else(|| EngineError::UnknownCell {
-                    id: format!("@{name}"),
-                }),
-        },
         // DSVariable（`ds1.qty`）：Row 态取当前行；Root 态产品语义未核实（未用）
         Expr::DsColumn { ds, col } => ds_column(ctx, ds, col),
         // UnknownSymbol：DS 调用参数里的裸列名由该 DS 绑定数据集（`setDS` +

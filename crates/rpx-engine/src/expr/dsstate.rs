@@ -54,7 +54,7 @@ impl Expr {
     /// 而**参数（`(...)` 的内容）未被 AST 建模** ⇒ 这里只查 `target`，是一条**已声明的缺口**。
     pub fn is_ds_function(&self) -> bool {
         match self {
-            Expr::Const(_) | Expr::CellRef { .. } | Expr::Param { .. } | Expr::CurrentCell => false,
+            Expr::Const(_) | Expr::CellRef { .. } | Expr::CurrentCell => false,
             Expr::DsColumn { .. } => true,
             Expr::Unknown(_) => true,
             Expr::ValueList { items, .. } => items.iter().any(Self::is_ds_function),
@@ -101,7 +101,6 @@ impl Expr {
         match self {
             Expr::Const(_)
             | Expr::CellRef { .. }
-            | Expr::Param { .. }
             | Expr::CurrentCell
             | Expr::DsColumn { .. }
             | Expr::Unknown(_) => 4,

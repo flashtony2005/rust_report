@@ -48,4 +48,4 @@ pub mod properties;
 pub mod run;
 
 pub use ds_current::{DsInstance, HeadPairTracker};
-pub use run::calculate;
+pub use run::{calculate, calculate_with};

@@ -48,7 +48,8 @@ fn stage_b_for(name: &str) -> StageB {
     let path = fixtures_dir().join(format!("{name}.rpx"));
     let file = std::fs::File::open(&path).unwrap_or_else(|e| panic!("打开 {name}.rpx 失败：{e}"));
     let rd = rpx_core::open(file).unwrap_or_else(|e| panic!("解析 {name}.rpx 失败：{e}"));
-    prepare_calculate(&rd).unwrap_or_else(|e| panic!("{name} 阶段 B 失败：{e:?}"))
+    prepare_calculate(&rd, &crate::params::ParamTable::EMPTY)
+        .unwrap_or_else(|e| panic!("{name} 阶段 B 失败：{e:?}"))
 }
 
 /// 取某格的阶段 B 产物（坐标不存在直接 panic，避免静默跳过）。

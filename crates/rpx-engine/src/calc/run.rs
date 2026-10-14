@@ -49,19 +49,33 @@ use crate::eval::{finish_channel, state, Flow, Suspend};
 use crate::expr::ds::DataSet;
 use crate::expr::eval::EvalCtx;
 use crate::extend::ExtendMode;
+use crate::params::ParamTable;
 use crate::stage_b::prepare_calculate;
 use crate::value::Value;
 
 /// 引擎主入口：模板 + 数据集 → 计算态网格。
 ///
+/// **无参数表**版本（等价 [`ParamTable::EMPTY`]）：模板表达式里出现 `@名` 会在
+/// 建树期报 [`EngineError::UnknownParam`]（显式失败，不静默当无参数算）。
+/// 带参数的调用点（`/render`、CLI `--param`）用 [`calculate_with`]。
+pub fn calculate(rd: &ReportDefine, ds: &[DataSet]) -> Result<CalcGrid> {
+    calculate_with(rd, ds, &ParamTable::EMPTY)
+}
+
+/// 引擎主入口（M3-01 参数通道）：`params` 里的参数值在阶段 B 建树期内联进表达式
+/// （与产品同为 `Constant(值)`，见 [`crate::params`]），驱动扩展与求值。
+///
+/// ⚠ `params` 是**输入的一部分**：同一模板 + 数据集，参数不同 ⇒ 计算矩阵可能不同
+/// （List 参数会把格包成扩展格，真机语义见 RUNLOG §15/§24.3）。
+///
 /// 一张 `HeadState` 只跑一次（`prepareCalculate` 的改写不可逆，`ctx.rs` 文档）；
 /// 重入守卫 `_$14 <= 4` 在本形态下天然成立（每次新建 ctx，state 从 0 起）。
-pub fn calculate(rd: &ReportDefine, ds: &[DataSet]) -> Result<CalcGrid> {
+pub fn calculate_with(rd: &ReportDefine, ds: &[DataSet], params: &ParamTable) -> Result<CalcGrid> {
     // 分页支持性守卫（`spec-m2.md` §6.2 带账项）：`pagerStyle != 2` / 多栏配置下，
     // 本实现的分页会**静默**按 `pagerStyle==2` 单栏分支算（`pager.rs::ensure_supported`）。
     // 放最前：输入校验失败不跑计算。
     crate::pager::ensure_supported(&rd.print_setup)?;
-    let sb = prepare_calculate(rd)?;
+    let sb = prepare_calculate(rd, params)?;
     let mut ctx = CalcCtx::new(sb.grid, ds.to_vec());
     run_orchestration(&mut ctx)?;
     // 合并两趟。产品在 `SimplePager.createPages()` 里调（`:133-134` 单页 / `:179-180` 多页），

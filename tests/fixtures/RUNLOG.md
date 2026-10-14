@@ -2566,3 +2566,88 @@ E 列 else 对照。CSV 复用 `EngineModelsRange.rows()`（B 列 100/200/120，
 - `rowData` 行高 30.24px（8mm）、`columnData` 列宽 94.49px（25mm）。
 - `cellData`：`"region"` → `t:4`；`100` → `t:2`；样式含 `ff:"宋体"` `fs:12` `ht:1` `vt:2` `cl/bg` 色。
 - 产物：`tests/fixtures/out/engine_merge.snapshot.json`（2.4KB）。
+
+## §24 M3-01 参数通道：建树期内联 + `engine_param` 夹具闭环（2026-10-14 晚）
+
+> 总监令「M3 M4 一起推进」后 M3 的第一号任务。验收：`engine_param` 进 16 夹具
+> 主对拍（`engine_grid_compare`）逐格一致。参数解析期的四条真机结论来自
+> `ProbeParamFull.java`（本轮新探针，输出 `probe_param_full_out.utf8.txt`）。
+
+### 24.1 参数全景探针：四个缺口的真机答案
+
+`ProbeParamList`（§15）只钉了「值是不是 List 决定 isExtend」+ 三个 calc 案例：
+
+| 缺口 | 真机答案 | 对实现的含义 |
+|---|---|---|
+| 空 List `List[]` | 矩阵 **3×2 不变**；(2,1) 锚点 `extend=18 subCells=1` 但值 `null` | §15「成为扩展格却没有子格」的说法要修正：subCells 仍是 1 |
+| `@@q` 未登记 | **不报错**：`Constant(null)`；计算态 `extend=17`（非扩展格无条件置 17） | `@@` 路径不查 `isParamName` |
+| `@p` 未登记 | `ReportError`：`单元格A2中有错误: 表达式：@p中: 未知的参数：@p` | 未登记 ⇒ **显式失败**，不是"保守 false" |
+| Types 转换 | 见 §24.5 | Servlet 层的字符串→类型，`/render` 的参数解析对应它 |
+
+### 24.2 M3-01 实现定案：建树期内联（`parse_with`）
+
+三条建树路径（产品 `Expression.java`）与 Rust 实现一一对应：
+
+| 写法 | 产品行为 | 本 crate |
+|---|---|---|
+| `@p` 已登记 | `Constant(getParamValue(p))`（`:187-188`） | 内联 `Expr::Const(值)` |
+| `@p` 未登记 | `ReportError`（`:189-191`） | `EngineError::UnknownParam` |
+| `@@p` 无论登记 | `Constant(getParamValue(p))`（`:183-186`，**不查** `isParamName`） | 内联；未登记 ⇒ `Const(Null)` |
+| 裸名已登记 | `ParamNode(id, 值)`（`:233`；`ParamNode extends Constant`） | 内联 `Const(值)`，**排在函数判定之后**（`:210` 早于 `:232`） |
+
+⛔ **被证伪的早期设计**：`Expr::Param { value: Option<Value> }` + 求值期
+`ctx.param()` 兜底。`is_extend` 是**准备期**判定（`ExtNormalCell.checkExtend`），
+求值期才拿到值**救不了扩展**（扩展已经错在同一条链上）；留着兜底只会掩盖
+"建树期没绑定"的 bug。M3-01 落地时删除该变体与该 trait 方法（`params.rs`
+模块文档有完整论证）。
+
+已知限制（provisional 策略的推论）：参数名形如 `[A-Za-z]+\d+`（`p1`、`t1`）时
+被 `is_cell_id` 形状判定截胡成 `CellRef`（与 `qty1` 列名误判同类同源），等
+M2-06 的矩阵重解析一并修正；坏后果只落在"参数名形如格号且值为 List"。
+
+### 24.3 `engine_param` 夹具（第 16 个，主对拍闭环）
+
+模板 3×4（`EngineModelsM3.java`），注入 `p=ArrayList[1,2,3]`、`s=Integer(7)`：
+
+| 格 | 表达式 | 计算态 |
+|---|---|---|
+| A2 | `@p` | 18 扩展 3 子格，矩阵 3→5 行；sub_values `(2,1)=1 (3,1)=2 (4,1)=3` |
+| C2 | `sum(@p)` | `6`，`extend=17`（聚合**不透传** is_extend） |
+| D2 | `max(@p)` | `3`，同上 |
+| B3 | `@s` | `7` —— 模板第 3 行被 A2 的扩展挤到**计算态第 5 行** |
+| B2 | 字面量旁注 | 延续槽在铺开行复制模板值（(3,2)(4,2) 同值） |
+
+对拍路径：`engine_text()` 读夹具的 `params` 段 → `calculate_with(rd, ds, params)`
+→ `emit::render_document` → 逐格比（值/类型/source/sub_values/heads/尺寸）。
+**`engine_grid_compare` 7/7 全绿**（含本夹具）。⚠ 注入值必须是 `java.util.List`
+（产品判据 `instanceof List`，`Constant.java:22-24`）—— `int[]` 不扩展。
+
+### 24.4 两扩展格同行：产品实证（**显式带账，不进夹具**）
+
+第一版模板 E2=`@@p` 与 A2=`@p` 同行（两个 18 扩展格），产品产出 **11×5**：
+
+- `@@p`（E2）：sub_values **连续** `(2,5)(3,5)(4,5)`；
+- `@p`（A2）：sub_values 锚点落在**行带起点** `(2,1)(5,1)(8,1)`，间隔 = 行带高 3；
+  每个子格值复制到整条行带（A 列 2-4 行=1、5-7 行=2、8-10 行=3）；
+- 即行带高由先处理的扩展格决定，后处理扩展格的子格锚点被对齐到行带边界。
+
+本 crate 扩展算法（M2-15）不建模该交互 ⇒ 夹具去掉 E2（单扩展格形态，Rust 可
+对拍），本条作为**显式带账**：产品行为已实证（数据如上），Rust 未覆盖。
+`@@p` 的解析期语义由 `expr/tests/deviation.rs` 与探针 B 组分别钉死。
+
+### 24.5 `Types.getProperData(dataType, 输入)` 转换矩阵（真机）
+
+| dataType | 输入 | 结果 |
+|---|---|---|
+| 1 | `10` / ` 10 ` | `Integer(10)` |
+| 1 | `abc` | `NumberFormatException` |
+| 11 | `abc` / ` pad ` | `"abc"` / `" pad "`（**不 trim**） |
+| 11 / 1 | 空串 | `null` |
+| 12 | `true` / `TRUE` | `Boolean(true)`；`yes` ⇒ `null` |
+| 51 | `1,2,3` | `ArrayList([1, 2, 3])` |
+| 61 | `a,b,c` | `ArrayList([a, b, c])`；`a, ,c` ⇒ `[a, null, c]` |
+
+注：这是 **Servlet 层**的字符串→类型转换（`ReportUtils2.java:236-238`，
+`dataType==61` 逗号分隔），与 `/render` 的参数解析对应；引擎侧
+`setParamValue` 收到的是已定型对象（loader 的 JSON→`Value` 只需 Int/Double
+两档，`tests/common/loader.rs` 的 `parse_param_value`）。

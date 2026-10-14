@@ -68,11 +68,19 @@ fn error_class_chain(e: &rpx_engine::EngineError) -> (String, Option<String>) {
 }
 
 /// 跑一个夹具，产出**引擎侧文本**（`Ok` → 渲染网格；`Err` → 渲染错误段）。
+///
+/// M3-01：参数夹具（`engine_param`）的 `params` 段就是注入面 —— 与产品侧
+/// `CalcProbe.calc(rd, ds, params)`（`GenEngineFixtures.java`）一一对应。
+/// 无参夹具的 `params` 为空 vec ⇒ 走无参入口（与 M2 路径完全相同）。
 fn engine_text(name: &str) -> String {
     let rd = open_rpx(name);
     let ds = rpx_engine::dataset::load_datasets(&fixtures_dir(), &rd)
         .unwrap_or_else(|e| panic!("{name}: load_datasets 失败：{e}"));
-    match rpx_engine::calculate(&rd, &ds) {
+    let fx = common::load(name);
+    let params = rpx_engine::ParamTable::from_iter(
+        fx.params.iter().map(|p| (p.name.clone(), p.value.clone())),
+    );
+    match rpx_engine::calculate_with(&rd, &ds, &params) {
         Ok(grid) => rpx_engine::emit::render_document(&grid),
         Err(e) => {
             let (class, chain) = error_class_chain(&e);

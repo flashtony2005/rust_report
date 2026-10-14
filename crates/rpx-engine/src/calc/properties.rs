@@ -252,7 +252,7 @@ mod tests {
         let bytes = std::fs::read(fixtures.join("engine_rowheight.rpx")).unwrap();
         let report = rpx_core::open_bytes(&bytes).unwrap();
         let datasets = crate::dataset::load_datasets(&fixtures, &report).unwrap();
-        let stage = prepare_calculate(&report).unwrap();
+        let stage = prepare_calculate(&report, &crate::params::ParamTable::EMPTY).unwrap();
         let mut ctx = CalcCtx::new(stage.grid, datasets);
         let row = *ctx.grid.by_pos.get(&(2, 0)).unwrap();
         ctx.rt_mut(row)
@@ -276,7 +276,7 @@ mod tests {
         let report_bytes = std::fs::read(fixtures.join("engine_rowheight.rpx")).unwrap();
         let report = rpx_core::open_bytes(&report_bytes).unwrap();
         let datasets = crate::dataset::load_datasets(&fixtures, &report).unwrap();
-        let stage = prepare_calculate(&report).unwrap();
+        let stage = prepare_calculate(&report, &crate::params::ParamTable::EMPTY).unwrap();
         let mut ctx = CalcCtx::new(stage.grid, datasets);
 
         let row_owner = *ctx.grid.by_pos.get(&(2, 0)).unwrap();

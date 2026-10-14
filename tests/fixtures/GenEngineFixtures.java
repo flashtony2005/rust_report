@@ -48,7 +48,8 @@ public class GenEngineFixtures {
 			"engine_expr", "engine_pager", "engine_merge", "engine_cycle",
 			"engine_samemerge", "engine_disp", "engine_types",
 			"engine_rowheight", "engine_head_top", "engine_head_left",
-			"engine_avgrange", "engine_collate", "engine_listrange" };
+			"engine_avgrange", "engine_collate", "engine_listrange",
+			"engine_param" };
 
 	public static void main(String[] args) throws Exception {
 		String dir = args.length > 0 ? args[0] : ".";
@@ -81,7 +82,10 @@ public class GenEngineFixtures {
 		ExtCellSet ecs = null;
 		Throwable err = null;
 		try {
-			ecs = (ExtCellSet) CalcProbe.calc(rd, null);
+			// M3-01: parameter injection is the CALLER's job (the engine never
+			// registers defaults -- CalcReport.java); engine_param is the only
+			// fixture with parameters, the rest pass null.
+			ecs = (ExtCellSet) CalcProbe.calc(rd, null, EngineModelsM3.params(name));
 		} catch (Throwable t) {
 			err = t;
 		}
@@ -104,7 +108,7 @@ public class GenEngineFixtures {
 		ExtCellSet ecs = null;
 		Throwable err = null;
 		try {
-			ecs = (ExtCellSet) CalcProbe.calc(rd, null);
+			ecs = (ExtCellSet) CalcProbe.calc(rd, null, EngineModelsM3.params(name));
 		} catch (Throwable t) {
 			err = t;
 		}
@@ -196,6 +200,12 @@ public class GenEngineFixtures {
 		o.put("unit", rd.getUnit());
 		o.putString("unit_note", "1=mm 0=inch 2=point; row/column sizes use this unit");
 		o.putString("dataset_file", csv);
+		// M3-01 参数段：**只对 engine_param 写**。其余夹具没有这个键 ——
+		// 顶层键集合是 loader 的白名单（`common/loader.rs` 的 expect_keys），
+		// 无条件写 `params: []` 会让 15 个既有夹具的 expected.json 全部变动。
+		if ("engine_param".equals(name)) {
+			o.put("params", EngineModelsM3.paramsJson(name));
+		}
 		o.put("dataset", CalcJson.renderDataSet(new String[] { "region", "qty" },
 				EngineModels.rows(name)));
 		o.put("template_rows", rd.getRowCount());

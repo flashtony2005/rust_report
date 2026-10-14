@@ -67,10 +67,11 @@ pub use ds::{DataSet, DsCur};
 pub use eval::{evaluate, EvalCtx};
 pub use lexer::lex;
 pub use names::{classify_bare, classify_ds, CallKind, DS, DS_EXTEND, REGULAR, REGULAR_EXTEND};
-pub use parser::parse;
+pub use parser::{parse, parse_tokens_with, parse_with};
 pub use token::Tok;
 
 use crate::error::Result;
+use crate::params::ParamTable;
 
 /// 解析一条表达式源码。
 pub fn parse_str(src: &str) -> Result<Expr> {
@@ -81,6 +82,10 @@ pub fn parse_str(src: &str) -> Result<Expr> {
 ///
 /// 解析失败会 `Err`（产品侧同样是抛 `ReportError`，`Expression.java:489-493`），
 /// **不**静默返回 `false` —— "因为错的原因得出对的答案"是本项目明确要避免的失败模式。
-pub fn is_extend(src: &str) -> Result<bool> {
-    Ok(parse(src)?.is_extend())
+///
+/// `params` **强制显式传入**（M3-01）：`is_extend` 是准备期判定，参数值必须在这一步
+/// 可得（`@p` 未登记 ⇒ [`crate::error::EngineError::UnknownParam`]）。不提供"无表"
+/// 便利版 —— 漏传参数表会静默把该扩展的格判成不扩展，这是会算错的静默分叉。
+pub fn is_extend(src: &str, params: &ParamTable) -> Result<bool> {
+    Ok(parse_with(src, params)?.is_extend())
 }

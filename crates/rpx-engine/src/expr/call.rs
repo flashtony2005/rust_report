@@ -3,19 +3,23 @@
 //! 算法正文见 `docs/m2-engine-design.md` §13.2（`Call` 节点）与 §13.5（未支持清单）。
 
 use crate::error::Result;
+use crate::params::ParamTable;
 use crate::value::Value;
 
 use super::ast::{Call, Expr, ParamKind};
 use super::classify::{split_ds, split_top, top_level_kind};
 use super::names::{classify_bare, classify_ds};
-use super::parser::parse_tokens;
+use super::parser::parse_tokens_with;
 use super::token::Tok;
 
 /// 切分一个参数串（`ParamParser._$1:35-64` 的简化版）。
 ///
 /// ⚠ **只建模到顶层一层**：返回顶层类别 + 顶层切出的子表达式。
 /// 完整的嵌套 `IParam` 树（`;` 里套 `,` 里套 `:`）留给定稿求值期（§13.5 已标注）。
-pub fn parse_params(toks: &[Tok]) -> Result<(ParamKind, Vec<Expr>)> {
+///
+/// `params` 透传给每个子段的解析（M3-01）：`sum(@p)`、`f(@a,@b)` 这类形态
+/// 的参数绑定发生在**子段**里，漏传会让 `@p` 误报 `UnknownParam`。
+pub fn parse_params(toks: &[Tok], params: &ParamTable) -> Result<(ParamKind, Vec<Expr>)> {
     if toks.is_empty() {
         // 空参数串 ⇒ `ParamParser.parse` 返回 null（`ParamParser.java:39-41`）
         return Ok((ParamKind::Leaf, Vec::new()));
@@ -25,7 +29,7 @@ pub fn parse_params(toks: &[Tok]) -> Result<(ParamKind, Vec<Expr>)> {
         ParamKind::Semicolon => Tok::Semi,
         ParamKind::Comma => Tok::Comma,
         ParamKind::Colon => Tok::Colon,
-        ParamKind::Leaf => return Ok((ParamKind::Leaf, vec![parse_tokens(toks)?])),
+        ParamKind::Leaf => return Ok((ParamKind::Leaf, vec![parse_tokens_with(toks, params)?])),
     };
     let mut args = Vec::new();
     for piece in split_top(toks, &sep) {
@@ -33,7 +37,7 @@ pub fn parse_params(toks: &[Tok]) -> Result<(ParamKind, Vec<Expr>)> {
             // 空子段 ⇒ 产品返回 null IParam（ArgumentTokenizer 的相邻分隔符）
             args.push(Expr::Const(Value::Null));
         } else {
-            args.push(parse_tokens(piece)?);
+            args.push(parse_tokens_with(piece, params)?);
         }
     }
     Ok((kind, args))

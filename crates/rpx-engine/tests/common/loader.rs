@@ -12,7 +12,7 @@ use super::json::{self, Json};
 use super::model::*;
 
 /// 15 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致）。
-pub fn all_names() -> [&'static str; 15] {
+pub fn all_names() -> [&'static str; 16] {
     [
         "engine_sum",
         "engine_ext",
@@ -29,6 +29,7 @@ pub fn all_names() -> [&'static str; 15] {
         "engine_avgrange",
         "engine_collate",
         "engine_listrange",
+        "engine_param",
     ]
 }
 
@@ -87,6 +88,10 @@ fn parse_checked(expected_name: &str, text: &str) -> Result<Fixture, String> {
             "calculated",
             "pagination",
             "merged",
+            // M3-01：**只 engine_param 写**这个键（其余夹具没有，见
+            // `GenEngineFixtures.java` 的写入条件）。`expect_keys` 是"不许多出键"
+            // 的白名单，缺键不要求齐全 ⇒ 加进来对 15 个无参夹具零影响。
+            "params",
         ],
     );
     let name = root.req("name").as_string();
@@ -111,7 +116,57 @@ fn parse_checked(expected_name: &str, text: &str) -> Result<Fixture, String> {
             .get("merged")
             .filter(|v| !v.is_null())
             .map(parse_merged),
+        // `params` 缺键 = 无参夹具（15 个既有夹具的 JSON 里就没有这个键）。
+        params: root.get("params").map(parse_params).unwrap_or_default(),
     })
+}
+
+/// `params` 段（M3-01）：`[{"name": "p", "value": [1,2,3]}, ...]`。
+///
+/// 出处：`GenEngineFixtures.java` 的 `params` 写入 + `EngineModelsM3.paramsJson`。
+/// 产品侧这些值在 `CalcProbe.calc(rd, ds, params)` 里经 `Context.setParamValue`
+/// 注入（`Context.java:163-168`），引擎侧由 `rpx_engine::calculate_with` 消费。
+fn parse_params(j: &Json) -> Vec<super::ParamSpec> {
+    j.arr()
+        .iter()
+        .map(|p| {
+            p.expect_keys("param", &["name", "value"]);
+            super::ParamSpec {
+                name: p.req("name").as_string(),
+                value: parse_param_value(p.req("value")),
+            }
+        })
+        .collect()
+}
+
+/// 参数值的 JSON → [`rpx_engine::Value`]（按 JSON 形态推断，与 Java 侧
+/// `paramValueJson` 的写入规则互逆）。
+///
+/// ⚠ **数字按 token 原文分家**：`1` → `Int`、`1.5` → `Double`。产品的
+/// `Types.getProperData`（真机矩阵见 RUNLOG §24.5）有更细的类型面
+/// （Long/Short/Byte/BigDecimal 各有其类），但那是 **Servlet 层的字符串 →
+/// 类型**转换，与这里的 JSON → 引擎值不是同一层；当前参数注入面（Java 侧
+/// `setParamValue` 传的是已定型对象）只需要 Int/Double 两档，来了新形态再补。
+fn parse_param_value(j: &Json) -> rpx_engine::Value {
+    use rpx_engine::Value;
+    match &j.kind {
+        json::Kind::Null => Value::Null,
+        json::Kind::Bool(b) => Value::Bool(*b),
+        // `Kind::Num` 的原文在 `raw`（`10` 与 `10.0` 必须可分，见 json 模块文档）。
+        json::Kind::Num => {
+            let raw = j.raw.as_str();
+            if raw.contains('.') || raw.contains('e') || raw.contains('E') {
+                Value::Double(j.as_f64())
+            } else {
+                Value::Int(j.as_i32())
+            }
+        }
+        json::Kind::Str(s) => Value::Text(s.clone()),
+        json::Kind::Arr(_) => Value::List(j.arr().iter().map(parse_param_value).collect()),
+        json::Kind::Obj(_) => {
+            panic!("参数值出现对象形态 —— 产品注入面（setParamValue）未见过，先补探针")
+        }
+    }
 }
 
 fn parse_dataset(j: &Json) -> Dataset {

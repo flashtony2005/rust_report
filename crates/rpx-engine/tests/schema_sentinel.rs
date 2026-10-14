@@ -26,6 +26,10 @@ use common::{all_names, load_raw};
 
 /// 产品**必须**写出的顶层键（12 个）。
 ///
+/// ⚠ `engine_param` 另有一个**条件键** `params`（M3-01 参数注入面，只该出现在
+/// 那一个夹具上）—— 不在这份清单里，由 `params_key_is_unique_to_engine_param`
+/// 单独断言，见该测试文档里的取舍说明。
+///
 /// ⛔ 这份清单与 `common/loader.rs` 里的 `expect_keys` 白名单**故意保持两份**：
 /// 若共用一份，加键时改一处就全绿，加键就退化成"顺手"动作。分成两份才能红。
 const TOP_LEVEL_KEYS: [&str; 12] = [
@@ -91,7 +95,14 @@ fn is_error_form(root: &Json) -> bool {
         .is_some_and(|c| c.get("error").is_some())
 }
 
-/// ① + ②：顶层键集合 —— 夹具之间一致，且等于清单。
+/// ① + ②：顶层键集合 —— **无参夹具**之间一致，且等于清单。
+///
+/// ⚠ M3-01 起 `engine_param` **不在本断言内**：它是唯一带 `params` 键的夹具
+/// （参数注入面，`GenEngineFixtures.java` 按夹具名条件写入），由
+/// [`params_key_is_unique_to_engine_param`] 单独钉。把它塞进"完全一致"的集合
+/// 只有两条路：逼所有夹具都写 `params: []`（15 个 expected.json 全部变动），
+/// 或把断言放宽成子集（漂移哨兵的意义就没了）—— 单列是唯一既保不变式又不制造
+/// 噪音的选择。
 #[test]
 fn every_fixture_declares_exactly_the_same_top_level_keys() {
     let expect: Vec<String> = TOP_LEVEL_KEYS.iter().map(|s| s.to_string()).collect();
@@ -100,6 +111,9 @@ fn every_fixture_declares_exactly_the_same_top_level_keys() {
     assert_eq!(reference, expect, "{first}: 顶层键清单与本文件不符");
 
     for name in all_names().iter().skip(1) {
+        if *name == "engine_param" {
+            continue; // 见本测试文档：它多一个 params 键，单独断言
+        }
         let got = keys_of(&load_raw(name), name);
         // ① 夹具之间彼此一致
         assert_eq!(
@@ -109,6 +123,41 @@ fn every_fixture_declares_exactly_the_same_top_level_keys() {
         // ② 且等于写死的清单（缺键 / 多键都红）
         assert_eq!(got, expect, "{name}: 顶层键集合与本文件清单不符");
     }
+}
+
+/// `params` 键是 `engine_param` **独有**的（M3-01）。
+///
+/// 钉两条不变式：① 15 个无参夹具的 JSON 里**没有** `params` 键（产品侧是条件
+/// 写入，一旦写成无条件，它们的 expected.json 会全部变动 —— 那正是"顺手改一处
+/// 就全绿"要防的退化）；② 有参夹具的键集合 = 12 个公共键 + `params`，段内每条
+/// 都是 `{name, value}`，且至少一条参数。
+#[test]
+fn params_key_is_unique_to_engine_param() {
+    let mut with_params = 0usize;
+    for name in all_names() {
+        let root = load_raw(name);
+        let Some(v) = root.get("params") else {
+            continue;
+        };
+        assert_eq!(
+            name, "engine_param",
+            "{name}: 只有 engine_param 该有 params 键"
+        );
+        assert!(!v.is_null(), "engine_param 的 params 不能是 null");
+        let items = v.arr();
+        assert!(!items.is_empty(), "engine_param 的 params 不能是空数组");
+        for item in items {
+            let mut got = keys_of(item, name);
+            got.sort();
+            assert_eq!(
+                got,
+                vec!["name".to_string(), "value".to_string()],
+                "{name}: params 条目必须是 {{name, value}}"
+            );
+        }
+        with_params += 1;
+    }
+    assert_eq!(with_params, 1, "应当恰有一个夹具带 params 键");
 }
 
 /// `calculated` 段的键：网格形态与错误形态各自固定，且两种形态不混用。

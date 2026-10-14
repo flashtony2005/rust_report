@@ -212,9 +212,6 @@ impl EvalCtx for Fake {
     fn ds_index(&self, name: &str) -> Option<usize> {
         self.dss.iter().position(|d| d.name == name)
     }
-    fn param(&self, _name: &str, _m: bool) -> Option<Value> {
-        None
-    }
 }
 
 /// 场景 A：`B2` 在扩展实例行上解析到**本行的 B2 实例**。

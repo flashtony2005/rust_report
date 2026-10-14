@@ -53,6 +53,19 @@ use super::names::CallKind;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     /// 字面量。`Constant`（`Constant.java:11`）。值为 `List` 时 `is_extend()` 为真。
+    ///
+    /// **参数值也在本变体里**（M3-01 建树期内联）：`@p`/`@@p` 在解析期就是
+    /// `Constant(getParamValue(id))`（`Expression.java:183-188`），本 crate 与产品
+    /// 同构 —— 由 [`crate::expr::parse_with`] 直接建 `Const(值)`。✅ 真机证据
+    /// （`probe_param_list_out.utf8.txt` + `probe_param_full_out.utf8.txt`）：
+    /// 多选参数（`List[1,2,3]`）⇒ `is_extend()=true` ⇒ 矩阵 3×2 → **5×2**、
+    /// 锚点 `extend=18 subCells=3`；标量 ⇒ false；**单元素与空 List 同为 true**
+    /// （判 `instanceof List`，不看内容）。空 List 的 calc 后果 = 矩阵不变、
+    /// 格值 null、锚点仍 `extend=18`（RUNLOG §24.1）。
+    ///
+    /// ⛔ 早期版本曾建 `Expr::Param { value: Option<Value> }` 占位 + 求值期
+    /// `ctx.param()` 兜底，**已整条删除**：`is_extend` 是准备期判定，求值期才拿到
+    /// 值救不了扩展，留着只掩盖漏绑定的 bug（[`crate::params`] 模块文档）。
     Const(Value),
     /// 格引用 `B2` / `$B2`。`CSVariable`（`CSVariable.java:19`）。
     /// `absolute = true` 表示带 `$` 前缀（产品的"整格绝对引用"，见附件 G.1）。
@@ -69,29 +82,6 @@ pub enum Expr {
         absolute: bool,
         /// 是否只是「形态上像格号」的**暂定**判定（见上文）。
         provisional: bool,
-    },
-    /// 参数引用 `@p` / `@@p`。产品建的是 **`Constant(ctx.getParamValue(id))`**
-    /// （`Expression.java:185` 的 `@@`、`:188` 的 `@`）与
-    /// `ParamNode(id, ctx.getParamValue(id))`（`:233`，裸参数名形态）。
-    /// 三者都继承 `Constant.isExtended() = value instanceof List`（`Constant.java:22-24`）。
-    ///
-    /// ✅ **真机已验证**（`tests/fixtures/probe_param_list_out.utf8.txt`，2026-10）：
-    /// 多选参数（值是 `List`）⇒ `isExtend()=true` ⇒ 该格**真的**被包成扩展格 ——
-    /// `List[1,2,3]` 时计算矩阵从 3×2 长到 **5×2**，锚点 `extend=18 subCells=3`。
-    /// 标量参数（`Integer(7)` / `String("x")`）⇒ `false`。
-    /// ⚠ 两个边界同样为 **true**（判的是 `instanceof List`，不看内容）：
-    /// **单元素** `List[9]` 与 **空** `List[]`。空 List 会让格"成为扩展格却没有子格"。
-    ///
-    /// 本切片没有 `Context`，拿不到参数值 ⇒ `value` 恒 `None` ⇒ 取 **false**。
-    /// 这个默认值现在**由证据支撑**而非假设：真机上标量参数确实是 false，
-    /// 所以"未知时取 false"不误判标量。求值期（M2-13）必须用真实参数值重判。
-    Param {
-        /// 参数名（已剥 `@`/`@@`）。
-        name: String,
-        /// 是否 `@@`（宏参数；`@@` **不查** `isParamName`，`Expression.java:183-186`）。
-        is_macro: bool,
-        /// 参数值（产品在建节点时就有；本切片恒 `None`）。
-        value: Option<Value>,
     },
     /// `@`（当前格）。`CSCurrent`（`function/CSCurrent.java:13`）。
     CurrentCell,
@@ -248,11 +238,9 @@ impl Expr {
     /// **纯递归、不做求值。** 每个分支的来源见模块文档的真值表。
     pub fn is_extend(&self) -> bool {
         match self {
-            // Constant.isExtended() = value instanceof List（Constant.java:22-24）
+            // Constant.isExtended() = value instanceof List（Constant.java:22-24）。
+            // M3-01 起参数值也走本分支（建树期内联，见 [`Expr::Const`] 文档）。
             Expr::Const(v) => matches!(v, Value::List(_)),
-            // ⛔ ParamNode/Constant 的值本切片拿不到（None）⇒ 取 false。
-            //    真机上多选参数（值是 List）会为真 —— 真实分叉，零夹具覆盖，§13.5 未验证。
-            Expr::Param { value, .. } => matches!(value, Some(Value::List(_))),
             // CSVariable / CurrentCell / DSVariable / UnknownSymbol
             Expr::CellRef { .. } | Expr::CurrentCell | Expr::DsColumn { .. } | Expr::Unknown(_) => {
                 false

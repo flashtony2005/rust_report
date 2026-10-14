@@ -39,6 +39,7 @@ use crate::error::{EngineError, Result};
 use crate::extend::{cell_role_of, CellRole, ExtendMode};
 use crate::heads::{find_left_head, find_top_head, normalize_heads, HeadCell, HeadState};
 use crate::literal::{literal_value, parse_string, parses_string_literal};
+use crate::params::ParamTable;
 use crate::stage_a::StageA;
 use crate::value::Value;
 
@@ -74,7 +75,11 @@ pub struct StageB {
 }
 
 /// 跑完阶段 B（`prepareCalculate(ctx, true)`）。
-pub fn prepare_calculate(rd: &ReportDefine) -> Result<StageB> {
+///
+/// `params` 是报表参数值表（M3-01）：`checkExtend` 的 `expression.isExtend()` 与
+/// 执行树落盘（`engine.expression`）都**整树重建**表达式，参数值必须在建树期可得
+/// （与产品同为建树期内联 `Constant(值)`，见 [`crate::params`]）。
+pub fn prepare_calculate(rd: &ReportDefine, params: &ParamTable) -> Result<StageB> {
     let a = StageA::build(rd);
     let (rows, cols) = (a.calc.row_size(), a.calc.col_size());
     let mut g = build_grid(rd, &a)?;
@@ -97,14 +102,14 @@ pub fn prepare_calculate(rd: &ReportDefine) -> Result<StageB> {
             if expr.is_some() {
                 expressed += 1;
             }
-            let role = cell_role_of(expr, declared, tpl.cell_type)?;
+            let role = cell_role_of(expr, declared, tpl.cell_type, params)?;
             roles[id.0 as usize] = role;
             has_expr[id.0 as usize] = expr.is_some();
             // 表达式解析成 AST 落在**格对象自己的运行态**里（Java 是 `engine.expression`，
             // 见 `heads/runtime.rs` 的模块文档）。⛔ 必须在这一步落，而不是等到求值期：
             // 扩展算法会给锚点造克隆，克隆要能带走同一个表达式（Java 的克隆共享 `engine`）。
             if let Some(src) = expr {
-                let parsed = crate::expr::parse(src)?;
+                let parsed = crate::expr::parse_with(src, params)?;
                 // `ExtNormalCell.checkExtend:508`：`engine.state = expression.getState()`。
                 g.cells[id.0 as usize].rt.state = parsed.get_state();
                 g.cells[id.0 as usize].rt.expr = Some(parsed);

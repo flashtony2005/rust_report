@@ -49,15 +49,25 @@ use common::{all_names, load};
 /// 的三种 cellSet 形态各 4 条（`[B2:B4]` ValueList 逐格、`(B2:B4)` Link 逐格、
 /// `B2:B4` 单格 else 对照）。`@` 是 `CSCurrent extends Node`（未覆写 `getState`）、
 /// `:` 是 `operator.Link extends Function` ⇒ 仍全 4，故 78 → 90。
-const TOTAL_FORMULAS: usize = 90;
+///
+/// 2026-10-14（M3-01 参数通道）：`engine_param` 加入 4 条 —— `@p` / `sum(@p)` /
+/// `max(@p)` / `@s`。参数在建树期内联成 `Constant(值)`（`Constant extends Node`，
+/// 未覆写 `getState`）⇒ 仍全 4，故 90 → 94。
+const TOTAL_FORMULAS: usize = 94;
 
 #[test]
 fn every_fixture_formula_is_state_four() {
     let mut total = 0usize;
     for name in all_names() {
         let fx = load(name);
+        // M3-01：`@p` 这类参数引用在**建树期**就要绑定值（未登记直接报错），
+        // 所以 tripwire 必须用夹具的 params 段建表再解析 —— 用无参 `parse`
+        // 会让 engine_param 的四条公式全部误报"解析失败"。
+        let params = rpx_engine::ParamTable::from_iter(
+            fx.params.iter().map(|p| (p.name.clone(), p.value.clone())),
+        );
         for f in &fx.formulas {
-            let e = rpx_engine::parse(&f.exp).unwrap_or_else(|err| {
+            let e = rpx_engine::parse_with(&f.exp, &params).unwrap_or_else(|err| {
                 panic!("{name} ({},{}) 的 `{}` 解析失败：{err}", f.r, f.c, f.exp)
             });
             assert_eq!(
@@ -88,8 +98,11 @@ fn fixtures_contain_at_least_one_ds_function_that_does_not_extend() {
     let mut hits: Vec<(String, String)> = Vec::new();
     for name in all_names() {
         let fx = load(name);
+        let params = rpx_engine::ParamTable::from_iter(
+            fx.params.iter().map(|p| (p.name.clone(), p.value.clone())),
+        );
         for f in &fx.formulas {
-            let e = rpx_engine::parse(&f.exp).expect("上一条用例已保证可解析");
+            let e = rpx_engine::parse_with(&f.exp, &params).expect("上一条用例已保证可解析");
             if e.is_ds_function() && !e.is_extend() {
                 hits.push((name.to_string(), f.exp.clone()));
             }

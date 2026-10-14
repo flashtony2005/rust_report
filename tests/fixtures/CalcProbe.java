@@ -124,9 +124,24 @@ final class CalcProbe {
 
 	/** Runs the product engine headlessly. ds may be null (no dataset). */
 	static IReport calc(ReportDefine2 rd, DataSet ds) {
+		return calc(rd, ds, null);
+	}
+
+	/**
+	 * Runs the product engine headlessly with report parameters injected into
+	 * the Context (M3-01: the caller owns parameter injection -- the engine
+	 * itself never registers defaults, see CalcReport.java). null = none.
+	 */
+	static IReport calc(ReportDefine2 rd, DataSet ds,
+			java.util.Map<String, Object> params) {
 		Context ctx = new Context();
 		if (ds != null) {
 			ctx.getDataSetMap(true).put(ds.getDataSetName(), ds);
+		}
+		if (params != null) {
+			for (java.util.Map.Entry<String, Object> e : params.entrySet()) {
+				ctx.setParamValue(e.getKey(), e.getValue());
+			}
 		}
 		return new Engine(rd, ctx).calc();
 	}

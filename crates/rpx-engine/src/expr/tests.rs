@@ -4,11 +4,21 @@
 //! 或真值表（`docs/m2-engine-design.md` §13.3）—— 没有来源的断言不许留在这里。
 
 use super::*;
+use crate::params::ParamTable;
 use crate::value::Value;
 
 /// 解析并取 `is_extend()`。解析失败直接 panic（测试里就该炸）。
 fn ext(src: &str) -> bool {
     parse(src)
+        .unwrap_or_else(|e| panic!("解析 `{src}` 失败：{e}"))
+        .is_extend()
+}
+
+/// 带参数表解析并取 `is_extend()`（M3-01：参数引用在建树期内联成 `Const(值)`，
+/// 所以"参数驱动扩展"必须带表才能观察到 —— 与 `engine_param` 夹具的注入对应）。
+fn ext_with(src: &str, params: &[(&str, Value)]) -> bool {
+    let table = ParamTable::from_iter(params.iter().map(|(n, v)| ((*n).to_string(), v.clone())));
+    parse_with(src, &table)
         .unwrap_or_else(|e| panic!("解析 `{src}` 失败：{e}"))
         .is_extend()
 }
@@ -211,27 +221,37 @@ fn cell_reference_wins_over_function_call() {
     assert!(matches!(f, Expr::Call(_)), "`sum(1,2)` 应为函数调用");
 }
 
-/// `@参数` / `@@宏参数` / `@` 当前格（`Expression.java:178-192`）。
+/// `@参数` / `@@宏参数` / `@` 当前格（`Expression.java:178-192`）—— **建树期绑定**（M3-01）。
+///
+/// 三种形态 × 登记与否的完整真值表（真机证据 RUNLOG §15/§24.1）：
+///
+/// | 写法 | 已登记 | 未登记 |
+/// |------|--------|--------|
+/// | `@p`  | `Constant(值)` | **报错**（`:189-191`，真机：`未知的参数：@p`） |
+/// | `@@p` | `Constant(值)` | `Constant(null)`，**不报错**（`:183-186` 不查 `isParamName`） |
+/// | `@`   | `CSCurrent`（与参数表无关） | 同左 |
 #[test]
 fn parameter_forms_are_classified() {
-    assert_eq!(
-        parse("@p").unwrap(),
-        Expr::Param {
-            name: "p".into(),
-            is_macro: false,
-            value: None
-        }
-    );
-    assert_eq!(
-        parse("@@p").unwrap(),
-        Expr::Param {
-            name: "p".into(),
-            is_macro: true,
-            value: None
-        }
-    );
+    let mut t = ParamTable::new();
+    t.insert("p", Value::Int(7));
+
+    assert_eq!(parse_with("@p", &t).unwrap(), Expr::Const(Value::Int(7)));
+    assert_eq!(parse_with("@@p", &t).unwrap(), Expr::Const(Value::Int(7)));
     assert_eq!(parse("@").unwrap(), Expr::CurrentCell);
-    assert!(!ext("@p"), "本切片拿不到参数值 ⇒ 保守取 false");
+
+    // 未登记：`@p` 报错、`@@q` 不报错 —— 两条路径的判据本就不同（见上表）
+    assert!(
+        matches!(
+            parse_with("@p", &ParamTable::EMPTY),
+            Err(crate::error::EngineError::UnknownParam { .. })
+        ),
+        "未登记 `@p` 必须报 UnknownParam"
+    );
+    assert_eq!(
+        parse_with("@@q", &ParamTable::EMPTY).unwrap(),
+        Expr::Const(Value::Null),
+        "未登记 `@@q` 静默取 null（`:183-186` 不查 `isParamName`）"
+    );
 }
 
 /// 9 个夹具里出现过的**全部 15 种不同公式**（28 处实例；`engine_types` 无表达式格）。
@@ -274,6 +294,41 @@ fn every_formula_appearing_in_the_fixtures_classifies_correctly() {
     assert_eq!(true_count, 2, "夹具里只有两条公式可扩展");
 }
 
+/// `engine_param`（M3-01）的 4 种公式 —— 必须**带参数表**才能解析（`@名` 未登记
+/// 直接报错，不再是"保守取 false"）。四条各钉一条规则：
+///
+/// | 公式 | is_extend | 钉住的规则 |
+/// |------|-----------|-----------|
+/// | `@p`（List[1,2,3]） | **true** | 参数值 `instanceof List` ⇒ 驱动扩展（真机：矩阵 3→5 行） |
+/// | `sum(@p)` | false | 聚合**不透传** is_extend（`Function.java` 未覆写）—— 操作数为真也白搭 |
+/// | `max(@p)` | false | 同上（max/min/sum 三条同规则） |
+/// | `@s`（Integer(7)） | false | 标量参数 ⇒ 普通公式格（17），矩阵不变 |
+#[test]
+fn engine_param_formulas_classify_with_their_injected_values() {
+    /// (公式, 期望 is_extend, 注入参数)。用具名别名避免 `clippy::type_complexity`
+    /// —— 四层嵌套的裸元组类型会被 `-D warnings` 拦（`pager_guard.rs` 同款先例）。
+    type ParamCase<'a> = (&'a str, bool, &'a [(&'a str, Value)]);
+    let list3: Value = Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]);
+    let cases: &[ParamCase] = &[
+        ("@p", true, &[("p", list3.clone())]),
+        ("sum(@p)", false, &[("p", list3.clone())]),
+        ("max(@p)", false, &[("p", list3.clone())]),
+        ("@s", false, &[("s", Value::Int(7))]),
+    ];
+    for (src, want, params) in cases {
+        assert_eq!(
+            ext_with(src, params),
+            *want,
+            "`{src}`（engine_param，注入 {params:?}）应为 {want}"
+        );
+    }
+    // 未登记的 `@p` 走**显式报错**而不是"保守 false"（产品 `Expression.java:189-191`）。
+    assert!(
+        parse_with("@p", &ParamTable::EMPTY).is_err(),
+        "engine_param 的公式在无参表下必须报错 —— 静默 false 会掩盖漏注入"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // 边界：错误出口必须**结构化**，绝不 panic
 // ---------------------------------------------------------------------------
@@ -290,7 +345,10 @@ fn malformed_input_returns_a_structured_error() {
 #[test]
 fn is_extend_convenience_matches_parse_then_predicate() {
     for src in ["ds1.select(q)", "B2*2", "sum(ds1.select(q))", "[1:2]"] {
-        assert_eq!(is_extend(src).unwrap(), parse(src).unwrap().is_extend());
+        assert_eq!(
+            is_extend(src, &ParamTable::EMPTY).unwrap(),
+            parse(src).unwrap().is_extend()
+        );
     }
 }
 

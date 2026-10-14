@@ -118,6 +118,7 @@ pub mod literal;
 pub mod main_cell;
 pub mod merge;
 pub mod pager;
+pub mod params;
 pub mod stage_a;
 pub mod stage_b;
 pub mod value;
@@ -125,11 +126,11 @@ pub mod value;
 pub use arena::{
     CalcCell, CalcGrid, CalcMatrix, CellId, EngineMatrix, MergedCell, SourceRef, SubValue,
 };
-pub use calc::calculate;
+pub use calc::{calculate, calculate_with};
 pub use calc::{DsInstance, HeadPairTracker};
 pub use error::{EngineError, Result};
 pub use eval::{run_channels, state as eval_state, Flow, SchedGrid, Suspend};
-pub use expr::{is_extend, parse, Expr};
+pub use expr::{is_extend, parse, parse_with, Expr};
 pub use ext_algo::{extend_col, extend_row};
 pub use extend::{
     calc_row_count, cell_role, is_extend_excluded_type, topology_default, CellRole, ExtendMode,
@@ -140,6 +141,7 @@ pub use literal::{decimal_to_string, literal_value};
 pub use main_cell::MainCell;
 pub use merge::{merge_null, merge_same};
 pub use pager::{paginate, PageInfo, Pagination};
+pub use params::ParamTable;
 pub use stage_a::{StageA, ROW_TYPE_GROUP_HEADER};
 pub use stage_b::{cell_expression, prepare_calculate, StageB};
 pub use value::Value;

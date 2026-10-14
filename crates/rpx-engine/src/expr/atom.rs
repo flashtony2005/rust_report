@@ -7,7 +7,7 @@
 //!
 //! 算法正文见 `docs/m2-engine-design.md` §13.2（节点清单）。
 
-use crate::error::Result;
+use crate::error::{EngineError, Result};
 use crate::value::Value;
 
 use super::ast::{Expr, UnOp};
@@ -52,22 +52,29 @@ impl<'a> Parser<'a> {
             return Ok(literal_slice_to_const(inner));
         }
         // `@参数` / `@@宏参数` / `@`（Expression.java:178-192）
+        //
+        // M3-01：这里从"建 `Expr::Param` 占位"改成**建树期内联**——与产品
+        // `Constant(getParamValue(id))` 同构。证据：`Expression.java:185`（`@@`）
+        // / `:188`（`@`）建的都是带值 `Constant`；三种边界的真机行为见
+        // `tests/fixtures/probe_param_full_out.utf8.txt` 与 RUNLOG §24.1。
         if let Some(rest) = w.strip_prefix('@') {
             if rest.is_empty() {
                 return Ok(Expr::CurrentCell);
             }
             return Ok(match rest.strip_prefix('@') {
-                // ⛔ `@@p` **不查** `isParamName`（`:183-186` 无条件取参值）
-                Some(name) => Expr::Param {
-                    name: name.to_string(),
-                    is_macro: true,
-                    value: None,
-                },
-                // `@p` 要过 `ctx.isParamName`（`:187`）；参数值本切片拿不到 ⇒ `value: None`
-                None => Expr::Param {
-                    name: rest.to_string(),
-                    is_macro: false,
-                    value: None,
+                // ⛔ `@@p` **不查** `isParamName`（`:183-186` 无条件取参值）；
+                // 未登记 ⇒ `getParamValue` 返回 null ⇒ `Constant(null)`，
+                // **不报错**（真机证实：RUNLOG §24.1，计算态 extend=17、格值 null）。
+                Some(name) => Expr::Const(self.params.get(name).cloned().unwrap_or(Value::Null)),
+                // `@p` 要过 `ctx.isParamName`（`:187`）：登记（**含值为 null**）⇒
+                // `Constant(值)`；未登记 ⇒ `ReportError(unknownParam)`（`:189-191`）。
+                None => match self.params.get(rest) {
+                    Some(v) => Expr::Const(v.clone()),
+                    None => {
+                        return Err(EngineError::UnknownParam {
+                            name: rest.to_string(),
+                        })
+                    }
                 },
             });
         }
@@ -108,8 +115,23 @@ impl<'a> Parser<'a> {
         // 函数调用（裸名先查普通表；DS 回退因 ds==null 不可达，见 names.rs）
         if matches!(self.peek(), Tok::LParen) {
             self.bump();
-            let (param_kind, args) = parse_params(self.take_group(Tok::RParen)?)?;
+            let (param_kind, args) = parse_params(self.take_group(Tok::RParen)?, self.params)?;
             return Ok(build_call(w, param_kind, args));
+        }
+        // 裸名参数（`Expression.java:232-234`）：`ctx.isParamName(id)` ⇒
+        // `ParamNode(id, ctx.getParamValue(id))`。`ParamNode extends Constant`
+        // （`ParamNode.java:3`）⇒ 与 `@p` 的 `Constant(值)` 同构，内联为 [`Expr::Const`]。
+        //
+        // ⚠ 位置是契约：排在格号形状判定（`:201`）与函数判定（`:210`）**之后** ——
+        // 名字同时是函数名与参数名时**函数优先**（`isFunName` 先判，`:217`）。
+        //
+        // ⚠ **已知限制（provisional 策略的推论，2026-10-14 登记）**：名字形如
+        // `[A-Za-z]+\d+`（`p1`、`t1`）且**不是矩阵里真格号**时，产品落到本分支，
+        // 而本 crate 的形状判定 [`is_cell_id`] 已在上面截胡判成 `CellRef`。
+        // 与 `qty1` 这类数据集列名的误判**同类同源**，等 M2-06 的矩阵重解析一并修正；
+        // 现有坏后果只落在"参数名形如格号且值为 List"（少一次扩展）。见 `params.rs` 文档。
+        if let Some(v) = self.params.get(&w) {
+            return Ok(Expr::Const(v.clone()));
         }
         // 字面量（Variant2.parse:748-797）；落空 → UnknownSymbol（:235-238）
         if let Some(v) = literal(&w) {
@@ -122,7 +144,7 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_value_list(&mut self) -> Result<Expr> {
         self.bump(); // 吃掉 `[`
         let inner = self.take_group(Tok::RBracket)?;
-        let (kind, items) = parse_params(inner)?;
+        let (kind, items) = parse_params(inner, self.params)?;
         Ok(Expr::ValueList { kind, items })
     }
 
@@ -138,7 +160,7 @@ impl<'a> Parser<'a> {
         let arg = if inner.is_empty() {
             Expr::Const(Value::Null)
         } else {
-            super::parser::parse_tokens(inner)?
+            super::parser::parse_tokens_with(inner, self.params)?
         };
         Ok(Expr::Select { arg: Box::new(arg) })
     }

@@ -28,6 +28,10 @@ pub struct Fixture {
     pub pagination: Option<Pagination>,
     /// 错误型夹具（`engine_cycle`）为 `None`（产品写 `null`）。
     pub merged: Option<Merged>,
+    /// 报表参数（M3-01；`GenEngineFixtures.java` 的 `params` 段）。
+    /// **只有 `engine_param` 夹具有这个键**（其余夹具的 JSON 里没有它）——
+    /// 所以这里是空 vec 而不是 `Option`：无参夹具与"参数段为空"同形。
+    pub params: Vec<ParamSpec>,
 }
 
 impl Fixture {
@@ -63,6 +67,19 @@ pub struct Dataset {
     pub columns: Vec<String>,
     pub rows: Vec<Vec<String>>,
     pub row_count: i32,
+}
+
+/// 一条报表参数（M3-01：`GenEngineFixtures.java` 的 `params` 段，
+/// `EngineModelsM3.paramsJson` 序列化）。
+///
+/// `value` 直接是引擎的 [`rpx_engine::Value`]：类型推断规则见
+/// [`crate::tests::common::loader::parse_param_value`]（数组 → List、整数 → Int、
+/// 小数 → Double、字符串 → Text、`null` → Null）。产品侧这些值来自
+/// `Context.setParamValue`（`CalcProbe.java` 的注入重载），进引擎前不做转换。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParamSpec {
+    pub name: String,
+    pub value: rpx_engine::Value,
 }
 
 /// 一条公式记录。`r`/`c` 是**模板态**坐标，1 基、不含 0 号脚手架。

@@ -65,6 +65,9 @@ final class EngineModels {
 		if ("engine_collate".equals(name)) {
 			return EngineModelsCollate.collateFixture();
 		}
+		if ("engine_param".equals(name)) {
+			return EngineModelsM3.paramFixture();
+		}
 		return EngineModelsP0.samemergeFixture();
 	}
 

@@ -150,9 +150,6 @@ impl EvalCtx for NoCtx {
     fn ds_index(&self, _name: &str) -> Option<usize> {
         None
     }
-    fn param(&self, _name: &str, _is_macro: bool) -> Option<Value> {
-        None
-    }
 }
 
 /// `=`（精确字符串相等）与 `<`（collation）**语义不同**，且 `=` 不得走 collator。

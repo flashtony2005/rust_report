@@ -4,6 +4,7 @@
 //! 定案的：复核结论见各条注释。**零夹具覆盖的条目一律标「未验证」。**
 
 use super::*;
+use crate::params::ParamTable;
 use crate::value::Value;
 
 /// ✅ **分叉 1（真机已验证）**：`@p` / `@@p` 在产品里是 `Constant(ctx.getParamValue(id))`
@@ -20,12 +21,17 @@ use crate::value::Value;
 /// | `List[]`（空） | **true** | **true** | ⚠ 成为扩展格却没有子格 |
 ///
 /// ⇒ 判据是 `instanceof List`、**不看内容**，所以单元素与空 List 都为真。
+///
+/// M3-01 起这条走**完整链路**（参数表 → `parse_with` 建树期内联 → `is_extend`），
+/// 覆盖的是"绑定值真的进了 AST"而不只是"某个枚举分支持续返回真"。
 #[test]
 fn param_bound_to_a_list_value_is_extendable() {
-    let param = |v: Value| Expr::Param {
-        name: "p".into(),
-        is_macro: false,
-        value: Some(v),
+    let extend_of = |v: Value| {
+        let mut t = ParamTable::new();
+        t.insert("p", v);
+        parse_with("@p", &t)
+            .unwrap_or_else(|e| panic!("`@p` 已登记却解析失败：{e}"))
+            .is_extend()
     };
     // 三个 List 形态全部为真（含空 —— 判据是 instanceof，不看长度）
     for v in [
@@ -34,27 +40,26 @@ fn param_bound_to_a_list_value_is_extendable() {
         Value::List(vec![]),
     ] {
         assert!(
-            param(v.clone()).is_extend(),
+            extend_of(v.clone()),
             "`@p` 绑 {v:?} 必须为 true（真机验证）"
         );
     }
     // 标量参数为假
     for v in [Value::Int(7), Value::Text("x".into())] {
         assert!(
-            !param(v.clone()).is_extend(),
+            !extend_of(v.clone()),
             "`@p` 绑 {v:?} 必须为 false（真机验证）"
         );
     }
-    // 本切片没有 Context ⇒ value 恒 None ⇒ 未知时取 false。
-    // 这个默认**由证据支撑**：真机上标量参数确实是 false，所以不会误判标量。
-    let unknown = Expr::Param {
-        name: "p".into(),
-        is_macro: false,
-        value: None,
-    };
+    // ⛔ M3-01 起"未登记"的语义是**建树期报错**，不再是"保守取 false"——
+    //   产品 `:189-191` 抛 ReportError（真机消息见 RUNLOG §24.1）。静默取 false 会把
+    //   该扩展的格判成不扩展 ⇒ 会算错；显式失败才安全。
     assert!(
-        !unknown.is_extend(),
-        "拿不到参数值时保守取 false（理由见 ast.rs 的 Expr::Param 文档）"
+        matches!(
+            parse_with("@p", &ParamTable::EMPTY),
+            Err(crate::error::EngineError::UnknownParam { .. })
+        ),
+        "未登记 `@p` 必须报 UnknownParam"
     );
 }
 
@@ -76,38 +81,34 @@ fn param_bound_to_a_list_value_is_extendable() {
 /// 格被错判 PlainFormula(17)；空 List ⇒「不算 List」⇒ 该格的值与类型都不同。
 #[test]
 fn single_element_and_empty_list_params_keep_their_value_and_still_extend() {
+    let bound = |v: Value| {
+        let mut t = ParamTable::new();
+        t.insert("p", v);
+        parse_with("@p", &t).unwrap_or_else(|e| panic!("`@p` 已登记却解析失败：{e}"))
+    };
+
     // ---- 单元素 ----
     let one = Value::List(vec![Value::Int(9)]);
-    let e1 = Expr::Param {
-        name: "p".into(),
-        is_macro: false,
-        value: Some(one.clone()),
-    };
+    let e1 = bound(one.clone());
     assert!(
         e1.is_extend(),
         "单元素 List 仍判真（真机：extend 改写成 18、subCells=1）"
     );
-    // 值层：值原样保留，求值期能直接取到，不必回查 Context
-    let Expr::Param { value: Some(v), .. } = &e1 else {
-        panic!("值应保留在节点上")
-    };
-    assert_eq!(*v, one, "单元素 List 的值必须原样保留");
+    // 值层：建树期内联为 Const，值原样保留，求值期能直接取到
+    assert_eq!(e1, Expr::Const(one.clone()), "单元素 List 的值必须原样内联");
 
     // ---- 空 List ----
     let empty = Value::List(vec![]);
-    let e2 = Expr::Param {
-        name: "p".into(),
-        is_macro: false,
-        value: Some(empty.clone()),
-    };
+    let e2 = bound(empty.clone());
     assert!(
         e2.is_extend(),
         "空 List 也判真（判据是 instanceof，不看长度）"
     );
-    let Expr::Param { value: Some(v), .. } = &e2 else {
-        panic!("值应保留在节点上")
-    };
-    assert_eq!(*v, empty, "空 List 的值必须原样保留（长度 0，不是缺值）");
+    assert_eq!(
+        e2,
+        Expr::Const(empty.clone()),
+        "空 List 的值必须原样内联（长度 0，不是缺值）"
+    );
 
     // ---- 两条路径独立性：真机上「extend=18」与「subCells=1」同时成立 ----
     // 本切片不产出 sub_cells（那是扩展算法的产物），但要显式记下这条约束：
@@ -124,13 +125,10 @@ fn single_element_and_empty_list_params_keep_their_value_and_still_extend() {
     );
 }
 
-/// 取参数值里 List 的长度；非 List 记 -1。只给上面那条测试用。
+/// 取内联常量里 List 的长度；非 List 记 -1。只给上面那条测试用。
 fn one_list_len(e: &Expr) -> i32 {
     match e {
-        Expr::Param {
-            value: Some(Value::List(items)),
-            ..
-        } => items.len() as i32,
+        Expr::Const(Value::List(items)) => items.len() as i32,
         _ => -1,
     }
 }

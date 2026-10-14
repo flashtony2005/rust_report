@@ -30,6 +30,14 @@ pub enum EngineError {
     },
     /// 报表声明了数据集但运行时没注入。
     MissingDataset { name: String },
+    /// `@名` 引用了**未登记**的参数（产品 `Expression.unknownParam`，
+    /// `Expression.java:189-191`：`isParamName` 不通过即抛
+    /// `ReportError("...未知的参数：@" + id)`）。
+    ///
+    /// ⛔ 只由 `@名` 触发：`@@名` **不查** `isParamName`（`:183-186`），未登记
+    /// 时值为 null、不报错（真机证据 RUNLOG §24.1）；"登记但值为 null" 同样不报错
+    /// （`containsKey` 与 `get` 是两条判据，见 [`crate::params::ParamTable`]）。
+    UnknownParam { name: String },
     /// 计算被外部中断（Java 的 `_$8()`：`_$11` 标志为真时抛
     /// `ReportError("Calculation is interrupted!")`，`ExtCellSet.java:233-237`）。
     Interrupted,
@@ -87,6 +95,9 @@ impl fmt::Display for EngineError {
             EngineError::MissingDataset { name } => {
                 write!(f, "missing dataset: {name}")
             }
+            EngineError::UnknownParam { name } => {
+                write!(f, "unknown parameter: @{name}")
+            }
             EngineError::Interrupted => write!(f, "calculation is interrupted"),
             EngineError::SpecialQueueLivelock { requeues } => {
                 write!(
@@ -128,6 +139,14 @@ mod tests {
         let a = EngineError::UnknownCell { id: "$B$2".into() };
         let b = EngineError::UnknownCell { id: "$B$2".into() };
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn unknown_param_carries_the_at_form() {
+        // 产品的消息形态是「未知的参数：@p」（`Expression.java:190` 拼出 `@` + id）；
+        // Rust 侧给等价信息（名字带 `@` 前缀），不逐字复刻本地化文案。
+        let e = EngineError::UnknownParam { name: "p".into() };
+        assert_eq!(e.to_string(), "unknown parameter: @p");
     }
 
     #[test]
