@@ -1,6 +1,6 @@
-# Spec — ReportLite Rust 重实现 · M3（rpx-ds 数据源 + rpx-server 主链路）v0.3
+# Spec — ReportLite Rust 重实现 · M3（rpx-ds 数据源 + rpx-server 主链路）v0.4
 
-> 状态：**阶段 1 已完成**（2026-10-14 晚：M3-01 参数通道闭环 —— `engine_param` 夹具
+> 状态：**阶段 1 已完成 + M3-02 GBK 已闭合**（2026-10-14 深夜：M3-01 参数通道闭环 —— `engine_param` 夹具
 > 进 16 夹具主对拍全绿，RUNLOG §24）。上游：M2 已按「务实路」定案（`spec-m2.md` §6.2 末条）。
 > 设计蓝图（L1 层）：`docs/reportlite-rust全链路设计.html` 的 **§七（数据源）/ §八（服务端 API）**；
 > 本文件是其「任务与验收」下位文档 —— **冲突时以证据（夹具 > 源码 > 契约文档）为准**。
@@ -103,7 +103,7 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | 编号   | 功能       | 验收标准                                                                                                                                                                | 级别  |
 | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
 | M3-01 | 参数注入生效   | While `POST /render` 携带 `params`，引擎**必须**按参数值计算：标量参数格不变；**List 参数必须**把该格包成扩展格（矩阵按子格数放大）；未登记参数**必须**报错（等价产品 `unknownParam`）；全部断言**必须**有产品夹具逐格对拍 | P0  |
-| M3-02 | 数据集编码    | While CSV 为 GBK 且含中文，列名与值**必须**正确解码；⛔ 不得静默乱码（现状 `from_utf8` 显式报错属**安全失败**，是过渡态、不是验收达成）                                                                               | P0  |
+| M3-02 | 数据集编码    | ✅ **已达成**（2026-10-14）：While CSV 为 GBK 且含中文，列名与值**必须**正确解码（`encoding.rs` 按 `FileDataSetConfig.encoding` 缺省 GBK 解码；`engine_gbk` 夹具中文全链路逐格对拍）；⛔ 不得静默乱码（非法字节显式 `MalformedEncoding`）——GB18030 四字节序列**带账**（§8），与产品默认 `GBK` charset 行为一致 |
 | M3-03 | rpx-ds 取数 | While 数据源配置指向 `postgres://` / `mysql://` / `sqlite://`，**必须**经 AnyPool 取到行集并物化为引擎 `DataSet`；换库只换 URL（蓝图 §7.2）                                                        | P0  |
 | M3-04 | 报表资产     | While 上传 `.rpx`，**必须**魔数校验后存 libSQL BLOB；`GET /meta` **必须**返回参数清单（静态/动态两套 MetaData）                                                                                  | P0  |
 | M3-05 | /render 快照 | `POST /render` **必须**返回快照 JSON；且同输入下与引擎库函数输出**逐格一致**（集成测试断言网格/合并/分页三段）                                                                                          | P0  |
@@ -139,7 +139,7 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | -- | ----------------------------------------- | --------------------- |
 | 0  | 本档 + 参数通道设计 + `rpx-ds` 设计评审               | 本文件经总监确认              |
 | 1  | ~~M3-01 参数通道（引擎侧，不依赖新 crate）~~ ✅ 2026-10-14 晚闭环        | ~~参数夹具 + 单测 + 对拍~~：`engine_param` 夹具 + 255 单测 + 7/7 对拍 |
-| 2  | M3-02 GBK + M3-03 `rpx-ds` + M3-04 资产库     | `rpx-ds` 单测 + 取数冒烟    |
+| 2  | ~~M3-02 GBK~~ ✅ + M3-03 `rpx-ds` + M3-04 资产库 | `rpx-ds` 单测 + 取数冒烟    |
 | 3  | M3-05 `/render` + M3-06 真实口径（+ M3-08 接 HTTP） | e2e 冒烟                |
 | 4  | M3-07 门禁扩展 + 验收                           | G1–G7 扩展后全绿           |
 | ∥  | **并行轨 M4**（`docs/spec-m4.md`）：M3-08 v1 先行 → 脚手架 → Univer 装载 → HTTP 联调 | **浏览器看到报表**（M4-01..03） |
@@ -151,7 +151,8 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | 参数全景               | ✅ 已消歧 | `ProbeParamFull.java` 四缺口真机答案（RUNLOG §24.1）；「建树期绑定」落点定案为 `parse_with` 期内联（§3.3）                                    |
 | 空 List 参数          | ✅ 已实证 | 矩阵不变、锚点 `extend=18 subCells=1`、值 `null`（RUNLOG §24.1 A 组；修正了 §15.3「无子格」的不精确说法）                                  |
 | `DataSet` 类型归属     | 待定   | 物化产物住在 `rpx-engine::expr::ds`：下沉 `rpx-core` vs `rpx-ds` 依赖 `rpx-engine`——阶段 0 评审定案（倾向下沉：引擎输入契约属 core 层）                        |
-| GBK 实现路径           | 待定   | 冻结映射表（`collation.bin` 先例：`include_bytes!` 保零依赖）vs 引入依赖；取决于 M3-02 时该模块落在哪个 crate                                                |
+| GBK 实现路径           | ✅ 已定案 | 冻结映射表（`collation.bin` 先例：`include_bytes!` 保零依赖）：`ProbeEncoding.java` dump JDK 全定义域（**23,940 对**，比常见标准表 21,886 项多——JDK 私有区映射）→ `scripts/gen_gbk_table.py` 只加头排序 → `data/gbk.bin`；Rust 单测全表逐对对拍 |
+| GB18030 四字节序列       | ⏳ 带账   | 产品默认 `encoding="GBK"` 时 JDK GBK charset 同样不接受四字节（`MalformedInputException`）；模板显式写 `GB18030` 的场景**无夹具**，按"禁止无基准对拍"带账，命中报 `UnsupportedEncoding` |
 | 样式直通范围             | 待分类  | 模板静态属性 → 快照样式字段的映射表；样式宏后置（§5）                                                                                              |
 | 列区带 / 换行守卫         | 待补   | M3-06 接线时核对（与 `pagerStyle` 同类的静默风险；本轮只装了 `pagerStyle`/多栏守卫）                                                               |
 | SQL 注入面            | 待定   | 报表模板自带 SQL（用户资产）⇒ 单实例私有化下视为可信输入；如未来外网暴露需重评估                                                                             |
@@ -163,4 +164,5 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | ---------- | ------------------------ | ----------------------------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead，阶段 0）  | 总监批准「务实路」后启动 M3；本档承接 `spec-m2.md` §6.2 的准入 v2；阶段 0 出口 = 本文件经总监确认 |
 | 2026-10-14 | v0.2：M4 并行推进 + M3-08 提关键路径 | 总监令「M3 M4 一起推进，这样可以看到报表显示」；前端立档 `docs/spec-m4.md`，快照契约 v1 已定 |
+| 2026-10-14 | v0.4：**M3-02 GBK 闭合**（`encoding.rs` + `gbk.bin` 冻结表 + `engine_gbk` 夹具 17 对拍全绿）；M3-01 状态同步 | `ProbeEncoding.java` dump JDK 全定义域 23,940 对 → 生成器只加头 → `include_bytes!`；`parse_csv` 按 `FileDataSetConfig.encoding` 缺省 GBK 解；GB18030 四字节显式带账；RUNLOG §25 |
 | 2026-10-14 | v0.3：**M3-01 闭合**（阶段 1 出口达成） | 参数全景探针（`ProbeParamFull`）+ 建树期内联定案（`parse_with`/`calculate_with`/`ParamTable`，删除被证伪的求值期兜底）+ `engine_param` 夹具（16 夹具主对拍全绿）+ 两扩展格同行实证带账（RUNLOG §24） |

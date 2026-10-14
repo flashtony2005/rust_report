@@ -2651,3 +2651,83 @@ M2-06 的矩阵重解析一并修正；坏后果只落在"参数名形如格号�
 `dataType==61` 逗号分隔），与 `/render` 的参数解析对应；引擎侧
 `setParamValue` 收到的是已定型对象（loader 的 JSON→`Value` 只需 Int/Double
 两档，`tests/common/loader.rs` 的 `parse_param_value`）。
+
+## §25 M3-02 GBK 数据集解码：JDK 映射冻结 + engine_gbk 夹具（2026-10-14 深夜）
+
+> 总监令「M3-02 GBK/GB18030 解码」。验收：中文 CSV（GBK）端到端进计算态，
+> 列名/值逐格对拍。产品口径与实现证据全部来自真机（探针/夹具），非标准表。
+
+### 25.1 产品口径：默认 GBK，且是调用方传进去的
+
+| 环节 | 源码位置 | 行为 |
+|---|---|---|
+| 配置默认值 | `FileDataSetConfig.java:25` | `private String encoding = "GBK"` —— 模板不写就是 GBK |
+| factory 取用 | `FileDataSetFactory.java:93` | `cs = getEncoding()` |
+| 传给文件对象 | 同上 `:112` | `new FileObject(fileName, cs, "s", dmCtx)` |
+| 真正解码 | 同上 `:414` | `new FileCursor(fObj, 1, 1, columns, types, s, t+q, dmCtx)` |
+
+⇒ 产品 CSV 解码 = **JDK charset 按 `cs` 解**；夹具生成器
+`CalcProbe.writeCsv:277` 也一直用 `OutputStreamWriter(..., "GBK")` 写 ——
+M3 之前 16 个夹具能过纯属 **ASCII 巧合**（ASCII 是 GBK 子集，逐字节等价）。
+
+### 25.2 实现：JDK 映射原样冻结（零依赖，collation.bin 先例）
+
+数据链（每一步都有机械证据，禁止发明映射）：
+
+```text
+ProbeEncoding.java   遍历 GBK 全定义域（lead 81-FE × trail 40-FE 除 7F），
+                     new String(bs, "GBK")，过滤 U+FFFD ⇒ gbk_jdk.bin
+                     【23,940 对】——比常见标准表的 21,86 项多：JDK 映射了
+                     GB18030 双字节区与私有区，"以产品为准"与"以标准表为准"
+                     的差别正在此
+scripts/gen_gbk_table.py   只做五项校验（升序/范围/非 FFFD/非代理区/对齐）
+                     + 加 12 字节头（magic RPXGBK1 + u32 BE count）⇒ gbk.bin
+encoding.rs         include_bytes!("../data/gbk.bin")，二分查找，零运行时文件依赖
+```
+
+- `decode(bytes, encoding: Option<&str>)`：None/`""`/`GBK`/`CP936`/`MS936`/
+  `WINDOWS-936`（大小写不敏感，`Charset.forName` 语义）→ GBK 路径；
+  `UTF-8`/`UTF8` → `from_utf8`（兼容显式声明 UTF-8 的模板）；其余名 →
+  `EngineError::UnsupportedEncoding`。
+- **全表对拍单测**：`gbk.bin` 与 `gbk_jdk.bin` 逐对全等（23,940 对，
+  不是抽查）——"表 == JDK 真值"的机械证据。
+
+### 25.3 `engine_gbk` 夹具（第 17 个，中文全链路）
+
+模板 3×3（`EngineModelsM3.gbkFixture()`），CSV 中文列名/中文值（GBK）：
+
+| 格 | 表达式 | 计算态 |
+|---|---|---|
+| A2 | `ds1.select(区域)` | 18 扩展 3 子格，中文子格值 华北/华南/华东 |
+| B2 | `ds1.select(数量)` | 18 扩展 3 子格（100/200/150） |
+| C2 | `ds1.区域 + "站"` | 17（裸 DSVariable 不扩展），值 `华北站`（首行） |
+| A3 | `华东`（字面量） | 被扩展挤到计算态第 5 行 |
+
+**顺带的实证（解答了一个隐含假设）**：裸 `ds1.列名`（`DSVariable`）产品判
+**不扩展**（`Node.isExtended()` 默认 false，`Expression.createDSNode` 构造的
+就是 `DSVariable`）——只有 `select()` 等 DS 函数扩展。第一版夹具用裸
+`ds1.区域` 得到 3×3（不扩展），与 Rust 侧 `Expr::DsColumn → false` **一致**
+（双方共识，不是分歧）；改为 `select` 版后 5×3，中文子格值驱动矩阵增长。
+`engine_sum` 的 `ds1.select(region)` 18 扩展与此同源。
+
+### 25.4 两处偏离/边界的诚实记录
+
+1. **非法字节：显式报错而非 U+FFFD**。JDK charset 默认 `CodingErrorAction`
+   是 REPLACE（非法字节静默变 U+FFFD）。本实现报 `MalformedEncoding`
+   （带字节偏移）—— M3-02 要消灭的失败模式正是"静默乱码"；夹具内容恒为
+   合法 GBK，真实链路不触发。
+2. **GB18030 四字节序列：带账不实现**。模板显式写 `GB18030` 且文件含四字节
+   序列的场景无夹具（"禁止无基准对拍"）；且产品默认 `GBK` 时 JDK 的 GBK
+   charset 同样不接受四字节。命中报 `UnsupportedEncoding`（`spec-m3.md` §8）。
+
+### 25.5 验证矩阵
+
+| 证据 | 结果 |
+|---|---|
+| `ProbeEncoding` 真机 dump | 23,940 对；锚点 0xD6D0→U+4E2D 等 6 个 codepoint 与日志一致 |
+| `gen_gbk_table.py` 五项校验 | 通过（拒绝坏表比没有表重要） |
+| Rust 单测（`encoding` 模块） | 5 条：锚点查找 / **全表逐对对拍** / ASCII+GBK 混合 / 四类非法字节 / charset 名派发 |
+| `engine_gbk` 主对拍 | `engine_grid_compare` 7/7 全绿（中文列名/子格值/拼接/行挤占逐格一致） |
+| workspace 测试 | 全绿（260 单测 + 全部集成；`all_names` 15→17、tripwire 94→97、SHAPE 表 +1 行） |
+| Java round-trip | `VERIFY OK: 17 engine fixtures generated` |
+| 既有 16 夹具回归 | 全绿（ASCII 按 GBK 解逐字节等价，行为不变） |

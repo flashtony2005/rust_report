@@ -283,15 +283,29 @@ fn every_formula_appearing_in_the_fixtures_classifies_correctly() {
         ("ds2.sum(qty)", false, "engine_sum"),
         ("sum(ds2.select(qty))", false, "engine_sum"),
         ("ds2.count()", false, "engine_sum"),
+        // M3-02 GBK 夹具：中文列名/中文字面量的三种形态（`@p` 等参数公式
+        // 无参不可解析，由 `engine_param_formulas_classify_*` 单独覆盖）。
+        (
+            "ds1.select(区域)",
+            true,
+            "engine_gbk（中文列名 DS select 仍可扩展）",
+        ),
+        (
+            "ds1.区域 + \"站\"",
+            false,
+            "engine_gbk（DSVariable 裸列引用不扩展 + 中文串拼接）",
+        ),
     ];
     for (src, want, where_) in cases {
         assert_eq!(ext(src), *want, "`{src}`（{where_}）应为 {want}");
     }
-    assert_eq!(cases.len(), 15, "15 种不同公式（28 处实例）");
-    // 独立核算：只有 2 条为真，与 `engine_sum` 行 2 的实测一致
-    // （9 格里只有 ds1.select(region)/ds1.select(qty) 被拓扑改写为 18，见 §4.1）
+    assert_eq!(cases.len(), 17, "17 种不同公式（夹具全量去重）");
+    // 独立核算：3 条为真，与产品实测一致 —— `engine_sum` 行 2 的
+    // ds1.select(region)/ds1.select(qty) 被拓扑改写为 18（§4.1），
+    // `engine_gbk` 的 ds1.select(区域) 同理（中文列名不改变 Select 的
+    // isExtend 判定；裸 ds1.区域 是 DSVariable ⇒ false）。
     let true_count = cases.iter().filter(|(_, w, _)| *w).count();
-    assert_eq!(true_count, 2, "夹具里只有两条公式可扩展");
+    assert_eq!(true_count, 3, "夹具里只有三条公式可扩展");
 }
 
 /// `engine_param`（M3-01）的 4 种公式 —— 必须**带参数表**才能解析（`@名` 未登记

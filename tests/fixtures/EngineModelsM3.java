@@ -69,9 +69,49 @@ final class EngineModelsM3 {
 		return rd;
 	}
 
+	/**
+	 * engine_gbk -- a file dataset whose CSV is GBK-encoded with CHINESE
+	 * column names and values (M3-02).
+	 *
+	 * WHY this fixture: every pre-M3 CSV in this suite was pure ASCII, so
+	 * UTF-8 and GBK decoding were byte-for-byte equivalent and the encoding
+	 * path had no end-to-end evidence. The product default is GBK
+	 * (FileDataSetConfig.java:25) and CalcProbe.writeCsv has always written
+	 * GBK -- this fixture finally makes that observable. The Rust side
+	 * decodes via crates/rpx-engine/src/encoding.rs, whose table is frozen
+	 * from a JDK dump (ProbeEncoding.java), not from a standard table.
+	 *
+ * Layout (3 rows x 3 cols; row 1 is the header), same shape as
+ * engine_sum but every string is Chinese:
+ *   A2  ds1.select(区域)   DS select over a Chinese column (extend 18,
+ *                         3 sub-cells -- the Chinese values drive the growth)
+ *   B2  ds1.select(数量)   the numeric column
+ *   C2  ds1.区域 + "站"    bare DSVariable (isExtend=false, product
+ *                         Expression.java/DSVariable) + Chinese literal
+ *                         concatenation, evaluates to the first row
+ *   A3  "华东"             a Chinese literal cell, pushed to row 5 by the extension
+ */
+	static ReportDefine2 gbkFixture() {
+		ReportDefine2 rd = new ReportDefine2(3, 3);
+		rd.getCell(1, 1).setValue("区域");
+		rd.getCell(1, 2).setValue("数量");
+		rd.getCell(1, 3).setValue("备注");
+		CalcProbe.setExp(rd.getCell(2, 1), "ds1.select(区域)");
+		CalcProbe.setExp(rd.getCell(2, 2), "ds1.select(数量)");
+		CalcProbe.setExp(rd.getCell(2, 3), "ds1.区域 + \"站\"");
+		rd.getCell(3, 1).setValue("华东");
+		CalcProbe.attachFileDataSet(rd, "ds1", EngineModels.csvName("engine_gbk"));
+		return rd;
+	}
+
+	/** CSV rows for engine_gbk (Chinese values; writeCsv encodes them GBK). */
+	static String[][] gbkRows() {
+		return new String[][] { { "华北", "100" }, { "华南", "200" },
+				{ "华东", "150" } };
+	}
+
 	/** Parameters injected into the Context before Engine.calc (null elsewhere). */
-	static Map<String, Object> params(String fixture) {
-		if (!"engine_param".equals(fixture)) {
+	static Map<String, Object> params(String fixture) {		if (!"engine_param".equals(fixture)) {
 			return null;
 		}
 		Map<String, Object> m = new LinkedHashMap<String, Object>();

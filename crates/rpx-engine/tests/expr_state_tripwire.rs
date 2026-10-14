@@ -53,7 +53,13 @@ use common::{all_names, load};
 /// 2026-10-14（M3-01 参数通道）：`engine_param` 加入 4 条 —— `@p` / `sum(@p)` /
 /// `max(@p)` / `@s`。参数在建树期内联成 `Constant(值)`（`Constant extends Node`，
 /// 未覆写 `getState`）⇒ 仍全 4，故 90 → 94。
-const TOTAL_FORMULAS: usize = 94;
+///
+/// 2026-10-14（M3-02 GBK 夹具）：`engine_gbk` 加入 3 条 ——
+/// `ds1.select(区域)` / `ds1.select(数量)` / `ds1.区域 + "站"`。
+/// 前两条是 `Select extends SpecialFunction`（Function 未覆写 getState）、
+/// 第三条是 Binary（+ 两侧：DSVariable 与 Constant(字符串) 均未覆写）
+/// ⇒ 仍全 4，故 94 → 97。
+const TOTAL_FORMULAS: usize = 97;
 
 #[test]
 fn every_fixture_formula_is_state_four() {

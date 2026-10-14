@@ -64,6 +64,18 @@ pub enum EngineError {
     /// 产品源码里的"不可能状态"（Java 侧会 NPE/越界）：Rust 侧显式报错、
     /// 不 panic（附件 I.10 的同类纪律）。`detail` 写明出处与状态。
     Invariant { detail: String },
+    /// 模板声明的数据集 charset 本实现不支持（M3-02；`encoding.rs`）。
+    /// 触发：`FileDataSetConfig.encoding` 是 GBK/GBK 别名/UTF-8 以外的名字
+    /// （`Big5`、`GB18030` 四字节序列场景等——后者无夹具，`spec-m3.md` §5 带账）。
+    /// 产品侧对应 `Charset.forName` 抛 `UnsupportedEncodingException`。
+    UnsupportedEncoding { name: String },
+    /// 数据集文件在该 charset 下**字节非法**（M3-02；`encoding.rs`）。
+    /// 触发：孤立高字节、尾字节越界、表外 GBK 序列、截断序列。
+    ///
+    /// ⚠ 与产品的**有意偏离**：JDK charset 默认 REPLACE（非法字节 → U+FFFD
+    /// 不报错）；本实现显式失败 —— M3-02 要消灭的失败模式正是"静默乱码"。
+    /// 夹具内容恒为合法 GBK，真实链路不触发。
+    MalformedEncoding { detail: String },
     /// 调度挂起穿过求值器（Java 的 `IIllIIIIIIIIIlll` 是 `Throwable`，能从
     /// `Expression.calculate` 深处一路穿透到通道；Rust 的 [`crate::expr::eval::evaluate`]
     /// 错误类型是 `EngineError`，挂起必须**搭载**在它上面才能穿过）。
@@ -112,6 +124,12 @@ impl fmt::Display for EngineError {
                 write!(f, "unsupported paging configuration: {detail}")
             }
             EngineError::Invariant { detail } => write!(f, "engine invariant broken: {detail}"),
+            EngineError::UnsupportedEncoding { name } => {
+                write!(f, "unsupported dataset encoding: {name}")
+            }
+            EngineError::MalformedEncoding { detail } => {
+                write!(f, "malformed dataset encoding: {detail}")
+            }
             EngineError::Suspend(s) => write!(f, "suspend (state {})", s.state),
         }
     }

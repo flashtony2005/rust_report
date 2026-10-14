@@ -12,7 +12,7 @@ use super::json::{self, Json};
 use super::model::*;
 
 /// 15 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致）。
-pub fn all_names() -> [&'static str; 16] {
+pub fn all_names() -> [&'static str; 17] {
     [
         "engine_sum",
         "engine_ext",
@@ -30,6 +30,7 @@ pub fn all_names() -> [&'static str; 16] {
         "engine_collate",
         "engine_listrange",
         "engine_param",
+        "engine_gbk",
     ]
 }
 

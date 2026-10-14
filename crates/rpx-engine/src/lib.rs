@@ -108,6 +108,7 @@ pub mod calc;
 pub mod collation;
 pub mod dataset;
 pub mod emit;
+pub mod encoding;
 pub mod error;
 pub mod eval;
 pub mod expr;
