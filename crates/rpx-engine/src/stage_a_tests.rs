@@ -3,7 +3,6 @@
 //! 断言全部从**产品夹具现推**，不写死数字：模板尺寸取 `expected.json` 的
 //! `template_rows`/`template_cols`，合并跨度取 `calculated` 段的 `source`。
 
-
 use crate::arena::CellId;
 use crate::extend::ExtendMode;
 use crate::stage_a::{StageA, ROW_TYPE_GROUP_HEADER};
@@ -36,7 +35,9 @@ fn template_dims(name: &str) -> (i32, i32) {
 fn int_after(text: &str, key: &str) -> Option<i32> {
     let at = text.find(key)? + key.len();
     let rest = &text[at..];
-    let end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
     rest[..end].parse().ok()
 }
 
@@ -60,8 +61,16 @@ fn stage_a_dimensions_are_the_scaffold_inclusive_template_size() {
             "{name}: 阶段 A 矩阵尺寸 = 模板逻辑尺寸 + 1（含 0 号脚手架）"
         );
         // 而 row_count() 恰好回到夹具的逻辑口径
-        assert_eq!(s.calc.row_count(), tr, "{name}: row_count 应等于 template_rows");
-        assert_eq!(s.calc.col_count(), tc, "{name}: col_count 应等于 template_cols");
+        assert_eq!(
+            s.calc.row_count(),
+            tr,
+            "{name}: row_count 应等于 template_rows"
+        );
+        assert_eq!(
+            s.calc.col_count(),
+            tc,
+            "{name}: col_count 应等于 template_cols"
+        );
     }
 }
 

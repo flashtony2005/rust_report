@@ -12,14 +12,30 @@ impl Cell {
     pub fn has(&self, mask: u16) -> bool {
         self.bit_flags & mask != 0
     }
-    pub fn text_wrap(&self) -> bool { self.has(bit::TEXT_WRAP) }
-    pub fn visible(&self) -> bool { self.has(bit::VISIBLE) }
-    pub fn bold(&self) -> bool { self.has(bit::BOLD) }
-    pub fn italic(&self) -> bool { self.has(bit::ITALIC) }
-    pub fn underline(&self) -> bool { self.has(bit::UNDERLINE) }
-    pub fn row_hidden(&self) -> bool { self.has(bit::ROW_HIDDEN) }
-    pub fn col_hidden(&self) -> bool { self.has(bit::COL_HIDDEN) }
-    pub fn back_diagonal(&self) -> bool { self.has(bit::BACK_DIAGONAL) }
+    pub fn text_wrap(&self) -> bool {
+        self.has(bit::TEXT_WRAP)
+    }
+    pub fn visible(&self) -> bool {
+        self.has(bit::VISIBLE)
+    }
+    pub fn bold(&self) -> bool {
+        self.has(bit::BOLD)
+    }
+    pub fn italic(&self) -> bool {
+        self.has(bit::ITALIC)
+    }
+    pub fn underline(&self) -> bool {
+        self.has(bit::UNDERLINE)
+    }
+    pub fn row_hidden(&self) -> bool {
+        self.has(bit::ROW_HIDDEN)
+    }
+    pub fn col_hidden(&self) -> bool {
+        self.has(bit::COL_HIDDEN)
+    }
+    pub fn back_diagonal(&self) -> bool {
+        self.has(bit::BACK_DIAGONAL)
+    }
 
     /// 与 expected.json 收录规则对齐：全部字段等于契约默认值时为 true
     /// （RUNLOG §4.2 默认清单的超集，含附件 B 全部默认值）。

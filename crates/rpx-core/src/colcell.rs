@@ -5,7 +5,7 @@
 //! 证据：ColCell.java:295-319(写) / :324-343(读)。
 
 use crate::error::Result;
-use crate::props::{def, col};
+use crate::props::{col, def};
 use crate::reader::{ObjValue, RecordReader};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,17 +23,34 @@ pub struct ColCell {
 impl ColCell {
     pub fn read(slice: &[u8]) -> Result<Option<Self>> {
         let mut r = RecordReader::new(slice);
-        let col_type = r.read_i8().map_err(|_| crate::error::RpxError::prop(col::COL_TYPE as u16, "colType"))?;
-        let col_width = r.read_f32().map_err(|_| crate::error::RpxError::prop(col::COL_WIDTH as u16, "colWidth"))?;
-        let col_visible = r.read_bool().map_err(|_| crate::error::RpxError::prop(col::COL_VISIBLE as u16, "colVisible"))?;
-        let break_page = r.read_bool().map_err(|_| crate::error::RpxError::prop(col::BREAK_PAGE as u16, "breakPage"))?;
-        let exp_map = match r.read_record_raw().map_err(|_| crate::error::RpxError::prop(col::EXP_MAP as u16, "expMap"))? {
+        let col_type = r
+            .read_i8()
+            .map_err(|_| crate::error::RpxError::prop(col::COL_TYPE as u16, "colType"))?;
+        let col_width = r
+            .read_f32()
+            .map_err(|_| crate::error::RpxError::prop(col::COL_WIDTH as u16, "colWidth"))?;
+        let col_visible = r
+            .read_bool()
+            .map_err(|_| crate::error::RpxError::prop(col::COL_VISIBLE as u16, "colVisible"))?;
+        let break_page = r
+            .read_bool()
+            .map_err(|_| crate::error::RpxError::prop(col::BREAK_PAGE as u16, "breakPage"))?;
+        let exp_map = match r
+            .read_record_raw()
+            .map_err(|_| crate::error::RpxError::prop(col::EXP_MAP as u16, "expMap"))?
+        {
             Some(s) => Some(RecordReader::parse_byte_map(s)?),
             None => None,
         };
-        let notes = r.read_string().map_err(|_| crate::error::RpxError::prop(col::NOTES as u16, "notes"))?;
-        let ois_blob = r.read_blob().map_err(|_| crate::error::RpxError::prop(col::OIS_BLOB as u16, "ois blob"))?;
-        let break_column = r.read_bool().map_err(|_| crate::error::RpxError::prop(col::BREAK_COLUMN as u16, "breakColumn"))?;
+        let notes = r
+            .read_string()
+            .map_err(|_| crate::error::RpxError::prop(col::NOTES as u16, "notes"))?;
+        let ois_blob = r
+            .read_blob()
+            .map_err(|_| crate::error::RpxError::prop(col::OIS_BLOB as u16, "ois blob"))?;
+        let break_column = r
+            .read_bool()
+            .map_err(|_| crate::error::RpxError::prop(col::BREAK_COLUMN as u16, "breakColumn"))?;
         Ok(Some(Self {
             col_type,
             col_width,

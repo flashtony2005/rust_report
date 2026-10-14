@@ -30,7 +30,11 @@ impl EngineMatrix {
     pub fn new(rows: i32, cols: i32) -> Self {
         let rows = rows.max(0);
         let cols = cols.max(0);
-        Self { rows, cols, slots: vec![None; (rows * cols) as usize] }
+        Self {
+            rows,
+            cols,
+            slots: vec![None; (rows * cols) as usize],
+        }
     }
 
     /// 模板数据行数。

@@ -120,7 +120,11 @@ fn pages_cover_every_calculated_row_exactly_once() {
 
     let total: i32 = rows.iter().sum();
     assert_eq!(total, g.rows, "各页行数之和应等于计算态行数（不重不漏）");
-    assert_eq!(p.pages.len() as i32, p.page_count, "pages 数组长度应等于 page_count");
+    assert_eq!(
+        p.pages.len() as i32,
+        p.page_count,
+        "pages 数组长度应等于 page_count"
+    );
 
     let nums: Vec<i32> = p.pages.iter().map(|pg| pg.page).collect();
     assert_eq!(nums, vec![1, 2], "页号应从 1 起连续");
@@ -141,7 +145,11 @@ fn per_page_height_sums_follow_from_the_computed_row_heights() {
     let mut at = 0usize;
     for pg in &p.pages {
         let n = pg.rows as usize;
-        assert!(at + n <= h.len(), "第 {0} 页的行数超出了计算态行数", pg.page);
+        assert!(
+            at + n <= h.len(),
+            "第 {0} 页的行数超出了计算态行数",
+            pg.page
+        );
         sums.push(h[at..at + n].iter().sum());
         at += n;
     }

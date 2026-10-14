@@ -100,8 +100,14 @@ fn parse_checked(expected_name: &str, text: &str) -> Result<Fixture, String> {
         row_cells: parse_row_cells(root.req("row_cells")),
         calculated: parse_calculated(root.req("calculated")),
         // `null` 与缺键都归一成 None（产品错误型夹具写的是 null）
-        pagination: root.get("pagination").filter(|v| !v.is_null()).map(parse_pagination),
-        merged: root.get("merged").filter(|v| !v.is_null()).map(parse_merged),
+        pagination: root
+            .get("pagination")
+            .filter(|v| !v.is_null())
+            .map(parse_pagination),
+        merged: root
+            .get("merged")
+            .filter(|v| !v.is_null())
+            .map(parse_merged),
     })
 }
 
@@ -164,10 +170,25 @@ fn parse_calculated(j: &Json) -> Calculated {
 }
 
 /// 各段的键白名单（产品写出什么，就锁什么）。
-const CELL_KEYS: [&str; 8] =
-    ["r", "c", "value", "type", "disp_value", "source", "left_head", "top_head"];
-const SOURCE_KEYS: [&str; 7] =
-    ["src_row", "src_col", "row_merge", "col_merge", "extend", "sub_cells", "sub_values"];
+const CELL_KEYS: [&str; 8] = [
+    "r",
+    "c",
+    "value",
+    "type",
+    "disp_value",
+    "source",
+    "left_head",
+    "top_head",
+];
+const SOURCE_KEYS: [&str; 7] = [
+    "src_row",
+    "src_col",
+    "row_merge",
+    "col_merge",
+    "extend",
+    "sub_cells",
+    "sub_values",
+];
 const PAGINATION_KEYS: [&str; 8] = [
     "paper_w",
     "paper_h",
@@ -204,7 +225,10 @@ fn parse_cells(j: &Json) -> Vec<Cell> {
 fn parse_head(v: Option<&Json>, ctx: &str) -> Option<HeadRef> {
     let v = v?;
     v.expect_keys(ctx, &["src_row", "src_col"]);
-    Some(HeadRef { src_row: v.req("src_row").as_i32(), src_col: v.req("src_col").as_i32() })
+    Some(HeadRef {
+        src_row: v.req("src_row").as_i32(),
+        src_col: v.req("src_col").as_i32(),
+    })
 }
 
 fn parse_source(j: &Json) -> Source {
@@ -261,13 +285,21 @@ fn parse_pagination(j: &Json) -> Pagination {
 }
 
 fn parse_page(j: &Json) -> Page {
-    j.expect_keys("page", &["page", "rows", "first_value", "last_value", "col1_values"]);
+    j.expect_keys(
+        "page",
+        &["page", "rows", "first_value", "last_value", "col1_values"],
+    );
     Page {
         page: j.req("page").as_i32(),
         rows: j.req("rows").as_i32(),
         first_value: j.get("first_value").map(Json::as_string),
         last_value: j.get("last_value").map(Json::as_string),
-        col1_values: j.req("col1_values").arr().iter().map(|v| v.raw.clone()).collect(),
+        col1_values: j
+            .req("col1_values")
+            .arr()
+            .iter()
+            .map(|v| v.raw.clone())
+            .collect(),
     }
 }
 

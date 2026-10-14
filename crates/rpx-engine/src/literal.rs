@@ -199,18 +199,36 @@ mod tests {
         assert_eq!(literal_value(&ObjValue::Long(7)), Some(Value::Long(7)));
         assert_eq!(literal_value(&ObjValue::Short(7)), Some(Value::Short(7)));
         assert_eq!(literal_value(&ObjValue::Byte(7)), Some(Value::Byte(7)));
-        assert_eq!(literal_value(&ObjValue::Double(100.0)), Some(Value::Double(100.0)));
-        assert_eq!(literal_value(&ObjValue::Float(1.5)), Some(Value::Float(1.5)));
-        assert_ne!(literal_value(&ObjValue::Int(100)), literal_value(&ObjValue::Double(100.0)));
+        assert_eq!(
+            literal_value(&ObjValue::Double(100.0)),
+            Some(Value::Double(100.0))
+        );
+        assert_eq!(
+            literal_value(&ObjValue::Float(1.5)),
+            Some(Value::Float(1.5))
+        );
+        assert_ne!(
+            literal_value(&ObjValue::Int(100)),
+            literal_value(&ObjValue::Double(100.0))
+        );
     }
 
     #[test]
     fn string_and_boolean_and_null_keep_their_identity() {
-        assert_eq!(literal_value(&ObjValue::Str("int".into())), Some(Value::Text("int".into())));
-        assert_eq!(literal_value(&ObjValue::Bool(true)), Some(Value::Bool(true)));
+        assert_eq!(
+            literal_value(&ObjValue::Str("int".into())),
+            Some(Value::Text("int".into()))
+        );
+        assert_eq!(
+            literal_value(&ObjValue::Bool(true)),
+            Some(Value::Bool(true))
+        );
         // ⛔ 空格是 Null，不是空串（Value::Null ≠ Value::Text("")）
         assert_eq!(literal_value(&ObjValue::Null), Some(Value::Null));
-        assert_ne!(literal_value(&ObjValue::Null), literal_value(&ObjValue::Str(String::new())));
+        assert_ne!(
+            literal_value(&ObjValue::Null),
+            literal_value(&ObjValue::Str(String::new()))
+        );
     }
 
     #[test]
@@ -218,7 +236,13 @@ mod tests {
         assert_eq!(literal_value(&ObjValue::BigInteger(vec![1])), None);
         assert_eq!(literal_value(&ObjValue::Bytes(vec![1, 2])), None);
         assert_eq!(literal_value(&ObjValue::Millis { tag: 3, millis: 0 }), None);
-        assert_eq!(literal_value(&ObjValue::Obj { class_name: None, raw: vec![] }), None);
+        assert_eq!(
+            literal_value(&ObjValue::Obj {
+                class_name: None,
+                raw: vec![]
+            }),
+            None
+        );
     }
 
     #[test]
@@ -238,7 +262,10 @@ mod tests {
         // （那种写法会在这里给 true）。
         for t in [-61i8, -60, -57] {
             assert!(!parses_string_literal(t, false), "类型 {t} 不该 parse");
-            assert!(!parses_string_literal(t, true), "类型 {t} 即便被判成扩展格也不该 parse");
+            assert!(
+                !parses_string_literal(t, true),
+                "类型 {t} 即便被判成扩展格也不该 parse"
+            );
         }
         // 其余类型（含 16/17/18/19 这些扩展方式码）一律不 parse
         for t in [0i8, 16, 17, 18, 19] {

@@ -152,7 +152,10 @@ impl CalcCtx {
 
     /// `cell.getValue()`（`ExtNormalCell.java:1634-1636`）：读 `cellValue`。
     pub(crate) fn value_of(&self, c: CellId) -> Value {
-        self.grid.get(c).map(|h| h.value.clone()).unwrap_or(Value::Null)
+        self.grid
+            .get(c)
+            .map(|h| h.value.clone())
+            .unwrap_or(Value::Null)
     }
 
     /// `cell.setValue(v)`（`ExtNormalCell.java:1639-1642`）：写值 **并置 bit30**。
@@ -205,7 +208,10 @@ impl CalcCtx {
 
     /// `cell.getCellType()`。
     pub(crate) fn cell_type(&self, c: CellId) -> i8 {
-        self.grid.get(c).map(|h| h.rt.cell_type).unwrap_or(crate::literal::NORMAL_CELL_TYPE)
+        self.grid
+            .get(c)
+            .map(|h| h.rt.cell_type)
+            .unwrap_or(crate::literal::NORMAL_CELL_TYPE)
     }
 
     /// `getDispValue()`（`ExtNormalCell.java:1644-1651`）。求值链内暂无读者
@@ -229,7 +235,10 @@ impl DsCurrentHost for CalcCtx {
     }
 
     fn left_head(&self, c: CellId) -> CellId {
-        self.grid.get(c).map(|h| h.left_head).unwrap_or(CellId::NONE)
+        self.grid
+            .get(c)
+            .map(|h| h.left_head)
+            .unwrap_or(CellId::NONE)
     }
 
     fn top_head(&self, c: CellId) -> CellId {
@@ -275,12 +284,7 @@ impl DsCurrentHost for CalcCtx {
         DsInstance::new(ds, crate::calc::ds_current::NULL_ROW)
     }
 
-    fn ds_row_cross(
-        &self,
-        ds: usize,
-        recv: DsInstance,
-        other: DsInstance,
-    ) -> Result<DsInstance> {
+    fn ds_row_cross(&self, ds: usize, recv: DsInstance, other: DsInstance) -> Result<DsInstance> {
         // ⛔ 只移植 `Row.cross`（`Row.java:68-79`）。`Group.cross`（阈值化集合运算）
         // **未移植** —— 12 个夹具里 `cross` 的接收者恒是 Row：接收者非 null 说明它被
         // `setDSCurrentLeftHead` 写过，而那里写的 `_$4` 恒是 `DsValue` 行实例

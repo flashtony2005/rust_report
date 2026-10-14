@@ -18,7 +18,7 @@ pub mod reader;
 pub mod report;
 pub mod rowcell;
 
-pub use error::{RpxError, Result};
+pub use error::{Result, RpxError};
 pub use report::{CellId, MergedArea, ReportDefine, ScalarTail};
 
 const MAGIC: [u8; 4] = [82, 81, 81, 82];
@@ -42,7 +42,10 @@ pub fn open_bytes(buf: &[u8]) -> Result<ReportDefine> {
     }
     let declared = i64::from(i32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]));
     if declared < 0 {
-        return Err(RpxError::BadLength { declared, file_len: buf.len() });
+        return Err(RpxError::BadLength {
+            declared,
+            file_len: buf.len(),
+        });
     }
     let payload_end = 8 + declared as usize;
     // AC-02：payload 实际字节不足

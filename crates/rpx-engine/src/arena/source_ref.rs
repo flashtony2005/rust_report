@@ -45,7 +45,14 @@ pub struct SourceRef {
 impl SourceRef {
     /// 无合并、给定扩展方式的出处（`sub_cells = 1`，即没有扩展实例）。
     pub fn new(src_row: i32, src_col: i32, extend: ExtendMode) -> Self {
-        Self { src_row, src_col, row_merge: 1, col_merge: 1, extend, sub_cells: 1 }
+        Self {
+            src_row,
+            src_col,
+            row_merge: 1,
+            col_merge: 1,
+            extend,
+            sub_cells: 1,
+        }
     }
 
     /// 是否参与合并（任一方向跨度 `> 1`）。

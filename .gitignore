@@ -10,10 +10,15 @@
 /_v2.txt
 
 # tests/fixtures 下的临时探针产物
-/tests/fixtures/_bdo
 /tests/fixtures/_probe_mergepages.csv
 /tests/fixtures/_probe_mergepages.rpx
 /tests/fixtures/_shape_audit.py
+
+# _bdo/ 只忽略编译副产物 —— out_jre8.txt / out_jdk21.txt 是 decimal_oracle 的
+# 判据本身，必须入库（见 docs/code-review.md §3 G3-A、§1.1①）。
+# ⛔ 曾经这里写的是整个 `/tests/fixtures/_bdo`，等于把判据一起忽略掉了，
+#    导致 `cargo test` 的 3 条断言在新克隆上永久红。
+/tests/fixtures/_bdo/*.class
 
 # 编译后的 Java 探针产物
 *.class
@@ -23,3 +28,6 @@
 .DS_Store
 Thumbs.db
 *.swp
+
+# 本机 agent 会话记忆（不入库）
+.workbuddy-ai/

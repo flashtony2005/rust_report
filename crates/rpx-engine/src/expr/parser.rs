@@ -97,12 +97,16 @@ impl<'a> Parser<'a> {
                 Tok::LParen if POSTFIX_BP >= min_bp => {
                     self.bump();
                     self.take_group(Tok::RParen)?; // Offset：参数对 is_extend 无用，丢弃
-                    lhs = Expr::Index { target: Box::new(lhs) };
+                    lhs = Expr::Index {
+                        target: Box::new(lhs),
+                    };
                 }
                 Tok::LBracket if POSTFIX_BP >= min_bp => {
                     self.bump();
                     self.take_group(Tok::RBracket)?; // Move / DSOffset
-                    lhs = Expr::Index { target: Box::new(lhs) };
+                    lhs = Expr::Index {
+                        target: Box::new(lhs),
+                    };
                 }
                 t => {
                     let Some((op, bp)) = infix(t) else { break };
@@ -112,7 +116,11 @@ impl<'a> Parser<'a> {
                     self.bump();
                     // 左结合 ⇒ 右操作数用 bp+1 绑定力
                     let rhs = self.parse_bp(bp + 1)?;
-                    lhs = Expr::Binary { op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+                    lhs = Expr::Binary {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    };
                 }
             }
         }

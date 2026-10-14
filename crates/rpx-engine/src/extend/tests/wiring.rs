@@ -16,7 +16,12 @@ const BARCODE_TYPE: i8 = -57;
 fn cell_role_of_resolves_a_select_into_an_extender() {
     // 声明 16 + 驱动扩展的表达式 ⇒ Extender（随后按拓扑改写成 18/19）
     assert_eq!(
-        cell_role_of(Some("ds1.select(region)"), ExtendMode::Default16, NORMAL_TYPE).unwrap(),
+        cell_role_of(
+            Some("ds1.select(region)"),
+            ExtendMode::Default16,
+            NORMAL_TYPE
+        )
+        .unwrap(),
         CellRole::Extender
     );
 }
@@ -81,10 +86,18 @@ fn cell_role_of_propagates_a_parse_error_instead_of_silently_false() {
 fn cell_role_of_agrees_with_the_manual_form() {
     // 接线路径与手工传参路径必须给出同一结论 —— 否则"接线"本身就引入了分叉。
     let cases: [(Option<&str>, ExtendMode, i8); 4] = [
-        (Some("ds1.select(region)"), ExtendMode::Default16, NORMAL_TYPE),
+        (
+            Some("ds1.select(region)"),
+            ExtendMode::Default16,
+            NORMAL_TYPE,
+        ),
         (Some("B2*2"), ExtendMode::Default16, NORMAL_TYPE),
         (None, ExtendMode::Horizontal19, NORMAL_TYPE),
-        (Some("sort(ds1.select(x))"), ExtendMode::Default16, BARCODE_TYPE),
+        (
+            Some("sort(ds1.select(x))"),
+            ExtendMode::Default16,
+            BARCODE_TYPE,
+        ),
     ];
     for (exp, declared, ctype) in cases {
         let manual = match exp {

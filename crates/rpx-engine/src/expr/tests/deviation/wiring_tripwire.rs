@@ -1,4 +1,3 @@
-
 //! 接线绊线：本切片**刻意不消费**函数优先级表，这里把"当前真实树形"钉死。
 //!
 //! 背景：`names.rs` 的 `FUN_PRIORITY_*` 是真的产品事实，但 Pratt parser 把所有调用
@@ -24,14 +23,28 @@ fn prefix_operator_before_a_low_priority_call_is_kept_by_our_parser() {
     let Expr::Unary { op: UnOp::Neg, rhs } = &e else {
         panic!("我们保留了前缀：顶层应是 Unary(Neg, _)，实际 {e:?}")
     };
-    let Expr::Call(c) = &**rhs else { panic!("右操作数应是调用") };
+    let Expr::Call(c) = &**rhs else {
+        panic!("右操作数应是调用")
+    };
     assert_eq!(c.name, "lefthead");
-    assert_eq!(c.kind, CallKind::Regular, "lefthead 在普通函数表里且未覆写 isExtended");
+    assert_eq!(
+        c.kind,
+        CallKind::Regular,
+        "lefthead 在普通函数表里且未覆写 isExtended"
+    );
 
     // 对照：`-sum(A1)` 两边一致（Sum=19 > 前缀 18 ⇒ 前缀正常挂上），所以它不是差异点
     let s = parse("-sum(A1)").unwrap();
-    let Expr::Unary { op: UnOp::Neg, rhs: s_rhs } = &s else { panic!("对照组顶层应是 Unary") };
-    let Expr::Call(sc) = &**s_rhs else { panic!("对照组右操作数应是调用") };
+    let Expr::Unary {
+        op: UnOp::Neg,
+        rhs: s_rhs,
+    } = &s
+    else {
+        panic!("对照组顶层应是 Unary")
+    };
+    let Expr::Call(sc) = &**s_rhs else {
+        panic!("对照组右操作数应是调用")
+    };
     assert_eq!(sc.name, "sum");
 }
 
@@ -45,7 +58,10 @@ fn the_known_divergence_from_the_products_orphan_behaviour_is_pinned() {
         "我们保留 Neg；产品在这条上丢失它 —— 若此断言失败说明 parser 被改动，必须重读 names.rs 的 ⛔ 横幅"
     );
     // 且 is_extend 两边都是 false ⇒ 对 M2 扩展算法零影响（这三个函数类都没覆写 isExtended）
-    assert!(!e.is_extend(), "该形状下 is_extend 恒 false，不受接线与否影响");
+    assert!(
+        !e.is_extend(),
+        "该形状下 is_extend 恒 false，不受接线与否影响"
+    );
     // 同一形状里 16 与 19 的差别不影响 is_extend —— 这也是当初可以不接线的关键理由
     assert!(!e.is_extend() && !parse("mcorder(1)").unwrap().is_extend());
 }

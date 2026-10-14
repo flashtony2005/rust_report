@@ -38,7 +38,7 @@ use crate::arena::CellId;
 use crate::error::{EngineError, Result};
 use crate::extend::{cell_role_of, CellRole, ExtendMode};
 use crate::heads::{find_left_head, find_top_head, normalize_heads, HeadCell, HeadState};
-use crate::literal::{literal_value, parses_string_literal, parse_string};
+use crate::literal::{literal_value, parse_string, parses_string_literal};
 use crate::stage_a::StageA;
 use crate::value::Value;
 
@@ -77,7 +77,7 @@ pub struct StageB {
 pub fn prepare_calculate(rd: &ReportDefine) -> Result<StageB> {
     let a = StageA::build(rd);
     let (rows, cols) = (a.calc.row_size(), a.calc.col_size());
-    let mut g = build_grid(rd, &a);
+    let mut g = build_grid(rd, &a)?;
     let mut roles = vec![CellRole::Literal; g.cells.len()];
     let mut has_expr = vec![false; g.cells.len()];
     let mut expressed = 0usize;
@@ -86,8 +86,12 @@ pub fn prepare_calculate(rd: &ReportDefine) -> Result<StageB> {
     // ── 第 1 段（state=2）：checkExtend ──
     for i in 1..rows {
         for j in 1..cols {
-            let Some(id) = primary(&g, i, j) else { continue };
-            let Some(tpl) = rd.cell_at(i as usize, j as usize) else { continue };
+            let Some(id) = primary(&g, i, j) else {
+                continue;
+            };
+            let Some(tpl) = rd.cell_at(i as usize, j as usize) else {
+                continue;
+            };
             let declared = declared_of(tpl);
             let expr = cell_expression(tpl);
             if expr.is_some() {
@@ -125,7 +129,9 @@ pub fn prepare_calculate(rd: &ReportDefine) -> Result<StageB> {
     // 三者在**同一次**逐格迭代里，且值写入（`setValue`）也在 `prepareCalculate` 内。
     for i in 1..rows {
         for j in 1..cols {
-            let Some(id) = primary(&g, i, j) else { continue };
+            let Some(id) = primary(&g, i, j) else {
+                continue;
+            };
             g.set_current(id);
             let left =
                 find_left_head(&mut g, id).map_err(|m| EngineError::Invariant { detail: m })?;
@@ -152,7 +158,9 @@ pub fn prepare_calculate(rd: &ReportDefine) -> Result<StageB> {
             // `heads::runtime_tests`）。表达式格走的是 `setCalc(false)`
             // （`ExtExtendCell.java:331`；对新建网格是无操作，不必写）。
             if !has_expr[id.0 as usize] {
-                let Some(tpl) = rd.cell_at(i as usize, j as usize) else { continue };
+                let Some(tpl) = rd.cell_at(i as usize, j as usize) else {
+                    continue;
+                };
                 match literal_value(&tpl.value) {
                     Some(v) => {
                         g.cells[id.0 as usize].value = v;
@@ -234,20 +242,46 @@ fn declared_of_code(code: i8) -> ExtendMode {
 /// ⛔ 为什么要按 arena 顺序而不是自己扫模板：`HeadState::push` 的 id 就是插入序，
 /// 而阶段 A 的 id 也是插入序；同序重建后 `CellId(i)` 在两边指同一格，
 /// 免得再维护一张映射表（映射表一旦漏项就是静默错位）。
-fn build_grid(rd: &ReportDefine, a: &StageA) -> HeadState {
+fn build_grid(rd: &ReportDefine, a: &StageA) -> Result<HeadState> {
     let mut g = HeadState::new();
     let mut i = 0u32;
     while let Some(cc) = a.calc.cell(CellId(i)) {
         let (row, col) = (cc.row, cc.col);
         let mut hc = HeadCell::new(row, col, 16, row_type_at(rd, row));
+        if row > 0 && col == 0 {
+            if let Some(rc) = rd.row_cells.get(row as usize - 1) {
+                hc.rt.property_exprs = property_expressions(rc.exp_map.as_deref(), |key| {
+                    matches!(key, 1 | 2 | 7 | 13 | 15)
+                })?;
+            }
+        } else if row == 0 && col > 0 {
+            if let Some(cc) = rd.col_cells.get(col as usize - 1) {
+                hc.rt.property_exprs = property_expressions(cc.exp_map.as_deref(), |key| {
+                    matches!(key, 11 | 12 | 13 | 15)
+                })?;
+            }
+        }
         if row == 0 && col == 0 {
             hc.is_extender = true; // cell00 本身就是 ExtExtendCell（`:148`）
         }
+        // 列头格的 `colType`（`getColCell(c).getColType()` 读的就是 (0,c) 这一格）。
+        if row == 0 && col >= 1 {
+            hc.col_type = col_type_at(rd, col);
+        }
         if row >= 1 && col >= 1 {
             if let Some(tpl) = rd.cell_at(row as usize, col as usize) {
+                hc.rt.property_exprs = property_expressions(tpl.exp_map.as_deref(), |key| {
+                    !matches!(key, CELL_EXPR_PROP | 41 | 49)
+                })?;
                 hc.extend = declared_of(tpl).code(); // 声明值，第 2 段才改写
                 hc.declared_left = tpl.left_head.clone();
                 hc.declared_top = tpl.top_head.clone();
+                // 四个合并属性（模型层 `NormalCell._$4/_$3/_$2/_$1`）：合并算法读它们。
+                // 扩展克隆走字段浅拷贝 ⇒ 克隆自动继承（Java 克隆共享同一个 `engine`）。
+                hc.merge_same = tpl.merge_same;
+                hc.merge_null = tpl.merge_null;
+                hc.merge_same_mode = tpl.merge_same_mode;
+                hc.merge_null_mode = tpl.merge_null_mode;
                 // 模板类型：`-64` 普通 / `-58` HTML / `-56` 富文本 / `-60` 子报表 /
                 // `-59` 空 / `-61` 图形 / `-57` 条形码。求值期有三处判它
                 // （`ExtNormalCell.calculate:652/663`、`ExtExtendCell.calculate:388/466`），
@@ -274,7 +308,28 @@ fn build_grid(rd: &ReportDefine, a: &StageA) -> HeadState {
     // ── 合并区的两张矩阵分歧（2026-10-13 产品 JRE 实证）──
     // 算法与证据正文见 `stage_b/merge_alias.rs` 模块文档。
     merge_alias::seed_merge_aliases(&mut g, a, rd);
-    g
+    Ok(g)
+}
+
+/// 解析属性表达式。函数仅保留由所属轴/格类型支持的键；选中的值必须是字符串表达式，
+/// 否则报错，不能把损坏属性静默当成「无表达式」。
+fn property_expressions(
+    map: Option<&[(u8, ObjValue)]>,
+    include: impl Fn(u8) -> bool,
+) -> Result<Vec<(u8, crate::expr::Expr)>> {
+    let mut out = Vec::new();
+    for (key, value) in map.into_iter().flatten() {
+        if !include(*key) || matches!(value, ObjValue::Null) {
+            continue;
+        }
+        let ObjValue::Str(source) = value else {
+            return Err(EngineError::UnsupportedExpr {
+                expr: format!("属性表达式 key {key} 不是字符串：{value:?}"),
+            });
+        };
+        out.push((*key, crate::expr::parse(source)?));
+    }
+    Ok(out)
 }
 
 /// 模板行号 → `rowType`（0 号行取兜底值；越界同样兜底）。
@@ -282,7 +337,29 @@ pub(crate) fn row_type_at(rd: &ReportDefine, row: i32) -> i8 {
     if row < 1 {
         return ROW_TYPE_DEFAULT;
     }
-    rd.row_cells.get(row as usize - 1).map(|rc| rc.row_type).unwrap_or(ROW_TYPE_DEFAULT)
+    rd.row_cells
+        .get(row as usize - 1)
+        .map(|rc| rc.row_type)
+        .unwrap_or(ROW_TYPE_DEFAULT)
+}
+
+/// 模板列号 → `colType`（0 号列取兜底值；越界同样兜底）。
+///
+/// 与 [`row_type_at`] 同构，读的是**模板** `col_cells`（`ColCell.col_type`，契约附件 B.2 第 1 槽）。
+/// 合并的「同列类型」判据用 `getColCell(j).getColType()`（`ExtCellSet.java:1959` 等 6 处），
+/// 本 crate 把该值预铺在 (0, c) 的列头格上（见 `build_grid`），故这里是它的取数来源。
+///
+/// ⚠ 与 [`row_type_at`] 共享同一条**已声明近似**：列被 19 扩展克隆后，克隆列头的 `colType`
+/// 取的是模板兜底而非克隆继承值。现有夹具**无 `col_cells` 声明**（`col_cells: null`），
+/// 故该近似在夹具上不可观测；一旦出现带列类型的夹具，须改为读计算矩阵 (0,c) 格。
+pub(crate) fn col_type_at(rd: &ReportDefine, col: i32) -> i8 {
+    if col < 1 {
+        return rpx_core::props::def::COL_TYPE;
+    }
+    rd.col_cells
+        .get(col as usize - 1)
+        .map(|cc| cc.col_type)
+        .unwrap_or(rpx_core::props::def::COL_TYPE)
 }
 
 /// 只处理**主格**：槽位 (i,j) 上的格必须自称就在 (i,j)

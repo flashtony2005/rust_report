@@ -7,12 +7,16 @@ use super::*;
 
 /// 解析并取 `is_ds_function()`。
 fn dsf(src: &str) -> bool {
-    parse(src).unwrap_or_else(|e| panic!("解析 `{src}` 失败：{e}")).is_ds_function()
+    parse(src)
+        .unwrap_or_else(|e| panic!("解析 `{src}` 失败：{e}"))
+        .is_ds_function()
 }
 
 /// 解析并取 `get_state()`。
 fn st(src: &str) -> u8 {
-    parse(src).unwrap_or_else(|e| panic!("解析 `{src}` 失败：{e}")).get_state()
+    parse(src)
+        .unwrap_or_else(|e| panic!("解析 `{src}` 失败：{e}"))
+        .get_state()
 }
 
 /// `is_ds_function()` 的真值表，逐条对照各类的覆写点。
@@ -47,7 +51,10 @@ fn ds_function_truth_table_mirrors_the_java_overrides() {
 fn ds_function_and_extend_disagree_on_the_same_expression() {
     let e = parse("sum(ds1.select(qty))").unwrap();
     assert!(e.is_ds_function(), "`sum(ds1.select(qty))` 必须是 DS 函数");
-    assert!(!e.is_extend(), "同一条表达式必须**不**驱动扩展 —— 两条链相反");
+    assert!(
+        !e.is_extend(),
+        "同一条表达式必须**不**驱动扩展 —— 两条链相反"
+    );
 
     // 反向的一对：`B2*2` 两条都假；`ds1.select(qty)` 两条都真。
     assert!(!dsf("B2*2") && !ext("B2*2"));
@@ -56,7 +63,10 @@ fn ds_function_and_extend_disagree_on_the_same_expression() {
     // ⚠ 与 `is_extend` 的不对称：`SpecialFunction` 的 super 是 Function
     //   （`SpecialFunction extends Function`，类声明已核）⇒ `{}` 的参数**会被查**。
     let sel = parse("{ds1.select(qty)}").unwrap();
-    assert!(sel.is_ds_function(), "`{{...}}` 的参数经 super(Function) 透传 ⇒ 真");
+    assert!(
+        sel.is_ds_function(),
+        "`{{...}}` 的参数经 super(Function) 透传 ⇒ 真"
+    );
     assert!(!sel.is_extend(), "而 is_extend 只看 left（恒 null）⇒ 假");
 }
 
@@ -76,10 +86,30 @@ fn ds_function_and_extend_disagree_on_the_same_expression() {
 #[test]
 fn get_state_is_four_for_every_expression_this_slice_supports() {
     for src in [
-        "B2", "$B2", "@", "6*1", "B2*2", "B2+1", "ds1.select(qty)", "ds1.qty", "ds1.sum(qty)",
-        "ds1.count()", "ds2.count()", "sum(B2:B4)", "sum(ds1.select(qty))", "list(1,2)",
-        "[1:2]", "{B2}", "-B2", "not B2", "qty",
+        "B2",
+        "$B2",
+        "@",
+        "6*1",
+        "B2*2",
+        "B2+1",
+        "ds1.select(qty)",
+        "ds1.qty",
+        "ds1.sum(qty)",
+        "ds1.count()",
+        "ds2.count()",
+        "sum(B2:B4)",
+        "sum(ds1.select(qty))",
+        "list(1,2)",
+        "[1:2]",
+        "{B2}",
+        "-B2",
+        "not B2",
+        "qty",
     ] {
-        assert_eq!(st(src), 4, "`{src}` 的 state 应为 4（见本用例的说明与出处表）");
+        assert_eq!(
+            st(src),
+            4,
+            "`{src}` 的 state 应为 4（见本用例的说明与出处表）"
+        );
     }
 }

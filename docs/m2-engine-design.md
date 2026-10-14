@@ -850,6 +850,150 @@ Java 写的是 `for (i = 1; i < this._$16; ++i)`（`:1304`/`:1334`）、
 
 ---
 
+### 5.4 顶层接线的设计要点与已声明缺口（2026-10-13 补写）
+
+> ⓘ 本节此前被**代码里 8 处**头注释引用却**从未写出**（悬空引用）：
+> `calc/ctx.rs:3`、`calc/run.rs:3`、`calc/cell_eval.rs:4`、`expr/eval.rs:94`、
+> `expr/dsfn.rs:121`、`calc/cell_eval/extend.rs:22` 与 `:29`、`stage_a.rs:184`、
+> `stage_b/merge_alias.rs:27`。2026-10-13 补写，并逐条对齐那些引用点。
+> 本节只记「**违反了不会有测试失败**」的东西（与 §5.3 同类），不重复 §5.3 已写的规则。
+
+#### 5.4.1 接线形态：一次 `calculate()` 的对象图
+
+`calculate()`（`crates/rpx-engine/src/calc/run.rs`）把一个 `HeadState`（阶段 B 产物）
+与数据集装进 `CalcCtx`（`calc/ctx.rs`），再按 §5.3 的收尾顺序跑三条通道：
+
+| 角色 | 承载物 | 对应 Java |
+|------|--------|-----------|
+| 引擎状态 `_$14` | `CalcCtx::engine_state` | `ExtCellSet._$14`（`:108` 初值 0） |
+| 当前格 `_$20` / 快照 | `CalcCtx::current` / `saved` | `_$20` / `saveCurrent` |
+| head 对跟踪 `_$19` | `CalcCtx::tracker`（`HeadPairTracker`） | `ExtCellSet._$19` |
+| 级联失效队列 `_$24` | `CalcCtx::fail_queue` | `_$24`（`:1492` 每轮新建） |
+| 每数据集 current 三件套 | `CalcCtx::spots` + `mirror()` | `ds.current` 的镜像 |
+| 三条通道 trampoline | `eval/sched.rs` | `ExtCellSet._$2(ctx,…)`（`:1297-1446`） |
+
+两个**薄适配器**把 `CalcCtx` 接到求值器与调度器上，且**都不含自己的逻辑**（这是刻意的）：
+`impl EvalCtx for CalcCtx`（`calc/ctx/eval_ctx.rs`）与 `impl SchedGrid for CalcCtx`
+（`calc/ctx/sched_grid.rs`）。语义全在 `EvalCtx` / `SchedGrid` 的契约文档与
+`expr/resolve.rs` 里 —— ⛔ **不要**在适配器里"顺手"补语义。
+
+#### 5.4.2 缺口一：DS 值归属旁路（产品靠对象身份，Rust 靠旁路补记）
+
+**产品语义**：`ds.select(col)` / `ds.sum(col)` 在 **Row 态**返回的是 **Row 对象本身**
+（`DSSelect.java:145-149` 的 `return cur;`；`DSSum.java:46` 同款），Root 态返回
+**`List<Row>`**（`Group.getRows()`，`Group.java:455-457`，元素全是 Row）。
+`ExtExtendCell.calculate` 靠 `result instanceof DsValue` 把 `_$4`（本格代表的实例）
+定位到行（`:403` / `:461`），并逐元素推进/恢复 DS 指针（`:400-404`）。
+
+**Rust 的问题**：`Value` 是**封闭的九类值**、不承载运行时对象 ⇒ 那层"身份"会丢。
+
+**补法（旁路）**：在 `EvalCtx` 上开三个方法（`expr/eval.rs:94-108`）——
+`note_ds_row(ds,row)` / `note_ds_list(ds,rows)` / `clear_ds_notes()`；`CalcCtx` 用
+`note_row` / `note_list` 两个字段承载（`calc/ctx.rs:81-84`）。
+**写入点**在 `expr/dsfn.rs`（`select`/`sum` 的 Row 态与 Root 态，`:121` / `:134` / `:154`）；
+**消费点**在 `calc/cell_eval/extend.rs` 的 `scalar_branch`（`ds_row_note`）与
+`list_branch`（`ds_list_note`）。**普通格只记不消费**（`calc/cell_eval/normal.rs:5`）。
+生命周期：**每次逐格求值开始前**清空（`calc/cell_eval.rs:93` 调 `clear_notes`）⇒
+旁路里只会留"这一次求值"的归属。
+
+⚠ **已声明缺口（本节的审计复核项）**：表达式把 DS 调用**包在别的运算里**时
+（如 `1 + ds1.select(q)`），旁路仍会记下**内层**归属，而结果的顶层身份其实**不是** Row ——
+产品的对象身份模型不会犯此错（`1 + Row` 根本不是 `DsValue`）。**12 夹具的扩展锚点表达式
+都是裸 DS 调用 ⇒ 该缺口无夹具级信号**（"违反了不会有测试失败"）。
+处理：保留现状 + 本节留档；夹具一旦出现"DS 调用被包进运算"就**先补判据再改实现**
+（判据：顶层节点是不是那个 DS 调用本身，而不是内层有没有调用）。
+
+#### 5.4.3 缺口二：`_$14 <= 4` 幂等门 —— Rust 的**有意偏离**
+
+规则本身写在 §5.3 ②（`_$14` 初值 0、入口守卫 `:1484`、末尾置 7 `:1526`）。
+**这里记审计结论**：产品在 `_$14 == 7` 时**静默跳过** `calculate()`（第二次调用什么都不做、
+不报错、返回旧结果）；**Rust 不复刻这个静默跳过** —— `CalcCtx::new` 取 0 放行首次
+（`calc/ctx.rs`），此后**不复用**，前提由 `calc/run.rs` 的文档声明"一张网格只跑一次"。
+
+⇒ 这是**行为偏离**：若调用方误调两次，Rust 会真的重算（此时 `prepareCalculate` 已改写
+`extensible`，结果不可信），而产品静默返回旧值。**两边都不报错** ⇒ 属"违反了不会有
+测试失败"。钉子：`calc/ctx.rs` 的模块文档 + 本节。
+⛔ 若将来要加"重复调用"的防御，**不要**照抄"静默跳过"（那是把错误藏起来），
+应当**显式报错**。
+
+#### 5.4.4 缺口三：二维合并对角槽按纵向规则（无夹具实证）
+
+`rm > 1 && cm > 1` 的合并区，其**对角延续槽**（非锚点、非同行、非同列）在两张矩阵上的
+别名/影子行为**无夹具实证** —— 现有夹具的合并区都是单维的。当前按**纵向规则**处理
+（引擎矩阵侧覆盖为独立 `SourceRef`），见 `stage_a.rs:184` 与 `stage_b/merge_alias.rs:27`。
+
+⚠ 与 §6.4（合并区 × 扩展）合读：扩展算法只按槽位平移别名、**不重新判定**对角槽身份 ⇒
+这条缺口的爆炸半径限于"对角槽的 `source` 段"，不影响值。
+
+#### 5.4.5 三条缺口的共同处置纪律
+
+三条都不改任何已有夹具的期望值 ⇒ **违反它们不会有测试失败**。因此每条都必须做到：
+① 在**模块头注释**里点名（已做）；② 在**本节**留档（本节）；③ 夹具一旦覆盖到就
+**先补判据、再改实现**。新增夹具时的复核清单：
+出现"DS 调用被包进运算" → 查 **5.4.2**；出现"同一网格跑两次" → 查 **5.4.3**；
+出现"二维合并区" → 查 **5.4.4**。
+
+#### 5.4.6 缺口四：`same_value` 与 Java 的 7 处已证分歧（2026-10-13 审计补记）
+
+> ⓘ 本节的**历史口径**是「三条已声明缺口」（5.4.2 / 5.4.3 / 5.4.4，写于 2026-10-13 早）。
+> 2026-10-14 的合并审计又发现**第四类**，按「口径修正一律加日期注、**不改写历史结论**」
+> 的惯例记在此处，**标题不动**。
+
+**是什么**：`same_value`（`crates/rpx-engine/src/merge.rs`，Java `Variant2.equals:460-473`
+的替身）当前是一条**捷径** —— `to_f64`（`expr/num.rs:16`）只认
+Int / Long / Double / Float / Short / Byte（**不认 `Decimal`**），认的这几支统一升 `f64`
+再用 `==` 比（`val_eq:130`）。Java 分两层：**同类**走包装类的 `equals`
+（`Double`/`Float` **按位**、`Long`/`BigDecimal` **精确**），**跨类**才走 `compare2:418`
+的 `getMaxNumberType` 分发。两条路在 7 种输入上给出**不同答案**：
+
+| # | 输入 | Java | Rust 当前 | 方向 |
+|---|------|------|-----------|------|
+| A | `Decimal("100.00")` vs `Long(100)` | 相等（跨类 ⇒ `toBigDecimal.compareTo`） | 不等 | Rust 太严 |
+| B | `Double(+0.0)` vs `Double(-0.0)` | 不等（`Double.equals` 按位） | 相等 | Rust 太松 |
+| C | `Double(NaN)` vs `Double(NaN)` | 相等（按位） | 不等 | Rust 太严 |
+| D | `Double(NaN)` vs `Long(1)` | **相等**（`compare(double,double)` 无 NaN 分支 ⇒ 落回 0） | 不等 | Rust 太严 |
+| E | `Long(2^53+1)` vs `Long(2^53)` | 不等（`Long.equals` 精确） | 相等（`f64` 塌陷） | Rust 太松（**静默**） |
+| F | `Float(16777216)` vs `Int(16777217)` | 相等（Int 也被舍到 `f32`） | 不等 | Rust 太严 |
+| G | `Float(+0.0)` vs `Float(-0.0)` | 不等（按位） | 相等 | Rust 太松 |
+
+方向**不一致**（3 太严 / 3 太松 / 1 处两者皆有）⇒ **不存在「统一改成某一侧」的一次性修法**，
+每一处都要单独决定「复刻 / 声明偏离」。其中 **D 最反直觉，很可能要算产品缺陷而非移植目标**
+—— 复刻它等于让 `NaN` 看起来等于一切；**拿到产品侧确认前不得擅自复刻**。
+另：E 与 F 的根因是 **Rust 的 `f64` 通道比 Java 的 `f32` 通道更宽**（Java 主动丢掉的精度
+在 Rust 侧被保留了下来），修任一侧都会**连带影响 `num_cmp`**，必须一并评估。
+
+**为什么现在无信号**：12 个夹具只设过 `mergeSame = 98`（`engine_samemerge`，mode 默认 118、
+值全是 `Text`）；`mergeNull`（113）与 `mergeSameMode`（91）**一个夹具都没设过**
+⇒ 这 7 处**全部无夹具可辨**（与 5.4.2 / 5.4.3 / 5.4.4 同类：「违反了不会有测试失败」）。
+
+**钉子**：`crates/rpx-engine/src/merge/tripwire.rs` 的 7 条单测（A–G 各一条，另含对照组，
+共 8 条断言组）。⛔ 它们断言的是**当前 Rust 行为**、**不是** Java 行为 ——
+修任何一处都必须**连同断言一起改**，并补产品证据。这正是设计意图：让修改变成一次
+**显式、可评审**的事件，而不是某次「顺手统一数值路径」的副产品。
+处置纪律与 5.4.5 相同：一旦出现覆盖到这 7 种输入的夹具，**先补判据、再改实现**。
+
+#### 5.4.7 M2-22 属性表达式：第一阶段落地（2026-10-14）
+
+`calcProperties` 已接入 `calculate()` 的 channel5 之后、分页之前，处理顺序为行轴 → 列轴 → 普通主格；
+属性表达式在 `CellRuntime` 保存，扩展克隆复制 AST 与独立的覆盖值。来源是行/列/普通格的 `expMap`：
+行 key 1/2/7/13/15，列 key 11/12/13/15，普通格除 key 40（值表达式）与 41/49（显示格式路径）外的字符串项。
+
+- 行/列属性按 `getValue` 口径保留 List，不取首项；行高/列宽要求数值，显式转为 `Float`，布尔属性要求 Bool。
+- 普通格属性按 `getSingleValue` 口径：空 List 写 Null，非空 List 取首项；属性覆盖值写入运行态。
+- 行高、列宽、可见、分页符等轴属性写入计算态几何；行高/列宽、可见与 `breakPage` 在分页器里生效。
+- 普通值表达式触发的 `Suspend{cell,state}` 交由既有 channel4/5/6 trampoline 处理，再恢复属性求值 current 并重试；属性表达式不递归调用求值。
+
+**判据**：`engine_rowheight` 的产品侧 `computed_row_heights` 17 项逐值对拍为
+`[10,40×12,50,27,10,10]`，实际分页 `[8,9]`、逐页与整段 JSON 对拍全等；
+另有单测锁定隐藏行不计高但保留行序、行 `breakPage` 与列 `breakPage` 的切点。
+此前 `engine_rowheight` 的分页豁免及三条“未实现”哨兵已删除，不再有夹具级白名单。
+
+**范围边界仍未闭合**：本模型尚未从 `.rpx` 解出 Java 独立的 `customPropEngMap`，也没有 `ExtCellSet`/cell-graph 属性值类型与写回目标；
+state 8 属性队列（`IllIllllllllllll`）不是现有 AST 可达路径，遇到时必须显式报错，不得静默跳过。
+故本节所称“第一阶段落地”是已有 `expMap` 内置属性通道的实现与基准闭合，不能据此宣称 M2-22 的全部 Java 对象图路径已覆盖。
+
+---
+
 ## 6. 扩展算法：`extendRow` / `extendCol`（P0 核心）
 
 
@@ -1314,8 +1458,9 @@ JSON 取值器，形状不符一律 panic（不静默返回默认值）。
 16 格全量值）。**字面量取值**（`ExtNormalCell.java:539-553` 的无表达式分支）随阶段 B 落地
 （`crates/rpx-engine/src/literal.rs`）。第 7 步（调度器）三条通道已落地
 （`crates/rpx-engine/src/eval/sched.rs`：`channel4`/`channel5`/`channel6`），
-**顶层 `calculate()` 编排与生产版 `EvalCtx`/`SchedGrid` 未接线** —— 见 §5.1 的三条约束
-与 §5.2 的 DS current 生命周期。
+**顶层 `calculate()` 编排与生产版 `EvalCtx`/`SchedGrid` 也已接线**（`calc/run.rs` +
+`calc/ctx/`，12 个引擎夹具逐格对拍全绿）—— 接线设计见 §5.4，其三条已声明缺口见
+§5.4.2–5.4.4。ⓘ 本节原写"未接线"，2026-10-13 按实测更正。
 
 
 **最容易做错的 5 件事（都是本轮实测踩实的，不是猜测）**
@@ -1644,5 +1789,159 @@ sum(ds1.select(qty))
 
 ---
 
+## 14. M2-12 `avg` / `max` / `min`（2026-10-13 落地）
+
+事实源：`reportlite/03-model/.../expression/function/Average.java`、`Max.java`、`Min.java`
+（与 `Sum.java` 同目录）。三者的**叶子路径同构、聚合路径各不同**，本节逐条钉差别，不许"顺手统一"。
+
+### 14.1 与 `sum` 的三处差别（全部来自源码）
+
+| # | 形态 | `avg` 的行为 | `sum` 的行为 | 出处 |
+|---|------|------------|------------|------|
+| 1 | **空表** | `Null` | `Double(0.0)` | `Average.java:112-114` `count == 0 → return null` vs `Sum.java:111-113` |
+| 2 | **全空元素** | `Double(0.0)`，且**必须先于除法判定** | 同 `Double(0.0)` | `Average.java:122-124`；⚠ 全空时 `count - nullCount` 恰为 0 ⇒ 守卫晚一步就除零 |
+| 3 | **分母** | `bContainNull ? count : count - nullCount` | 无分母 | `Average.java:108`（`option.indexOf(97)`，即 `@a`）→ `:125` |
+| 4 | **整除时也升 Double** | 恒 `Double`（`Variant2.divide` 无整型分支） | 累加保持原类型 | `Average.java:125`；本仓 `num_div` 同样只有 f64 分支 |
+
+### 14.2 `max` / `min` 的排序语义与**产品原文的不对称**
+
+- 两者都跳 null，用 `compare2` 取极值：max `if (compare2(result, o) >= 0) continue;`（留大），
+  min `if (compare2(result, o) <= 0) continue;`（留小）（`Max.java:113-114` / `Min.java:113-114`）。
+- ⛔ **不对称是原文**：Max 写 `result = o`（`getSingleValue` 解包后的**标量**），
+  Min 写 `result = list.get(i)`（**未解包的原始元素**）。只在"元素本身是非空 `List`"时分叉：
+  `min(List[List(5), List(3)])` 产品返回 `List[5]` 而不是 `Int(3)`。
+  **修平它之前先拿产品侧证据**（本仓有单测钉住，`tests_aggregate.rs` 第 ⑦ 条）。
+- Min 调 `Variant2.compare` 而 Max 调 `compare2`，前者只是先过 `getSingleValue` 再转调，**等价**。
+
+### 14.3 已实现 / 诚实未实现
+
+| 形态 | 状态 | 说明 |
+|------|------|------|
+| `avg/max/min(<叶子表达式>)` 纯函数 | ✅ | `eval.rs::evaluate_call` 分发；标量透传、`List` 才聚合 |
+| `ds.avg/max/min(col)` | ✅ | `dsfn.rs::ds_call`；Root 态聚合，Row 态与 `ds.sum` 同形返回当前行（reportlite 树里这三个**没有** DS 包装类，故沿用 `DSSum.java:46` 的 `return cur;`） |
+| `sum(List)` 过 `getSingleValue` | ✅ | 与 `merge::same_value` 共用 `value::single_value`（顺带修掉的**第 8 处分歧**：原先 `sum(List[List(1)])` 会报错，产品返回 `1`） |
+| `avg/max/min(A:B)` 区域形态 | ❌ | 产品该路走 `_$1(ctx)` 逐格循环，与 `sum(A:B)` 同类；显式报 `UnsupportedExpr` |
+| `Text-Text` 字典序 | ❌ | 需要 `ChineseComparator` 的 `com/raqsoft/commonl/rule.txt`（**不在仓库**）；显式报错并在报错里说明缺的是哪个依赖，**不静默给 Equal** |
+| `Bool-Bool` 排序 | ✅ | `compare2:453-455` → `compare(boolean,boolean)`，`false < true` |
+
+### 14.4 测试与自证
+
+- `crates/rpx-engine/src/expr/tests_aggregate.rs`：11 条，每条钉一处差别
+  （含"报错内容必须说清缺哪个依赖"与 `sum` 的解包回归）。
+- 故障注入 17 条（15 期望红 + 2 期望绿对照，按错误类分组）：**15/15 抓到、2/2 对照保持全绿、0 条注入不合格**。
+  覆盖的类：常量/分支错、语义错（成对钉方向）、边界/顺序错、类型错、分支漏掉、比较方向错（max/min 各一条）、
+  复刻偏差、吞掉错误、**报错内容错**、接线错、回归到已修分歧。
+
+---
+
 *（附：本节由 `crates/rpx-engine/src/expr/` 的实现反向校对过一遍 —— 上面每条 `file:line` 都是
 `F:/project/report/re_work/src/reportlite/03-model/com/raqsoft/reportl/model/expression/` 下的实际行号。）*
+
+---
+
+## 15. M2-11 分页（2026-10-13 落地）
+
+事实源：`SimplePager.createPages()`（`model/SimplePager.java`）、`PagerInfo.java`、
+`Pager.java` 的 `unitTransfer`、`ReportUtils2.getPagerInfo`（`util/ReportUtils2.java:104-125`）。
+实现落在 `crates/rpx-engine/src/pager.rs`（模块文档含逐行出处），导出段在
+`crates/rpx-engine/src/emit/pagination.rs`。
+
+⚠ **口径来自探针而不是报表**：产品侧 `getPagerInfo` 会 `setPaperSize(595, 842)` **覆盖**纸张、
+把四边边距**清零**、`setTableColumnNum(1)`、从 prop 33 读 `rowNumPerPage`。
+所以夹具记的是探针的 595×842 + 零边距（`CalcJson.renderPages(ecs, 595, 842, 1)`），
+**不是**模板里的 `paper=9` + 19/19/25/25mm。本 crate 复刻探针口径，否则 `paper_w/paper_h` 对不上。
+
+### 15.1 三条必须照抄的算术（逐行核实）
+
+| # | 形态 | 照抄点 | 出处 |
+|---|------|--------|------|
+| 1 | **纸张 pt → mm → pt 两次舍入** | `setPaperSize` 用 **float32** 先乘后除（`(float)w*25.4f/72.0f`），`mmToPixel` 再用 double 转回 ⇒ 842pt 往返 = **841.9999730868603**、595pt = **594.9999807763288**，都不是整数 | `ReportUtils2.java:107-115`、`PrintSetup.mmToPixel` |
+| 2 | **行高不逐行取整** | `isHighPrecision()` 底字段默认 `true` ⇒ `unitTransfer` 走该分支**返回原始 double**（不 `Math.ceil`） | `Pager.java:160-172` |
+| 3 | **断页判据带千分位容差** | `height > Math.ceil((limit - used) * 1000.0) / 1000.0` 才断 —— 浮点尾差不会把一页切成两半；横断用**同一条式**（`used` 换成已用列宽） | `SimplePager.java:1505-1520`、`:2354-2374` |
+
+单位换算 `unitTransfer(f, unit, scale, hp)`：`unit==2 → *72.0`；`unit==1 → *72.0/25.4`；否则原值；
+`hp==true` 时不做 `Math.ceil`。夹具 `unit` 恒为 `1`（mm）。
+
+### 15.2 页的组成顺序（这是 `rows` 数对不上的头号原因）
+
+`_$5(r, unit)` 每页按固定次序拼：**前缀区带** `[页眉 -93][标题 -96][表头 -95]`
+（取 `_$4(r, rowType)` 的**首个连续段**）→ **分组头副本**（`rowType == -90`，开着的组才复制）
+→ **数据区行**（`_$2(r)` 的首/末 `-91`/`-90` 行范围）。前缀区带与分组头副本**都吃页高、
+都计入该页 `rows`**；页脚区带 `[页脚 -92][标题脚 -89][表脚 -94]`（`_$3(r, rowType)` 的
+**末个连续段**）**只占高、不复制**。
+
+判别样本：`engine_head_left` 单页 `rows = 14`（3 标题 + 1 表头 + 10 数据）、
+`engine_head_top` 单页 `rows = 7`（1 标题 + 6 数据）。**不实现区带时这两个会各少算
+3 行 / 1 行**（初版即踩此坑）。`engine_pager` 第 2~4 页的 `first_value = "group: R*"`
+正是分组头副本的贡献。
+
+### 15.3 横断
+
+`_$2(currPageRows, unit)`：若 `width <= pageWidth` 且无 `breakPage` 列 ⇒ **单列页 `[-1]`**；
+否则按列宽贪心累加，`width > ceil((pageWidth - used)*1000)/1000` 即断（首列超宽直接抛）。
+页序 = `PageBuilder.getAllPages()` 的 **y 外层、x 内层**；`page_count = x_pages * y_pages`。
+
+### 15.4 与夹具的对拍结果
+
+12 个网格夹具均参与分页对拍，**11 个分页夹具全部逐页全对**：
+
+- `engine_pager` 4 页（14/14/14/4）、`engine_sum` 2 页（第 2 页首列是该横向页的第 9 列
+  `ds2Count`）；
+- `engine_rowheight` 2 页（8/9 行），17 个计算态行高由 M2-22 RowCell key 1 表达式求得；
+- 其余 8 个单页；`engine_head_left` / `engine_head_top` 的区带口径见 §15.2。
+
+**分页豁免已全部删除**：`engine_rowheight` 的计算行高与切点现由产品夹具逐值/逐页对拍；
+`tests/engine_grid_compare.rs` 的全夹具比较不再有豁免白名单。
+
+### 15.5 诚实未实现清单
+
+| 形态 | 状态 | 为什么现在不做 |
+|------|------|----------------|
+| `pagerStyle == 1`（按行数）/ `== 0`（单页短路） | ❌ | 夹具全是默认 `2`（按高断页） |
+| 跨页合并格拆分（`_$1:1536-1700`） | ❌ | 夹具合并区都不跨页（多页夹具 `merged.cells` 全空） |
+| 行/列可见与手动分页符（`rowVisible`/`colVisible`/`breakPage`） | ✅ | `calcProperties` 内置 key 已求值；隐藏行仍保留行序但不计高，隐藏列宽度为零，行列分页符强制断页（合成单测） |
+| 列区带（左/右列头 `_$4`/`_$3(currPageRows)`） | ❌ | 12 个夹具的 `colType` **全是 `-79`**（数据列），左右区带恒 `null` ⇒ 数据列范围固定 `1..=cols` |
+| 文本自动换行回填行高（`-64`/`-56` 分支） | ❌ | 夹具无此类型格 |
+| 多栏布局（`columns > 1`、`columnMode`、`isColumnRepeatedGroupHeader`） | ❌ | 探针固定 `columns = 1` |
+
+`pagination` 段的**导出细节**（键序、`paper_w` 是 float 记法写 `595.0`、
+`first_value`/`last_value` 走 `String.valueOf` 而 `col1_values` 走 `value()` 的原文 token）
+在 `crates/rpx-engine/src/emit/pagination.rs` 的模块文档里逐条钉住；网格未跑分页器时写裸 `null`
+（对拍器把 `null` 当「没有该段」，故夹具有段而引擎没有 ⇒ 报 `Missing`，**不是静默通过**）。
+
+### 15.6 测试与自证
+
+- `crates/rpx-engine/src/pager/tests.rs`：**18 条**，逐条钉一处算术/边界 ——
+  两次舍入往返、`unitTransfer` 三分支、千分位容差、`engine_pager` 形态断成 `14/14/14/4`、
+  分组头副本吃高（含→`[14,14,14,4]`、不含→`[14,14,14,1]`）、单行超页高不死循环、
+  9×25mm 列断成 `8+1`（明确断言列跨度 `(1,8)/(9,9)`）、窄网格单列页、空网格单空页、
+  `col1_values` 跟随该页首列（含副本）+ 横向第 2 页取网格第 9 列（覆盖 `base_col` 不得写死 1）、
+  前缀区带每页复制（`engine_head_left` 形态 → 14 行，序为标题 `-96` 在表头 `-95` 前）、
+  单标题行前缀、区带只取连续段。
+- `crates/rpx-engine/src/emit/tests.rs`：`pagination` 段的逐字符形状（键序 + `595.0` 记法 +
+  两个可选键的「全空则都不写」），以及 `render_document` = 三段拼接的**身份式**。
+- `crates/rpx-engine/tests/engine_rowheight_pager.rs`：三项 M2-22 端到端判据——17 个计算行高逐值一致、8+9 行分页、夹具整段零差异。
+- 对拍：`engine_grid_compare` 逐夹具逐格 + 逐页比较，含 `paper_w/paper_h/columns/
+  page_count/x_pages/y_pages/row_num_per_page` 与每页 `rows/first_value/last_value/col1_values`。
+
+### 15.7 2026-10-14 对拍器故障注入发现的静默恒真（已修复）
+
+分页器首轮故障注入把 `col_values(..., base_col)` 注入为固定第 1 列时，两道门禁竟**全绿**。
+先排除注入空操作：`engine_sum` 第 2 页 `x_pages` 的第 1 列确为第 9 列 `ds2Count`；
+固定读网格第 1 列会把该页值从 `["ds2Count",3,3,3]` 改成网格第 1 列的 `region/North/East/South`，差异真实存在。
+
+根因不是分页算法或断言样本，而是**对拍器里的恒真比较**：`push_if_diff` 早先用同一个 `key`
+兼任显示标签与 JSON 字段名。逐页/逐格比较传入的是 `page[2].rows`、`page1.value` 等显示标签，
+随后却拿标签从页对象中 `get` ⇒ 两侧都得到 `"<无此键>"`，所以 `rows/first_value/last_value/
+col1_values` 与合并格 `value/row_merge/col_merge` **始终比不出来**。
+
+已把比较位置标签 (`DiffLoc`) 与实际 JSON 字段名拆成两个参数；`merged_row_col_swap` 故障注入
+现由 `engine_output_matches_every_fixture_cell_by_cell` 抓红。固定第 1 列的注入则由新增的
+`a_second_column_page_reads_its_own_first_column` 单元测试抓红（`engine_sum` 的真实夹具对拍也会抓红）。
+这个洞说明「分页字段已经逐页比较」的旧描述当时**名义成立、实际不成立**。分页/导出主套件的 24 条注入
+（22 条期望红 + 2 条期望绿）在修复后重跑，结果 **22/22 抓到、2/2 对照全绿、0 注入不合格**；
+随后将 M2-21 合成矩阵的 8 个方向趟也加入同一驱动，综合 32 条（30 红 + 2 绿）全过、指纹一致。
+
+*（附：本节由 `crates/rpx-engine/src/pager.rs` 的实现反向校对过一遍 —— 上面每条 `file:line`
+都是 `re_work/src/reportlite` 下的实际行号。2026-10-14 补记：M2-22 内置属性表达式落地后，
+`engine_rowheight` 豁免已删除；自定义属性对象图等完整范围仍是未闭合项，见 §5.4.7。）*

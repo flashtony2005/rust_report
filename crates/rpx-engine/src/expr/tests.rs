@@ -8,7 +8,9 @@ use crate::value::Value;
 
 /// 解析并取 `is_extend()`。解析失败直接 panic（测试里就该炸）。
 fn ext(src: &str) -> bool {
-    parse(src).unwrap_or_else(|e| panic!("解析 `{src}` 失败：{e}")).is_extend()
+    parse(src)
+        .unwrap_or_else(|e| panic!("解析 `{src}` 失败：{e}"))
+        .is_extend()
 }
 
 /// §13.3 真值表的核心四条 + team-lead 点名的五条。
@@ -22,7 +24,10 @@ fn is_extend_truth_table_core() {
     assert!(ext("sort(ds1.select(qty))"), "`sort(...)` 必须为 true");
     assert!(ext("to(1,10)"), "`to(...)` 必须为 true");
     assert!(ext("split(name,';')"), "`split(...)` 必须为 true");
-    assert!(ext("sublist(ds1.select(qty),0,2)"), "`sublist(...)` 必须为 true");
+    assert!(
+        ext("sublist(ds1.select(qty),0,2)"),
+        "`sublist(...)` 必须为 true"
+    );
     // Constant(is List) = true（Constant.java:22-24）
     let list = Expr::Const(Value::List(vec![Value::Int(1), Value::Int(2)]));
     assert!(list.is_extend(), "`Constant(List)` 必须为 true");
@@ -38,11 +43,19 @@ fn is_extend_truth_table_core() {
 #[test]
 fn outer_regular_function_does_not_inherit_parameter_extendability() {
     let e = parse("sum(ds1.select(qty))").unwrap();
-    let Expr::Call(outer) = &e else { panic!("外层应为 Call"); };
+    let Expr::Call(outer) = &e else {
+        panic!("外层应为 Call");
+    };
     assert_eq!(outer.qualifier, None);
     assert_eq!(outer.name, "sum");
-    assert_eq!(outer.kind, CallKind::Regular, "裸 `sum` 是常规 Sum（FunctionLib.java:149 优先于 DS）");
-    let Expr::Call(inner) = &outer.args[0] else { panic!("内层应为 Call"); };
+    assert_eq!(
+        outer.kind,
+        CallKind::Regular,
+        "裸 `sum` 是常规 Sum（FunctionLib.java:149 优先于 DS）"
+    );
+    let Expr::Call(inner) = &outer.args[0] else {
+        panic!("内层应为 Call");
+    };
     assert_eq!(inner.qualifier.as_deref(), Some("ds1"));
     assert_eq!(inner.name, "select");
     assert_eq!(inner.kind, CallKind::DsExtend);
@@ -54,12 +67,12 @@ fn outer_regular_function_does_not_inherit_parameter_extendability() {
 #[test]
 fn bare_ds_lookalike_name_resolves_to_the_regular_function() {
     for (src, want) in [
-        ("plot(qty)", false),   // 常规 Plot（FunctionLib.java:144）
+        ("plot(qty)", false),    // 常规 Plot（FunctionLib.java:144）
         ("ds1.plot(qty)", true), // DSPlot（FunctionLib.java:118 + DSPlot.java:21）
-        ("sum(qty)", false),    // 常规 Sum
+        ("sum(qty)", false),     // 常规 Sum
         ("ds1.sum(qty)", false), // DSSum（未覆写 → false）
-        ("count()", false),     // 常规 Count
-        ("ds2.count()", false), // DSCount（未覆写 → false）
+        ("count()", false),      // 常规 Count
+        ("ds2.count()", false),  // DSCount（未覆写 → false）
         ("max(a,b)", false),
         ("ds1.max(qty)", false),
     ] {
@@ -93,7 +106,10 @@ fn value_list_extends_unless_the_top_level_separator_is_colon() {
     assert!(ext("[1]"), "叶子参数 ⇒ true");
     assert!(ext("[1,2]"), "顶层 `,` ⇒ true");
     assert!(!ext("[1:3]"), "顶层 `:` ⇒ false");
-    assert!(ext("list(1,2)"), "`list(...)` 登记为 ValueList（FunctionLib.java:165）⇒ true");
+    assert!(
+        ext("list(1,2)"),
+        "`list(...)` 登记为 ValueList（FunctionLib.java:165）⇒ true"
+    );
     assert!(!ext("list(1:3)"));
 }
 
@@ -121,32 +137,65 @@ fn prefix_operators_look_at_their_operand() {
 #[test]
 fn multiplication_binds_tighter_than_addition() {
     let e = parse("1+2*3").unwrap();
-    let Expr::Binary { op: BinOp::Add, lhs, rhs } = &e else { panic!("顶层应为 +"); };
+    let Expr::Binary {
+        op: BinOp::Add,
+        lhs,
+        rhs,
+    } = &e
+    else {
+        panic!("顶层应为 +");
+    };
     assert_eq!(**lhs, Expr::Const(Value::Int(1)));
-    assert!(matches!(**rhs, Expr::Binary { op: BinOp::Mul, .. }), "右操作数应为 2*3");
+    assert!(
+        matches!(**rhs, Expr::Binary { op: BinOp::Mul, .. }),
+        "右操作数应为 2*3"
+    );
 }
 
 /// 全部中缀运算符**左结合**（`Expression.java:442` 的严格 `<`）。
 #[test]
 fn binary_operators_are_left_associative() {
     let e = parse("1-2-3").unwrap();
-    let Expr::Binary { op: BinOp::Sub, lhs, rhs } = &e else { panic!("顶层应为 -"); };
-    assert!(matches!(**lhs, Expr::Binary { op: BinOp::Sub, .. }), "应为 (1-2)-3");
+    let Expr::Binary {
+        op: BinOp::Sub,
+        lhs,
+        rhs,
+    } = &e
+    else {
+        panic!("顶层应为 -");
+    };
+    assert!(
+        matches!(**lhs, Expr::Binary { op: BinOp::Sub, .. }),
+        "应为 (1-2)-3"
+    );
     assert_eq!(**rhs, Expr::Const(Value::Int(3)));
     // `:`（4）也是左结合：(B2:B4):B6
     let l = parse("B2:B4:B6").unwrap();
-    assert!(matches!(l, Expr::Binary { op: BinOp::Link, .. }));
+    assert!(matches!(
+        l,
+        Expr::Binary {
+            op: BinOp::Link,
+            ..
+        }
+    ));
 }
 
 /// 后缀 `[...]`(17) 与一元 `-`(18)：`-B2[1]` ⇒ `(-B2)[1]`（17 < 18 ⇒ 后缀包住前缀）。
 #[test]
 fn postfix_index_on_unary_minus_wraps_the_whole_unary() {
     let e = parse("-B2[1]").unwrap();
-    let Expr::Index { target } = &e else { panic!("顶层应为后缀 [...]"); };
-    assert!(matches!(**target, Expr::Unary { op: UnOp::Neg, .. }), "应为 (-B2)[1]");
+    let Expr::Index { target } = &e else {
+        panic!("顶层应为后缀 [...]");
+    };
+    assert!(
+        matches!(**target, Expr::Unary { op: UnOp::Neg, .. }),
+        "应为 (-B2)[1]"
+    );
     // `not`(16) < 后缀(17) ⇒ 后缀先绑：not (B2[1])
     let n = parse("not B2[1]").unwrap();
-    let Expr::Unary { op: UnOp::Not, rhs } = &n else { panic!("顶层应为 not"); };
+    let Expr::Unary { op: UnOp::Not, rhs } = &n else {
+        panic!("顶层应为 not");
+    };
     assert!(matches!(**rhs, Expr::Index { .. }), "应为 not (B2[1])");
 }
 
@@ -154,7 +203,10 @@ fn postfix_index_on_unary_minus_wraps_the_whole_unary() {
 #[test]
 fn cell_reference_wins_over_function_call() {
     let e = parse("B2(1)").unwrap();
-    assert!(matches!(e, Expr::Index { .. }), "`B2(1)` 应为 Offset(CSVariable)");
+    assert!(
+        matches!(e, Expr::Index { .. }),
+        "`B2(1)` 应为 Offset(CSVariable)"
+    );
     let f = parse("sum(1,2)").unwrap();
     assert!(matches!(f, Expr::Call(_)), "`sum(1,2)` 应为函数调用");
 }
@@ -164,11 +216,19 @@ fn cell_reference_wins_over_function_call() {
 fn parameter_forms_are_classified() {
     assert_eq!(
         parse("@p").unwrap(),
-        Expr::Param { name: "p".into(), is_macro: false, value: None }
+        Expr::Param {
+            name: "p".into(),
+            is_macro: false,
+            value: None
+        }
     );
     assert_eq!(
         parse("@@p").unwrap(),
-        Expr::Param { name: "p".into(), is_macro: true, value: None }
+        Expr::Param {
+            name: "p".into(),
+            is_macro: true,
+            value: None
+        }
     );
     assert_eq!(parse("@").unwrap(), Expr::CurrentCell);
     assert!(!ext("@p"), "本切片拿不到参数值 ⇒ 保守取 false");
@@ -180,8 +240,16 @@ fn parameter_forms_are_classified() {
 fn every_formula_appearing_in_the_fixtures_classifies_correctly() {
     // (表达式, 期望 is_extend, 出现于)
     let cases: &[(&str, bool, &str)] = &[
-        ("ds1.select(region)", true, "engine_ext/merge/samemerge/pager/expr"),
-        ("ds1.select(qty)", true, "engine_ext/merge/samemerge/pager/expr/disp"),
+        (
+            "ds1.select(region)",
+            true,
+            "engine_ext/merge/samemerge/pager/expr",
+        ),
+        (
+            "ds1.select(qty)",
+            true,
+            "engine_ext/merge/samemerge/pager/expr/disp",
+        ),
         ("B2", false, "engine_expr/cycle"),
         ("C2", false, "engine_cycle"),
         ("6*1", false, "engine_disp"),

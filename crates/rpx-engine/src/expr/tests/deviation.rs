@@ -22,23 +22,40 @@ use crate::value::Value;
 /// ⇒ 判据是 `instanceof List`、**不看内容**，所以单元素与空 List 都为真。
 #[test]
 fn param_bound_to_a_list_value_is_extendable() {
-    let param = |v: Value| Expr::Param { name: "p".into(), is_macro: false, value: Some(v) };
+    let param = |v: Value| Expr::Param {
+        name: "p".into(),
+        is_macro: false,
+        value: Some(v),
+    };
     // 三个 List 形态全部为真（含空 —— 判据是 instanceof，不看长度）
     for v in [
         Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]),
         Value::List(vec![Value::Int(9)]),
         Value::List(vec![]),
     ] {
-        assert!(param(v.clone()).is_extend(), "`@p` 绑 {v:?} 必须为 true（真机验证）");
+        assert!(
+            param(v.clone()).is_extend(),
+            "`@p` 绑 {v:?} 必须为 true（真机验证）"
+        );
     }
     // 标量参数为假
     for v in [Value::Int(7), Value::Text("x".into())] {
-        assert!(!param(v.clone()).is_extend(), "`@p` 绑 {v:?} 必须为 false（真机验证）");
+        assert!(
+            !param(v.clone()).is_extend(),
+            "`@p` 绑 {v:?} 必须为 false（真机验证）"
+        );
     }
     // 本切片没有 Context ⇒ value 恒 None ⇒ 未知时取 false。
     // 这个默认**由证据支撑**：真机上标量参数确实是 false，所以不会误判标量。
-    let unknown = Expr::Param { name: "p".into(), is_macro: false, value: None };
-    assert!(!unknown.is_extend(), "拿不到参数值时保守取 false（理由见 ast.rs 的 Expr::Param 文档）");
+    let unknown = Expr::Param {
+        name: "p".into(),
+        is_macro: false,
+        value: None,
+    };
+    assert!(
+        !unknown.is_extend(),
+        "拿不到参数值时保守取 false（理由见 ast.rs 的 Expr::Param 文档）"
+    );
 }
 
 /// ⛔ **值层**：单元素 / 空 List 下 `Expr` 的最终形态（team-lead 2026-10 要求补的两条）
@@ -61,28 +78,48 @@ fn param_bound_to_a_list_value_is_extendable() {
 fn single_element_and_empty_list_params_keep_their_value_and_still_extend() {
     // ---- 单元素 ----
     let one = Value::List(vec![Value::Int(9)]);
-    let e1 = Expr::Param { name: "p".into(), is_macro: false, value: Some(one.clone()) };
-    assert!(e1.is_extend(), "单元素 List 仍判真（真机：extend 改写成 18、subCells=1）");
+    let e1 = Expr::Param {
+        name: "p".into(),
+        is_macro: false,
+        value: Some(one.clone()),
+    };
+    assert!(
+        e1.is_extend(),
+        "单元素 List 仍判真（真机：extend 改写成 18、subCells=1）"
+    );
     // 值层：值原样保留，求值期能直接取到，不必回查 Context
-    let Expr::Param { value: Some(v), .. } = &e1 else { panic!("值应保留在节点上") };
+    let Expr::Param { value: Some(v), .. } = &e1 else {
+        panic!("值应保留在节点上")
+    };
     assert_eq!(*v, one, "单元素 List 的值必须原样保留");
 
     // ---- 空 List ----
     let empty = Value::List(vec![]);
-    let e2 = Expr::Param { name: "p".into(), is_macro: false, value: Some(empty.clone()) };
-    assert!(e2.is_extend(), "空 List 也判真（判据是 instanceof，不看长度）");
-    let Expr::Param { value: Some(v), .. } = &e2 else { panic!("值应保留在节点上") };
+    let e2 = Expr::Param {
+        name: "p".into(),
+        is_macro: false,
+        value: Some(empty.clone()),
+    };
+    assert!(
+        e2.is_extend(),
+        "空 List 也判真（判据是 instanceof，不看长度）"
+    );
+    let Expr::Param { value: Some(v), .. } = &e2 else {
+        panic!("值应保留在节点上")
+    };
     assert_eq!(*v, empty, "空 List 的值必须原样保留（长度 0，不是缺值）");
 
     // ---- 两条路径独立性：真机上「extend=18」与「subCells=1」同时成立 ----
     // 本切片不产出 sub_cells（那是扩展算法的产物），但要显式记下这条约束：
     // 实现 M2-15 时**不能**用 subCells 数量反推是否改写，也不能用 extend 反推子格数。
     assert_eq!(
-        (e1.is_extend(), one_list_len(&e1)), (true, 1),
+        (e1.is_extend(), one_list_len(&e1)),
+        (true, 1),
         "改写判定与子格数是两个量：extend 会被改写成 18，而 subCells 仍是 1"
     );
     assert_eq!(
-        (e2.is_extend(), one_list_len(&e2)), (true, 0),
+        (e2.is_extend(), one_list_len(&e2)),
+        (true, 0),
         "空 List：extend 同样改写成 18，subCells 仍是 1（不是 0）"
     );
 }
@@ -90,7 +127,10 @@ fn single_element_and_empty_list_params_keep_their_value_and_still_extend() {
 /// 取参数值里 List 的长度；非 List 记 -1。只给上面那条测试用。
 fn one_list_len(e: &Expr) -> i32 {
     match e {
-        Expr::Param { value: Some(Value::List(items)), .. } => items.len() as i32,
+        Expr::Param {
+            value: Some(Value::List(items)),
+            ..
+        } => items.len() as i32,
         _ => -1,
     }
 }
@@ -102,10 +142,17 @@ fn one_list_len(e: &Expr) -> i32 {
 #[test]
 fn select_brace_is_never_extendable_even_when_its_argument_is() {
     let e = parse("{ds1.select(qty)}").unwrap();
-    let Expr::Select { arg } = &e else { panic!("顶层应为 Select"); };
-    let Expr::Call(inner) = &**arg else { panic!("参数应是 DSSelect 调用"); };
+    let Expr::Select { arg } = &e else {
+        panic!("顶层应为 Select");
+    };
+    let Expr::Call(inner) = &**arg else {
+        panic!("参数应是 DSSelect 调用");
+    };
     assert_eq!(inner.kind, CallKind::DsExtend, "参数本身是可扩展的");
-    assert!(!e.is_extend(), "⛔ 但 Select 读 left（此处 null）⇒ 整条为 false");
+    assert!(
+        !e.is_extend(),
+        "⛔ 但 Select 读 left（此处 null）⇒ 整条为 false"
+    );
     // 同形对照：参数为 ValueList（isExtended=true）也照样 false
     assert!(!ext("{[1,2]}"));
 }
@@ -116,7 +163,11 @@ fn select_brace_is_never_extendable_even_when_its_argument_is() {
 fn dollar_bracket_forms_a_string_constant_not_a_cell_reference() {
     for (src, want) in [("$[abc]", "abc"), ("$[ a b ]", "a b"), ("$[a\\nb]", "a\nb")] {
         let got = parse(src).unwrap();
-        assert_eq!(got, Expr::Const(Value::Text(want.to_string())), "`{src}` 应为常量");
+        assert_eq!(
+            got,
+            Expr::Const(Value::Text(want.to_string())),
+            "`{src}` 应为常量"
+        );
     }
     assert!(!ext("$[1,2]"), "字符串常量不是扩展源（`Value::Text`）");
 }
@@ -129,11 +180,16 @@ fn cell_shape_check_is_marked_provisional() {
     // 形态像格号的数据集列名会被暂定成 CellRef —— 这正是要标记出来的坑
     for id in ["qty1", "amount2", "B2"] {
         let e = parse(id).unwrap();
-        let Expr::CellRef { provisional, .. } = e else { panic!("`{id}` 应暂定为 CellRef"); };
+        let Expr::CellRef { provisional, .. } = e else {
+            panic!("`{id}` 应暂定为 CellRef");
+        };
         assert!(provisional, "`{id}` 的 CellRef 必须标 provisional=true");
     }
     // `provisional` 不影响 is_extend：CSVariable 与 UnknownSymbol 都是 false
-    assert!(!ext("qty1"), "误判不改变 is_extend —— 风险只在求值期（M2-06）");
+    assert!(
+        !ext("qty1"),
+        "误判不改变 is_extend —— 风险只在求值期（M2-06）"
+    );
 }
 
 /// ✅ **转义规则 = `Escape.remove`（`Escape.java:173-214`，逐行核对）**。
@@ -158,7 +214,11 @@ fn string_escapes_follow_escape_remove_exactly() {
     // ⚠ 这条是**源码依据、真机不可达**：产品两条入口都构造不出能走到这里的样本 ——
     //   字面量入口会因为引号不闭合而报错；`$[...]` 入口见下面那条（产品报"未知的单元格：$"）。
     //   实现仍按源码逐行对齐（比"猜一个行为"更保守），但**不宣称已真机验证**。
-    assert_eq!(unescape(r"abc\"), "abc", "尾部孤立反斜杠：产品丢弃（Escape.java:188）");
+    assert_eq!(
+        unescape(r"abc\"),
+        "abc",
+        "尾部孤立反斜杠：产品丢弃（Escape.java:188）"
+    );
     assert_eq!(unescape(r"\"), "", "只有一个孤立反斜杠 ⇒ 空串");
 }
 
@@ -168,8 +228,11 @@ fn string_escapes_follow_escape_remove_exactly() {
 fn dollar_bracket_literal_goes_through_the_same_escape_remove() {
     use crate::value::Value;
     for (src, want) in [("$[abc]", "abc"), ("$[ a b ]", "a b"), ("$[a\\nb]", "a\nb")] {
-        assert_eq!(parse(src).unwrap(), Expr::Const(Value::Text(want.to_string())),
-            "`{src}` 应为字符串常量");
+        assert_eq!(
+            parse(src).unwrap(),
+            Expr::Const(Value::Text(want.to_string())),
+            "`{src}` 应为字符串常量"
+        );
     }
     // ⛔⛔ **实测发现的差异（不是转义规则，是括号配对）**：`$[a\]` 在**产品上报错**
     //   ——「未知的单元格：$」（真机：probe_escape_out.utf8.txt 的 B 组最后一行）。

@@ -123,7 +123,16 @@ fn parse_cell(chunk: &str) -> ExpCell {
                 .collect()
         }
     };
-    ExpCell { r, c, value, ty, disp, src, lh, subs }
+    ExpCell {
+        r,
+        c,
+        value,
+        ty,
+        disp,
+        src,
+        lh,
+        subs,
+    }
 }
 
 /// `"key":` 之后的**原样 token**（字符串**保留**引号、并解掉转义；数字/布尔/null 原样）。
@@ -176,7 +185,8 @@ fn unescape_json(raw: &str) -> Option<String> {
             'b' => out.push('\u{8}'),
             'f' => out.push('\u{c}'),
             'u' => {
-                let code = u32::from_str_radix(&it.by_ref().take(4).collect::<String>(), 16).ok()?;
+                let code =
+                    u32::from_str_radix(&it.by_ref().take(4).collect::<String>(), 16).ok()?;
                 if (0xD800..0xDC00).contains(&code) {
                     // 高代理：后随 `\uDC00..\uDFFF` 才拼得回一个字符
                     let mut probe = it.clone();
@@ -221,7 +231,9 @@ fn slice_from<'a>(text: &'a str, marker: &str) -> Option<&'a str> {
 fn int_after(text: &str, key: &str) -> Option<i64> {
     let at = text.find(key)? + key.len();
     let rest = &text[at..];
-    let end = rest.find(|c: char| !c.is_ascii_digit() && c != '-').unwrap_or(rest.len());
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit() && c != '-')
+        .unwrap_or(rest.len());
     rest[..end].parse().ok()
 }
 

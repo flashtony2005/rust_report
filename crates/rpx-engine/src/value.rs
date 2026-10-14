@@ -103,6 +103,26 @@ impl Value {
     }
 }
 
+/// `Variant2.getSingleValue`（`Variant2.java:85-94`）：**空 `List` → `null`、
+/// 非空 `List` → 首元素、其余原样**。
+///
+/// 产品里所有"聚合一个 List"的函数（`Sum` / `Average` / `Max` / `Min` /
+/// `Variant2.equals`）都先过这一层，所以它必须是**全仓唯一一份** ——
+/// 两处并行声明迟早漂移（本仓 `silent-failure-hunt` 记过的老毛病）。
+/// 2026-10-13 收敛：此前 `merge.rs` 有一份私有副本，`expr/dsfn.rs` 的
+/// `sum_list` 则**完全没过这一层**（见那边的 §M2-12 注记）。
+///
+/// ⚠ 与 Java 的一处**已声明近似**：Java 的 `getSingleValue` 会先过
+/// `Variant2.getValue` 拆 `Variable` / `DispValue` 包装（`:86`），而本 crate
+/// 的值已是裸值，无需拆。
+pub(crate) fn single_value(v: &Value) -> Option<&Value> {
+    match v {
+        Value::Null => None,
+        Value::List(items) => items.first(),
+        other => Some(other),
+    }
+}
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -183,10 +203,7 @@ mod tests {
 
     #[test]
     fn list_display_is_java_like_which_is_how_the_engine_prints_sub_values() {
-        let list = Value::List(vec![
-            Value::Text("R1".into()),
-            Value::Text("R2".into()),
-        ]);
+        let list = Value::List(vec![Value::Text("R1".into()), Value::Text("R2".into())]);
         assert_eq!(list.to_string(), "[R1,R2]");
     }
 

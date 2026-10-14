@@ -26,8 +26,10 @@ pub fn json_merges(j: &J) -> Vec<MergeRect> {
         return out;
     };
     for jc in cells {
-        let (Some(row), Some(col)) = (jc.get("row").and_then(|v| v.as_i64()), jc.get("col").and_then(|v| v.as_i64()))
-        else {
+        let (Some(row), Some(col)) = (
+            jc.get("row").and_then(|v| v.as_i64()),
+            jc.get("col").and_then(|v| v.as_i64()),
+        ) else {
             continue;
         };
         let Some(m) = jc.get("merged") else { continue };

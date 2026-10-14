@@ -37,7 +37,8 @@ impl Json {
     }
 
     pub fn req(&self, key: &str) -> &Json {
-        self.get(key).unwrap_or_else(|| panic!("缺少必填键 `{key}`"))
+        self.get(key)
+            .unwrap_or_else(|| panic!("缺少必填键 `{key}`"))
     }
 
     pub fn as_str(&self) -> &str {

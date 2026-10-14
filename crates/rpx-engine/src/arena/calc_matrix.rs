@@ -90,7 +90,14 @@ impl CalcMatrix {
     ///
     /// 对齐 `ExtCellSet._$1(startRow, startCol, endRow, endCol, head):706-712`。
     /// 合并区、扩展时整块复制、`expand*Head` 的重铺都走这一条。
-    pub fn fill_rect(&mut self, begin_row: i32, begin_col: i32, end_row: i32, end_col: i32, id: CellId) {
+    pub fn fill_rect(
+        &mut self,
+        begin_row: i32,
+        begin_col: i32,
+        end_row: i32,
+        end_col: i32,
+        id: CellId,
+    ) {
         let r0 = begin_row.max(0);
         let c0 = begin_col.max(0);
         for r in r0..end_row.min(self.rows) {

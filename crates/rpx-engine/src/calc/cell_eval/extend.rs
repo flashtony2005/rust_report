@@ -107,7 +107,7 @@ fn list_branch(ctx: &mut CalcCtx, id: CellId, list: Vec<Value>) -> Result<(), Fl
     let old_val = ctx.value_of(id);
     let calc_before = !ctx.rt(id).is_some_and(|r| r.non_calc());
     let old_cur_ds = ctx.rt(id).and_then(|r| r.instance); // :398 `oldCurDs = this._$4`
-    // :400-404：`oldDs` 只在元素有 DsValue 身份时取（旁路有记录 ⟺ 是）。
+                                                          // :400-404：`oldDs` 只在元素有 DsValue 身份时取（旁路有记录 ⟺ 是）。
     let note = ctx.ds_list_note();
     let old_ds = match &note {
         Some((d, _)) => ctx.ds_spot(*d).value,

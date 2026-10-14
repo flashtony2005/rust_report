@@ -44,17 +44,45 @@ fn check(name: &str, rpx: &[u8], j: J) {
     assert_eq!(r.col_cells.len(), cols - 1, "{}: col_cells", name);
 
     // ---- 行高列宽 ----
-    let rh: Vec<f64> = j.get("row_heights").unwrap().as_arr().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-    let cw: Vec<f64> = j.get("col_widths").unwrap().as_arr().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let rh: Vec<f64> = j
+        .get("row_heights")
+        .unwrap()
+        .as_arr()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap())
+        .collect();
+    let cw: Vec<f64> = j
+        .get("col_widths")
+        .unwrap()
+        .as_arr()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap())
+        .collect();
     assert_eq!(rh.len(), rows - 1, "{}: row_heights len", name);
     assert_eq!(cw.len(), cols - 1, "{}: col_widths len", name);
     for (i, want) in rh.iter().enumerate() {
         let got = r.row_height(i + 1).unwrap() as f64;
-        assert!((got - want).abs() < TOL, "{}: row_height[{}] got {} want {}", name, i + 1, got, want);
+        assert!(
+            (got - want).abs() < TOL,
+            "{}: row_height[{}] got {} want {}",
+            name,
+            i + 1,
+            got,
+            want
+        );
     }
     for (i, want) in cw.iter().enumerate() {
         let got = r.col_width(i + 1).unwrap() as f64;
-        assert!((got - want).abs() < TOL, "{}: col_width[{}] got {} want {}", name, i + 1, got, want);
+        assert!(
+            (got - want).abs() < TOL,
+            "{}: col_width[{}] got {} want {}",
+            name,
+            i + 1,
+            got,
+            want
+        );
     }
 
     // ---- 单元格 ----
@@ -71,92 +99,263 @@ fn check(name: &str, rpx: &[u8], j: J) {
         // value（类型敏感）
         if let Some(v) = jc.get("value") {
             match v {
-                J::Str(s) => assert_eq!(&cell.value, &ObjValue::Str(s.clone()), "{}: ({},{}) value", name, row, col),
+                J::Str(s) => assert_eq!(
+                    &cell.value,
+                    &ObjValue::Str(s.clone()),
+                    "{}: ({},{}) value",
+                    name,
+                    row,
+                    col
+                ),
                 J::Num(n) => {
                     if n.contains('.') || n.contains('e') || n.contains('E') {
                         let want: f64 = n.parse().unwrap();
                         match &cell.value {
-                            ObjValue::Double(d) => assert!((*d - want).abs() < TOL, "{}: ({},{}) double", name, row, col),
-                            ObjValue::Float(f) => assert!((*f as f64 - want).abs() < TOL, "{}: ({},{}) float", name, row, col),
-                            other => panic!("{}: ({},{}) want double got {:?}", name, row, col, other),
+                            ObjValue::Double(d) => assert!(
+                                (*d - want).abs() < TOL,
+                                "{}: ({},{}) double",
+                                name,
+                                row,
+                                col
+                            ),
+                            ObjValue::Float(f) => assert!(
+                                (*f as f64 - want).abs() < TOL,
+                                "{}: ({},{}) float",
+                                name,
+                                row,
+                                col
+                            ),
+                            other => {
+                                panic!("{}: ({},{}) want double got {:?}", name, row, col, other)
+                            }
                         }
                     } else {
                         let want: i64 = n.parse().unwrap();
                         match &cell.value {
-                            ObjValue::Int(i) => assert_eq!(*i as i64, want, "{}: ({},{}) int", name, row, col),
-                            ObjValue::Long(l) => assert_eq!(*l, want, "{}: ({},{}) long", name, row, col),
+                            ObjValue::Int(i) => {
+                                assert_eq!(*i as i64, want, "{}: ({},{}) int", name, row, col)
+                            }
+                            ObjValue::Long(l) => {
+                                assert_eq!(*l, want, "{}: ({},{}) long", name, row, col)
+                            }
                             other => panic!("{}: ({},{}) want int got {:?}", name, row, col, other),
                         }
                     }
                 }
-                J::Bool(b) => assert_eq!(&cell.value, &ObjValue::Bool(*b), "{}: ({},{}) bool", name, row, col),
-                J::Null => assert_eq!(cell.value, ObjValue::Null, "{}: ({},{}) null", name, row, col),
+                J::Bool(b) => assert_eq!(
+                    &cell.value,
+                    &ObjValue::Bool(*b),
+                    "{}: ({},{}) bool",
+                    name,
+                    row,
+                    col
+                ),
+                J::Null => assert_eq!(
+                    cell.value,
+                    ObjValue::Null,
+                    "{}: ({},{}) null",
+                    name,
+                    row,
+                    col
+                ),
                 _ => panic!("{}: ({},{}) unexpected value JSON", name, row, col),
             }
         }
 
         // dispValue
         if let Some(dv) = jc.get("dispValue") {
-            assert_eq!(cell.disp_value.as_deref(), dv.as_str(), "{}: ({},{}) dispValue", name, row, col);
+            assert_eq!(
+                cell.disp_value.as_deref(),
+                dv.as_str(),
+                "{}: ({},{}) dispValue",
+                name,
+                row,
+                col
+            );
         }
         // extendMode
         if let Some(em) = jc.get("extendMode") {
-            assert_eq!(cell.extend_mode as i64, em.as_i64().unwrap(), "{}: ({},{}) extendMode", name, row, col);
+            assert_eq!(
+                cell.extend_mode as i64,
+                em.as_i64().unwrap(),
+                "{}: ({},{}) extendMode",
+                name,
+                row,
+                col
+            );
         }
         // 对齐
         if let Some(h) = jc.get("hAlign") {
-            assert_eq!(cell.h_align as i64, h.as_i64().unwrap(), "{}: ({},{}) hAlign", name, row, col);
+            assert_eq!(
+                cell.h_align as i64,
+                h.as_i64().unwrap(),
+                "{}: ({},{}) hAlign",
+                name,
+                row,
+                col
+            );
         }
         if let Some(v) = jc.get("vAlign") {
-            assert_eq!(cell.v_align as i64, v.as_i64().unwrap(), "{}: ({},{}) vAlign", name, row, col);
+            assert_eq!(
+                cell.v_align as i64,
+                v.as_i64().unwrap(),
+                "{}: ({},{}) vAlign",
+                name,
+                row,
+                col
+            );
         }
         // 字体
         if let Some(f) = jc.get("fontName") {
-            assert_eq!(cell.font_name.as_deref(), f.as_str(), "{}: ({},{}) fontName", name, row, col);
+            assert_eq!(
+                cell.font_name.as_deref(),
+                f.as_str(),
+                "{}: ({},{}) fontName",
+                name,
+                row,
+                col
+            );
         }
         if let Some(fs) = jc.get("fontSize") {
-            assert_eq!(cell.font_size as i64, fs.as_i64().unwrap(), "{}: ({},{}) fontSize", name, row, col);
+            assert_eq!(
+                cell.font_size as i64,
+                fs.as_i64().unwrap(),
+                "{}: ({},{}) fontSize",
+                name,
+                row,
+                col
+            );
         }
         // 位标志
         if let Some(b) = jc.get("bold") {
-            assert_eq!(cell.bold(), b.as_bool().unwrap(), "{}: ({},{}) bold", name, row, col);
+            assert_eq!(
+                cell.bold(),
+                b.as_bool().unwrap(),
+                "{}: ({},{}) bold",
+                name,
+                row,
+                col
+            );
         }
         if let Some(b) = jc.get("italic") {
-            assert_eq!(cell.italic(), b.as_bool().unwrap(), "{}: ({},{}) italic", name, row, col);
+            assert_eq!(
+                cell.italic(),
+                b.as_bool().unwrap(),
+                "{}: ({},{}) italic",
+                name,
+                row,
+                col
+            );
         }
         if let Some(b) = jc.get("underline") {
-            assert_eq!(cell.underline(), b.as_bool().unwrap(), "{}: ({},{}) underline", name, row, col);
+            assert_eq!(
+                cell.underline(),
+                b.as_bool().unwrap(),
+                "{}: ({},{}) underline",
+                name,
+                row,
+                col
+            );
         }
         if let Some(b) = jc.get("textWrap") {
-            assert_eq!(cell.text_wrap(), b.as_bool().unwrap(), "{}: ({},{}) textWrap", name, row, col);
+            assert_eq!(
+                cell.text_wrap(),
+                b.as_bool().unwrap(),
+                "{}: ({},{}) textWrap",
+                name,
+                row,
+                col
+            );
         }
         if let Some(b) = jc.get("visible") {
-            assert_eq!(cell.visible(), b.as_bool().unwrap(), "{}: ({},{}) visible", name, row, col);
+            assert_eq!(
+                cell.visible(),
+                b.as_bool().unwrap(),
+                "{}: ({},{}) visible",
+                name,
+                row,
+                col
+            );
         }
         // 颜色
         if let Some(c) = jc.get("foreColor") {
-            assert_eq!(cell.fore_color as i64, c.as_i64().unwrap(), "{}: ({},{}) foreColor", name, row, col);
+            assert_eq!(
+                cell.fore_color as i64,
+                c.as_i64().unwrap(),
+                "{}: ({},{}) foreColor",
+                name,
+                row,
+                col
+            );
         }
         if let Some(c) = jc.get("backColor") {
-            assert_eq!(cell.back_color as i64, c.as_i64().unwrap(), "{}: ({},{}) backColor", name, row, col);
+            assert_eq!(
+                cell.back_color as i64,
+                c.as_i64().unwrap(),
+                "{}: ({},{}) backColor",
+                name,
+                row,
+                col
+            );
         }
         // 其他样式
         if let Some(f) = jc.get("format") {
-            assert_eq!(cell.format.as_deref(), f.as_str(), "{}: ({},{}) format", name, row, col);
+            assert_eq!(
+                cell.format.as_deref(),
+                f.as_str(),
+                "{}: ({},{}) format",
+                name,
+                row,
+                col
+            );
         }
         if let Some(ra) = jc.get("rotationAngle") {
-            assert!((cell.rotation_angle as f64 - ra.as_f64().unwrap()).abs() < TOL, "{}: ({},{}) rotationAngle", name, row, col);
+            assert!(
+                (cell.rotation_angle as f64 - ra.as_f64().unwrap()).abs() < TOL,
+                "{}: ({},{}) rotationAngle",
+                name,
+                row,
+                col
+            );
         }
         if let Some(ind) = jc.get("indent") {
-            assert!((cell.indent as f64 - ind.as_f64().unwrap()).abs() < TOL, "{}: ({},{}) indent", name, row, col);
+            assert!(
+                (cell.indent as f64 - ind.as_f64().unwrap()).abs() < TOL,
+                "{}: ({},{}) indent",
+                name,
+                row,
+                col
+            );
         }
         // 合并区
         if let Some(m) = jc.get("merged") {
-            let area = cell.merged_area.unwrap_or_else(|| panic!("{}: ({},{}) merged missing", name, row, col));
-            assert_eq!(area.begin_row as i64, m.get("begin_row").unwrap().as_i64().unwrap(), "{}: merged begin_row", name);
-            assert_eq!(area.begin_col as i64, m.get("begin_col").unwrap().as_i64().unwrap(), "{}: merged begin_col", name);
-            assert_eq!(area.end_row as i64, m.get("end_row").unwrap().as_i64().unwrap(), "{}: merged end_row", name);
-            assert_eq!(area.end_col as i64, m.get("end_col").unwrap().as_i64().unwrap(), "{}: merged end_col", name);
+            let area = cell
+                .merged_area
+                .unwrap_or_else(|| panic!("{}: ({},{}) merged missing", name, row, col));
+            assert_eq!(
+                area.begin_row as i64,
+                m.get("begin_row").unwrap().as_i64().unwrap(),
+                "{}: merged begin_row",
+                name
+            );
+            assert_eq!(
+                area.begin_col as i64,
+                m.get("begin_col").unwrap().as_i64().unwrap(),
+                "{}: merged begin_col",
+                name
+            );
+            assert_eq!(
+                area.end_row as i64,
+                m.get("end_row").unwrap().as_i64().unwrap(),
+                "{}: merged end_row",
+                name
+            );
+            assert_eq!(
+                area.end_col as i64,
+                m.get("end_col").unwrap().as_i64().unwrap(),
+                "{}: merged end_col",
+                name
+            );
         }
     }
 
@@ -173,7 +372,9 @@ fn check(name: &str, rpx: &[u8], j: J) {
                 assert!(
                     expected_keys.contains(&(row, col)),
                     "{}: non-default cell ({},{}) missing from expected.json",
-                    name, row, col
+                    name,
+                    row,
+                    col
                 );
             }
         }
@@ -219,7 +420,11 @@ fn rejects_bad_magic() {
     bytes.extend_from_slice(&[0, 0, 0, 8]);
     bytes.extend_from_slice(&[0u8; 16]);
     let err = rpx_core::open_bytes(&bytes).unwrap_err();
-    assert!(matches!(err, rpx_core::RpxError::UnsupportedFormat), "got {:?}", err);
+    assert!(
+        matches!(err, rpx_core::RpxError::UnsupportedFormat),
+        "got {:?}",
+        err
+    );
 }
 
 #[test]
@@ -227,7 +432,11 @@ fn rejects_truncated_payload() {
     let (rpx, _) = load!("simple");
     let cut = &rpx[..8 + 100]; // 声明 3610，实际只有 100
     let err = rpx_core::open_bytes(cut).unwrap_err();
-    assert!(matches!(err, rpx_core::RpxError::Truncated { .. }), "got {:?}", err);
+    assert!(
+        matches!(err, rpx_core::RpxError::Truncated { .. }),
+        "got {:?}",
+        err
+    );
 }
 
 #[test]
@@ -237,7 +446,11 @@ fn rejects_bad_footer() {
     let n = bytes.len();
     bytes[n - 1] ^= 0xFF; // 破坏页脚
     let err = rpx_core::open_bytes(&bytes).unwrap_err();
-    assert!(matches!(err, rpx_core::RpxError::BadFooter), "got {:?}", err);
+    assert!(
+        matches!(err, rpx_core::RpxError::BadFooter),
+        "got {:?}",
+        err
+    );
 }
 
 /// 健壮性扫掠：三个夹具的每个前缀长度都必须优雅返回 Err，绝不 panic。
@@ -256,10 +469,15 @@ fn never_panics_on_any_truncation() {
             assert!(
                 err.is_err(),
                 "{}: prefix of {} bytes parsed successfully (must be Truncated)",
-                name, cut
+                name,
+                cut
             );
         }
         // 完整文件必须成功
-        assert!(rpx_core::open_bytes(rpx).is_ok(), "{}: full file must parse", name);
+        assert!(
+            rpx_core::open_bytes(rpx).is_ok(),
+            "{}: full file must parse",
+            name
+        );
     }
 }

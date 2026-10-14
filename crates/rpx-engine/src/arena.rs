@@ -34,7 +34,7 @@ mod source_ref;
 #[cfg(test)]
 mod tests;
 
-pub use calc_grid::{CalcCell, CalcGrid, SubValue};
+pub use calc_grid::{CalcCell, CalcGrid, MergedCell, SubValue};
 pub use calc_matrix::CalcMatrix;
 pub use engine_matrix::EngineMatrix;
 pub use source_ref::SourceRef;

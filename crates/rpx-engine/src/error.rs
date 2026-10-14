@@ -22,7 +22,12 @@ pub enum EngineError {
     /// 语法或函数面暂不支持。
     UnsupportedExpr { expr: String },
     /// 表达式求值出的格号越界。
-    OutOfRange { row: i32, col: i32, rows: i32, cols: i32 },
+    OutOfRange {
+        row: i32,
+        col: i32,
+        rows: i32,
+        cols: i32,
+    },
     /// 报表声明了数据集但运行时没注入。
     MissingDataset { name: String },
     /// 计算被外部中断（Java 的 `_$8()`：`_$11` 标志为真时抛
@@ -60,7 +65,12 @@ impl fmt::Display for EngineError {
             EngineError::UnsupportedExpr { expr } => {
                 write!(f, "unsupported expression: {expr}")
             }
-            EngineError::OutOfRange { row, col, rows, cols } => {
+            EngineError::OutOfRange {
+                row,
+                col,
+                rows,
+                cols,
+            } => {
                 write!(f, "cell ({row},{col}) out of range {rows}x{cols}")
             }
             EngineError::MissingDataset { name } => {
@@ -68,7 +78,10 @@ impl fmt::Display for EngineError {
             }
             EngineError::Interrupted => write!(f, "calculation is interrupted"),
             EngineError::SpecialQueueLivelock { requeues } => {
-                write!(f, "special queue requeued {requeues} times without progress")
+                write!(
+                    f,
+                    "special queue requeued {requeues} times without progress"
+                )
             }
             EngineError::EntendCol { row } => {
                 write!(f, "ExtCellSet.entendCol: row {row} is not a row-header row")
@@ -90,7 +103,9 @@ mod tests {
 
     #[test]
     fn circular_ref_keeps_the_chain_not_the_localised_text() {
-        let e = EngineError::CircularRef { chain: "B2-C2-B2-C2".into() };
+        let e = EngineError::CircularRef {
+            chain: "B2-C2-B2-C2".into(),
+        };
         assert_eq!(e.to_string(), "circular reference: B2-C2-B2-C2");
     }
 

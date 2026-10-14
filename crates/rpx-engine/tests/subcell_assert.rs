@@ -85,7 +85,10 @@ fn sub_values_length_always_equals_sub_cells() {
         let s = cell.source.as_ref().unwrap();
         anchors_seen += 1;
         let sv = s.sub_values.as_ref().unwrap_or_else(|| {
-            panic!("{name}: ({},{}) sub_cells={} 却缺 sub_values", cell.r, cell.c, s.sub_cells)
+            panic!(
+                "{name}: ({},{}) sub_cells={} 却缺 sub_values",
+                cell.r, cell.c, s.sub_cells
+            )
         });
         assert!(
             !sv.is_empty(),
@@ -127,9 +130,9 @@ fn every_sub_value_matches_the_top_level_cell_at_the_same_coordinate() {
                 g.rows,
                 g.cols
             );
-            let top = g
-                .cell(v.r, v.c)
-                .unwrap_or_else(|| panic!("{name}: 附属格 ({},{}) 在顶层 cells 里不存在", v.r, v.c));
+            let top = g.cell(v.r, v.c).unwrap_or_else(|| {
+                panic!("{name}: 附属格 ({},{}) 在顶层 cells 里不存在", v.r, v.c)
+            });
             assert_eq!(
                 v.value_raw, top.value_raw,
                 "{name}: 附属格 ({},{}) 的值与顶层格不一致（应同为下发值，非重新求值）",
@@ -138,8 +141,7 @@ fn every_sub_value_matches_the_top_level_cell_at_the_same_coordinate() {
             assert_eq!(
                 v.declared_type, top.declared_type,
                 "{name}: 附属格 ({},{}) 的类型与顶层格不一致",
-                v.r,
-                v.c
+                v.r, v.c
             );
             assert!(
                 !seen.contains(&(v.r, v.c)),
@@ -194,19 +196,33 @@ fn vertical_anchor_sub_values_run_down_the_column_with_step_row_merge() {
             for v in sv {
                 assert_eq!(
                     v.c, s.src_col,
-                    "{name}: 纵向锚点 ({},{}) 的附属格应与锚点同列（src_col={}）", cell.r, cell.c, s.src_col
+                    "{name}: 纵向锚点 ({},{}) 的附属格应与锚点同列（src_col={}）",
+                    cell.r, cell.c, s.src_col
                 );
             }
             for w in rows.windows(2) {
-                assert!(w[1] > w[0], "{name}: 纵向锚点 ({},{}) 附属格行号应严格升序", cell.r, cell.c);
+                assert!(
+                    w[1] > w[0],
+                    "{name}: 纵向锚点 ({},{}) 附属格行号应严格升序",
+                    cell.r,
+                    cell.c
+                );
                 assert_eq!(
-                    w[1] - w[0], s.row_merge,
-                    "{name}: 纵向锚点 ({},{}) 附属格行步长应为 row_merge={}", cell.r, cell.c, s.row_merge
+                    w[1] - w[0],
+                    s.row_merge,
+                    "{name}: 纵向锚点 ({},{}) 附属格行步长应为 row_merge={}",
+                    cell.r,
+                    cell.c,
+                    s.row_merge
                 );
             }
             assert!(
                 rows[0] >= s.src_row,
-                "{name}: 纵向锚点 ({},{}) 首行 {} 不应小于模板行 src_row={}", cell.r, cell.c, rows[0], s.src_row
+                "{name}: 纵向锚点 ({},{}) 首行 {} 不应小于模板行 src_row={}",
+                cell.r,
+                cell.c,
+                rows[0],
+                s.src_row
             );
             by_col.push((s.src_col, cell.r, rows));
             checked += sv.len();
@@ -253,7 +269,9 @@ fn horizontal_anchor_sub_values_run_along_one_row() {
                 v.c,
                 s.src_col + k as i32 * s.col_merge,
                 "{name}: 横向锚点 ({},{}) 第 {k} 个附属格列号应为 src_col + {k}*{}",
-                cell.r, cell.c, s.col_merge
+                cell.r,
+                cell.c,
+                s.col_merge
             );
             checked += 1;
         }

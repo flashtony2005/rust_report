@@ -45,7 +45,10 @@ impl EvalCtx for CalcCtx {
     }
 
     fn left_head(&self, c: CellId) -> CellId {
-        self.grid.get(c).map(|h| h.left_head).unwrap_or(CellId::NONE)
+        self.grid
+            .get(c)
+            .map(|h| h.left_head)
+            .unwrap_or(CellId::NONE)
     }
 
     fn top_head(&self, c: CellId) -> CellId {
@@ -54,11 +57,17 @@ impl EvalCtx for CalcCtx {
 
     fn left_subs(&self, c: CellId) -> Vec<CellId> {
         // `ExtExtendCell._$6`：仅扩展格与 root 维护（`HeadCell.left_subs` 的文档）。
-        self.grid.get(c).map(|h| h.left_subs.clone()).unwrap_or_default()
+        self.grid
+            .get(c)
+            .map(|h| h.left_subs.clone())
+            .unwrap_or_default()
     }
 
     fn top_subs(&self, c: CellId) -> Vec<CellId> {
-        self.grid.get(c).map(|h| h.top_subs.clone()).unwrap_or_default()
+        self.grid
+            .get(c)
+            .map(|h| h.top_subs.clone())
+            .unwrap_or_default()
     }
 
     fn ext_cells(&self, c: CellId) -> Vec<CellId> {
@@ -134,7 +143,11 @@ impl EvalCtx for CalcCtx {
         // `HeadGrid::get_source_by_id` 查不到返回 `NONE`，这里翻成 `None`
         // （`resolve_cell` 对 `None` 直接返回"解析不到"）。
         let c = self.grid.get_source_by_id(id);
-        if c.is_none() { None } else { Some(c) }
+        if c.is_none() {
+            None
+        } else {
+            Some(c)
+        }
     }
 
     fn ds(&mut self, name: &str) -> Option<&mut DataSet> {

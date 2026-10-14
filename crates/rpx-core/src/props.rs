@@ -166,7 +166,10 @@ mod tests {
     #[test]
     fn default_bit_flags_only_visible() {
         assert_eq!(bit::DEFAULT_FLAGS, bit::VISIBLE);
-        assert_eq!(bit::DEFAULT_FLAGS & (bit::BOLD | bit::ITALIC | bit::UNDERLINE | bit::TEXT_WRAP), 0);
+        assert_eq!(
+            bit::DEFAULT_FLAGS & (bit::BOLD | bit::ITALIC | bit::UNDERLINE | bit::TEXT_WRAP),
+            0
+        );
     }
 
     /// 契约附件 B 的槽位数不得随重构漂移（RowCell 10 / ColCell 8 / NormalCell 49）。

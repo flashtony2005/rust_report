@@ -85,6 +85,11 @@ pub struct CellRuntime {
     pub state: u8,
     /// `_$4`：本格当前代表的 DsValue 实例（只有扩展格会写）。
     pub instance: Option<DsInstance>,
+    /// 非值表达式的属性表达式（Java `propEngMap` / RowCellEngine / ColCellEngine）。
+    /// Clone 时随格一起复制；扩展实例按各自 current 求值。
+    pub property_exprs: Vec<(u8, Expr)>,
+    /// `calcProperties` 的运行态覆盖值（Java `propSetMap` / `customPropSetMap`）。
+    pub property_values: Vec<(u8, crate::value::Value)>,
 }
 
 impl CellRuntime {
@@ -98,6 +103,8 @@ impl CellRuntime {
             demanded: false,
             state: 0,
             instance: None,
+            property_exprs: Vec::new(),
+            property_values: Vec::new(),
         }
     }
 

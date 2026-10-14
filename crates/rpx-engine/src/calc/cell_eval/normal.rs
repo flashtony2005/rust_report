@@ -19,7 +19,11 @@ use crate::eval::Flow;
 use crate::value::Value;
 
 /// 普通格取值写值 + dispValue（`ExtNormalCell.java:652-675`）。
-pub(crate) fn normal_calculate(ctx: &mut CalcCtx, id: crate::arena::CellId, result: Value) -> Result<(), Flow> {
+pub(crate) fn normal_calculate(
+    ctx: &mut CalcCtx,
+    id: crate::arena::CellId,
+    result: Value,
+) -> Result<(), Flow> {
     let cell_type = ctx.cell_type(id);
     if cell_type == -60 {
         // :653-658：子报表（`getValue() instanceof ExtCellSet` + `getSubRptType()==2`

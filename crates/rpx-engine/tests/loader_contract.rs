@@ -78,7 +78,10 @@ fn unknown_row_cell_keys_are_kept_in_extra_not_dropped() {
     for rc in &fx.row_cells {
         for (k, _) in &rc.extra {
             assert!(
-                !matches!(k.as_str(), "r" | "row_type" | "group_header_level" | "row_height"),
+                !matches!(
+                    k.as_str(),
+                    "r" | "row_type" | "group_header_level" | "row_height"
+                ),
                 "已知键 {k} 不该出现在 extra"
             );
         }
@@ -90,7 +93,12 @@ fn unknown_row_cell_keys_are_kept_in_extra_not_dropped() {
         .iter()
         .flat_map(|rc| rc.extra.iter().map(|(k, v)| (k.as_str(), v.as_str())))
         .collect();
-    for key in ["height_exp", "exp_channel", "computed_anchor_row", "computed_row_heights"] {
+    for key in [
+        "height_exp",
+        "exp_channel",
+        "computed_anchor_row",
+        "computed_row_heights",
+    ] {
         assert!(
             extras.iter().any(|(k, _)| *k == key),
             "engine_rowheight 的 `{key}` 不该被加载器丢弃；已收进 extra 的是 {extras:?}"

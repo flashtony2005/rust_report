@@ -20,7 +20,7 @@ use crate::expr::eval::{evaluate, EvalCtx};
 use crate::expr::parse;
 use crate::value::Value;
 
-struct FCell {
+pub(crate) struct FCell {
     src: CellId,
     lh: CellId,
     th: CellId,
@@ -31,7 +31,7 @@ struct FCell {
     val: Value,
 }
 
-struct Fake {
+pub(crate) struct Fake {
     cells: Vec<FCell>,
     by_id: HashMap<String, CellId>,
     cur: CellId,
@@ -40,7 +40,7 @@ struct Fake {
 }
 
 impl Fake {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let root = FCell {
             src: CellId::ROOT,
             lh: CellId::NONE,
@@ -60,7 +60,7 @@ impl Fake {
         }
     }
     /// 引擎矩阵本体格：`source` = 自身，head 兜底到 ROOT。
-    fn put(&mut self, id: &str, ext: i8, val: Value) -> CellId {
+    pub(crate) fn put(&mut self, id: &str, ext: i8, val: Value) -> CellId {
         let cid = CellId(self.cells.len() as u32);
         self.cells.push(FCell {
             src: cid,
@@ -78,7 +78,7 @@ impl Fake {
         cid
     }
     /// 扩展实例：`source` = 引擎原点。
-    fn put_inst(&mut self, src: CellId, ext: i8, val: Value) -> CellId {
+    pub(crate) fn put_inst(&mut self, src: CellId, ext: i8, val: Value) -> CellId {
         let cid = CellId(self.cells.len() as u32);
         self.cells.push(FCell {
             src,
@@ -92,14 +92,31 @@ impl Fake {
         });
         cid
     }
-    fn reg_left(&mut self, head: CellId, sub: CellId) {
+    pub(crate) fn reg_left(&mut self, head: CellId, sub: CellId) {
         self.cells[head.0 as usize].lsubs.push(sub);
     }
-    fn reg_top(&mut self, head: CellId, sub: CellId) {
+    pub(crate) fn reg_top(&mut self, head: CellId, sub: CellId) {
         self.cells[head.0 as usize].tsubs.push(sub);
     }
-    fn ds3(name: &str, col: &str, vals: &[i32]) -> DataSet {
-        DataSet::new(name, &[col], vals.iter().map(|v| vec![Value::Int(*v)]).collect())
+    pub(crate) fn ds3(name: &str, col: &str, vals: &[i32]) -> DataSet {
+        DataSet::new(
+            name,
+            &[col],
+            vals.iter().map(|v| vec![Value::Int(*v)]).collect(),
+        )
+    }
+    /// 拨当前格指针（`_$21`）。兄弟测试模块不用直接摸 `cur` 字段。
+    pub(crate) fn set_cur(&mut self, c: CellId) {
+        self.cur = c;
+    }
+    /// 注册数据集。`tests_aggregate` 等兄弟测试模块要造非 Int 列，走这个入口，
+    /// 免得为了复用把 `dss` 字段公开出去。
+    pub(crate) fn push_ds(&mut self, ds: DataSet) {
+        self.dss.push(ds);
+    }
+    /// 把第 `i` 个数据集的指针拨到第 `row` 行（Row 态，`DSSum.java:46`）。
+    pub(crate) fn ds_set_row(&mut self, i: usize, row: usize) {
+        self.dss[i].set_current(DsCur::Row(row));
     }
 }
 

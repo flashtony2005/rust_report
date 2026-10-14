@@ -122,7 +122,10 @@ mod tests {
         // 短行补 Null，长行截断：下游 row[col] 不再可能越界。
         let (_, rows) = parse_csv(b"a\tb\nonly-a\nx\ty\tz\n", "t").unwrap();
         assert_eq!(rows[0], vec![Value::Text("only-a".into()), Value::Null]);
-        assert_eq!(rows[1], vec![Value::Text("x".into()), Value::Text("y".into())]);
+        assert_eq!(
+            rows[1],
+            vec![Value::Text("x".into()), Value::Text("y".into())]
+        );
     }
 
     #[test]

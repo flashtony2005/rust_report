@@ -129,7 +129,12 @@ pub(crate) fn test_value(ctx: &mut CalcCtx, id: CellId, depth: u32) -> Result<()
         }));
     }
     let (non_calc, has_expr, engine_state, demanded) = match ctx.grid.get(id) {
-        Some(h) => (h.rt.non_calc(), h.rt.expr.is_some(), h.rt.state, h.rt.demanded),
+        Some(h) => (
+            h.rt.non_calc(),
+            h.rt.expr.is_some(),
+            h.rt.state,
+            h.rt.demanded,
+        ),
         None => return Ok(()),
     };
     if non_calc {

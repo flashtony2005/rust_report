@@ -35,7 +35,13 @@ impl FakeCell {
 
     /// 扩展格（`ExtExtendCell`）。
     pub(crate) fn extender(inst: Option<DsInstance>, ext: Vec<CellId>) -> Self {
-        FakeCell { left: CellId::NONE, top: CellId::NONE, extender: true, inst, ext }
+        FakeCell {
+            left: CellId::NONE,
+            top: CellId::NONE,
+            extender: true,
+            inst,
+            ext,
+        }
     }
 }
 

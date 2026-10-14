@@ -37,8 +37,8 @@
 //!    用 `i32::MIN` 兜底只是防御，不是语义。
 
 use crate::arena::CellId;
-use crate::eval::Flow;
 use crate::eval::sched::SchedGrid;
+use crate::eval::Flow;
 
 use super::CalcCtx;
 
@@ -51,7 +51,11 @@ impl SchedGrid for CalcCtx {
 
     fn get_calc(&self, row: i32, col: i32) -> CellId {
         // `_$54.get(i, j)`：计算矩阵取格；越界/空槽 ⇒ `NONE`。
-        self.grid.by_pos.get(&(row, col)).copied().unwrap_or(CellId::NONE)
+        self.grid
+            .by_pos
+            .get(&(row, col))
+            .copied()
+            .unwrap_or(CellId::NONE)
     }
 
     fn row(&self, id: CellId) -> i32 {

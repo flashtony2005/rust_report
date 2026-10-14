@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>ReportLite Rust 全链路重建设计 — 解析 · 引擎 · 数据源 · Univer 渲染</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1f2328;--dim:#656d76;--line:#d8dee4;--card:#fff;
+--accent:#0b6bcb;--accent2:#eef4fc;--ok:#1a7f37;--warn:#9a6700;--danger:#b3261e;--purple:#8250df;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:14.5px/1.72 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:34px 24px 72px}
+h1{font-size:27px;margin:0 0 6px;letter-spacing:-.3px}
+h2{font-size:19px;margin:44px 0 14px;padding-left:11px;border-left:4px solid var(--accent)}
+h3{font-size:15.5px;margin:26px 0 8px}
+h4{font-size:14px;margin:18px 0 6px;color:var(--dim)}
+.sub{color:var(--dim);margin:0 0 26px;font-size:13.5px}
+code{background:#eceff2;padding:1.5px 5px;border-radius:4px;font-size:12.5px;
+font-family:ui-monospace,Consolas,"Cascadia Mono",monospace}
+pre{background:#0f1418;color:#c9d1d9;border-radius:10px;padding:14px 16px;overflow-x:auto;
+font:12.5px/1.65 ui-monospace,Consolas,"Cascadia Mono",monospace;margin:10px 0}
+pre b{color:#7ee787;font-weight:400} pre i{color:#8b949e;font-style:normal}
+pre u{color:#ffa657;text-decoration:none} pre em{color:#d2a8ff;font-style:normal} pre s{color:#ff7b72;text-decoration:none}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:6px}
+.kpi div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.kpi b{display:block;font-size:21px;line-height:1.2}
+span.s2{color:var(--dim);font-size:12px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+border-radius:10px;overflow:hidden;font-size:13px;margin:12px 0}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--accent2);font-weight:600}
+td.c{text-align:center;font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:12px 0}
+.box{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);
+border-radius:8px;padding:12px 18px;margin:14px 0}
+.box.warn{border-left-color:var(--warn)} .box.ok{border-left-color:var(--ok)}
+.box.key{border-left-color:var(--purple)} .box.danger{border-left-color:var(--danger)}
+ul,ol{padding-left:22px;margin:8px 0} li{margin:4px 0}
+.dim{color:var(--dim)} .mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.fig{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;
+margin:16px 0;text-align:center}
+.fig svg{max-width:100%;height:auto}
+.fig figcaption{color:var(--dim);font-size:12.5px;margin-top:6px;text-align:left;padding:0 6px}
+.tag{display:inline-block;background:var(--accent2);color:var(--accent);border-radius:5px;
+padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Consolas,monospace}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--dim);margin:6px 0 0}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+</style></head>
+<body><div class="wrap">
+
+<h1>ReportLite Rust 全链路重建设计</h1>
+<p class="sub">基于已完成的逆向结论（.rpx 格式 / 扩展算法 / 非线性布局 / 多数据源 / 八阶段链路）· 技术栈 axum + libSQL(Turso 本地) + Univer · 2026-10-12</p>
+
+<div class="kpi">
+<div><b>6 个 crate</b><span class="s2">workspace 分层</span></div>
+<div><b>3 态统一</b><span class="s2">模板态 / 计算态 / 分页态同一模型</span></div>
+<div><b>CellId 图</b><span class="s2">arena + 双矩阵，替代 Java 引用网</span></div>
+<div><b>1 次查询</b><span class="s2">每数据集一次物化 + 内存交叉</span></div>
+</div>
+
+<div class="box key">
+<b>核心思路：非线性只在引擎里存在，出口一定是"扁平矩阵"。</b>
+主格图、扩展包络、附属格链这些结构<strong>只服务于计算</strong>；计算完成后的 <code>ExtCellSet</code> 是
+一个带合并区的普通矩阵。所以 Univer 侧不需要理解任何"非线性"概念——
+服务端把矩阵 + 合并区 + 样式序列化成 <code>IWorkbookData</code> 快照，前端直接装载。
+整个 Rust 工程的难点被压缩到两件事：<strong>.rpx 解析</strong>与<strong>扩展计算</strong>。
+</div>
+
+<h2>一、Univer 查证结论（决定前端怎么接）</h2>
+
+<table>
+<tr><th style="width:130px">查证项</th><th>结论</th><th style="width:210px">对设计的影响</th></tr>
+<tr><td>项目本体</td><td>dream-num/univer，Apache-2.0，v1.0.x（~22k star），Luckysheet 官方后继</td><td>可商用，无许可风险</td></tr>
+<tr><td>接入方式</td><td><code>@univerjs/presets</code> + <code>@univerjs/preset-sheets-core</code>，20 行代码嵌入</td><td>不引整套 Univer Workspace</td></tr>
+<tr><td>批量装载</td><td><code>IWorksheetData</code>：<code>cellData</code>(矩阵) + <code>mergeData</code>(IRange[]) + <code>rowData</code>/<code>columnData</code>(行高列宽) + <code>defaultStyle</code>，<code>createWorkbook({sheets})</code> 直接吃快照</td><td class="c">服务端算好 → JSON → 前端装载</td></tr>
+<tr><td>样式能力</td><td>字体/字号/粗斜体/前景背景/水平垂直对齐/自动换行/边框，Facade 链式 <code>setFontWeight()</code> 等</td><td>报表样式全可映射</td></tr>
+<tr><td>合并单元格</td><td><code>getRange('A1:C3').merge()</code>；快照里即 <code>mergeData</code></td><td>非线性布局的天然载体</td></tr>
+<tr><td>公式引擎</td><td>自研公式引擎，<code>=</code> 开头即公式，支持自定义函数注册</td><td>可选：表达式回前端或留服务端</td></tr>
+<tr><td>能力边界</td><td>开源源码版<strong>不含</strong>：xlsx/docx 导入导出、图表、透视、实时协同、<strong>打印</strong>（均在 Univer Pro）</td><td class="c">导出与打印都走 Rust 侧，不依赖 Pro</td></tr>
+<tr><td>打印（重点查证）</td><td>打印在 <code>@univerjs-pro/sheets-print</code>（Pro）。免费未授权档：<strong>每次打印限 ≤3 页 + 激活水印</strong>；Pro 价格未公开、需联系销售。详见第十一节</td><td class="c">打印是报表核心诉求，不能建在 Pro 上</td></tr>
+<tr><td>同构运行</td><td>同一份代码可在 Node headless 跑（官方定位 "Office harness for AI agents"）</td><td>未来可做服务端截图/AI 回验</td></tr>
+</table>
+
+<div class="box ok">
+<b>结论：Univer 只当"渲染终端"用，不承担计算、不承担导出、更不承担打印。</b>
+它的价值是把 5646 个类里最重的<strong>渲染层</strong>（画笔/字体度量/滚动/合并/选择区/复制粘贴）整个省掉。
+协同、xlsx 导入导出、打印这些 Pro 能力我们一概不需要——数据来自服务端计算结果，导出由 Rust 直接产 xlsx，
+打印由 Rust 直接产 PDF（见第十一节）。
+</div>
+
+<h2>二、总体架构</h2>
+
+<div class="fig">
+<svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+<path d="M0,0 L8,3 L0,6 z" fill="#57606a"/></marker></defs>
+
+<rect x="30" y="20" width="230" height="86" rx="9" fill="#fff" stroke="#d8dee4"/>
+<text x="145" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">前端 · Univer</text>
+<text x="145" y="62" text-anchor="middle" font-size="11" fill="#656d76">preset-sheets-core</text>
+<text x="145" y="80" text-anchor="middle" font-size="11" fill="#656d76">装载 IWorkbookData 快照</text>
+<text x="145" y="96" text-anchor="middle" font-size="11" fill="#0b6bcb">只渲染，不算，不导出</text>
+
+<rect x="30" y="150" width="230" height="70" rx="9" fill="#fff" stroke="#d8dee4"/>
+<text x="145" y="172" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">axum API</text>
+<text x="145" y="192" text-anchor="middle" font-size="11" fill="#656d76">/reports /render /export</text>
+<text x="145" y="209" text-anchor="middle" font-size="11" fill="#656d76">参数注入 · 缓存 · 大报表分页</text>
+
+<rect x="30" y="280" width="230" height="80" rx="9" fill="#fff" stroke="#8250df" stroke-width="1.5"/>
+<text x="145" y="302" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">rpx-server</text>
+<text x="145" y="322" text-anchor="middle" font-size="11" fill="#656d76">编排：读库 → 解析 → 计算</text>
+<text x="145" y="339" text-anchor="middle" font-size="11" fill="#656d76">→ 快照/导出，会话与预算</text>
+<text x="145" y="354" text-anchor="middle" font-size="11" fill="#656d76">PerfMonitor 等价物</text>
+
+<rect x="330" y="150" width="240" height="70" rx="9" fill="#fff" stroke="#1a7f37" stroke-width="1.5"/>
+<text x="450" y="172" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">rpx-core（模型+格式）</text>
+<text x="450" y="192" text-anchor="middle" font-size="11" fill="#656d76">.rpx 解析 · ReportDefine · 单元格</text>
+<text x="450" y="209" text-anchor="middle" font-size="11" fill="#656d76">属性码字典 · 版本兼容</text>
+
+<rect x="330" y="280" width="240" height="80" rx="9" fill="#fff" stroke="#1a7f37" stroke-width="1.5"/>
+<text x="450" y="302" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">rpx-engine（计算）</text>
+<text x="450" y="322" text-anchor="middle" font-size="11" fill="#656d76">主格图 · extendRow/Col · 求值调度</text>
+<text x="450" y="339" text-anchor="middle" font-size="11" fill="#656d76">同值合并 · 分页 SimplePager</text>
+<text x="450" y="354" text-anchor="middle" font-size="11" fill="#656d76">表达式子集 · BigEngine</text>
+
+<rect x="630" y="150" width="240" height="70" rx="9" fill="#fff" stroke="#9a6700" stroke-width="1.5"/>
+<text x="750" y="172" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">rpx-ds（数据源）</text>
+<text x="750" y="192" text-anchor="middle" font-size="11" fill="#656d76">trait DataSource + 多库驱动</text>
+<text x="750" y="209" text-anchor="middle" font-size="11" fill="#656d76">数据集物化 · cross 哈希查找</text>
+
+<rect x="630" y="280" width="240" height="80" rx="9" fill="#fff" stroke="#9a6700" stroke-width="1.5"/>
+<text x="750" y="302" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">rpx-export（导出）</text>
+<text x="750" y="322" text-anchor="middle" font-size="11" fill="#656d76">rust_xlsxwriter → xlsx</text>
+<text x="750" y="339" text-anchor="middle" font-size="11" fill="#656d76">合并区/边框/样式映射</text>
+<text x="750" y="354" text-anchor="middle" font-size="11" fill="#656d76">（PDF/CSV 后置）</text>
+
+<rect x="330" y="395" width="240" height="55" rx="9" fill="#f6f7f9" stroke="#d8dee4"/>
+<text x="450" y="417" text-anchor="middle" font-size="12" fill="#1f2328">rpx-cli · 单机渲染 / 回归测试</text>
+<text x="450" y="435" text-anchor="middle" font-size="11" fill="#656d76">sample.rpx → json/xlsx 对拍</text>
+
+<rect x="630" y="395" width="240" height="55" rx="9" fill="#f6f7f9" stroke="#d8dee4"/>
+<text x="750" y="417" text-anchor="middle" font-size="12" fill="#1f2328">Turso / libSQL（本地文件）</text>
+<text x="750" y="435" text-anchor="middle" font-size="11" fill="#656d76">报表资产 / 参数 / 数据源 / 缓存 · 单文件 .db</text>
+
+<path d="M145,106 L145,150" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M145,220 L145,280" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M145,360 L330,320" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M450,220 L450,280" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M570,190 L630,190" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M570,320 L630,300" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M630,320 L570,320" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M750,220 L750,280" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M750,360 L750,395" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M450,360 L450,395" stroke="#57606a" stroke-width="1.4" marker-end="url(#ar)"/>
+
+<text x="330" y="30" font-size="11.5" fill="#57606a">JSON：IWorkbookData 快照</text>
+<path d="M260,32 L325,32" stroke="#0b6bcb" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M330,44 L262,44" stroke="#0b6bcb" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="330" y="46" font-size="11.5" fill="#57606a">参数 / 渲染请求</text>
+</svg>
+<figcaption>总体架构：六个 crate 单向依赖（server → core/engine/ds/export），前端只认快照协议，数据库只存报表资产与缓存。</figcaption>
+</div>
+
+<h2>三、Crate 布局与职责</h2>
+
+<table>
+<tr><th>crate</th><th>职责</th><th>关键类型</th><th style="width:90px">依赖</th></tr>
+<tr><td class="mono">rpx-core</td><td>.rpx 字节解析 + 模板模型 + 属性码字典 + 版本兼容</td><td class="mono">ReportDefine, Sheet, CellMatrix, NormalCell, RowCell, ColCell, MetaData, RpxReader</td><td class="c">无（pure）</td></tr>
+<tr><td class="mono">rpx-engine</td><td>扩展计算 / 求值调度 / 同值合并 / 分页 / 表达式</td><td class="mono">ExtCellSet, CalcScheduler, ExprEvaluator, SimplePager, BigEngine</td><td class="c">core</td></tr>
+<tr><td class="mono">rpx-ds</td><td>数据源 trait + 多数据库驱动 + 数据集物化 + cross</td><td class="mono">trait DataSource, DataSet, Column, RowSet, SqlDialect</td><td class="c">libsql + sqlx(any)</td></tr>
+<tr><td class="mono">rpx-export</td><td>计算态矩阵 → xlsx</td><td class="mono">XlsxExporter, ExportOptions</td><td class="c">core</td></tr>
+<tr><td class="mono">rpx-server</td><td>axum 路由 / 会话 / 缓存 / 预算 / 编排</td><td class="mono">AppState, render_report, export_report</td><td class="c">全部</td></tr>
+<tr><td class="mono">rpx-cli</td><td>单机渲染 + 对拍测试</td><td class="mono">main</td><td class="c">全部</td></tr>
+</table>
+
+<h2>四、.rpx 解析器设计（rpx-core）</h2>
+
+<p>格式结论已完整（魔数 <code>RQQR</code> + int32 大端长度 + 记录载荷 + 8 字节页脚；紧凑记录路径<strong>不带版本字节</strong>；
+索引 0 为派生虚格不落盘；合并格只写锚点、其余写 <code>-1</code>）。Rust 侧照单实现：</p>
+
+<pre><b>pub struct</b> RpxReader&lt;R: Read&gt; { inner: R, buf: [u8; 8] }
+
+<b>pub fn</b> open&lt;R: Read&gt;(r: R) -&gt; Result&lt;ReportDefine&gt; {
+    <i>// 1. 魔数：82,81,81,82；不命中 → Err(UnsupportedFormat)（不回退 Java OIS）</i>
+    <i>// 2. int32 BE 长度 N（页脚不参与长度）</i>
+    <i>// 3. 记录层：readRecord() -> int32 长度 + 载荷；长度 &lt;= 0 即 null</i>
+    <i>// 4. ReportDefine::fillRecord(payload)</i>
+}</pre>
+
+<h3>4.1 记录层编解码</h3>
+<table>
+<tr><th>类型</th><th>编码</th><th>Rust 映射</th></tr>
+<tr><td>字符串</td><td>int32 长度 + 改良 UTF-8（<code>-1</code>=null，<code>\0</code> 编 3 字节）</td><td class="mono">read_java_utf8() -&gt; Option&lt;String&gt;</td></tr>
+<tr><td>对象标签</td><td>1 字节：0=IRecord(带类名) 1=String 2=BigDecimal 31/32/33=时间类型</td><td class="mono">enum CellValue</td></tr>
+<tr><td>空槽</td><td>int32 长度 ≤ 0</td><td class="mono">None（不是默认值！）</td></tr>
+<tr><td>预留</td><td>NormalCell 里 <code>writeStrings(null)</code> 的 2 字节槽</td><td class="mono">skip(2)，否则全表错位</td></tr>
+</table>
+
+<h3>4.2 对象层：三段式矩阵展开</h3>
+<pre>int32 r, int32 c
+  → (r-1) × RowCell            <i>// 索引 0 是派生虚格，不落盘</i>
+  → (c-1) × ColCell
+  → (r-1)(c-1) × NormalCell     <i>// 行优先；-1 = 合并区非锚点，装载时按引用铺满</i>
+  → 七个 MetaData（参数/数据集/数据源/…）
+  → 标量尾巴（dispRatio / unit / expMap / threshold / …）</pre>
+
+<h3>4.3 属性码字典（混淆代码的解药）</h3>
+<p>反编译已导出完整字典，直接固化成 <code>props.rs</code> 常量表，字段名用语义命名，<strong>不继承 <code>_$N</code> 混淆名</strong>：</p>
+<table>
+<tr><th>地址段</th><th>含义</th><th>代表码</th></tr>
+<tr><td class="mono">0–7</td><td>RowCell（行高/行样式/分页属性）</td><td class="c">0=行高 …</td></tr>
+<tr><td class="mono">10–15</td><td>ColCell（列宽/列样式）</td><td class="c">10=列宽 …</td></tr>
+<tr><td class="mono">20–94</td><td>NormalCell 59 项（值/对齐/字体/边框/扩展方式/类型/位标志）</td><td class="c">28=extendMode(16/17/18/19) · 40=VALUE · 41=DISPVALUE · 90=MERGENULL · 97-100=MERGESAME</td></tr>
+</table>
+<div class="box warn"><b>必须原样保留的四个"怪癖"：</b>
+① <code>writeStrings(null)</code> 预留 2 字节；② <code>rotationAngle</code> 仅当 <code>available() &gt; 0</code> 时存在（尾部探测式兼容）；
+③ 位打包 short <code>_$20</code> 存 14 个布尔（默认 32=可见）；
+④ 紧凑路径<strong>没有版本字节</strong>——Rust 版只实现现代格式，遇到 Java 序列化老文件直接返回 <code>UnsupportedFormat</code>，不做 OIS 回退。</div>
+
+<h2>五、模型层：Rust 所有权映射</h2>
+
+<p>Java 版是<strong>引用网</strong>（合并格共享对象、主格/附属格互指、扩展实例共享 <code>ExtCell[]</code>）。Rust 不能照搬，改成
+<strong>arena + 索引</strong>，这是整个重写里最关键的架构决策：</p>
+
+<div class="fig">
+<svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+<rect x="330" y="20" width="240" height="240" rx="10" fill="#fff" stroke="#1a7f37" stroke-width="1.5"/>
+<text x="450" y="44" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">CellArena</text>
+<text x="450" y="63" text-anchor="middle" font-size="11" fill="#656d76">cells: Vec&lt;Cell&gt;（唯一所有者）</text>
+<g font-size="11" font-family="ui-monospace,Consolas,monospace">
+<rect x="348" y="74" width="204" height="26" rx="5" fill="#eef4fc" stroke="#0b6bcb"/>
+<text x="356" y="92" fill="#1f2328">[0] ExtExtendCell 00 格</text>
+<rect x="348" y="104" width="204" height="26" rx="5" fill="#fff" stroke="#d8dee4"/>
+<text x="356" y="122" fill="#1f2328">[1] NormalCell (r1,c1)</text>
+<rect x="348" y="134" width="204" height="26" rx="5" fill="#fff" stroke="#d8dee4"/>
+<text x="356" y="156" fill="#1f2328">[2] RowCell (row 1)</text>
+<rect x="348" y="164" width="204" height="26" rx="5" fill="#fff" stroke="#d8dee4"/>
+<text x="356" y="186" fill="#1f2328">[3] ExtExtendCell (主格)</text>
+<rect x="348" y="194" width="204" height="26" rx="5" fill="#fff" stroke="#d8dee4"/>
+<text x="356" y="216" fill="#1f2328">[n] …</text>
+</g>
+<text x="450" y="242" text-anchor="middle" font-size="11" fill="#656d76">Cell = enum { Normal, Row, Col, Extend, Sub }</text>
+<text x="450" y="258" text-anchor="middle" font-size="11" fill="#656d76">跨格引用一律 CellId(u32)</text>
+
+<rect x="30" y="60" width="240" height="120" rx="10" fill="#fff" stroke="#d8dee4"/>
+<text x="150" y="82" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">grid: Vec&lt;Vec&lt;Option&lt;CellId&gt;&gt;&gt;</text>
+<text x="150" y="102" text-anchor="middle" font-size="11" fill="#656d76">(rows+1) × (cols+1)</text>
+<text x="150" y="120" text-anchor="middle" font-size="11" fill="#0b6bcb">合并区：同一 CellId 重复出现</text>
+<text x="150" y="138" text-anchor="middle" font-size="11" fill="#656d76">[row][0]=RowCell · [0][col]=ColCell</text>
+<text x="150" y="158" text-anchor="middle" font-size="11" fill="#656d76">[0][0]=ExtExtendCell 虚格</text>
+
+<rect x="630" y="60" width="240" height="120" rx="10" fill="#fff" stroke="#8250df" stroke-width="1.5"/>
+<text x="750" y="82" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">main_cells: HashMap&lt;CellId, CellId&gt;</text>
+<text x="750" y="102" text-anchor="middle" font-size="11" fill="#656d76">左主格图（CellId → CellId）</text>
+<text x="750" y="120" text-anchor="middle" font-size="11" fill="#656d76">求值 = 在此图上做拓扑遍历</text>
+<text x="750" y="138" text-anchor="middle" font-size="11" fill="#656d76">00 格是所有链的终止点</text>
+
+<path d="M270,110 L330,110" stroke="#57606a" stroke-width="1.4"/>
+<path d="M630,110 L570,110" stroke="#57606a" stroke-width="1.4"/>
+<text x="290" y="102" font-size="11" fill="#57606a">定位</text>
+<text x="590" y="102" font-size="11" fill="#57606a">归属</text>
+
+<rect x="30" y="200" width="840" height="80" rx="9" fill="#f6f7f9" stroke="#d8dee4"/>
+<text x="46" y="224" font-size="12" fill="#1f2328">Rust 化要点：</text>
+<text x="46" y="244" font-size="11.5" fill="#57606a">① 单元格可变 + 被大量交叉引用 → arena 索引，避免 Rc&lt;RefCell&gt; 全面泛滥（仅计算期借用用 split_at_mut / 索引借阅）</text>
+<text x="46" y="262" font-size="11.5" fill="#57606a">② 合并格不再"共享对象"，而是 grid 中多处写同一 CellId，判等即比 id —— 与 Java 引用语义等价</text>
+</svg>
+<figcaption>arena + 双矩阵 + 主格索引表：Java 引用网的 Rust 等价物，零 Rc、零 unsafe。</figcaption>
+</div>
+
+<pre><b>pub struct</b> ExtCellSet {
+    arena: CellArena,
+    grid: Vec&lt;Vec&lt;Option&lt;CellId&gt;&gt;&gt;,   <i>// (rows+1)×(cols+1)，[0][0]=虚格</i>
+    main_of: HashMap&lt;CellId, CellId&gt;,     <i>// 左主格边</i>
+    rows: usize, cols: usize,
+    datasets: HashMap&lt;String, RowSet&gt;,    <i>// 本表可见的数据集</i>
+}
+<b>pub enum</b> Cell {
+    Normal(NormalCell), Row(RowCell), Col(ColCell),
+    Extend(ExtExtendCell),           <i>// 可扩展主格/附属格</i>
+    Sub(Box&lt;ExtCellSet&gt;),            <i>// 子报表（TYPE_SUBREPORT=-60）格中格</i>
+}</pre>
+
+<h2>六、引擎算法 Rust 化</h2>
+
+<h3>6.1 扩展算法（extendRow / extendCol）</h3>
+<p>Java 结论原样搬运，Rust 实现时注意<strong>两遍扫描</strong>：</p>
+<ol>
+<li><strong>包络计算</strong>：<code>beginRow = min(主格及所有左附属格起始行)</code>，<code>endRow = max(结束行)</code>（递归沿附属链）；块高 = endRow − beginRow</li>
+<li><strong>第一遍</strong>：按方向 clone 附属格（判据 <code>isLeftHeadOf</code>：沿左主格链能走到自己才复制）+ 行首格克隆 + <code>addRow(k)</code> 平移 + 铺满 rowMerge×colMerge</li>
+<li><strong>第二遍</strong>：重连 <code>main_of</code> 指针——新实例的主格是"平移后的新格"，第一遍时不存在</li>
+</ol>
+<div class="box"><b>主格自动长高</b>：<code>expandLeftHead()</code> 沿链上溯，<code>head.contain_row(this)</code> 成立就 <code>rowMerge += mergeInc</code>。左侧"部门"大格随右侧明细拉高，不是渲染技巧。</div>
+
+<h3>6.2 求值调度：异常协程 → 显式状态机</h3>
+<p>Java 用 <code>IIllIIIIIIIIIlll extends RuntimeException</code> 携带 <code>(cell, state)</code> 做协程式跳转（state 4/5 换格、6 补算、8 级联失效）。
+Rust <strong>不建议仿冒异常</strong>，改为等价的显式工作栈：</p>
+
+<div class="fig">
+<svg viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg">
+<rect x="30" y="30" width="200" height="52" rx="8" fill="#eef4fc" stroke="#0b6bcb"/>
+<text x="130" y="52" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f2328">work: Vec&lt;(CellId, Step)&gt;</text>
+<text x="130" y="70" text-anchor="middle" font-size="11" fill="#656d76">LIFO 驱动栈</text>
+
+<rect x="300" y="20" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
+<text x="316" y="45" font-size="11.5" fill="#1f2328">Step::ResolveArgs（解引用/依赖就绪检查）</text>
+
+<rect x="300" y="72" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
+<text x="316" y="97" font-size="11.5" fill="#1f2328">Step::NeedCell(dep) → dep 未算 → push(dep) 后 yield 当前帧（等价 state 4/5）</text>
+
+<rect x="300" y="124" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
+<text x="316" y="149" font-size="11.5" fill="#1f2328">Step::Evaluate（表达式求值 → value/dispValue）</text>
+
+<rect x="300" y="176" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
+<text x="316" y="201" font-size="11.5" fill="#1f2328">Step::AfterExtend（主格变化 → setDSCurrent 重定位数据集游标）</text>
+
+<rect x="300" y="228" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
+<text x="316" y="253" font-size="11.5" fill="#1f2328">Step::Invalidate(deps) → 级联重算（等价 state 8）</text>
+
+<rect x="300" y="280" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
+<text x="316" y="305" font-size="11.5" fill="#1f2328">Step::Done（写回 arena，出栈）</text>
+
+<path d="M230,56 L300,41" stroke="#57606a" stroke-width="1.4"/>
+<path d="M585,63 L585,72" stroke="#57606a" stroke-width="1.4"/>
+<path d="M585,115 L585,124" stroke="#57606a" stroke-width="1.4"/>
+<path d="M585,167 L585,176" stroke="#57606a" stroke-width="1.4"/>
+<path d="M585,219 L585,228" stroke="#57606a" stroke-width="1.4"/>
+<path d="M585,271 L585,280" stroke="#57606a" stroke-width="1.4"/>
+
+<text x="30" y="120" font-size="11.5" fill="#57606a">等价性：</text>
+<text x="30" y="140" font-size="11.5" fill="#57606a">异常传播的"任意深度</text>
+<text x="30" y="158" font-size="11.5" fill="#57606a">依赖"→ 栈的显式回退；</text>
+<text x="30" y="176" font-size="11.5" fill="#57606a">JVM 栈深度限制 → 堆栈，</text>
+<text x="30" y="194" font-size="11.5" fill="#57606a">深依赖不再爆栈；</text>
+<text x="30" y="212" font-size="11.5" fill="#57606a">且可快照/暂停（大报表</text>
+<text x="30" y="230" font-size="11.5" fill="#57606a">分页直接收益）。</text>
+</svg>
+<figcaption>CalcScheduler：异常协程的 Rust 等价物——显式 LIFO 工作栈，每格一个状态步进序列。</figcaption>
+</div>
+
+<h3>6.3 同值合并与分页</h3>
+<ul>
+<li><strong>同值合并</strong>：4 趟扫描（正/反 × 纵/横）× 4 种模式（同源校验/邻格/逆向/不校验），带交叉检测——出现交叉就回缩合并区，所以合并范围可能小于同值连续区间。Rust 里用并查集或区间合并均可，注意<strong>回缩要双向</strong>。</li>
+<li><strong>分页 SimplePager</strong>：按行高累加断页；每页是 <strong>1×全列数空壳</strong>（不是全表克隆）+ <code>copyRowTo/copyCellTo</code> 增量填充；合并格恢复算法：非锚点时问左邻/上邻"你的 rowMerge/colMerge 跨度够不够到我这儿"，够就沿用引用。<strong>保留那个深拷贝特例</strong>：分栏 + 行式分页 + 分组尾行必须深拷，否则同一行被多栏复用会改一处坏全局。</li>
+<li><strong>大报表 BigEngine</strong>：注入 <code>_pageNo_/_rowsBefore_/_pageRows_/_pageCount_</code> 四个参数，数据集工厂按页物化；每页独立 new ExtCellSet + calculate。Rust 里同样实现，但游标来自 SQL <code>LIMIT/OFFSET</code>，比 Java 的缓存文件更简单。</li>
+</ul>
+
+<h2>七、数据源设计（rpx-ds）</h2>
+
+<h3>7.1 选型：libSQL（Turso）</h3>
+<p>数据库职责边界先厘清：<strong>Turso 只做平台库</strong>（报表资产 / 参数 / 数据源配置 / 结果缓存），
+<strong>业务取数仍走报表自己的数据源</strong>（SQL/File/EsProc 等，见 7.2）——两者互不替代。</p>
+<table>
+<tr><th>维度</th><th>libSQL（Turso）本地模式</th><th>rusqlite（纯 SQLite）</th><th>sqlx + PG</th><th>结论</th></tr>
+<tr><td>部署形态</td><td><strong>嵌入式单文件</strong>（<code>new_local(path)</code>；不做远端同步 / replica）</td><td>仅嵌入式单文件</td><td>必须独立服务器</td><td class="c">libSQL</td></tr>
+<tr><td>文件格式</td><td>与 SQLite 完全兼容，<code>sqlite3</code> CLI / DB 工具可直接打开</td><td>原生</td><td>私有格式</td><td class="c">libSQL</td></tr>
+<tr><td>开发体验</td><td>SQLite 方言零学习成本；async <code>execute/query</code> + <code>params!</code>/<code>named_params!</code></td><td>同步 API 更啰嗦</td><td><code>query!</code> 宏编译期校验</td><td class="c">libSQL</td></tr>
+<tr><td>报表场景</td><td>读多写少（渲染并发读、写串行）；快照缓存即一行记录</td><td>同左</td><td>重，单机部署反而累赘</td><td class="c">libSQL</td></tr>
+<tr><td>CLI 对拍</td><td><code>new_local(":memory:")</code> 起步，<strong>M1/M2 完全不需要起服务</strong></td><td>同样可以</td><td>必须先装 PG</td><td class="c">libSQL</td></tr>
+<tr><td>ORM</td><td>不需要（行集直取）</td><td>同上</td><td>sea-orm 可为 PG 加分但场景不匹配</td><td class="c">裸 libsql</td></tr>
+</table>
+<div class="box"><b>只用本地模式，不要远端</b>：这是明确的部署边界——<strong>单实例、私有化、离线可用</strong>。
+理由：① 报表资产与渲染缓存的写入方只有服务本身，没有多节点写冲突，也就没有同步需求；
+② 私有化交付最常见的要求就是"断网可跑"，远端协议一旦成为依赖，离线降级反而要额外做；
+③ 运维成本归零——备份 = 拷一个 <code>.db</code> 文件，迁移 = 拷走，没有任何外部服务要盯。
+<br><br><b>取舍说明</b>：放弃 sqlx 的编译期 SQL 校验，换来"零依赖服务"的对拍能力和单文件部署。
+SQL 正确性靠 CLI 对拍测试兜底——反正报表的 SQL 是用户模板里带的，本来就不是我们写的。
+<br><br><b>关于 libSQL vs rusqlite 的诚实说明</b>：只跑本地模式时，libSQL 的增量价值主要是 async API 和
+Turso CLI 生态（文件格式仍与 SQLite 兼容）。若日后想接云端，只需把 <code>new_local</code> 换成
+<code>new_remote_replica</code> 一行，不必改调用方——但这个升级路径<strong>本期不启用</strong>。
+</div>
+<pre><b>// libsql = { version = "0.x", features = ["core"] }</b>   <i>// 仅本地模式，不引入 replication / remote</i>
+<b>let</b> db = libsql::Builder::new_local("rpx.db").build().await?;
+<b>let</b> conn = db.connect()?;
+conn.execute("INSERT INTO reports (name, rpx) VALUES (?1, ?2)",
+             libsql::params!["工资表", blob]).await?;
+<b>let mut</b> rows = conn.query("SELECT id, name, rpx FROM reports WHERE id = ?1",
+                               libsql::params![id]).await?;
+<b>while let</b> Some(row) = rows.next().await? {
+    <b>let</b> id: i64 = row.get(0)?;
+    <b>let</b> name: String = row.get(1)?;
+    <b>let</b> rpx: Vec&lt;u8&gt; = row.get(2)?;   <i>// .rpx 原样存 BLOB</i>
+}</pre>
+
+<h3>7.2 业务数据源：多数据库支持（sqlx AnyPool + 方言层）</h3>
+<p>报表的<strong>取数</strong>必须能连多种业务库（财政工资库在 PG、台账可能在 MySQL、本地小库在 SQLite/Turso）。
+用 sqlx 的 <code>AnyPool</code>：<strong>同一个查询 API，运行时按 URL 前缀选驱动</strong>——
+<code>postgres://</code> / <code>mysql://</code> / <code>sqlite://</code>（0.8 起还有 <code>mssql://</code>），
+换库只换连接串，代码零分支：</p>
+<pre><i>// Cargo.toml: sqlx = { features = ["any", "postgres", "mysql", "sqlite", "mssql", "runtime-tokio"] }</i>
+sqlx::any::install_default_drivers();        <i>// 必须：否则 AnyPool 直接 panic</i>
+<b>let</b> pool = sqlx::AnyPool::connect(&ds_cfg.url).await?;
+<b>let mut</b> rows = sqlx::query(&amp;ds_cfg.sql).fetch(&amp;pool);   <i>// 同一条代码路径跑任意库</i></pre>
+
+<div class="fig">
+<svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+<rect x="30" y="20" width="180" height="46" rx="8" fill="#fff" stroke="#1a7f37" stroke-width="1.5"/>
+<text x="120" y="48" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f2328">rpx-ds 统一入口</text>
+
+<rect x="260" y="20" width="180" height="46" rx="8" fill="#eef4fc" stroke="#0b6bcb"/>
+<text x="350" y="48" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f2328">trait DataSource</text>
+
+<rect x="490" y="20" width="160" height="46" rx="8" fill="#fff" stroke="#9a6700" stroke-width="1.5"/>
+<text x="570" y="48" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f2328">SqlSource（SQL 类）</text>
+
+<rect x="700" y="20" width="170" height="46" rx="8" fill="#fff" stroke="#9a6700" stroke-width="1.5"/>
+<text x="785" y="48" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f2328">File/Builtin 源</text>
+
+<rect x="260" y="110" width="400" height="52" rx="8" fill="#fff" stroke="#d8dee4"/>
+<text x="460" y="132" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f2328">SqlDialect（方言层）</text>
+<text x="460" y="152" text-anchor="middle" font-size="11" fill="#656d76">占位符 ?1/$1/@p · 标识符引号 · LIMIT/OFFSET · 布尔字面量 · 日期函数</text>
+
+<g font-size="11.5" font-family="ui-monospace,Consolas,monospace">
+<rect x="40" y="200" width="130" height="40" rx="7" fill="#fff" stroke="#d8dee4"/>
+<text x="105" y="224" text-anchor="middle" fill="#1f2328">postgres</text>
+<rect x="190" y="200" width="130" height="40" rx="7" fill="#fff" stroke="#d8dee4"/>
+<text x="255" y="224" text-anchor="middle" fill="#1f2328">mysql</text>
+<rect x="340" y="200" width="130" height="40" rx="7" fill="#fff" stroke="#d8dee4"/>
+<text x="405" y="224" text-anchor="middle" fill="#1f2328">sqlite</text>
+<rect x="490" y="200" width="130" height="40" rx="7" fill="#fff" stroke="#d8dee4"/>
+<text x="555" y="224" text-anchor="middle" fill="#1f2328">mssql</text>
+<rect x="640" y="200" width="130" height="40" rx="7" fill="#fff" stroke="#8250df"/>
+<text x="705" y="224" text-anchor="middle" fill="#1f2328">turso(远端)</text>
+</g>
+
+<path d="M120,66 L260,43" stroke="#57606a" stroke-width="1.3"/>
+<path d="M440,43 L490,43" stroke="#57606a" stroke-width="1.3"/>
+<path d="M650,43 L700,43" stroke="#57606a" stroke-width="1.3"/>
+<path d="M570,66 L460,110" stroke="#57606a" stroke-width="1.3"/>
+<path d="M460,162 L105,200" stroke="#57606a" stroke-width="1.3"/>
+<path d="M460,162 L255,200" stroke="#57606a" stroke-width="1.3"/>
+<path d="M460,162 L405,200" stroke="#57606a" stroke-width="1.3"/>
+<path d="M460,162 L555,200" stroke="#57606a" stroke-width="1.3"/>
+<path d="M460,162 L705,200" stroke="#57606a" stroke-width="1.3"/>
+
+<rect x="40" y="258" width="820" height="34" rx="7" fill="#f6f7f9" stroke="#d8dee4"/>
+<text x="56" y="280" font-size="11.5" fill="#57606a">新增一种库 = 加一个 URL scheme + 一条方言记录 + 一个驱动 feature，引擎与上层零改动</text>
+</svg>
+<figcaption>多数据库数据源分层：统一 trait 入口，SQL 类走 AnyPool + 方言适配，非 SQL 源（文件/内置）各走各的实现。</figcaption>
+</div>
+
+<h4>方言层要处理的差异（实测要点）</h4>
+<table>
+<tr><th>差异点</th><th>Postgres</th><th>MySQL</th><th>SQLite/libSQL</th><th>MSSQL</th></tr>
+<tr><td>占位符</td><td class="c">$1</td><td class="c">? / ?1</td><td class="c">?1</td><td class="c">@p1</td></tr>
+<tr><td>分页</td><td class="c">LIMIT/OFFSET</td><td class="c">LIMIT/OFFSET</td><td class="c">LIMIT/OFFSET</td><td class="c">OFFSET…FETCH</td></tr>
+<tr><td>布尔</td><td class="c">true/false</td><td class="c">1/0（tinyint）</td><td class="c">1/0</td><td class="c">1/0（bit）</td></tr>
+<tr><td>取行号</td><td class="c">ROW_NUMBER()</td><td class="c">变量/@n:=@n+1</td><td class="c">ROW_NUMBER()（3.25+）</td><td class="c">ROW_NUMBER()</td></tr>
+<tr><td>类型映射</td><td colspan="4" class="c">统一收敛到 DsValue{Null,Bool,I64,F64,Str,Blob,Decimal,Date}；BigDecimal 走 rust_decimal 保精度</td></tr>
+</table>
+<div class="box warn"><b>三个必须认的坑：</b>
+① <code>install_default_drivers()</code> 不调用 AnyPool 直接 panic；
+② AnyPool 没有 <code>query!</code> 宏级编译校验——报表 SQL 是用户模板里带的，本来就不受我们控制，
+正确性靠 CLI 对拍 + 渲染期报错定位兜底；
+③ SQLite/libSQL 同时只有一个写者，池按库种配置（sqlite 类 max_connections=1，网络库 10+）。
+另外大报表分页 SQL 要按方言生成（<code>_rowsBefore_</code> 在 MSSQL 上就是 OFFSET…FETCH）。</div>
+
+<h4>连接管理</h4>
+<ul>
+<li><strong>池注册表</strong>：<code>RwLock&lt;HashMap&lt;ds_id, AnyPool&gt;</code> 懒加载，首次渲染该报表时建池；池随配置变更失效重建。</li>
+<li><strong>凭据与配置分离</strong>：Turso 里只存非密配置（kind/url/池参数），密码走环境变量/Vault 引用，不出现在库表和日志。</li>
+<li><strong>并发预算</strong>：单报表渲染 = 1 次取数 + 内存计算；总并发连接数受各业务库池上限约束，超限进队列而非新建连接（对应 Java PerfMonitor 的预算思路）。</li>
+</ul>
+
+<h3>7.3 插件式数据源（Java 工厂的 Rust 等价）</h3>
+<p>Java 靠 <code>Class.forName(dsc.getFactoryClass())</code> 实现"引擎不认识任何数据源类型"。Rust 用 trait 对象，更类型安全：</p>
+<pre><b>pub trait</b> DataSource: Send + Sync {
+    <b>fn</b> kind(&amp;self) -&gt; &amp;'static str;               <i>// "sql" | "file" | "builtin" | "turso" …</i>
+    <b>fn async fn</b> fetch(&amp;self, cfg: &amp;DataSetConfig, args: &amp;Args)
+        -&gt; Result&lt;RowSet&gt;;
+}
+<i>// 注册表：启动时 insert(kind, Arc&lt;dyn DataSource&gt;)，按 datasources.kind 路由</i>
+<i>// SQL 类内部再按 url scheme 选 AnyPool 驱动 —— 两级分发，互不感知</i>
+<i>// 新增数据源 = 新增一个实现 + 一行注册，引擎零改动（与 Java 工厂同一理念）</i></pre>
+
+<h3>7.4 数据集模型与 cross（多数据源对齐）</h3>
+<pre><b>pub struct</b> RowSet {
+    columns: Vec&lt;Column&gt;,          <i>// 列式存储：列名 + 类型化数据</i>
+    titles: HashMap&lt;String,String&gt;,<i>// 英文字段 → 中文别名（getColNoFromTitle）</i>
+    len: usize,
+}
+<i>// Row.getData(0) 固定返回行号（第 0 列内置）；getData(name) 查不到回退中文别名</i></pre>
+<div class="box"><b><code>Row.cross()</code> 的 Rust 实现</b>：Java 用对象身份做半连接（命中返回自身，否则 <code>NullRow</code>——<strong>不是 null 而是合法空值载体</strong>，跨库表达式 <code>A.x * B.y</code> 不匹配时继续传播空值而非 NPE）。Rust 侧装载数据集时预建 <code>HashMap&lt;JoinKey, RowIdx&gt;</code>，cross 即一次哈希查找，miss 返回 <code>RowRef::Null</code>。一次物化 + 内存查找，避免 Java 里逐行回调的开销。</div>
+
+<h2>八、服务端 API 设计（axum）</h2>
+
+<table>
+<tr><th>方法 / 路由</th><th>说明</th></tr>
+<tr><td class="mono">POST /api/reports</td><td>上传 .rpx（魔数校验 → 存 Turso BLOB + 元信息），返回 report_id</td></tr>
+<tr><td class="mono">GET /api/reports</td><td>列表（名称/版本/更新时间）</td></tr>
+<tr><td class="mono">GET /api/reports/{id}/meta</td><td>解析出的参数清单（静态/动态两套 MetaData）供前端生成参数表单</td></tr>
+<tr><td class="mono">POST /api/reports/{id}/render</td><td><strong>主链路</strong>：注入参数 → 取数 → 扩展计算 → 分页 → 返回 IWorkbookData 快照 JSON</td></tr>
+<tr><td class="mono">GET /api/reports/{id}/page?pno=…&amp;rows=…</td><td>大报表分页渲染（BigEngine 等价）</td></tr>
+<tr><td class="mono">POST /api/reports/{id}/export?fmt=xlsx</td><td>服务端导出（不走 Univer Pro），返回文件流</td></tr>
+<tr><td class="mono">GET /api/health</td><td>健康检查</td></tr>
+</table>
+
+<h3>8.1 render 时序（对应 Java 八阶段）</h3>
+<div class="fig">
+<svg viewBox="0 0 900 350" xmlns="http://www.w3.org/2000/svg">
+<g font-size="11.5" font-family="ui-monospace,Consolas,monospace">
+<rect x="40" y="30" width="150" height="40" rx="7" fill="#eef4fc" stroke="#0b6bcb"/>
+<text x="115" y="54" text-anchor="middle" fill="#1f2328">① 读 bytea</text>
+<rect x="220" y="30" width="150" height="40" rx="7" fill="#eef4fc" stroke="#0b6bcb"/>
+<text x="295" y="54" text-anchor="middle" fill="#1f2328">② RpxReader</text>
+<rect x="400" y="30" width="150" height="40" rx="7" fill="#fff" stroke="#1a7f37"/>
+<text x="475" y="54" text-anchor="middle" fill="#1f2328">③ 建 ExtCellSet</text>
+<rect x="580" y="30" width="150" height="40" rx="7" fill="#fff" stroke="#1a7f37"/>
+<text x="655" y="54" text-anchor="middle" fill="#1f2328">④ fetch 数据集</text>
+<rect x="760" y="30" width="120" height="40" rx="7" fill="#fff" stroke="#1a7f37"/>
+<text x="820" y="54" text-anchor="middle" fill="#1f2328">⑤ prepare</text>
+
+<rect x="40" y="100" width="150" height="40" rx="7" fill="#fff" stroke="#1a7f37"/>
+<text x="115" y="124" text-anchor="middle" fill="#1f2328">⑥ 扩展 extend</text>
+<rect x="220" y="100" width="150" height="40" rx="7" fill="#fff" stroke="#1a7f37"/>
+<text x="295" y="124" text-anchor="middle" fill="#1f2328">⑦ CalcScheduler</text>
+<rect x="400" y="100" width="150" height="40" rx="7" fill="#fff" stroke="#1a7f37"/>
+<text x="475" y="124" text-anchor="middle" fill="#1f2328">⑧ 同值合并</text>
+<rect x="580" y="100" width="150" height="40" rx="7" fill="#fff" stroke="#9a6700"/>
+<text x="655" y="124" text-anchor="middle" fill="#1f2328">⑨ SimplePager</text>
+<rect x="760" y="100" width="120" height="40" rx="7" fill="#fff" stroke="#8250df"/>
+<text x="820" y="124" text-anchor="middle" fill="#1f2328">⑩ 快照 JSON</text>
+
+<path d="M190,50 L220,50" stroke="#57606a" stroke-width="1.3"/>
+<path d="M370,50 L400,50" stroke="#57606a" stroke-width="1.3"/>
+<path d="M550,50 L580,50" stroke="#57606a" stroke-width="1.3"/>
+<path d="M730,50 L760,50" stroke="#57606a" stroke-width="1.3"/>
+<path d="M820,70 L820,100" stroke="#57606a" stroke-width="1.3"/>
+<path d="M760,120 L730,120" stroke="#57606a" stroke-width="1.3"/>
+<path d="M580,120 L550,120" stroke="#57606a" stroke-width="1.3"/>
+<path d="M400,120 L370,120" stroke="#57606a" stroke-width="1.3"/>
+<path d="M220,120 L190,120" stroke="#57606a" stroke-width="1.3"/>
+<path d="M115,100 L115,70" stroke="#57606a" stroke-width="1.3"/>
+
+<rect x="40" y="175" width="840" height="140" rx="9" fill="#f6f7f9" stroke="#d8dee4"/>
+<text x="60" y="200" font-size="12" font-weight="700" fill="#1f2328">快照映射（ExtCellSet → IWorksheetData）</text>
+<g font-size="11.5" fill="#1f2328">
+<text x="60" y="224">grid[1..rows][1..cols] → cellData{"r-c":{v,s}}   <tspan fill="#656d76">（索引 0 虚格跳过）</tspan></text>
+<text x="60" y="246">合并区（grid 中同 CellId 连续块）→ mergeData:[{startRow,startColumn,endRow,endColumn}]</text>
+<text x="60" y="268">RowCell 行高 → rowData · ColCell 列宽 → columnData · 单元格样式 → s:{bl,bg,ff,fs,ht,vt,cl}</text>
+<text x="60" y="290">子报表（Cell::Sub）→ 递归展开进同一 sheet（或独立 sheet）· 分页 → 多 sheet 或前端分页</text>
+</g>
+</svg>
+<figcaption>render 主链路与快照映射：服务端输出的 JSON 就是 Univer 的装载协议，前端零业务逻辑。</figcaption>
+</div>
+
+<h3>8.2 数据库 schema（sqlx migration）</h3>
+<pre><i>-- 平台库：Turso/libSQL（SQLite 方言；迁移用 versioned .sql，execute_batch 顺序执行）</i>
+<b>CREATE TABLE</b> reports(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  rpx BLOB NOT NULL,          <i>-- 原始 .rpx（唯一事实源）</i>
+  version INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')));
+<b>CREATE TABLE</b> report_params(
+  report_id INTEGER NOT NULL, name TEXT NOT NULL,
+  is_static INTEGER NOT NULL DEFAULT 0,    <i>-- 0=动态 1=静态（两套 MetaData）</i>
+  default_val TEXT, PRIMARY KEY (report_id, name));
+<i>-- 数据源：业务库连接配置（密码走环境变量/Vault，库里只存非密项）</i>
+<b>CREATE TABLE</b> datasources(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL,         <i>-- sql | file | builtin | turso …（SQL 类内部再分库种）</i>
+  url TEXT NOT NULL,          <i>-- postgres://… mysql://… sqlite://…（本地文件，不启用远端协议）</i>
+  pool_max INTEGER NOT NULL DEFAULT 10,
+  config TEXT,                <i>-- JSON 附加配置</i>
+  created_at TEXT NOT NULL DEFAULT (datetime('now')));
+<i>-- 结果缓存（同参数哈希命中直接返快照，等价 ReportCache）</i>
+<b>CREATE TABLE</b> render_cache(
+  report_id INTEGER NOT NULL, args_hash TEXT NOT NULL,
+  snapshot TEXT NOT NULL,     <i>-- IWorkbookData JSON</i>
+  expires_at TEXT NOT NULL,   <i>-- ISO8601</i>
+  PRIMARY KEY (report_id, args_hash));</pre>
+
+<h2>九、Univer 前端设计</h2>
+
+<pre><b>import</b> { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core'
+<b>import</b> { createUniver, LocaleType, mergeLocales } from '@univerjs/presets'
+
+<b>const</b> { univerAPI } = createUniver({
+  locale: LocaleType.ZH_CN,
+  locales: { [LocaleType.ZH_CN]: mergeLocales(UniverSheetsCorePresetZhCN) },
+  presets: [ UniverSheetsCorePreset({ container: 'app' }) ],
+})
+
+<i>// 渲染请求：拿快照直接建工作簿</i>
+<b>const</b> snapshot = await fetch('/api/reports/1/render', {method:'POST', body}).then(r=>r.json())
+univerAPI.createWorkbook(snapshot)   <i>// snapshot 即 IWorkbookData</i></pre>
+
+<ul>
+<li><strong>非线性布局全靠 mergeData 承载</strong>：合并区、跨行跨列大格、行列式布局全部落在 <code>IRange[]</code> 上；Java 的"主格/附属格"概念<strong>不出现在前端</strong>。</li>
+<li><strong>样式映射</strong>：字体 6 字段 + 四边框(样式/宽/色) → Univer 的 <code>bl</code>(border) + <code>ff/fs/fs2/it</code> + <code>bg</code> + <code>ht/vt</code>；位打包的 14 个布尔拆成独立字段。</li>
+<li><strong>公式</strong>：MVP 全部留服务端算（保真），前端只读值；后续可把 <code>=SUM(...)</code> 这类下推给 Univer 公式引擎省一次交互。</li>
+<li><strong>大报表</strong>：快照只含当前页，翻页走 <code>/page?pno=</code> 重建 sheet（或追加 sheet），前端不持有全量。</li>
+<li><strong>不需要 Univer Pro</strong>：导入导出/协同/打印我们一概自建，省掉商业授权成本与免费档的页数限制。</li>
+</ul>
+
+<h2>十、导出设计（rpx-export）</h2>
+<ul>
+<li><strong>xlsx</strong>：<code>rust_xlsxwriter</code>（活跃维护、纯 Rust）。计算态矩阵 → worksheet：合并区 <code>merge_range</code>、边框/字体/对齐逐格写、行高列宽。Java 版 BaseExcel 的那套"锚点 + 跨度"逻辑可直接复用。</li>
+<li><strong>CSV</strong>：先做，用于对拍验证（rpx-cli 输出 CSV vs Java 版导出对比）。</li>
+<li><strong>PDF</strong>：不走 Univer、不走 headless chrome，由 <code>rpx-print</code> 服务端直接产（见第十一节）。</li>
+<li><strong>Word/HTML</strong>：后置。HTML 打印视图作为轻量通道见 11.4。</li>
+</ul>
+<div class="box"><b>出口分工</b>：xlsx 追求<strong>数据保真</strong>（可再编辑、可被 Excel/WPS 打开继续算），
+PDF 追求<strong>版式保真</strong>（所见即所印，交给财政/档案场景）。两者读的是同一个计算态矩阵，
+差异只在渲染后端——这正是 <code>IReport</code> 单一抽象在 Rust 侧的对应收益。</div>
+
+<h2>十一、打印设计（rpx-print）——为什么不能交给 Univer</h2>
+
+<h3>11.1 先给结论：Univer 的打印是 Pro 付费能力，且免费档不可用</h3>
+<table>
+<tr><th style="width:150px">查证项</th><th>事实（2026-10 官方文档 / npm / pro.univer.ai）</th></tr>
+<tr><td>所属包</td><td><code>@univerjs-pro/sheets-print</code>，文档明言 "part of Univer Pro"；Apache-2.0 的开源包里<strong>没有</strong>打印插件</td></tr>
+<tr><td>免费档限制</td><td>pro.univer.ai 版本对比表：Printing <strong>≤3 页/次</strong>，且带 <strong>activation watermark</strong>（激活水印）</td></tr>
+<tr><td>商业条款</td><td><strong>官方已确认</strong>（pro.univer.ai 首页公告）："new purchases of Univer Pro are temporarily paused, and the 30-day evaluation license is temporarily unavailable"——新购与试用<strong>均已暂停</strong>，仅存量客户可续；Pro 价格未公开、需联系 sales@univer.ai</td></tr>
+<tr><td>渲染机理</td><td>Univer 是 <strong>canvas 渲染</strong>，宿主页面直接 <code>window.print()</code> 拿不到表格内容；打印插件内部要把 canvas 物化成打印布局再走浏览器打印对话框</td></tr>
+</table>
+<p>对报表系统这是<strong>一票否决</strong>：财政工资报表动辄几十页，3 页上限 + 水印直接不可用；
+而 Pro 的价格、供货状态、授权方式（按开发者？按部署？）都不透明，把核心诉求压在这样一个不确定的商业依赖上不合理。</p>
+
+<h3>11.2 Univer 打印 API 备查（将来买了 Pro 也只是备选）</h3>
+<pre><b>import</b> { UniverSheetsPrintPlugin } <b>from</b> '@univerjs-pro/sheets-print'
+univer.registerPlugin(UniverSheetsPrintPlugin)
+<i>// Facade：配置打印布局 + 渲染 + 发起打印</i>
+fWorkbook.updatePrintConfig({
+  area: univerAPI.Enum.PrintArea.CurrentSheet,   <i>// CurrentSheet | SelectedRange | Workbook</i>
+  paperSize: univerAPI.Enum.PrintPaperSize.A4,
+  scale: univerAPI.Enum.PrintScale.FitPage,      <i>// 缩放：适合页宽 / 适合整页</i>
+  freeze: [univerAPI.Enum.PrintFreeze.Row],      <i>// 重复冻结行（= 每页重复表头）</i>
+  margin: univerAPI.Enum.PrintPaperMargin.Normal,
+})
+fWorkbook.updatePrintRenderConfig({
+  gridlines: <b>true</b>, hAlign: PrintAlign.Middle, vAlign: PrintAlign.Middle,
+  headerFooter: [PrintHeaderFooter.PageSize, PrintHeaderFooter.WorksheetTitle],
+})
+fWorkbook.print()          <i>// 或 openPrintDialog() 打开打印配置对话框</i>
+<i>// 插件配置：IUniverSheetsPrintConfig { enforceWatermark?: boolean }</i></pre>
+<p>能力清单（官方 showcase 实测描述）：纸张 A3/A4/Letter/自定义、边距窄/标准/宽/自定义（支持左右不对称）、
+纵横方向、打印区域（当前表/选区/整本）、缩放（适合页宽/适合整页）、<strong>重复冻结行</strong>、页眉页脚与页码
+（整本连续页码 vs 每表独立页码）、打印预览。这套参数表正好可以照抄成我们 Rust 侧的打印配置模型。</p>
+
+<h3>11.3 正解：服务端 Rust 产 PDF（rpx-print）</h3>
+<p><strong>关键优势：分页语义引擎里本来就有。</strong>Java 侧 <code>SimplePager</code>（3403 行）已经实现了
+按行高累加断页、固定区高度预扣、分组头跨页重绘、分栏、表头表尾重绘——Rust 引擎算完扩展之后，
+手里就是<strong>带合并区的扁平矩阵 + 行高列宽 + 分页水位</strong>，这正是 PDF 排版需要的全部信息。
+不需要第二个渲染引擎，也不需要 canvas 物化。</p>
+<pre><b>pub struct</b> PageLayout {                 <i>// 来源：.rpx 报表属性 + 用户打印时覆盖</i>
+  paper: Paper,                    <i>// A4/A3/Letter/Custom(w,h) —— 对齐 PrintPaperSize</i>
+  orientation: Orientation,        <i>// Portrait | Landscape</i>
+  margin: Margin,                  <i>// 支持左右不对称（对齐 PrintPaperMargin）</i>
+  scale: Scale,                    <i>// FitWidth | FitPage | Percent(f64)</i>
+  repeat_rows: Vec&lt;usize&gt;,          <i>// 每页重复的行（对齐 PrintFreeze.Row / 润乾"报表首格"）</i>
+  header_footer: HeaderFooter,     <i>// 页码 / 表名 / 自定义文本，支持整本连续页码</i>
+}
+<i>// rpx-print：PageLayout + Vec&lt;Page&gt;（分页后的矩阵）→ printpdf Document → Vec&lt;u8&gt;</i>
+<i>// printpdf：纯 Rust，文字/字体/线条/矩形/图片/页面尺寸齐全，无外部依赖、无头可跑</i></pre>
+<ul>
+<li><strong>与 .rpx 的对应</strong>：报表级属性里已有 <code>dispRatio</code>(133 显示比例)、<code>unit</code>(1=MM)、
+<code>expMap</code> 码 33=<strong>每页行数</strong>——润乾自己的分页配置就在模板里，直接映射成 <code>PageLayout</code>，用户无需重设。</li>
+<li><strong>确定性输出</strong>：同样输入永远得到同一份 PDF（无浏览器版本差异、无字体嗅探差异），便于归档与审计。</li>
+<li><strong>零授权、零部署依赖</strong>：不引 Chrome，符合"私有化、断网可跑"的既定边界。</li>
+<li><strong>大报表</strong>：与 BigEngine 分页同源——算一页写一页，PDF 也是流式产出，内存不随总页数增长。</li>
+</ul>
+
+<h3>11.4 轻量通道：浏览器 HTML 打印视图</h3>
+<p>有些场景用户就是想"快速打印当前看到的这一页"，不必回服务端。做法：同一份快照 JSON 再渲染一份
+<strong>DOM 表格</strong>（非 Univer canvas），配 <code>@media print</code> CSS（<code>@page { size: A4; margin: 12mm }</code>、
+<code>thead</code> 用 <code>display: table-header-group</code> 实现每页重复表头、<code>page-break-inside: avoid</code> 防拦腰断行），
+调 <code>window.print()</code>。<strong>注意 Univer 的 canvas 内容不会进浏览器打印</strong>，所以这个视图必须是独立的 DOM 渲染，
+不能复用 Univer 容器。定位是"便捷打印"，精确排版仍以 11.3 的 PDF 为准。</p>
+
+<h3>11.5 API</h3>
+<table>
+<tr><th style="width:300px">端点</th><th>说明</th></tr>
+<tr><td class="mono">POST /api/reports/{id}/print-pdf</td><td>body 带 PageLayout 覆盖项；服务端算 → 分页 → PDF 字节流（<code>application/pdf</code>）</td></tr>
+<tr><td class="mono">GET /api/reports/{id}/pages?layout=</td><td>返回分页预览信息（页数、每页行列范围），供前端做打印预览</td></tr>
+<tr><td class="mono">GET /print-view/{id}</td><td>DOM 打印视图页面（11.4 的轻量通道）</td></tr>
+</table>
+
+<h3>11.6 打印排版算法（落地细节，不依赖任何第三方实现）</h3>
+<p>这部分是"思路"的本体。全部来自<strong>已逆向理解的 ReportLite 分页器（SimplePager，3403 行）</strong>与标准 paged-media 语义，
+不来自任何商业组件的反编译——既无授权风险，也已经被对拍验证过。</p>
+
+<h4>① 页面盒模型</h4>
+<pre>printable_w = paper_w - margin.left - margin.right      <i>// 边距支持左右不对称</i>
+printable_h = paper_h - margin.top  - margin.bottom
+repeat_h    = Σ row_h[repeat_rows] × scale              <i>// 每页重复的表头高度</i>
+avail_h     = printable_h - repeat_h - header_h - footer_h   <i>// 页眉页脚也占可印高度</i></pre>
+
+<h4>② 缩放（对齐 PrintScale）</h4>
+<table>
+<tr><th style="width:110px">模式</th><th>算法</th><th>超出时</th></tr>
+<tr><td class="mono">FitWidth</td><td><code>scale = printable_w / content_w</code>，clamp 到 <code>[0.1, 4.0]</code></td><td>低于 0.1 → 转<strong>横向分页</strong>（拆列），不无限缩小</td></tr>
+<tr><td class="mono">FitPage</td><td><code>scale = min(printable_w/content_w, avail_h/content_h_total)</code></td><td>一次性塞进一页，字号随 scale 同步缩放</td></tr>
+<tr><td class="mono">Percent(p)</td><td><code>scale = p / 100</code></td><td>超出 → 横向 + 纵向同时分页</td></tr>
+</table>
+<p><strong>横向分页</strong>（对应润乾 BaseExcel 的列拆分）：按列宽贪心累加，超过 <code>printable_w</code> 即断页；
+合并格跨断点时整格移到下一页（保内容完整，不裁切），这与 Java 侧"锚点 + 跨度"的处理一致。</p>
+
+<h4>③ 纵向断页（与 SimplePager 同构的水位算法）</h4>
+<pre>watermark = 0
+<b>for</b> row <b>in</b> rows:
+    need = fixed_top_h(row) + row_h[row] × scale      <i>// fixed_top_h = 分组头/小计/合计行高</i>
+    <b>if</b> watermark &gt; 0 && watermark + need &gt; avail_h:
+        emit_page(); watermark = repeat_h             <i>// 换页后表头重绘，水位重置</i>
+    place(row); watermark += need
+<i>// keep-together：分组行与其子行不可被分页拆开（rowType 分组），</i>
+<i>// 需把「整组高度」提前参与上面的越界判断，否则会出现半截分组。</i></pre>
+<p>两个从逆向结论里直接搬过来的要点：<strong>固定区高度要先扣</strong>（分组头跨页重绘靠祖先链计算），
+<strong>水位单向推进不回头</strong>——这两条保证了分页结果确定、可复现。</p>
+
+<h4>④ 页眉页脚与页码</h4>
+<p>页码两种 scheme（对应官方 <code>PrintHeaderFooter</code> 的语义差异，报表场景两种都有人要）：</p>
+<ul>
+<li><strong>整本连续</strong>：跨 sheet 累加全局页序，适合"一个报表打 30 页、页码 1/30…30/30"</li>
+<li><strong>每表独立</strong>：每张表从 1 开始，适合多表合订本</li>
+<li>元素：页码（<code>第 X 页 / 共 Y 页</code>）、表名、打印时间、自定义文本；左右中三段对齐</li>
+</ul>
+
+<h4>⑤ 文本度量（中文 PDF 的生死线）</h4>
+<ul>
+<li><strong>文本宽度必须来自字体度量</strong>，不能用字符数估算——中文全宽、数字半宽混排时误差会累积到列宽判定上。</li>
+<li>中文字体<strong>子集化内嵌</strong>（思源黑体/宋体），否则 PDF 在未装该字体的机器上乱码；子集只收实际用到的字形，控制在几百 KB。</li>
+<li>行内换行按可印宽度逐字断行，标点避头尾（中文排版基本规则，财政报表会被逐字看）。</li>
+</ul>
+
+<h4>⑥ 备选路线：canvas 物化（不选，仅记录）</h4>
+<p>若将来要在浏览器里打印 Univer 的 canvas 内容，唯一办法是离屏 canvas 按打印 DPI（300）分块 →
+<code>toDataURL</code>/blob → 当图片贴进页面。缺点很硬：文字不可选不可搜索、300dpi A4 约 3500×4960px 导致文件体积暴涨、
+内存峰值高、缩放后发虚。<strong>我们的场景根本不需要它</strong>——引擎产出的是逻辑矩阵，直接走 printpdf 矢量输出。</p>
+
+<div class="box key"><b>关于"反编译 Univer Pro 找思路"的决定：不做，也没必要。</b>
+① <strong>合规</strong>：Pro 是商业授权组件，其许可协议与通常的商业 EULA 一样禁止反编译/反汇编，
+而这是要进财政场景私有化交付的产品，授权链瑕疵会在验收/审计阶段暴露；
+② <strong>拿不到</strong>：官方已暂停新购与 30 天试用，现在连合法的黑盒观察渠道都没有；
+③ <strong>不需要</strong>：分页与打印的全部语义我们已经有<strong>完整源码级参考实现</strong>（ReportLite SimplePager，
+已逆向并逐行理解），上面的算法就是它的 Rust 化，比从混淆产物里猜更可靠。
+若确实需要研究 canvas 表格的打印机理，合法材料是 Univer <strong>开源部分</strong>（Apache-2.0，GitHub 可读），
+但打印插件本身不在开源范围内。</div>
+
+<h2>十二、风险与关键取舍</h2>
+<table>
+<tr><th style="width:210px">项</th><th>风险 / 取舍</th><th>对策</th></tr>
+<tr><td>表达式语言</td><td>润乾自有表达式（ds.字段、A1 引用、集算函数）Univer 公式引擎不认</td><td>自研递归下降子集解析器（nom 或手写），MVP 覆盖算术/比较/聚合/字符串函数</td></tr>
+<tr><td>格式兼容</td><td>老 .rpx 是 Java OIS 序列化</td><td>不支持，明确报错；只保现代紧凑格式</td></tr>
+<tr><td>混淆引擎类</td><td>model/engine 里 5% 类名混淆</td><td>语义已全部还原，Rust 版用语义命名重写，无遗留</td></tr>
+<tr><td>数值精度</td><td>Java BigDecimal（scale+unscaled 记录层标签 2）</td><td><code>rust_decimal</code> + highPrecision 标志位透传</td></tr>
+<tr><td>渲染保真度</td><td>Univer 与 Swing 渲染细节差异（斜线表头/旋转角）</td><td>MVP 砍斜线与旋转；核心布局/合并/样式优先对齐</td></tr>
+<tr><td>打印依赖</td><td>若把打印押在 Univer Pro：官方已暂停新购与试用（pro.univer.ai 公告），免费档 ≤3 页/次 + 水印，价格不透明</td><td>打印走 Rust 侧 <code>rpx-print</code>（printpdf），Univer 只做屏幕渲染；Pro 仅作将来备选，且<strong>明确不反编译 Pro</strong>（授权禁止 + 无必要，见 11.6）</td></tr>
+<tr><td>PDF 中文</td><td>printpdf 需内嵌中文字体，否则 PDF 乱码</td><td>打包思源黑体/宋体子集，字体文件随产品分发；文本宽度用字体度量，不猜</td></tr>
+<tr><td>跨库方言差异</td><td>同一张报表模板换库时，SQL 里的日期函数/布尔/字符串拼接可能不兼容</td><td>方言层收敛差异点；模板标注推荐库种；对拍矩阵覆盖 PG/MySQL/SQLite 三库</td></tr>
+<tr><td>AnyPool 无编译期校验</td><td>SQL 错误只能在渲染期暴露</td><td>CLI 对拍 + 渲染期错误带 SQL 上下文回显；平台库 libSQL 可加 <code>named_params!</code> 减少错位</td></tr>
+<tr><td>Turso 写并发</td><td>SQLite 系单写者，报表上传/缓存写入会排队</td><td>写路径极短（单行 insert）；渲染是读路径不受影响；纯本地模式下无同步冲突问题</td></tr>
+<tr><td>授权合规</td><td>逆向实现的边界</td><td>仅做互操作（读公开格式 + 重实现语义），不搬运混淆字节码</td></tr>
+</table>
+
+<h2>十三、实施里程碑</h2>
+<table>
+<tr><th style="width:70px">阶段</th><th>目标</th><th>验收标准</th></tr>
+<tr><td class="c">M1</td><td>rpx-core：解析器 + 模型</td><td>真实 .rpx → 内存模型，字段/属性码全对；CLI 打印矩阵</td></tr>
+<tr><td class="c">M2</td><td>rpx-engine：扩展 + 计算 + 合并</td><td>CLI 渲染 sample.rpx → JSON/CSV，与 Java 版导出对拍一致</td></tr>
+<tr><td class="c">M3</td><td>rpx-ds + axum 主链路</td><td>POST /render：Turso 读报表资产 + AnyPool 连业务库取数 → 出快照；参数注入生效</td></tr>
+<tr><td class="c">M4</td><td>Univer 前端</td><td>浏览器打开看到带合并/样式的报表；翻页可用</td></tr>
+<tr><td class="c">M5</td><td>rpx-export xlsx + rpx-print PDF</td><td>导出的 xlsx 与 Java 版结构比对通过；PDF 分页/重复表头/边距与润乾打印一致</td></tr>
+<tr><td class="c">M6</td><td>分页 + 缓存 + 预算 + 打印预览</td><td>BigEngine 等价分页、render_cache 命中、PerfMonitor 预算熔断、/pages 预览可用</td></tr>
+</table>
+
+<div class="box key">
+<b>最短闭环路径</b>：M1+M2 用 <code>rpx-cli</code> 单机验证（不碰数据库和前端），对拍通过后再上 M3/M4。
+. rpx 格式与算法都已是确定知识，这条路径没有未知技术风险，只有工作量。
+</div>
+
+</div></body></html>

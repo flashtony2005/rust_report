@@ -49,7 +49,11 @@ fn rejects_absurd_matrix_dims() {
         let err = rpx_core::open_bytes(&file)
             .err()
             .unwrap_or_else(|| panic!("{}: dims ({},{}) must be rejected", what, rows, cols));
-        assert!(!err.to_string().is_empty(), "{}: error must carry a message", what);
+        assert!(
+            !err.to_string().is_empty(),
+            "{}: error must carry a message",
+            what
+        );
     }
 }
 
@@ -60,7 +64,11 @@ fn accepts_plausible_dims_but_rejects_missing_body() {
     let file = synth_file(&dims_only(4, 4));
     let err = rpx_core::open_bytes(&file).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("truncated") || msg.contains("slot"), "unexpected error: {}", msg);
+    assert!(
+        msg.contains("truncated") || msg.contains("slot"),
+        "unexpected error: {}",
+        msg
+    );
 }
 
 /// 记录层截断：payload 的每个前缀都必须 Err，且任何 panic 都会被捕获并报出具体位置。
@@ -69,33 +77,59 @@ fn record_layer_truncation_never_panics() {
     let fixtures: [(&str, &[u8]); 4] = [
         (
             "simple",
-            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/simple.rpx")),
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/simple.rpx"
+            )),
         ),
         (
             "merged",
-            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/merged.rpx")),
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/merged.rpx"
+            )),
         ),
         (
             "full",
-            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/full.rpx")),
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/full.rpx"
+            )),
         ),
         (
             "realmerge",
-            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/realmerge.rpx")),
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/realmerge.rpx"
+            )),
         ),
     ];
     let mut checked = 0usize;
     for (name, rpx) in fixtures {
         let payload = &rpx[8..rpx.len() - 8];
-        assert!(ReportDefine::fill(payload).is_ok(), "{}: intact payload must parse", name);
+        assert!(
+            ReportDefine::fill(payload).is_ok(),
+            "{}: intact payload must parse",
+            name
+        );
         for cut in 0..payload.len() {
             let prefix = &payload[..cut];
             let res = std::panic::catch_unwind(|| ReportDefine::fill(prefix));
-            let parsed = res.unwrap_or_else(|_| panic!("{}: payload prefix {} panicked", name, cut));
-            assert!(parsed.is_err(), "{}: payload prefix {} must be rejected", name, cut);
+            let parsed =
+                res.unwrap_or_else(|_| panic!("{}: payload prefix {} panicked", name, cut));
+            assert!(
+                parsed.is_err(),
+                "{}: payload prefix {} must be rejected",
+                name,
+                cut
+            );
             checked += 1;
         }
     }
     // 四个夹具 payload 前缀合计应远超 2 万（simple 3610 + merged 5180 + full 7475 + realmerge 4981）
-    assert!(checked > 20_000, "record-layer sweep covered only {} prefixes", checked);
+    assert!(
+        checked > 20_000,
+        "record-layer sweep covered only {} prefixes",
+        checked
+    );
 }

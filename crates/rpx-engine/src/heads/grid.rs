@@ -128,6 +128,29 @@ impl HeadState {
         (c.src_row, c.src_col)
     }
 
+    /// 把**引擎矩阵侧**的合并跨度冻结成当前值（`engine_row_merge`/`engine_col_merge`）。
+    ///
+    /// # 为什么需要这一步
+    ///
+    /// 产品里 `_$25` 与 `_$26` 装的是**两个对象**：`_$26.set(i, j, extCell)` 配
+    /// `_$25.set(i, j, extCell.engine)`（`ExtCellSet.java:190`），而 `rowMerge` 是
+    /// `ExtNormalCell` 自己的字段（`:235-237`）。合并两趟只改 `_$26` 那一份，
+    /// 于是 `getSource(r,c).getRowMerge()` 与 `getCell(r,c).getRowMerge()` 会分家 ——
+    /// `engine_samemerge` 的 `(2,1)` 就是这个分家（`merged` 报 2、`source` 报 1）。
+    ///
+    /// 本 crate 的 [`HeadCell`] 是**一格一个对象**，两侧共用同一份 `row_merge`。
+    /// 在合并两趟**之前**调本方法，把当时的值另存一份到引擎侧字段，
+    /// 就等价于「引擎矩阵从此刻起不再被合并趟改写」。
+    ///
+    /// ⛔ **必须在两趟合并之前调**，且每个 [`HeadState`] 只需调一次 —— 之后再调会把
+    /// 合并结果也冻进去，两套跨度就永远相等，`engine_samemerge` 的分家随之丢失。
+    pub fn freeze_engine_spans(&mut self) {
+        for c in &mut self.cells {
+            c.engine_row_merge = c.row_merge;
+            c.engine_col_merge = c.col_merge;
+        }
+    }
+
     /// `cell.getSource()`（`ExtNormalCell.getSource():151-153` → `engine.srcCurrent`）：
     /// 该格的**引擎矩阵本体格**。克隆实例返回它克隆自的那一格。
     ///
@@ -187,7 +210,10 @@ impl HeadGrid for HeadState {
     }
 
     fn get_calc(&self, row: i32, col: i32) -> CellId {
-        self.by_pos.get(&(row, col)).copied().unwrap_or(CellId::NONE)
+        self.by_pos
+            .get(&(row, col))
+            .copied()
+            .unwrap_or(CellId::NONE)
     }
 
     fn get_source_by_id(&self, id: &str) -> CellId {

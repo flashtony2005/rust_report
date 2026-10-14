@@ -32,11 +32,24 @@ impl Area {
     fn read(slot: usize) -> impl FnOnce(&[u8]) -> Result<Option<Area>> {
         move |slice: &[u8]| {
             let mut r = RecordReader::new(slice);
-            let begin_row = r.read_i32().map_err(|_| RpxError::prop(slot as u16, "area beginRow"))?;
-            let end_row = r.read_i32().map_err(|_| RpxError::prop(slot as u16, "area endRow"))?;
-            let begin_col = r.read_i32().map_err(|_| RpxError::prop(slot as u16, "area beginCol"))?;
-            let end_col = r.read_i32().map_err(|_| RpxError::prop(slot as u16, "area endCol"))?;
-            Ok(Some(Area { begin_row, end_row, begin_col, end_col }))
+            let begin_row = r
+                .read_i32()
+                .map_err(|_| RpxError::prop(slot as u16, "area beginRow"))?;
+            let end_row = r
+                .read_i32()
+                .map_err(|_| RpxError::prop(slot as u16, "area endRow"))?;
+            let begin_col = r
+                .read_i32()
+                .map_err(|_| RpxError::prop(slot as u16, "area beginCol"))?;
+            let end_col = r
+                .read_i32()
+                .map_err(|_| RpxError::prop(slot as u16, "area endCol"))?;
+            Ok(Some(Area {
+                begin_row,
+                end_row,
+                begin_col,
+                end_col,
+            }))
         }
     }
 }
@@ -106,43 +119,83 @@ impl Cell {
         let mut r = RecordReader::new(slice);
         let p = |slot: usize, what: &'static str| RpxError::prop(slot as u16, what);
 
-        let merged_area = match r.read_record_raw().map_err(|_| p(cell::MERGED_AREA, "mergedArea"))? {
+        let merged_area = match r
+            .read_record_raw()
+            .map_err(|_| p(cell::MERGED_AREA, "mergedArea"))?
+        {
             Some(s) => Area::read(cell::MERGED_AREA)(s)?,
             None => None,
         };
         let h_align = r.read_i8().map_err(|_| p(cell::HALIGN, "hAlign"))?;
         let v_align = r.read_i8().map_err(|_| p(cell::VALIGN, "vAlign"))?;
-        let diagonal_style = normalize_style(r.read_i8().map_err(|_| p(cell::DIAGONAL_STYLE, "diagonalStyle"))?);
-        let diagonal_color = r.read_i32().map_err(|_| p(cell::DIAGONAL_COLOR, "diagonalColor"))?;
-        let diagonal_width = r.read_f32().map_err(|_| p(cell::DIAGONAL_WIDTH, "diagonalWidth"))?;
-        let extend_mode = r.read_i8().map_err(|_| p(cell::EXTEND_MODE, "extendMode"))?;
-        let extend_area = match r.read_record_raw().map_err(|_| p(cell::EXTEND_AREA, "extendArea"))? {
+        let diagonal_style = normalize_style(
+            r.read_i8()
+                .map_err(|_| p(cell::DIAGONAL_STYLE, "diagonalStyle"))?,
+        );
+        let diagonal_color = r
+            .read_i32()
+            .map_err(|_| p(cell::DIAGONAL_COLOR, "diagonalColor"))?;
+        let diagonal_width = r
+            .read_f32()
+            .map_err(|_| p(cell::DIAGONAL_WIDTH, "diagonalWidth"))?;
+        let extend_mode = r
+            .read_i8()
+            .map_err(|_| p(cell::EXTEND_MODE, "extendMode"))?;
+        let extend_area = match r
+            .read_record_raw()
+            .map_err(|_| p(cell::EXTEND_AREA, "extendArea"))?
+        {
             Some(s) => Area::read(cell::EXTEND_AREA)(s)?,
             None => None,
         };
-        let left_head = r.read_string().map_err(|_| p(cell::LEFT_HEAD, "leftHead"))?;
+        let left_head = r
+            .read_string()
+            .map_err(|_| p(cell::LEFT_HEAD, "leftHead"))?;
         let top_head = r.read_string().map_err(|_| p(cell::TOP_HEAD, "topHead"))?;
-        let to_excel_mode = r.read_i8().map_err(|_| p(cell::TO_EXCEL_MODE, "toExcelMode"))?;
-        let adjust_size_mode = r.read_i8().map_err(|_| p(cell::ADJUST_SIZE_MODE, "adjustSizeMode"))?;
+        let to_excel_mode = r
+            .read_i8()
+            .map_err(|_| p(cell::TO_EXCEL_MODE, "toExcelMode"))?;
+        let adjust_size_mode = r
+            .read_i8()
+            .map_err(|_| p(cell::ADJUST_SIZE_MODE, "adjustSizeMode"))?;
 
-        let cell_obj = if r.read_bool().map_err(|_| p(cell::CELL_OBJ, "cellObj flag"))? {
-            let class_name = r.read_string().map_err(|_| p(cell::CELL_OBJ, "cellObj class"))?;
-            let raw = r.read_record_raw().map_err(|_| p(cell::CELL_OBJ, "cellObj record"))?.unwrap_or(&[]).to_vec();
+        let cell_obj = if r
+            .read_bool()
+            .map_err(|_| p(cell::CELL_OBJ, "cellObj flag"))?
+        {
+            let class_name = r
+                .read_string()
+                .map_err(|_| p(cell::CELL_OBJ, "cellObj class"))?;
+            let raw = r
+                .read_record_raw()
+                .map_err(|_| p(cell::CELL_OBJ, "cellObj record"))?
+                .unwrap_or(&[])
+                .to_vec();
             Some(CellObj { class_name, raw })
         } else {
             None
         };
 
-        let value = r.read_object("cell VALUE").map_err(|_| p(cell::VALUE, "value"))?;
-        let disp_value = r.read_string().map_err(|_| p(cell::DISP_VALUE, "dispValue"))?;
+        let value = r
+            .read_object("cell VALUE")
+            .map_err(|_| p(cell::VALUE, "value"))?;
+        let disp_value = r
+            .read_string()
+            .map_err(|_| p(cell::DISP_VALUE, "dispValue"))?;
         let indent = r.read_f32().map_err(|_| p(cell::INDENT, "indent"))?;
-        let font_name = r.read_string().map_err(|_| p(cell::FONT_NAME, "fontName"))?;
+        let font_name = r
+            .read_string()
+            .map_err(|_| p(cell::FONT_NAME, "fontName"))?;
         let font_size = r.read_i16().map_err(|_| p(cell::FONT_SIZE, "fontSize"))?;
         let format = r.read_string().map_err(|_| p(cell::FORMAT, "format"))?;
         let fore_color = r.read_i32().map_err(|_| p(cell::FORE_COLOR, "foreColor"))?;
         let back_color = r.read_i32().map_err(|_| p(cell::BACK_COLOR, "backColor"))?;
-        let hyperlink = r.read_string().map_err(|_| p(cell::HYPERLINK, "hyperlink"))?;
-        let hyperlink_window = r.read_string().map_err(|_| p(cell::HYPERLINK_WINDOW, "hyperlinkWindow"))?;
+        let hyperlink = r
+            .read_string()
+            .map_err(|_| p(cell::HYPERLINK, "hyperlink"))?;
+        let hyperlink_window = r
+            .read_string()
+            .map_err(|_| p(cell::HYPERLINK_WINDOW, "hyperlinkWindow"))?;
         let lb_style = normalize_style(r.read_i8().map_err(|_| p(cell::LB_STYLE, "lbStyle"))?);
         let lb_width = r.read_f32().map_err(|_| p(cell::LB_WIDTH, "lbWidth"))?;
         let lb_color = r.read_i32().map_err(|_| p(cell::LB_COLOR, "lbColor"))?;
@@ -156,7 +209,10 @@ impl Cell {
         let bb_width = r.read_f32().map_err(|_| p(cell::BB_WIDTH, "bbWidth"))?;
         let bb_color = r.read_i32().map_err(|_| p(cell::BB_COLOR, "bbColor"))?;
 
-        let exp_map = match r.read_record_raw().map_err(|_| p(cell::EXP_MAP, "expMap"))? {
+        let exp_map = match r
+            .read_record_raw()
+            .map_err(|_| p(cell::EXP_MAP, "expMap"))?
+        {
             Some(s) => Some(RecordReader::parse_byte_map(s)?),
             None => None,
         };
@@ -165,20 +221,34 @@ impl Cell {
         let notes = r.read_string().map_err(|_| p(cell::NOTES, "notes"))?;
 
         // 槽 40：writeStrings(null) 的 2 字节空洞，读侧丢弃（附件 A.3）
-        let _hole = r.read_strings().map_err(|_| p(cell::STRINGS_HOLE, "strings hole"))?;
+        let _hole = r
+            .read_strings()
+            .map_err(|_| p(cell::STRINGS_HOLE, "strings hole"))?;
 
         let ois_blob = r.read_blob().map_err(|_| p(cell::OIS_BLOB, "ois blob"))?;
-        let cell_graph_config = r.read_blob().map_err(|_| p(cell::CELL_GRAPH_CONFIG, "cellGraphConfig"))?;
-        let under_line_style = normalize_style(r.read_i8().map_err(|_| p(cell::UNDER_LINE_STYLE, "underLineStyle"))?);
-        let cell_style_name = r.read_string().map_err(|_| p(cell::CELL_STYLE_NAME, "cellStyleName"))?;
+        let cell_graph_config = r
+            .read_blob()
+            .map_err(|_| p(cell::CELL_GRAPH_CONFIG, "cellGraphConfig"))?;
+        let under_line_style = normalize_style(
+            r.read_i8()
+                .map_err(|_| p(cell::UNDER_LINE_STYLE, "underLineStyle"))?,
+        );
+        let cell_style_name = r
+            .read_string()
+            .map_err(|_| p(cell::CELL_STYLE_NAME, "cellStyleName"))?;
         let merge_same = r.read_i8().map_err(|_| p(cell::MERGE_SAME, "mergeSame"))?;
         let merge_null = r.read_i8().map_err(|_| p(cell::MERGE_NULL, "mergeNull"))?;
-        let merge_same_mode = r.read_i8().map_err(|_| p(cell::MERGE_SAME_MODE, "mergeSameMode"))?;
-        let merge_null_mode = r.read_i8().map_err(|_| p(cell::MERGE_NULL_MODE, "mergeNullMode"))?;
+        let merge_same_mode = r
+            .read_i8()
+            .map_err(|_| p(cell::MERGE_SAME_MODE, "mergeSameMode"))?;
+        let merge_null_mode = r
+            .read_i8()
+            .map_err(|_| p(cell::MERGE_NULL_MODE, "mergeNullMode"))?;
 
         // 槽 49：唯一 available() 守卫槽（NormalCell.java:1613-1615）
         let rotation_angle = if r.remaining() > 0 {
-            r.read_f32().map_err(|_| p(cell::ROTATION_ANGLE, "rotationAngle"))?
+            r.read_f32()
+                .map_err(|_| p(cell::ROTATION_ANGLE, "rotationAngle"))?
         } else {
             def::ROTATION_ANGLE
         };

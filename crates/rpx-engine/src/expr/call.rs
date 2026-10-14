@@ -7,9 +7,9 @@ use crate::value::Value;
 
 use super::ast::{Call, Expr, ParamKind};
 use super::classify::{split_ds, split_top, top_level_kind};
-use super::token::Tok;
 use super::names::{classify_bare, classify_ds};
 use super::parser::parse_tokens;
+use super::token::Tok;
 
 /// 切分一个参数串（`ParamParser._$1:35-64` 的简化版）。
 ///
@@ -59,8 +59,18 @@ pub fn build_call(word: String, param_kind: ParamKind, args: Vec<Expr>) -> Expr 
     }
     // `list(...)` 登记为 `ValueList`（`FunctionLib.java:165`），不是普通函数
     if head == "list" {
-        return Expr::ValueList { kind: param_kind, items: args };
+        return Expr::ValueList {
+            kind: param_kind,
+            items: args,
+        };
     }
     let kind = classify_bare(&head);
-    Expr::Call(Call { qualifier: None, name: head, option, kind, param_kind, args })
+    Expr::Call(Call {
+        qualifier: None,
+        name: head,
+        option,
+        kind,
+        param_kind,
+        args,
+    })
 }

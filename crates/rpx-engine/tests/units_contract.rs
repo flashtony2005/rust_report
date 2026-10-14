@@ -109,9 +109,7 @@ fn section<'a>(text: &'a str, name: &str) -> &'a str {
 /// 取 `"key": <整数>`。找不到 key、或值不是整数 → panic。
 fn int_after(hay: &str, key: &str) -> i32 {
     let pat = format!("\"{key}\":");
-    let at = hay
-        .find(&pat)
-        .unwrap_or_else(|| panic!("找不到键 {key}")) + pat.len();
+    let at = hay.find(&pat).unwrap_or_else(|| panic!("找不到键 {key}")) + pat.len();
     let digits: String = hay[at..]
         .trim_start()
         .chars()
@@ -207,7 +205,11 @@ fn row_count_formula_is_derived_from_product_artifacts() {
         );
 
         // 模板行数与 .rpx 对齐（再钉一次，防止 json 与 rpx 不同步）
-        assert_eq!(open_rpx(name).rows as i32 - 1, template_rows, "{name}: 模板行数口径");
+        assert_eq!(
+            open_rpx(name).rows as i32 - 1,
+            template_rows,
+            "{name}: 模板行数口径"
+        );
 
         assert_eq!(
             calc_row_count(template_rows, dataset_rows, block),
@@ -222,18 +224,32 @@ fn row_count_formula_is_derived_from_product_artifacts() {
 #[test]
 fn block_height_reflects_template_merges_not_merge_same() {
     let merge = read_fixture("engine_merge", "expected.json");
-    assert_eq!(block_height(section(&merge, "calculated")), 2, "engine_merge");
+    assert_eq!(
+        block_height(section(&merge, "calculated")),
+        2,
+        "engine_merge"
+    );
 
     // engine_samemerge 的 `merged` 段写 row_merge=2（mergeSame 的结果），
     // 但计算态锚点仍是 1 —— 两者必须分得开，这正是不能从 merged 推块高的原因
     let same = read_fixture("engine_samemerge", "expected.json");
-    assert_eq!(block_height(section(&same, "calculated")), 1, "engine_samemerge");
+    assert_eq!(
+        block_height(section(&same, "calculated")),
+        1,
+        "engine_samemerge"
+    );
     assert!(
         section(&same, "merged").contains("\"row_merge\":2"),
         "engine_samemerge 的 merged 段应含 row_merge=2（分页后才有）"
     );
 
-    for name in ["engine_sum", "engine_ext", "engine_expr", "engine_pager", "engine_disp"] {
+    for name in [
+        "engine_sum",
+        "engine_ext",
+        "engine_expr",
+        "engine_pager",
+        "engine_disp",
+    ] {
         let json = read_fixture(name, "expected.json");
         assert_eq!(block_height(section(&json, "calculated")), 1, "{name}");
     }
@@ -245,9 +261,18 @@ fn block_height_reflects_template_merges_not_merge_same() {
 fn the_error_fixture_has_no_grid() {
     let json = read_fixture("engine_cycle", "expected.json");
     let calc = section(&json, "calculated");
-    assert!(calc.contains("\"error\""), "engine_cycle 的 calculated 应是 error 对象");
+    assert!(
+        calc.contains("\"error\""),
+        "engine_cycle 的 calculated 应是 error 对象"
+    );
     assert!(!calc.contains("\"rows\""), "错误型夹具不该有网格尺寸");
     assert!(calc.contains("\"chain\""), "错误型夹具必须带引用链");
-    assert!(json.contains("\"pagination\":null"), "错误型夹具的 pagination 应为 null");
-    assert!(json.contains("\"merged\":null"), "错误型夹具的 merged 应为 null");
+    assert!(
+        json.contains("\"pagination\":null"),
+        "错误型夹具的 pagination 应为 null"
+    );
+    assert!(
+        json.contains("\"merged\":null"),
+        "错误型夹具的 merged 应为 null"
+    );
 }

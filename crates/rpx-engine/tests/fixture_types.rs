@@ -100,7 +100,10 @@ fn integer_and_integral_double_differ_only_by_declared_type() {
     let int_cell = fx.cell(2, 1).unwrap();
     let dbl_cell = fx.cell(2, 4).unwrap();
 
-    assert_eq!(int_cell.value_raw, dbl_cell.value_raw, "两者字面形状都是 100");
+    assert_eq!(
+        int_cell.value_raw, dbl_cell.value_raw,
+        "两者字面形状都是 100"
+    );
     assert_eq!(int_cell.declared_type, "int");
     assert_eq!(dbl_cell.declared_type, "double");
     assert_ne!(

@@ -38,7 +38,9 @@ pub(crate) fn num_add(a: &Value, b: &Value) -> Result<Value> {
     }
     match (to_f64(a), to_f64(b)) {
         (Some(x), Some(y)) => Ok(Value::Double(x + y)),
-        _ => Err(EngineError::UnsupportedExpr { expr: format!("{a:?} + {b:?}") }),
+        _ => Err(EngineError::UnsupportedExpr {
+            expr: format!("{a:?} + {b:?}"),
+        }),
     }
 }
 
@@ -52,7 +54,9 @@ pub(crate) fn num_sub(a: &Value, b: &Value) -> Result<Value> {
     }
     match (to_f64(a), to_f64(b)) {
         (Some(x), Some(y)) => Ok(Value::Double(x - y)),
-        _ => Err(EngineError::UnsupportedExpr { expr: format!("{a:?} - {b:?}") }),
+        _ => Err(EngineError::UnsupportedExpr {
+            expr: format!("{a:?} - {b:?}"),
+        }),
     }
 }
 
@@ -66,7 +70,9 @@ pub(crate) fn num_mul(a: &Value, b: &Value) -> Result<Value> {
     }
     match (to_f64(a), to_f64(b)) {
         (Some(x), Some(y)) => Ok(Value::Double(x * y)),
-        _ => Err(EngineError::UnsupportedExpr { expr: format!("{a:?} * {b:?}") }),
+        _ => Err(EngineError::UnsupportedExpr {
+            expr: format!("{a:?} * {b:?}"),
+        }),
     }
 }
 
@@ -74,7 +80,9 @@ pub(crate) fn num_mul(a: &Value, b: &Value) -> Result<Value> {
 pub(crate) fn num_div(a: &Value, b: &Value) -> Result<Value> {
     match (to_f64(a), to_f64(b)) {
         (Some(x), Some(y)) => Ok(Value::Double(x / y)),
-        _ => Err(EngineError::UnsupportedExpr { expr: format!("{a:?} / {b:?}") }),
+        _ => Err(EngineError::UnsupportedExpr {
+            expr: format!("{a:?} / {b:?}"),
+        }),
     }
 }
 
@@ -85,7 +93,9 @@ pub(crate) fn num_mod(a: &Value, b: &Value) -> Result<Value> {
     }
     match (to_f64(a), to_f64(b)) {
         (Some(x), Some(y)) => Ok(Value::Double(x % y)),
-        _ => Err(EngineError::UnsupportedExpr { expr: format!("{a:?} % {b:?}") }),
+        _ => Err(EngineError::UnsupportedExpr {
+            expr: format!("{a:?} % {b:?}"),
+        }),
     }
 }
 
@@ -96,7 +106,11 @@ pub(crate) fn num_neg(v: &Value) -> Result<Value> {
         Value::Long(l) => Value::Long(l.wrapping_neg()),
         other => match to_f64(other) {
             Some(x) => Value::Double(-x),
-            None => return Err(EngineError::UnsupportedExpr { expr: format!("-{other:?}") }),
+            None => {
+                return Err(EngineError::UnsupportedExpr {
+                    expr: format!("-{other:?}"),
+                })
+            }
         },
     })
 }
@@ -105,7 +119,9 @@ pub(crate) fn num_neg(v: &Value) -> Result<Value> {
 pub(crate) fn num_cmp(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
     match (to_f64(a), to_f64(b)) {
         (Some(x), Some(y)) => Ok(x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)),
-        _ => Err(EngineError::UnsupportedExpr { expr: format!("{a:?} <=> {b:?}") }),
+        _ => Err(EngineError::UnsupportedExpr {
+            expr: format!("{a:?} <=> {b:?}"),
+        }),
     }
 }
 
@@ -118,10 +134,38 @@ pub(crate) fn val_eq(a: &Value, b: &Value) -> bool {
     }
 }
 
+/// `max` / `min` 的聚合比较：`Variant2.compare2`（`:418-458`）的**可排序子集**。
+///
+/// 与 [`num_cmp`] 的两点差别：
+///
+/// 1. 多一支 `Bool-Bool`（`compare2:453-455` → `compare(boolean,boolean):351-359`，
+///    `false < true`）；
+/// 2. `Text-Text` **显式报错而不是静默给 0** —— 产品走 `ChineseComparator`
+///    （`compare2:425-427`），而那是一个 `RuleBasedCollator`
+///    （`ChineseComparator.java:34`），规则表 `com/raqsoft/commonl/rule.txt`
+///    **打在 JAR 里、不在本仓库**（`find . -name rule.txt` 为空）⇒ 无法复刻，
+///    只能诚实不支持。这与 `ds_column` 的 Root 态同属"事实源缺失"。
+///
+/// ⚠ 本函数**继承** `to_f64` 的全部数值语义，即 `merge/tripwire.rs` 记录的
+/// 7 处分歧在这里同样成立：`Decimal` 与数值混比会报错（分歧 A 的后果）、
+/// `Double`/`Float` 的 ±0 与 NaN、`Long` 超 2^53 都会偏离 Java。
+/// **修 `to_f64` 时必须连这些一起重核。**
+pub(crate) fn aggregate_cmp(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
+    match (a, b) {
+        (Value::Bool(x), Value::Bool(y)) => Ok(x.cmp(y)),
+        (Value::Text(_), Value::Text(_)) => Err(EngineError::UnsupportedExpr {
+            expr: format!("{a:?} 与 {b:?} 的字典序需要 ChineseComparator/rule.txt（不在仓库）"),
+        }),
+        _ => num_cmp(a, b),
+    }
+}
+
 /// 布尔强转：只有 `Bool` 通过，其余报错（产品无隐式真值转换）。
 pub(crate) fn as_bool(v: &Value) -> Result<bool> {
     match v {
         Value::Bool(b) => Ok(*b),
-        other => Err(EngineError::UnsupportedExpr { expr: format!("非布尔: {other:?}") }),
+        other => Err(EngineError::UnsupportedExpr {
+            expr: format!("非布尔: {other:?}"),
+        }),
     }
 }

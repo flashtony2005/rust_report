@@ -19,7 +19,10 @@ fn ctx_with_one_cell() -> CalcCtx {
     let mut c = HeadCell::new(1, 1, 17, -91);
     c.rt.expr = None; // 字面量格形态
     g.push(c);
-    CalcCtx::new(g, vec![DataSet::new("ds1", &["qty"], vec![vec![Value::Int(1)]])])
+    CalcCtx::new(
+        g,
+        vec![DataSet::new("ds1", &["qty"], vec![vec![Value::Int(1)]])],
+    )
 }
 
 /// `set_value` 必须连 bit30 一起置（`ExtNormalCell.java:1639-1642` 的绑定语义）。
@@ -30,7 +33,10 @@ fn set_value_binds_bit30() {
     assert!(ctx.rt(c).unwrap().non_calc(), "前置：初始未算");
     ctx.set_value(c, Value::Int(7));
     let rt = ctx.rt(c).unwrap();
-    assert!(!rt.non_calc(), "写值后必须已算过（setCalc(true) 藏在 setValue 里）");
+    assert!(
+        !rt.non_calc(),
+        "写值后必须已算过（setCalc(true) 藏在 setValue 里）"
+    );
     assert_eq!(ctx.value_of(c), Value::Int(7));
 }
 
@@ -44,11 +50,19 @@ fn set_calc_false_clears_value_but_reset_does_not() {
 
     ctx.reset_flags(c);
     assert!(ctx.rt(c).unwrap().non_calc());
-    assert_eq!(ctx.value_of(c), Value::Int(7), "reset() 不清值（rowMerge &= 0x3FFFFFFF）");
+    assert_eq!(
+        ctx.value_of(c),
+        Value::Int(7),
+        "reset() 不清值（rowMerge &= 0x3FFFFFFF）"
+    );
 
     ctx.set_calc(c, false);
     assert!(ctx.rt(c).unwrap().non_calc());
-    assert_eq!(ctx.value_of(c), Value::Null, "setCalc(false) 连值一起清（:296）");
+    assert_eq!(
+        ctx.value_of(c),
+        Value::Null,
+        "setCalc(false) 连值一起清（:296）"
+    );
 }
 
 /// `save_current`/`resume_current` 的指针语义（`ExtCellSet.java:586-596`）：

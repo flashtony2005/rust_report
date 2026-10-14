@@ -37,7 +37,16 @@ pub enum Dim {
     LeftHead,
     TopHead,
     Pagination,
+    /// `merged.cells` —— 合并格本体。**M2-08/M2-21 已落地 ⇒ 不再豁免**。
     Merged,
+    /// `merged.page_count` —— **分页器**的产物（`CalcMergeJson.java:63` →
+    /// `PageBuilder.getPageCount()`），不是合并算法的产物。
+    ///
+    /// 单列成维的理由：合并格已能逐格对拍，而页数还等着 M2-11 的分页器；
+    /// 若两者共用一个 `Dim::Merged`，「页数对不上」会把「合并格对不上」一起藏进豁免篮子。
+    /// 分开之后本维的差异**照常报告**（进豁免篮子并在失败消息里逐条打印），
+    /// 只是不计入 fatal —— 缺口可见，不静默。
+    MergedPageCount,
     Error,
 }
 
@@ -55,6 +64,7 @@ impl Dim {
             Dim::TopHead => "top_head",
             Dim::Pagination => "pagination",
             Dim::Merged => "merged",
+            Dim::MergedPageCount => "merged.page_count",
             Dim::Error => "calculated.error",
         }
     }
@@ -78,7 +88,13 @@ pub struct Diff {
 impl std::fmt::Display for Diff {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.r < 0 {
-            write!(f, "[{}] {} {}", self.kind.as_str(), self.dim.as_str(), self.detail)
+            write!(
+                f,
+                "[{}] {} {}",
+                self.kind.as_str(),
+                self.dim.as_str(),
+                self.detail
+            )
         } else {
             write!(
                 f,

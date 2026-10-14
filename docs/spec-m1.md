@@ -283,26 +283,32 @@ M1 只需**模板态**（未扩展、未计算）：矩阵 + 行高列宽 + 单�
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | 本机编译必须设 `LIB`                          | `LNK1181: cannot open input file 'kernel32.lib'`                                                                                             | `export LIB=<MSVC 14.43.34808>/lib/x64;<WinSDK 10.0.26100.0>/um/x64;<同 SDK>/ucrt/x64`（§9 已内联完整命令） |
 | cargo 说 `generated 1 warning` 却不是 lint | `error copying object file ... metadata.rmeta ... 拒绝访问 (os error 5)`、`error deleting lock file for incremental compilation ... (os error 5)` | 沙箱文件系统限制。**判据是 `clippy` 的 exit code**：exit 0 即零告警，别当成代码告警去"修"                                     |
-| 单文件 ≤300 行门禁                           | 超限必须拆                                                                                                                                        | 子模块文件要放同名目录（`src/cell.rs` ↔ `src/cell/`），否则 E0583                                                 |
+| 单文件 ≤500 行门禁（2026-10-13 由 300 上调，见 `docs/code-review.md` §3.1）                           | 超限必须拆                                                                                                                                        | 子模块文件要放同名目录（`src/cell.rs` ↔ `src/cell/`），否则 E0583                                                 |
 | 死变体悄悄堆积                                | pub enum 变体无构造点时 clippy 不报                                                                                                                   | 纪律：无构造点的错误变体一律删除（v1.3 删了 `BadMagic` / `UnknownTag`）                                               |
 | 断言容易写成自证                               | `assert_eq!(Some(X), want.get("k").map(\|_\| X))` 恒等于 `X == X`                                                                               | 断言必须让 JSON 侧的值真正参与比较，否则变异测试测不出问题（v1.3 的 `meta_checks` 与 merge 双向都栽在这）                             |
 | 页脚后多余字节不报错                             | 文件尾追加垃圾仍解析成功                                                                                                                                 | M1 有意宽容（真实 writer 不会追加；严格化有误杀风险）。M2 若要做完整性校验再收紧，并先评估老文件                                           |
 
-## 9. 端到端验证步骤（锁定）
+> **2026-10-13 注**：文件长度阈值已在全仓由 **300 上调为 500**（理由与代价见
+> `docs/code-review.md` §3.1；触发原因是全仓 `cargo fmt --all` 的竖向展开一次性把 11 个文件撑过线）。
+> 上表首行已按现状改为 500。本文件其余出现 `≤300` 的地方（§3 布局图注释、§10 变更记录、
+> 本文件末段的交付小结）是 **M1 交付时的事实**，**保留不改** —— 那不是在描述当前门禁。
+
+## 9. 端到端验证步骤（2026-10-13 改为 macOS 可跑）
+
+> ⚠ **本节原为 Windows 专用**（`F:/…`、`java.exe`、MSVC `LIB`、`.exe`），本机是 macOS，
+> 原样**一条都跑不了**，且原先**没有任何"已过时"标注**。下为改写后的 macOS 版本。
+> ⛔ 能力边界：产品 JAR（`reportlite/lib`）在 Windows 机器上 ⇒ **本机不能重跑夹具生成器**；
+> M1 夹具（`simple`/`merged`/`full`/`realmerge`）**已逐字节入库**，本机直接消费即可。
 
 ```bash
-# 1. 夹具（Java 侧，本机 JRE）
-cd F:/project/report/rpx/tests/fixtures
-"F:/project/report/common/jre/bin/java.exe" -cp "F:/project/report/reportlite/lib/*" GenFixtures .
-#    → simple.rpx / merged.rpx / full.rpx + expected.json（Java 同时输出预期值）
+# 1. 夹具：已在仓库内，本机无需也无法重跑 GenFixtures（要 Windows 上的 reportlite/lib/*.jar）
+ls tests/fixtures/{simple,merged,full,realmerge}.rpx
 
-# 2. 构建与测试（本机须显式设 LIB，否则 MSVC 链接报 LNK1181: cannot open kernel32.lib）
-cd F:/project/report/rpx
-export LIB='C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.43.34808\lib\x64;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\um\x64;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\ucrt\x64'
+# 2. 构建与测试（macOS **无需设 LIB** —— 没有 MSVC 链接步骤；Windows 的 LNK1181 不存在）
 cargo build
-cargo test          # 22 测试：3 黄金夹具逐字段 + 3 错误路径 + 16313 点文件层截断扫掠
-                    #          + 16265 点记录层截断扫掠 + 3 健壮性(DoS) + 11 lib 单测 + 1 CLI
-cargo clippy --all-targets -- -D warnings
+cargo test --workspace --no-fail-fast   # M1：3 黄金夹具逐字段 + 3 错误路径 + 16313 点文件层截断扫掠
+                                        #     + 16265 点记录层截断扫掠 + 3 健壮性(DoS) + lib 单测 + 1 CLI
+cargo clippy --workspace --all-targets -- -D warnings
 
 # 3. CLI 实跑（人工核对；⚠ 尚无自动化断言——遗留项③）
 cargo run -p rpx-cli -- print tests/fixtures/simple.rpx
@@ -312,8 +318,11 @@ cargo run -p rpx-cli -- print tests/fixtures/full.rpx
 
 # 4. 健壮性抽验（v1.3 起，可选）
 printf '\x52\x51\x51\x52\x00\x00\x00\x08\x7f\xff\xff\xff\x00\x00\x00\x01\x52\x51\x51\x52\x52\x51\x51\x52' > /tmp/dos.rpx
-./target/debug/rpx-cli.exe print /tmp/dos.rpx; echo "exit=$?"
+./target/debug/rpx-cli print /tmp/dos.rpx; echo "exit=$?"   # macOS 无 .exe
 #    期望：error: property slot 1 error: matrix dims exceed payload capacity，exit 1（不是 abort/127）
+
+# 5. 门禁（Tier-0，合并前置；G1-G6）
+./scripts/gate.sh
 ```
 
 ## 10. 变更记录

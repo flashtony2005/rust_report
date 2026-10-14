@@ -31,6 +31,12 @@ impl Param {
         let _s1 = r.read_i16().map_err(|_| p(8, "skip"))?;
         let _s2 = r.read_i16().map_err(|_| p(9, "skip"))?;
         let _s3 = r.read_string().map_err(|_| p(10, "skip"))?;
-        Ok(Self { param_type, data_type, name, description, value })
+        Ok(Self {
+            param_type,
+            data_type,
+            name,
+            description,
+            value,
+        })
     }
 }

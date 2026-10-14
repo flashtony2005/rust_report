@@ -99,7 +99,11 @@ fn walk_to_source(ctx: &dyn EvalCtx, from: CellId, target: CellId, top: bool) ->
         if ctx.source_of(head) == target {
             return head;
         }
-        head = if top { ctx.top_head(head) } else { ctx.left_head(head) };
+        head = if top {
+            ctx.top_head(head)
+        } else {
+            ctx.left_head(head)
+        };
     }
     CellId::NONE
 }
@@ -120,7 +124,11 @@ fn is_direct_top_head(ctx: &dyn EvalCtx, head: CellId, sub: CellId) -> bool {
 /// （Java 返回 null，调用方按空值处理）。
 pub fn resolve_cell(ctx: &dyn EvalCtx, id: &str, saved: bool) -> Option<CellId> {
     let src = ctx.source_by_id(id)?;
-    let current = if saved { ctx.saved_current() } else { ctx.current() };
+    let current = if saved {
+        ctx.saved_current()
+    } else {
+        ctx.current()
+    };
     if current.is_none() {
         return None;
     }

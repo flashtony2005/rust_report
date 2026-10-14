@@ -33,7 +33,16 @@ fn engine_matrix_has_source_exactly_within_template_bounds() {
         }
     }
     // 越出模板尺寸 —— engine_ext 的 (1,4)/(1,5)/r>=5 全属这一类
-    for (r, c) in [(1, 4), (1, 5), (4, 4), (5, 1), (8, 7), (0, 0), (0, 1), (1, 0)] {
+    for (r, c) in [
+        (1, 4),
+        (1, 5),
+        (4, 4),
+        (5, 1),
+        (8, 7),
+        (0, 0),
+        (0, 1),
+        (1, 0),
+    ] {
         assert!(m.get(r, c).is_none(), "模板外 ({r},{c}) 必须没有 source");
         assert!(!m.is_within_template(r, c));
     }
@@ -71,7 +80,11 @@ fn source_must_be_read_from_the_engine_matrix_not_the_calc_matrix() {
     calc.set(3, 1, id);
 
     assert!(calc.cell(calc.get(3, 1)).is_some(), "计算矩阵里有这一格");
-    assert_eq!(engine.get(3, 1), None, "但引擎矩阵里没有模板 (3,1) ⇒ 没有 source");
+    assert_eq!(
+        engine.get(3, 1),
+        None,
+        "但引擎矩阵里没有模板 (3,1) ⇒ 没有 source"
+    );
 }
 
 #[test]

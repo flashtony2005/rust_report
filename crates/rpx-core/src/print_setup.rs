@@ -106,19 +106,29 @@ impl PrintSetup {
             bottom_margin: r.read_f32().map_err(|_| p(14, "bottomMargin"))?,
             orient: r.read_i8().map_err(|_| p(15, "orient"))?,
             layout: r.read_i8().map_err(|_| p(16, "layout"))?,
-            page_header_and_footer_y_mode: r.read_i8().map_err(|_| p(17, "pageHeaderAndFooterYMode"))?,
-            page_header_and_footer_x_mode: r.read_i8().map_err(|_| p(18, "pageHeaderAndFooterXMode"))?,
-            row_table_header_and_footer_mode: r.read_i8().map_err(|_| p(19, "rowTableHeaderAndFooterMode"))?,
+            page_header_and_footer_y_mode: r
+                .read_i8()
+                .map_err(|_| p(17, "pageHeaderAndFooterYMode"))?,
+            page_header_and_footer_x_mode: r
+                .read_i8()
+                .map_err(|_| p(18, "pageHeaderAndFooterXMode"))?,
+            row_table_header_and_footer_mode: r
+                .read_i8()
+                .map_err(|_| p(19, "rowTableHeaderAndFooterMode"))?,
             title_y_mode: r.read_i8().map_err(|_| p(20, "titleYMode"))?,
             title_x_mode: r.read_i8().map_err(|_| p(21, "titleXMode"))?,
-            col_table_header_and_footer_mode: r.read_i8().map_err(|_| p(22, "colTableHeaderAndFooterMode"))?,
+            col_table_header_and_footer_mode: r
+                .read_i8()
+                .map_err(|_| p(22, "colTableHeaderAndFooterMode"))?,
             pager_style: r.read_i8().map_err(|_| p(23, "pagerStyle"))?,
             zoom_mode: r.read_i8().map_err(|_| p(24, "zoomMode"))?,
             h_align: r.read_i8().map_err(|_| p(25, "hAlign"))?,
             v_align: r.read_i8().map_err(|_| p(26, "vAlign"))?,
             back_graph_printed: r.read_bool().map_err(|_| p(27, "backGraphPrinted"))?,
             virtual_printer: r.read_string().map_err(|_| p(28, "virtualPrinter"))?,
-            column_repeated_group_header: r.read_bool().map_err(|_| p(29, "columnRepeatedGroupHeader"))?,
+            column_repeated_group_header: r
+                .read_bool()
+                .map_err(|_| p(29, "columnRepeatedGroupHeader"))?,
             copy_count: r.read_i32().map_err(|_| p(30, "copyCount"))?,
             full_screen_preview: if r.remaining() > 0 {
                 r.read_bool().map_err(|_| p(31, "fullScreenPreview"))?

@@ -8,7 +8,7 @@
 //! - A.5 readObject = 1 字节标签字典（M1 子集）
 //! - A.6 available() = 当前切片剩余字节数
 
-use crate::error::{RpxError, Result};
+use crate::error::{Result, RpxError};
 use crate::javautf;
 
 /// readObject 标签字典解出的值（M1 子集，附件 A.5）。
@@ -24,15 +24,24 @@ pub enum ObjValue {
     Byte(i8),
     Short(i16),
     /// 标签 2：int32 scale + 大端补码 unscaled 字节（M1 透传不转 decimal）
-    BigDecimal { scale: i32, unscaled: Vec<u8> },
+    BigDecimal {
+        scale: i32,
+        unscaled: Vec<u8>,
+    },
     /// 标签 7
     BigInteger(Vec<u8>),
     /// 标签 8
     Bytes(Vec<u8>),
     /// 标签 3/31/32/33：java.util.Date / sql.Timestamp / sql.Time / sql.Date，毫秒
-    Millis { tag: i8, millis: i64 },
+    Millis {
+        tag: i8,
+        millis: i64,
+    },
     /// 标签 0：IRecord 多态，M1 只留类名与原始字节
-    Obj { class_name: Option<String>, raw: Vec<u8> },
+    Obj {
+        class_name: Option<String>,
+        raw: Vec<u8>,
+    },
 }
 
 /// 切片读取器。每个 readRecord 子记录用 `sub(slice)` 派生独立实例，
@@ -170,7 +179,10 @@ impl<'a> RecordReader<'a> {
                 let unscaled = self.read_blob()?.unwrap_or_default();
                 ObjValue::BigDecimal { scale, unscaled }
             }
-            3 | 31 | 32 | 33 => ObjValue::Millis { tag, millis: self.read_i64()? },
+            3 | 31 | 32 | 33 => ObjValue::Millis {
+                tag,
+                millis: self.read_i64()?,
+            },
             4 => ObjValue::Int(self.read_i32()?),
             5 => ObjValue::Long(self.read_i64()?),
             6 => ObjValue::Bool(self.read_bool()?),
@@ -222,7 +234,11 @@ mod tests {
             ObjValue::Bytes(b) => assert_eq!(b, vec![0xAA, 0xBB, 0xCC]),
             other => panic!("expected Bytes fallback, got {:?}", other),
         }
-        assert_eq!(r.remaining(), 0, "fallback must consume exactly length+body");
+        assert_eq!(
+            r.remaining(),
+            0,
+            "fallback must consume exactly length+body"
+        );
     }
 
     /// 兜底路径的 size<=0（含 -1 null）→ 空字节，且只吃掉 4 字节长度前缀，不越界吞后续。

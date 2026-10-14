@@ -48,7 +48,10 @@ fn only_18_and_19_drive_extension() {
 #[test]
 fn topology_covers_all_four_quadrants() {
     // (cell00, 非 cell00) -> 19
-    assert_eq!(topology_default(ROOT, OTHER, ROOT), ExtendMode::Horizontal19);
+    assert_eq!(
+        topology_default(ROOT, OTHER, ROOT),
+        ExtendMode::Horizontal19
+    );
     // (非 cell00, 非 cell00) -> 17
     assert_eq!(topology_default(OTHER, OTHER, ROOT), ExtendMode::None17);
     // (cell00, cell00) -> 18
@@ -60,8 +63,14 @@ fn topology_covers_all_four_quadrants() {
 /// heads 为 `null` 时 Java 比较 `null == cell00` 得 false → 走"非 cell00"一侧。
 #[test]
 fn null_heads_count_as_not_cell00() {
-    assert_eq!(topology_default(CellId::NONE, CellId::NONE, ROOT), ExtendMode::None17);
-    assert_eq!(topology_default(CellId::NONE, ROOT, ROOT), ExtendMode::Vertical18);
+    assert_eq!(
+        topology_default(CellId::NONE, CellId::NONE, ROOT),
+        ExtendMode::None17
+    );
+    assert_eq!(
+        topology_default(CellId::NONE, ROOT, ROOT),
+        ExtendMode::Vertical18
+    );
 }
 
 /// ⛔ 无表达式的格不被改写 —— 这是 `engine_sum` 里 27 个 `extend=16` 的来源。
@@ -101,7 +110,11 @@ fn an_extender_with_declared_16_follows_the_topology() {
 /// 非 16 的声明值是"已解析"的，扩展格上无论拓扑都不动（`engine_ext` 的 17/18/19）。
 #[test]
 fn explicitly_declared_modes_are_never_rewritten() {
-    for declared in [ExtendMode::None17, ExtendMode::Vertical18, ExtendMode::Horizontal19] {
+    for declared in [
+        ExtendMode::None17,
+        ExtendMode::Vertical18,
+        ExtendMode::Horizontal19,
+    ] {
         let role = cell_role(true, declared, true, NORMAL_TYPE);
         for &(l, t) in &[(ROOT, ROOT), (ROOT, OTHER), (OTHER, ROOT), (OTHER, OTHER)] {
             assert_eq!(declared.resolve(role, l, t, ROOT), declared);
@@ -118,7 +131,11 @@ fn explicitly_declared_modes_are_never_rewritten() {
 #[test]
 fn a_plain_formula_cell_is_pinned_to_17_regardless_of_topology() {
     let plain = cell_role(true, ExtendMode::Default16, false, NORMAL_TYPE);
-    assert_eq!(plain, CellRole::PlainFormula, "声明16 + 表达式不驱动扩展 → 普通格");
+    assert_eq!(
+        plain,
+        CellRole::PlainFormula,
+        "声明16 + 表达式不驱动扩展 → 普通格"
+    );
     let declared17 = cell_role(true, ExtendMode::None17, false, NORMAL_TYPE);
     assert_eq!(declared17, CellRole::PlainFormula, "声明17 → 也是普通格");
 
@@ -137,10 +154,19 @@ fn a_plain_formula_cell_is_pinned_to_17_regardless_of_topology() {
 #[test]
 fn declared_18_and_19_are_extenders_even_without_an_expression() {
     for declared in [ExtendMode::Vertical18, ExtendMode::Horizontal19] {
-        assert_eq!(cell_role(false, declared, false, NORMAL_TYPE), CellRole::Extender);
-        assert_eq!(cell_role(true, declared, false, NORMAL_TYPE), CellRole::Extender);
+        assert_eq!(
+            cell_role(false, declared, false, NORMAL_TYPE),
+            CellRole::Extender
+        );
+        assert_eq!(
+            cell_role(true, declared, false, NORMAL_TYPE),
+            CellRole::Extender
+        );
         // 无表达式 → 保留；有表达式 → 声明值非 16，也保留
-        assert_eq!(declared.resolve(CellRole::Extender, OTHER, OTHER, ROOT), declared);
+        assert_eq!(
+            declared.resolve(CellRole::Extender, OTHER, OTHER, ROOT),
+            declared
+        );
     }
 }
 
@@ -197,7 +223,10 @@ fn engine_ext_anchors_keep_their_declared_mode() {
         let role = cell_role(true, declared, true, NORMAL_TYPE);
         let resolved = declared.resolve(role, OTHER, OTHER, ROOT);
         assert_eq!(resolved.code(), expected_code);
-        assert_eq!(expected_subs, if resolved == ExtendMode::None17 { 1 } else { 5 });
+        assert_eq!(
+            expected_subs,
+            if resolved == ExtendMode::None17 { 1 } else { 5 }
+        );
     }
 }
 
@@ -213,7 +242,7 @@ fn row_count_matches_every_fixture() {
         ("engine_ext", 4, 5, 1, 8),
         ("engine_expr", 6, 3, 1, 8),
         ("engine_pager", 4, 40, 1, 43),
-        ("engine_merge", 4, 3, 2, 8),      // A2 合并 A2:A3，块高 2
+        ("engine_merge", 4, 3, 2, 8), // A2 合并 A2:A3，块高 2
         ("engine_samemerge", 3, 5, 1, 7),
     ];
     for (name, tmpl, data, block, expected) in fixtures {

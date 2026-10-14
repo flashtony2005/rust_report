@@ -1,5 +1,5 @@
 /*
- * ProbeBigDecimalToString.java -- 用产品自带的 JRE 实跑 java.math.BigDecimal.toString()，
+ * ProbeBigDecimalToString.java -- 用真实 JVM 实跑 java.math.BigDecimal.toString()，
  * 为 rpx-engine 的 `literal/decimal.rs`（`decimal_to_string` 的复刻）取 golden。
  *
  * 为什么必须实跑而不是"按 JavaDoc 推"：`scale < 0` 走指数形态这条规则与直觉相反
@@ -10,9 +10,17 @@
  * unscaled 是**大端补码字节**（即 Java `BigInteger.toByteArray()` 的形态），
  * 所以这里用 `new BigDecimal(new BigInteger(bytes), scale)` 还原，再取 `toString()`。
  *
- * 用法（JRE 无编译器，故用 JDK 编译、两个 JVM 分别跑）：
- *   /d/Tools/jdk-21.0.2/bin/javac -d out -source 8 -target 8 ProbeBigDecimalToString.java
- *   <jre>/bin/java -cp out ProbeBigDecimalToString
+ * 产物与出处（2026-10-13）：本类的 FQCN 是 `rpx.fixtures.ProbeBigDecimalToString`，
+ * 由 `scripts/gen_decimal_oracle.sh` 编译运行，产出
+ * `tests/fixtures/_bdo/out_jre8.txt`（Zulu JDK 8.0.504）与
+ * `tests/fixtures/_bdo/out_jdk21.txt`（Zulu JDK 21.0.12.1）。两份正文除版本头行外
+ * 逐字节相同，这一点由 `decimal_oracle.rs::the_two_jvm_oracles_agree_byte_for_byte` 断言。
+ *
+ * ⚠ 仓库自带的 `common/jre` 是 Windows 版 JRE，macOS 上无法运行，故未在该 JRE 上复跑。
+ *
+ * 手动跑一行版（等价于脚本内部做的事）：
+ *   javac -d out -source 8 -target 8 ProbeBigDecimalToString.java
+ *   java -cp out rpx.fixtures.ProbeBigDecimalToString > out_jre8.txt
  */
 package rpx.fixtures;
 

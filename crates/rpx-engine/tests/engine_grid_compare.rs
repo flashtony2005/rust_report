@@ -3,21 +3,21 @@
 //! # 这条链路验收什么
 //!
 //! 对 12 个引擎夹具各跑一遍：「`.rpx` 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
-//! → `emit::render_calculated()` 渲染成 `expected.json` 同 schema 的 JSON」，再交给
+//! → `emit::render_document()` 渲染成 `expected.json` 同 schema 的 JSON」，再交给
 //! [`common::compare_actual_text`] 与夹具**逐格**比（值 / 类型 / `disp_value` /
-//! `source` 的 6 个子字段 / `sub_values` / `left_head` / `top_head` / 网格尺寸）。
+//! `source` 的 6 个子字段 / `sub_values` / `left_head` / `top_head` / 网格尺寸 /
+//! **`merged.cells` 的合并跨度**）。
 //! 计算态的唯一事实源是产品引擎自己产出的 `tests/fixtures/engine_*.expected.json`
 //! （`GenEngineFixtures.java`），禁止手搓期望值。
 //!
-//! # 显式豁免：`pagination` 与 `merged`
+//! # 全夹具对拍
 //!
-//! 分页（`pager`）与同值合并（`merge`）属**后续里程碑**，本片未实现，故
-//! `Dim::Pagination` / `Dim::Merged` 的差异**不计入失败**。但豁免**绝不静默**：
-//! 豁免条数与明细会写进失败消息，且有一条断言钉住"被豁免的只能是这两维"
-//! （防止有人把 `Dim::Value` 的差异塞进豁免篮子）。
+//! 合并、分页与 M2-22 属性表达式计算均进入同一对拍链路：`merged.cells`、
+//! `merged.page_count`、`pagination`（纸张参数及每页字段）全部逐项比较。`engine_rowheight`
+//! 的 17 个计算态行高由行属性表达式求出，驱动产品基准中的两页 / 8+9 行切分。
 //!
-//! 反过来，`Dim::Value` / `Dim::Type` / `Dim::Source` 上的 `Missing` / `Extra`
-//! **一律不许豁免** —— 那是"扩展行数少了/多了"这类最贵的错（对拍器模块文档纪律 ①）。
+//! 不再设置夹具级豁免：`Dim::Value` / `Dim::Type` / `Dim::Source` 上的 Missing / Extra，
+//! 以及任一分页/合并差异都必须使对拍失败。
 //!
 //! # 为什么本文件必须在实现落地前先写好
 //!
@@ -27,7 +27,7 @@
 
 mod common;
 
-use common::{all_names, compare_actual_text, Dim, Diff, Kind, Report};
+use common::{all_names, compare_actual_text, Dim, Kind};
 use std::path::PathBuf;
 
 /// 夹具目录口径与 `tests/units_contract.rs:45-47` / `tests/common/loader.rs:32-34` 一致。
@@ -58,7 +58,10 @@ fn open_rpx(name: &str) -> rpx_core::ReportDefine {
 fn error_class_chain(e: &rpx_engine::EngineError) -> (String, Option<String>) {
     use rpx_engine::EngineError as E;
     match e {
-        E::CircularRef { chain } => ("com.raqsoft.commonl.ReportError".to_string(), Some(chain.clone())),
+        E::CircularRef { chain } => (
+            "com.raqsoft.commonl.ReportError".to_string(),
+            Some(chain.clone()),
+        ),
         // 未建模的错误没有可对上的 fixture class，直接响铃而不是猜。
         other => panic!("未建模的引擎错误，无法映射 class：{other}"),
     }
@@ -70,7 +73,7 @@ fn engine_text(name: &str) -> String {
     let ds = rpx_engine::dataset::load_datasets(&fixtures_dir(), &rd)
         .unwrap_or_else(|e| panic!("{name}: load_datasets 失败：{e}"));
     match rpx_engine::calculate(&rd, &ds) {
-        Ok(grid) => rpx_engine::emit::render_calculated(&grid),
+        Ok(grid) => rpx_engine::emit::render_document(&grid),
         Err(e) => {
             let (class, chain) = error_class_chain(&e);
             rpx_engine::emit::render_calculated_error(&class, chain.as_deref())
@@ -78,22 +81,15 @@ fn engine_text(name: &str) -> String {
     }
 }
 
-/// 把差异分成 `(不可豁免, 被豁免)`：豁免的只有后续里程碑的 `Pagination` / `Merged`。
-fn split_exempt(r: &Report) -> (Vec<Diff>, Vec<Diff>) {
-    r.diffs
-        .iter()
-        .cloned()
-        .partition(|d| !matches!(d.dim, Dim::Pagination | Dim::Merged))
-}
-
 // =====================================================================
 // 第 1 组：12 夹具逐格对拍（主验收）
 // =====================================================================
 
-/// 每个夹具：引擎文本 vs 夹具逐格比，只放行 `pagination` / `merged`。
+/// 每个夹具：引擎文本 vs 夹具逐格比，只放行 `engine_rowheight` 的分页两维。
 ///
 /// **为什么不是空跑**：夹具网格非空（下面有断言），且"干净"是在真的比过
-/// 值/类型/source/head/尺寸之后才成立的；豁免之外任何一条差异都会让本测试红。
+/// 值/类型/source/head/尺寸/**合并跨度**/**分页**之后才成立的；
+/// 豁免之外任何一条差异都会让本测试红。
 #[test]
 fn engine_output_matches_every_fixture_cell_by_cell() {
     for name in all_names() {
@@ -113,30 +109,15 @@ fn engine_output_matches_every_fixture_cell_by_cell() {
             assert!(!g.cells.is_empty(), "{name}: 夹具网格为空，'干净'是空跑");
         }
 
-        let (fatal, exempt) = split_exempt(&report);
-
-        // ③ 最贵的错不许豁免：Value/Type/Source 上的 Missing/Extra（扩展行数错）。
-        for d in &fatal {
+        // 全部差异均为阻断项，包括值、类型、结构、合并与分页。
+        for d in &report.diffs {
             let expensive = matches!(d.dim, Dim::Value | Dim::Type | Dim::Source)
                 && matches!(d.kind, Kind::Missing | Kind::Extra);
-            assert!(!expensive, "{name}: 不可豁免的扩展行数差异：{d}");
+            assert!(!expensive, "{name}: 扩展结构差异：{d}");
         }
-
-        // ④ 豁免必须名副其实：被放行的只能落在 Pagination/Merged 两维上。
-        for d in &exempt {
-            assert!(
-                matches!(d.dim, Dim::Pagination | Dim::Merged),
-                "{name}: 非豁免维度被误放进豁免篮子：{d}"
-            );
-        }
-
-        // ⑤ 非豁免差异必须为空；失败时把豁免条数与明细一并打出来（豁免可见，不静默）。
         assert!(
-            fatal.is_empty(),
-            "夹具 {name} 有 {} 条不可豁免差异（豁免 Pagination/Merged 共 {} 条：{:?}）\n{}",
-            fatal.len(),
-            exempt.len(),
-            exempt,
+            report.diffs.is_empty(),
+            "夹具 {name} 必须逐格、逐页零差异\n{}",
             report.summary()
         );
     }
@@ -158,7 +139,10 @@ fn mutation_of_a_known_good_output_is_detected() {
     let name = "engine_types";
     let good = fixture_text(name);
     // 正控制：未变异文本必须干净，否则下面的负控制没有意义。
-    assert!(compare_actual_text(&good, name).is_clean(), "前提不成立：原文本竟不干净");
+    assert!(
+        compare_actual_text(&good, name).is_clean(),
+        "前提不成立：原文本竟不干净"
+    );
 
     // 把 (2,1) 的 value 100 改成 999（该格锚点见 engine_types.expected.json `cells`）。
     let bad = good.replacen(
@@ -172,7 +156,12 @@ fn mutation_of_a_known_good_output_is_detected() {
     let hit = r.first_error().expect("改值必须被报出差异");
     assert_eq!(hit.kind, Kind::Mismatch, "\n{}", r.summary());
     assert_eq!(hit.dim, Dim::Value, "\n{}", r.summary());
-    assert_eq!((hit.r, hit.c), (2, 1), "应精确定位到改动的格\n{}", r.summary());
+    assert_eq!(
+        (hit.r, hit.c),
+        (2, 1),
+        "应精确定位到改动的格\n{}",
+        r.summary()
+    );
 }
 
 /// 整表为空的引擎输出 ⇒ 对拍**必须**报出大量 `Missing`（且条数==夹具格数，不是位置数）。
@@ -183,9 +172,15 @@ fn mutation_of_a_known_good_output_is_detected() {
 /// 退化成按 72 个位置逐点比（否则会是 72）。这两个方向一起才钉住这条纪律。
 #[test]
 fn a_cells_free_grid_is_reported_as_mass_missing() {
-    let g = common::load("engine_sum").grid().expect("engine_sum 是网格形态").clone();
+    let g = common::load("engine_sum")
+        .grid()
+        .expect("engine_sum 是网格形态")
+        .clone();
     let positions = (g.rows * g.cols) as usize;
-    assert!(positions > g.cells.len(), "前提：网格是稀疏的（位置数 > 格数）");
+    assert!(
+        positions > g.cells.len(),
+        "前提：网格是稀疏的（位置数 > 格数）"
+    );
 
     let empty = format!(
         r#"{{"calculated":{{"rows":{},"cols":{},"cells":[]}}}}"#,
@@ -204,7 +199,11 @@ fn a_cells_free_grid_is_reported_as_mass_missing() {
         g.cells.len(),
         r.summary()
     );
-    assert!(r.counts().0 >= g.cells.len(), "总缺失数不应少于夹具格数\n{}", r.summary());
+    assert!(
+        r.counts().0 >= g.cells.len(),
+        "总缺失数不应少于夹具格数\n{}",
+        r.summary()
+    );
 }
 
 /// 渲染器输出必须是**合法 JSON**，且对拍入口对同一文本两次结果一致（纯函数性）。
@@ -239,6 +238,52 @@ fn renderer_emits_parseable_json() {
 /// （`engine_cycle.expected.json` 的 `calculated.error.chain`，来源
 /// `GenEngineFixtures.java:206-215`）。这里既对夹具值断言、又硬钉这一个常量，
 /// 所以"能在错误上挂个随便的串"过不了。
+/// `engine_rowheight` 曾是分页豁免；M2-22 落地后必须全段零差异，且不可重新加回白名单。
+#[test]
+fn rowheight_property_closes_the_last_pagination_diff() {
+    let report = compare_actual_text(&engine_text("engine_rowheight"), "engine_rowheight");
+    assert!(
+        report.diffs.is_empty(),
+        "engine_rowheight 不应再有分页豁免或遗留差异\n{}",
+        report.summary()
+    );
+}
+
+// =====================================================================
+// 第 4 组：M2-08 合并结果的硬钉
+// =====================================================================
+
+/// `engine_samemerge`：列 A 的 `A,A,B,B,C` 必须被 `mergeSame=98` 收成两段 `rm=2`，
+/// 且**延续槽也报锚点的跨度**（4 行 = 2 锚点 × 2 槽），末尾独一份的 `C` 不进 `merged`。
+///
+/// **为什么不是空跑**：这里同时钉住三件事，任一被改坏都会红 ——
+/// ① 合并**发生了**（若 `merge_same` 变成空转，本表会空）；
+/// ② 锚点是 `(2,1)`/`(4,1)` 而不是 `(2,1)`/`(3,1)`（判据是「同值相邻」不是「相邻就并」）；
+/// ③ 延续槽 `(3,1)`/`(5,1)` 报的是**锚点的** `rm=2` —— 这正是 `_$26.set()` 只改槽位映射、
+///    不改锚点坐标的直接后果，也是 `merged` 段与 `source` 段分家的那一半。
+///
+/// 期望值来自 `tests/fixtures/engine_samemerge.expected.json` 的 `merged.cells`
+/// （产品产出，非手搓）。
+#[test]
+fn samemerge_collapses_equal_adjacent_values_into_row_merge_two() {
+    let name = "engine_samemerge";
+    let rd = open_rpx(name);
+    let ds = rpx_engine::dataset::load_datasets(&fixtures_dir(), &rd).expect("load_datasets");
+    let grid = rpx_engine::calculate(&rd, &ds).expect("engine_samemerge 应算出网格");
+
+    assert_eq!(grid.page_count, 1, "该夹具是单页（合并夹具的前提）");
+    let got: Vec<(i32, i32, i32, i32)> = grid
+        .merged
+        .iter()
+        .map(|m| (m.r, m.c, m.row_merge, m.col_merge))
+        .collect();
+    assert_eq!(
+        got,
+        vec![(2, 1, 2, 1), (3, 1, 2, 1), (4, 1, 2, 1), (5, 1, 2, 1)],
+        "A,A,B,B 两段各含锚点与延续槽，C 行不合并"
+    );
+}
+
 #[test]
 fn cycle_fixture_is_error_with_expected_class_and_chain() {
     let name = "engine_cycle";
@@ -247,16 +292,30 @@ fn cycle_fixture_is_error_with_expected_class_and_chain() {
     let err = rpx_engine::calculate(&rd, &ds).expect_err("engine_cycle 必须报错，绝不产出网格");
 
     let (class, chain) = error_class_chain(&err);
-    let expect = common::load(name).error().expect("engine_cycle 是 error 形态").clone();
+    let expect = common::load(name)
+        .error()
+        .expect("engine_cycle 是 error 形态")
+        .clone();
     assert_eq!(class, expect.class, "错误 class 必须对上夹具");
-    assert_eq!(chain.as_deref(), expect.chain.as_deref(), "chain 必须对上夹具");
+    assert_eq!(
+        chain.as_deref(),
+        expect.chain.as_deref(),
+        "chain 必须对上夹具"
+    );
     // 硬钉：循环引用链逐字必须是 B2-C2-B2-C2。
-    assert_eq!(chain.as_deref(), Some("B2-C2-B2-C2"), "循环引用链必须是夹具实测值");
+    assert_eq!(
+        chain.as_deref(),
+        Some("B2-C2-B2-C2"),
+        "循环引用链必须是夹具实测值"
+    );
 
     let text = rpx_engine::emit::render_calculated_error(&class, chain.as_deref());
     let r = compare_actual_text(&text, name);
     assert!(r.expected_dims.is_none(), "夹具是错误形态，没有网格尺寸");
     assert!(r.actual_dims.is_none(), "引擎侧也不得产出网格尺寸");
-    let (fatal, _) = split_exempt(&r);
-    assert!(fatal.is_empty(), "engine_cycle 错误段对拍应干净\n{}", r.summary());
+    assert!(
+        r.diffs.is_empty(),
+        "engine_cycle 错误段对拍应干净\n{}",
+        r.summary()
+    );
 }

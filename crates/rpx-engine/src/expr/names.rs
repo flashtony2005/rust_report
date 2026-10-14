@@ -41,6 +41,10 @@
 /// 普通函数表 `FunctionLib._$4`（`FunctionLib.java:121-254` 的 `addFunction` 全量）。
 ///
 /// ⚠ 大小写敏感（Java `HashMap.containsKey`）：产品登记的是全小写名。
+// 名字表是**密集字面量表**，与 Java 侧 `addFunction` 调用序列逐条对齐、按主题分组注释。
+// rustfmt 会把每个名字拆成独立一行（+139 行、文件直接破 300 行上限），
+// 逐行读名字表没有任何收益，故此处显式跳过格式重排（见 docs/code-review.md §5.9）。
+#[rustfmt::skip]
 pub const REGULAR: &[&str] = &[
     // 基础 / 单元格 / 数据集
     "avg", "subreport", "call", "case", "col", "row", "count", "value", "disp", "eval", "esproc",
@@ -73,6 +77,8 @@ pub const REGULAR: &[&str] = &[
 pub const REGULAR_EXTEND: &[&str] = &["sort", "sublist", "to", "split"];
 
 /// DS 函数表 `FunctionLib._$3`（`FunctionLib.java:106-120` 的 `addDSFunction` 全量）。
+// 同上：密集字面量表，跳过 rustfmt 重排。
+#[rustfmt::skip]
 pub const DS: &[&str] = &[
     "avg", "bfind", "fcount", "count", "dcount", "field", "fname", "filtercross", "group",
     "isfield", "max", "min", "plot", "select", "sum",

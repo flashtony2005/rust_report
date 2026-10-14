@@ -13,7 +13,8 @@ pub(super) type MergedIdx<'a> = BTreeMap<(i32, i32, i32), &'a Json>;
 
 /// 取节点的原文 token；缺键 ⇒ `"<无此键>"`。
 pub(super) fn raw_of(v: Option<&Json>) -> String {
-    v.map(|x| x.raw.clone()).unwrap_or_else(|| "<无此键>".to_string())
+    v.map(|x| x.raw.clone())
+        .unwrap_or_else(|| "<无此键>".to_string())
 }
 
 /// 整数 token → i32。**只解析整数形态**的 token（`1.0` 会 panic，符合"不做归一化"）。
@@ -66,7 +67,10 @@ pub(super) fn merged_index(cells: Option<&Json>) -> MergedIdx<'_> {
         for v in arr.arr() {
             m.insert(
                 (
-                    as_i32(v.get("page").unwrap_or_else(|| panic!("merged cell 必有 page"))),
+                    as_i32(
+                        v.get("page")
+                            .unwrap_or_else(|| panic!("merged cell 必有 page")),
+                    ),
                     as_i32(v.get("r").unwrap_or_else(|| panic!("merged cell 必有 r"))),
                     as_i32(v.get("c").unwrap_or_else(|| panic!("merged cell 必有 c"))),
                 ),
@@ -77,10 +81,10 @@ pub(super) fn merged_index(cells: Option<&Json>) -> MergedIdx<'_> {
     m
 }
 
-/// 每页的 `rows` token 序列（按页序）。
-pub(super) fn page_rows(p: &Json) -> Vec<String> {
+/// `pages[]` 的页对象序列（按页序）；缺键 ⇒ 空。
+pub(super) fn page_list(p: &Json) -> Vec<&Json> {
     p.get("pages")
-        .map(|pg| pg.arr().iter().map(|x| raw_of(x.get("rows"))).collect())
+        .map(|pg| pg.arr().iter().collect())
         .unwrap_or_default()
 }
 

@@ -17,7 +17,10 @@ use crate::arena::CellId;
 #[test]
 fn tracker_starts_changed_and_stays_changed_while_it_is_changed() {
     let mut t = HeadPairTracker::new();
-    assert!(t.is_changed(), "构造时 _$1 = true（`lIlIlllIIllllIII.java:11`）");
+    assert!(
+        t.is_changed(),
+        "构造时 _$1 = true（`lIlIlllIIllllIII.java:11`）"
+    );
     t.set_cell(CellId(7), CellId(8), CellId::ROOT);
     assert!(t.is_changed(), "changed 为真时只更新记录、保持真，不比较");
 }
@@ -73,11 +76,21 @@ fn reset_clears_every_dataset_and_marks_left_top() {
     f.ds[1].set(Some(f.root[1]), false);
     reset_ds_current(&mut f);
     for ds in 0..2 {
-        assert_eq!(f.cur(ds), None, "resetDSCurrent 清的是 ctx 里**全部** DS（`:556-563`）");
+        assert_eq!(
+            f.cur(ds),
+            None,
+            "resetDSCurrent 清的是 ctx 里**全部** DS（`:556-563`）"
+        );
         assert!(f.ds[ds].is_left_top, "第二条实参是 true（`:561`）");
-        assert_eq!(f.ds[ds].current_row, 1, "setCurrent(g) 把 _$5 复位成 1（`:365`）");
+        assert_eq!(
+            f.ds[ds].current_row, 1,
+            "setCurrent(g) 把 _$5 复位成 1（`:365`）"
+        );
     }
-    assert!(!f.tracker.is_changed(), "第一句是 _$19.setChanged(false)（`:555`）");
+    assert!(
+        !f.tracker.is_changed(),
+        "第一句是 _$19.setChanged(false)（`:555`）"
+    );
 }
 
 #[test]
@@ -86,8 +99,16 @@ fn fill_only_null_makes_unreferenced_datasets_fall_back_to_the_root_group() {
     let mut f = Fake::new(2);
     f.ds[0].set(Some(DsInstance::new(0, 0)), true);
     set_ds_current(&mut f);
-    assert_eq!(f.cur(0), Some(DsInstance::new(0, 0)), "已经是 Row 的不动（'只填空'）");
-    assert_eq!(f.cur(1), Some(f.root[1]), "current == null ⇒ 填 getRootGroup()");
+    assert_eq!(
+        f.cur(0),
+        Some(DsInstance::new(0, 0)),
+        "已经是 Row 的不动（'只填空'）"
+    );
+    assert_eq!(
+        f.cur(1),
+        Some(f.root[1]),
+        "current == null ⇒ 填 getRootGroup()"
+    );
 }
 
 // ───────────────────── head 链行走（本模块的核心） ─────────────────────
@@ -119,12 +140,20 @@ fn a_follower_extender_without_ext_cells_still_installs_its_row() {
 
     // ① 跟随格自己求值前：self 段用**它自己的** `_$4` 灌 ds1
     set_ds_current_for_cell(&mut f, follow).unwrap();
-    assert_eq!(f.cur(0), Some(DsInstance::new(0, 0)), "跟随格的 self 段（`:295-297`）");
+    assert_eq!(
+        f.cur(0),
+        Some(DsInstance::new(0, 0)),
+        "跟随格的 self 段（`:295-297`）"
+    );
     assert_eq!(f.cur(1), Some(f.root[1]), "ds2 不在链上 ⇒ 全量");
 
     // ② 链尾格：靠 left 链走到跟随格，同样拿到 Row(0)
     set_ds_current_for_cell(&mut f, tail).unwrap();
-    assert_eq!(f.cur(0), Some(DsInstance::new(0, 0)), "left 链上的扩展格会灌 Row");
+    assert_eq!(
+        f.cur(0),
+        Some(DsInstance::new(0, 0)),
+        "left 链上的扩展格会灌 Row"
+    );
     assert_eq!(f.cur(1), Some(f.root[1]));
 }
 
@@ -136,7 +165,11 @@ fn no_extender_on_the_chain_means_the_dataset_stays_at_the_root() {
     f.cells[follow.0 as usize].extender = false;
     f.cells[follow.0 as usize].left = CellId::NONE;
     set_ds_current_for_cell(&mut f, tail).unwrap();
-    assert_eq!(f.cur(0), Some(f.root[0]), "非扩展格不覆写 setDSCurrentLeftHead（`ExtCell.java:215-217`）");
+    assert_eq!(
+        f.cur(0),
+        Some(f.root[0]),
+        "非扩展格不覆写 setDSCurrentLeftHead（`ExtCell.java:215-217`）"
+    );
     assert_eq!(f.cur(1), Some(f.root[1]));
 }
 
@@ -148,9 +181,17 @@ fn the_row_installed_is_the_one_of_the_reached_clone_not_the_last_one() {
     f.cells[follow.0 as usize].left = a2;
     f.cells[follow.0 as usize].inst = Some(DsInstance::new(0, 1));
     set_ds_current_for_cell(&mut f, tail).unwrap();
-    assert_eq!(f.cur(0), Some(DsInstance::new(0, 1)), "链上先撞上 A2（`_$4 = Row(1)`）");
+    assert_eq!(
+        f.cur(0),
+        Some(DsInstance::new(0, 1)),
+        "链上先撞上 A2（`_$4 = Row(1)`）"
+    );
     set_ds_current_for_cell(&mut f, follow).unwrap();
-    assert_eq!(f.cur(0), Some(DsInstance::new(0, 1)), "跟随格自己的 `_$4` 也是 Row(1)");
+    assert_eq!(
+        f.cur(0),
+        Some(DsInstance::new(0, 1)),
+        "跟随格自己的 `_$4` 也是 Row(1)"
+    );
 }
 
 #[test]
@@ -161,7 +202,11 @@ fn the_self_segment_has_no_null_guard_so_the_last_writer_wins() {
     let other = f.add(FakeCell::extender(Some(DsInstance::new(0, 1)), Vec::new()));
     let me = f.add(FakeCell::extender(Some(DsInstance::new(0, 3)), vec![other]));
     set_ds_current_for_cell(&mut f, me).unwrap();
-    assert_eq!(f.cur(0), Some(DsInstance::new(0, 1)), "自身先写、成员后写 ⇒ 成员赢");
+    assert_eq!(
+        f.cur(0),
+        Some(DsInstance::new(0, 1)),
+        "自身先写、成员后写 ⇒ 成员赢"
+    );
 }
 
 // ───────────────────── `setDSCurrentTopHead` 的两条分支 ─────────────────────
@@ -176,10 +221,17 @@ fn the_top_head_guard_blocks_a_second_writer() {
 
     set_ds_current_top_head(&mut f, t1).unwrap();
     assert_eq!(f.cur(0), Some(DsInstance::new(0, 2)));
-    assert!(!f.ds[0].is_left_top, "top 分支写的是 false（`:272`/`:286`）");
+    assert!(
+        !f.ds[0].is_left_top,
+        "top 分支写的是 false（`:272`/`:286`）"
+    );
 
     set_ds_current_top_head(&mut f, t2).unwrap();
-    assert_eq!(f.cur(0), Some(DsInstance::new(0, 2)), "守卫 isLeftTop() 已假 ⇒ 第二个 top 头不生效");
+    assert_eq!(
+        f.cur(0),
+        Some(DsInstance::new(0, 2)),
+        "守卫 isLeftTop() 已假 ⇒ 第二个 top 头不生效"
+    );
 }
 
 #[test]
@@ -188,7 +240,11 @@ fn the_top_head_with_an_existing_current_goes_through_cross() {
     let t1 = f.add(FakeCell::extender(Some(DsInstance::new(0, 2)), Vec::new()));
     f.ds[0].set(Some(DsInstance::new(0, 5)), true); // 已有一个 Row，且 is_left_top 真
     set_ds_current_top_head(&mut f, t1).unwrap();
-    assert_eq!(f.cur(0), Some(DsInstance::new(0, NULL_ROW)), "不同行 ⇒ cross 退化成 getNullRow()");
+    assert_eq!(
+        f.cur(0),
+        Some(DsInstance::new(0, NULL_ROW)),
+        "不同行 ⇒ cross 退化成 getNullRow()"
+    );
 }
 
 #[test]
@@ -196,5 +252,8 @@ fn row_cross_returns_self_for_the_same_row_and_null_row_otherwise() {
     let f = Fake::new(1);
     let same = DsInstance::new(0, 3);
     assert_eq!(row_cross_default(&f, 0, same, same).unwrap(), same);
-    assert_eq!(row_cross_default(&f, 0, same, DsInstance::new(0, 4)).unwrap(), f.null[0]);
+    assert_eq!(
+        row_cross_default(&f, 0, same, DsInstance::new(0, 4)).unwrap(),
+        f.null[0]
+    );
 }

@@ -136,7 +136,7 @@ mod tests {
         assert_eq!(decimal_to_string(1, &[100]), "10.0");
         assert_eq!(decimal_to_string(4, &[0x30, 0x39]), "1.2345");
         assert_eq!(decimal_to_string(2, &[0]), "0.00"); // BigDecimal 零带精度
-        // `adjusted == -6` 是**普通形态**的边界（Java 判据是 `>= -6`）
+                                                        // `adjusted == -6` 是**普通形态**的边界（Java 判据是 `>= -6`）
         assert_eq!(decimal_to_string(6, &[1]), "0.000001");
         // `adjusted == -4` 仍走普通形态
         assert_eq!(decimal_to_string(8, &[0x30, 0x39]), "0.00012345");
@@ -181,7 +181,13 @@ mod tests {
     #[test]
     fn bytes_to_decimal_reads_big_endian_multi_byte_magnitudes() {
         assert_eq!(bytes_to_decimal(&[1, 0, 0, 0]), "16777216"); // 256³
-        assert_eq!(bytes_to_decimal(&[0x01, 0x1F, 0x71, 0xFB, 0x04, 0xCB]), "1234567890123");
-        assert_eq!(decimal_to_string(0, &[0x01, 0x1F, 0x71, 0xFB, 0x04, 0xCB]), "1234567890123");
+        assert_eq!(
+            bytes_to_decimal(&[0x01, 0x1F, 0x71, 0xFB, 0x04, 0xCB]),
+            "1234567890123"
+        );
+        assert_eq!(
+            decimal_to_string(0, &[0x01, 0x1F, 0x71, 0xFB, 0x04, 0xCB]),
+            "1234567890123"
+        );
     }
 }

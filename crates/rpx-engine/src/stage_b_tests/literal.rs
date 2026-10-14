@@ -22,10 +22,24 @@ fn engine_types_literal_value_type_and_display_match_every_cell() {
     let (tr, tc) = template_dims(&text);
     // 夹具 `rows`/`cols` 是"不含 0 号脚手架"的口径（`CalcJson.java:40-42`），
     // 而 `StageB::rows` 是裸矩阵尺寸（含 0 号）—— 差 1 是口径差，不是错。
-    assert_eq!(sb.rows - 1, tr, "计算网格行数（去 0 号）应等于模板行数（无扩展）");
-    assert_eq!(sb.cols - 1, tc, "计算网格列数（去 0 号）应等于模板列数（无扩展）");
-    assert_eq!(sb.expressed, 0, "engine_types 是纯字面量夹具，不应有表达式格");
-    assert_eq!(sb.unmodeled_literals, 0, "engine_types 的 16 个字面量都必须是已建模变体");
+    assert_eq!(
+        sb.rows - 1,
+        tr,
+        "计算网格行数（去 0 号）应等于模板行数（无扩展）"
+    );
+    assert_eq!(
+        sb.cols - 1,
+        tc,
+        "计算网格列数（去 0 号）应等于模板列数（无扩展）"
+    );
+    assert_eq!(
+        sb.expressed, 0,
+        "engine_types 是纯字面量夹具，不应有表达式格"
+    );
+    assert_eq!(
+        sb.unmodeled_literals, 0,
+        "engine_types 的 16 个字面量都必须是已建模变体"
+    );
 
     let mut checked = 0usize;
     for e in &cells {
@@ -48,7 +62,13 @@ fn engine_types_literal_value_type_and_display_match_every_cell() {
             e.r,
             e.c
         );
-        assert_eq!(cell.disp_value().as_deref(), e.disp.as_deref(), "格 ({},{}) 的 disp_value 不符", e.r, e.c);
+        assert_eq!(
+            cell.disp_value().as_deref(),
+            e.disp.as_deref(),
+            "格 ({},{}) 的 disp_value 不符",
+            e.r,
+            e.c
+        );
         checked += 1;
     }
     assert_eq!(checked, 16, "engine_types 应逐格比对 16 格（模板 4×4）");

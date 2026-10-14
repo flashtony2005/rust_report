@@ -4,6 +4,7 @@
 //! 形状要跟夹具一样，而不是跟内部分布一致。真正的矩阵在 [`super::CalcMatrix`]。
 
 use super::SourceRef;
+use crate::pager::Pagination;
 use crate::value::Value;
 
 /// `source.sub_values[]` 的一项（`CalcJson.java:105-112`）：一个扩展实例自己的
@@ -121,8 +122,52 @@ impl CalcCell {
     }
 }
 
-/// 计算态网格（`expected.json` 的 `calculated` 段）。
-#[derive(Debug, Clone, PartialEq, Default)]
+/// `merged.cells[]` 的一项（`CalcMergeJson.java:51-58`）。
+///
+/// ⛔ 与 [`CalcCell::is_merged`] **不是同一件事**：那个读的是 `source` 段（引擎矩阵
+/// `_$25` 的跨度），本结构读的是**计算矩阵** `_$26` 在合并趟之后的值 —— 两趟合并只改
+/// 计算矩阵，所以 `engine_samemerge` 的跨度**只**在这里可见。
+///
+/// ⛔ 本段**不受** `cells` 稀疏规则约束（`CalcMergeJson.java:42-50` 只跳 `rm<=1 && cm<=1`，
+/// 不跳「值为空」）⇒ 锚点值可能为 [`Value::Null`]，此时 `calculated.cells` 里没有它。
+#[derive(Debug, Clone, PartialEq)]
+pub struct MergedCell {
+    /// 页号（1 起）。
+    ///
+    /// ⚠ 恒为 1，且**仍然正确**：产品把跨页合并区**拆到各页**（`SimplePager._$1:1536-1700`），
+    /// 本 crate 不实现拆分；而 12 个夹具里**多页夹具的 `merged.cells` 全为空**
+    /// （`engine_pager`/`engine_sum`/`engine_rowheight` 实测 `n_cells = 0`），
+    /// 所以"合并格必在第 1 页"在夹具覆盖范围内成立。这是**已声明的缺口**，
+    /// 不是恒真式：见 `crates/rpx-engine/tests/engine_grid_compare.rs` 的豁免账本。
+    pub page: i32,
+    /// 页内行号。
+    pub r: i32,
+    /// 页内列号。
+    pub c: i32,
+    /// 该槽上那一格的**计算态值**（延续槽取锚点的值）。
+    pub value: Value,
+    /// 纵向跨度（`getRowMerge()`）。
+    pub row_merge: i32,
+    /// 横向跨度（`getColMerge()`）。
+    pub col_merge: i32,
+}
+
+impl MergedCell {
+    /// 一项。
+    pub fn new(page: i32, r: i32, c: i32, value: Value, row_merge: i32, col_merge: i32) -> Self {
+        Self {
+            page,
+            r,
+            c,
+            value,
+            row_merge,
+            col_merge,
+        }
+    }
+}
+
+/// 计算态网格（`expected.json` 的 `calculated` 段 + `merged` 段 + `pagination` 段）。
+#[derive(Debug, Clone, PartialEq)]
 pub struct CalcGrid {
     /// 数据行数（不含表头行，与 `expected.json` 的 `calculated.rows` 同口径）。
     pub rows: i32,
@@ -130,12 +175,71 @@ pub struct CalcGrid {
     pub cols: i32,
     /// 稀疏存放的格 —— 只收 [`CalcCell::is_emitted`] 为真的格。
     pub cells: Vec<CalcCell>,
+    /// `merged.cells`：合并趟之后的**计算矩阵**上所有 `rm>1 || cm>1` 的槽
+    /// （含延续槽 —— 它们导出锚点的整段跨度，见 [`MergedCell`]）。
+    pub merged: Vec<MergedCell>,
+    /// `merged.page_count`（`CalcMergeJson.java:63` → `PageBuilder.getPageCount()`）。
+    ///
+    /// 由 [`crate::pager`] 算出（[`Self::pagination`] 的 `page_count`）；未跑分页器时恒 1。
+    pub page_count: i32,
+    /// 计算态**每行行高**（索引 0 ↔ 网格第 1 行），单位是 [`Self::unit`]。
+    ///
+    /// 由 `calculate()` 先按扩展映射铺开模板值，再由 `calcProperties` 行高表达式覆盖。
+    /// `engine_rowheight` 的 17 项计算值逐值对拍产品夹具（`tests/engine_rowheight_pager.rs`）。
+    pub row_heights: Vec<f32>,
+    /// 计算态**每列列宽**（索引 0 ↔ 网格第 1 列），单位是 [`Self::unit`]。
+    pub col_widths: Vec<f32>,
+    /// 计算态每行的 `rowType`（`-90` = 分组头；`-91` = 普通）。
+    pub row_types: Vec<i8>,
+    /// 计算态每行是否可见（模板值由扩展行头继承，属性 key 2 可覆盖）。
+    pub row_visible: Vec<bool>,
+    /// 每行是否在其后强制分页（key 13 / RowCell.breakPage）。
+    pub row_break_page: Vec<bool>,
+    /// 每行是否触发分栏（key 15 / RowCell.breakColumn）。
+    pub row_break_column: Vec<bool>,
+    /// 每行是否自动调整高度（key 7 / RowCell.adjustRowH）。
+    pub row_adjust_height: Vec<bool>,
+    /// 计算态每列是否可见（key 12 / ColCell.colVisible）。
+    pub col_visible: Vec<bool>,
+    /// 每列是否在其后强制分页（key 13 / ColCell.breakPage）。
+    pub col_break_page: Vec<bool>,
+    /// 每列是否触发分栏（key 15 / ColCell.breakColumn）。
+    pub col_break_column: Vec<bool>,
+    /// 报表单位（`ReportDefine.scalars.unit`；`1` = mm）。
+    pub unit: i8,
+    /// 分页结果。`None` = 未跑分页器（手搭的网格）—— 导出期写 `pagination: null`，
+    /// 对拍器据此报 `Missing`，**不静默**。
+    pub pagination: Option<Pagination>,
+}
+
+impl Default for CalcGrid {
+    fn default() -> Self {
+        CalcGrid::new(0, 0)
+    }
 }
 
 impl CalcGrid {
-    /// 新建空网格。
+    /// 新建空网格（单页、无几何）。
     pub fn new(rows: i32, cols: i32) -> Self {
-        Self { rows, cols, cells: Vec::new() }
+        Self {
+            rows,
+            cols,
+            cells: Vec::new(),
+            merged: Vec::new(),
+            page_count: 1,
+            row_heights: Vec::new(),
+            col_widths: Vec::new(),
+            row_types: Vec::new(),
+            row_visible: Vec::new(),
+            row_break_page: Vec::new(),
+            row_break_column: Vec::new(),
+            row_adjust_height: Vec::new(),
+            col_visible: Vec::new(),
+            col_break_page: Vec::new(),
+            col_break_column: Vec::new(),
+            unit: 1,
+            pagination: None,
+        }
     }
 
     /// 按 (行, 列) 取格；坐标不在（稀疏）数组里返回 `None`（= 该格为空）。

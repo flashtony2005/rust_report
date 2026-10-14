@@ -56,6 +56,8 @@ pub mod token;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_aggregate;
+#[cfg(test)]
 mod tests_eval;
 
 pub use ast::{BinOp, Call, Expr, ParamKind, UnOp};
@@ -63,9 +65,7 @@ pub use classify::err;
 pub use ds::{DataSet, DsCur};
 pub use eval::{evaluate, EvalCtx};
 pub use lexer::lex;
-pub use names::{
-    classify_bare, classify_ds, CallKind, DS, DS_EXTEND, REGULAR, REGULAR_EXTEND,
-};
+pub use names::{classify_bare, classify_ds, CallKind, DS, DS_EXTEND, REGULAR, REGULAR_EXTEND};
 pub use parser::parse;
 pub use token::Tok;
 

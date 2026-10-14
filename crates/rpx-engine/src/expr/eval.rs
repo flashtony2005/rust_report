@@ -38,7 +38,7 @@ use crate::expr::ast::{BinOp, Call, Expr, UnOp};
 use crate::value::Value;
 
 use super::ds::DataSet;
-use super::dsfn::{ds_call, ds_column, sum_list};
+use super::dsfn::{avg_list, ds_call, ds_column, max_list, min_list, sum_list};
 use super::num::{as_bool, num_add, num_cmp, num_div, num_mod, num_mul, num_neg, num_sub, val_eq};
 
 /// 求值上下文（见模块文档）。
@@ -119,7 +119,11 @@ pub fn evaluate(expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
         Expr::Const(v) => Ok(v.clone()),
         // CSVariable（`B2` / `$B2`）：解析到实例 → 过 testValue 门再取值
         // （`getValue(false):334` 无条件 testValue —— 见 `cell_value_checked` 文档）
-        Expr::CellRef { id, absolute, provisional: _ } => {
+        Expr::CellRef {
+            id,
+            absolute,
+            provisional: _,
+        } => {
             match super::resolve::resolve_cell(ctx, id, *absolute) {
                 Some(cell) => ctx.cell_value_checked(cell),
                 None => Ok(Value::Null), // Java getCell()==null ⇒ getValue 返回 null
@@ -128,11 +132,17 @@ pub fn evaluate(expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
         // CSCurrent（`@`）：当前格的值
         Expr::CurrentCell => Ok(ctx.cell_value(ctx.current())),
         // ParamNode / Constant(参数值)
-        Expr::Param { name, is_macro, value } => match value {
+        Expr::Param {
+            name,
+            is_macro,
+            value,
+        } => match value {
             Some(v) => Ok(v.clone()),
-            None => ctx.param(name, *is_macro).ok_or_else(|| EngineError::UnknownCell {
-                id: format!("@{name}"),
-            }),
+            None => ctx
+                .param(name, *is_macro)
+                .ok_or_else(|| EngineError::UnknownCell {
+                    id: format!("@{name}"),
+                }),
         },
         // DSVariable（`ds1.qty`）：Row 态取当前行；Root 态产品语义未核实（未用）
         Expr::DsColumn { ds, col } => ds_column(ctx, ds, col),
@@ -151,7 +161,9 @@ pub fn evaluate(expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
         // Select{}：花括号内容求值（`left` 语义未建模，模块文档已声明）
         Expr::Select { arg } => evaluate(arg, ctx),
         // Move/Offset：未支持
-        Expr::Index { .. } => Err(EngineError::UnsupportedExpr { expr: "Move/Offset".into() }),
+        Expr::Index { .. } => Err(EngineError::UnsupportedExpr {
+            expr: "Move/Offset".into(),
+        }),
         Expr::Call(c) => evaluate_call(c, ctx),
         Expr::Unary { op, rhs } => evaluate_unary(*op, rhs, ctx),
         Expr::Binary { op, lhs, rhs } => evaluate_binary(*op, lhs, rhs, ctx),
@@ -178,7 +190,32 @@ fn evaluate_call(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
                 scalar => Ok(scalar), // 标量透传（`:115-117`）
             }
         }
-        other => Err(EngineError::UnsupportedExpr { expr: format!("{other}(...)") }),
+        // ── M2-12：avg / max / min（`Average.java:100-125` / `Max:100-121` /
+        //    `Min:100-121`）。三者的叶子路径同构：标量透传、List 才聚合。
+        "avg" if c.args.len() == 1 => {
+            let v = evaluate(&c.args[0], ctx)?;
+            match v {
+                Value::List(l) => avg_list(&l, c.option.as_deref().unwrap_or("").contains('a')),
+                scalar => Ok(scalar), // `else { return result1; }`（`:120-122`）
+            }
+        }
+        "max" if c.args.len() == 1 => {
+            let v = evaluate(&c.args[0], ctx)?;
+            match v {
+                Value::List(l) => max_list(&l),
+                scalar => Ok(scalar), // `else { result = result1; }`（`:115-117`）
+            }
+        }
+        "min" if c.args.len() == 1 => {
+            let v = evaluate(&c.args[0], ctx)?;
+            match v {
+                Value::List(l) => min_list(&l),
+                scalar => Ok(scalar), // 同 max
+            }
+        }
+        other => Err(EngineError::UnsupportedExpr {
+            expr: format!("{other}(...)"),
+        }),
     }
 }
 
@@ -193,10 +230,12 @@ fn evaluate_call(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
 fn sum_link(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
     // cellSet = sub1（`Sum.java:177`）：必须是可解析到格的表达式
     let cell = match &c.args[1] {
-        Expr::CellRef { id, absolute, provisional: _ } => {
-            super::resolve::resolve_cell(ctx, id, *absolute)
-                .ok_or_else(|| EngineError::UnknownCell { id: id.clone() })?
-        }
+        Expr::CellRef {
+            id,
+            absolute,
+            provisional: _,
+        } => super::resolve::resolve_cell(ctx, id, *absolute)
+            .ok_or_else(|| EngineError::UnknownCell { id: id.clone() })?,
         other => {
             return Err(EngineError::UnsupportedExpr {
                 expr: format!("sum cellSet 不是格引用: {other:?}"),
@@ -219,7 +258,9 @@ fn evaluate_unary(op: UnOp, rhs: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> 
         UnOp::Neg => num_neg(&v),
         UnOp::Pos => Ok(v),
         UnOp::Not => Ok(Value::Bool(!as_bool(&v)?)),
-        UnOp::Address => Err(EngineError::UnsupportedExpr { expr: "&addr".into() }),
+        UnOp::Address => Err(EngineError::UnsupportedExpr {
+            expr: "&addr".into(),
+        }),
     }
 }
 
@@ -240,8 +281,8 @@ fn evaluate_binary(op: BinOp, lhs: &Expr, rhs: &Expr, ctx: &mut dyn EvalCtx) -> 
         BinOp::And => Ok(Value::Bool(as_bool(&a)? && as_bool(&b)?)),
         BinOp::Or => Ok(Value::Bool(as_bool(&a)? || as_bool(&b)?)),
         // Link 单独出现（`A:B` 不在 sum 里）——产品语义是"复合参数"，无独立求值面
-        BinOp::Link | BinOp::Comma | BinOp::In | BinOp::Eval => {
-            Err(EngineError::UnsupportedExpr { expr: format!("{op:?}") })
-        }
+        BinOp::Link | BinOp::Comma | BinOp::In | BinOp::Eval => Err(EngineError::UnsupportedExpr {
+            expr: format!("{op:?}"),
+        }),
     }
 }

@@ -28,19 +28,40 @@ impl RowCell {
     /// 从 readRecord 切出的记录体解析；None = 空槽（size<=0）。
     pub fn read(slice: &[u8]) -> Result<Option<Self>> {
         let mut r = RecordReader::new(slice);
-        let row_type = r.read_i8().map_err(|_| crate::error::RpxError::prop(row::ROW_TYPE as u16, "rowType"))?;
-        let row_height = r.read_f32().map_err(|_| crate::error::RpxError::prop(row::ROW_HEIGHT as u16, "rowHeight"))?;
-        let row_visible = r.read_bool().map_err(|_| crate::error::RpxError::prop(row::ROW_VISIBLE as u16, "rowVisible"))?;
-        let break_page = r.read_bool().map_err(|_| crate::error::RpxError::prop(row::BREAK_PAGE as u16, "breakPage"))?;
-        let exp_map = match r.read_record_raw().map_err(|_| crate::error::RpxError::prop(row::EXP_MAP as u16, "expMap"))? {
+        let row_type = r
+            .read_i8()
+            .map_err(|_| crate::error::RpxError::prop(row::ROW_TYPE as u16, "rowType"))?;
+        let row_height = r
+            .read_f32()
+            .map_err(|_| crate::error::RpxError::prop(row::ROW_HEIGHT as u16, "rowHeight"))?;
+        let row_visible = r
+            .read_bool()
+            .map_err(|_| crate::error::RpxError::prop(row::ROW_VISIBLE as u16, "rowVisible"))?;
+        let break_page = r
+            .read_bool()
+            .map_err(|_| crate::error::RpxError::prop(row::BREAK_PAGE as u16, "breakPage"))?;
+        let exp_map = match r
+            .read_record_raw()
+            .map_err(|_| crate::error::RpxError::prop(row::EXP_MAP as u16, "expMap"))?
+        {
             Some(s) => Some(RecordReader::parse_byte_map(s)?),
             None => None,
         };
-        let notes = r.read_string().map_err(|_| crate::error::RpxError::prop(row::NOTES as u16, "notes"))?;
-        let group_header_level = r.read_i8().map_err(|_| crate::error::RpxError::prop(7, "groupHeaderLevel"))?;
-        let ois_blob = r.read_blob().map_err(|_| crate::error::RpxError::prop(row::OIS_BLOB as u16, "ois blob"))?;
-        let break_column = r.read_bool().map_err(|_| crate::error::RpxError::prop(row::BREAK_COLUMN as u16, "breakColumn"))?;
-        let adjust_row_h = r.read_bool().map_err(|_| crate::error::RpxError::prop(row::ADJUST_ROW_H as u16, "adjustRowH"))?;
+        let notes = r
+            .read_string()
+            .map_err(|_| crate::error::RpxError::prop(row::NOTES as u16, "notes"))?;
+        let group_header_level = r
+            .read_i8()
+            .map_err(|_| crate::error::RpxError::prop(7, "groupHeaderLevel"))?;
+        let ois_blob = r
+            .read_blob()
+            .map_err(|_| crate::error::RpxError::prop(row::OIS_BLOB as u16, "ois blob"))?;
+        let break_column = r
+            .read_bool()
+            .map_err(|_| crate::error::RpxError::prop(row::BREAK_COLUMN as u16, "breakColumn"))?;
+        let adjust_row_h = r
+            .read_bool()
+            .map_err(|_| crate::error::RpxError::prop(row::ADJUST_ROW_H as u16, "adjustRowH"))?;
         Ok(Some(Self {
             row_type,
             row_height,

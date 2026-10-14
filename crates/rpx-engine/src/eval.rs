@@ -20,10 +20,10 @@
 //!
 //! # 与顶层驱动的差距（诚实声明）
 //!
-//! 本模块目前只落**三条通道**（`channel4`/`channel5`/`channel6`）与统一入口
-//! [`run_channels`]。顶层 `calculate():1448-1458 → _$2(ctx):1483-1543` 的完整
-//! 序列里，`prepareCalculate`（阶段 B）、`calcProperties`（附件 L）、样式宏、
-//! 尾部空列裁剪都还没实现 —— 在它们落地前 [`run_channels`] 不构成完整 M2-20。
+//! 本模块提供三条通道（`channel4`/`channel5`/`channel6`）与统一入口
+//! [`run_channels`]。顶层 `calculate()` 已接入阶段 B、值通道、M2-22 内置属性表达式
+//! pass 与尾列裁剪；样式宏、外部属性对象仍未实现。单独的 [`run_channels`] 只是
+//! 值通道调度器，不等同完整的 M2-20 顶层编排。
 //!
 //! 另：`_$2` 里 key-40 宏分支（`:1381-1384`）依赖的 `initial` 标志在反编译
 //! 输出里**没有任何置真点** ⇒ 疑似死分支，未移植；若真机探针证伪此判断再补。
@@ -36,7 +36,9 @@ pub mod sched;
 #[cfg(test)]
 mod tests;
 
-pub use sched::{channel4, channel5, channel6, run_channels, SchedGrid, DEFAULT_MAX_SPECIAL_REQUEUES};
+pub use sched::{
+    channel4, channel5, channel6, run_channels, SchedGrid, DEFAULT_MAX_SPECIAL_REQUEUES,
+};
 
 /// 求值状态常量（`Node.java:45-53`）。
 ///

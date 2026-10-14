@@ -87,7 +87,8 @@ fn fixtures_contain_at_least_one_ds_function_that_does_not_extend() {
     );
     // 已知样本（`engine_sum` 的 (2,6)）：逐行 100/200/150 的值级证据在 §5.2.5。
     assert!(
-        hits.iter().any(|(n, exp)| n == "engine_sum" && exp == "sum(ds1.select(qty))"),
+        hits.iter()
+            .any(|(n, exp)| n == "engine_sum" && exp == "sum(ds1.select(qty))"),
         "engine_sum 的 `sum(ds1.select(qty))` 是本结论的实测锚点，实际命中：{hits:?}"
     );
 }

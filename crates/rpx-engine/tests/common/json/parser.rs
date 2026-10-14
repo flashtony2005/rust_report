@@ -21,7 +21,11 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn new(s: &'a str) -> Self {
-        Parser { s, b: s.as_bytes(), i: 0 }
+        Parser {
+            s,
+            b: s.as_bytes(),
+            i: 0,
+        }
     }
 
     fn at_end(&self) -> bool {
@@ -89,7 +93,10 @@ impl<'a> Parser<'a> {
             _ => return Err(self.fail("非法 JSON 值起始字符")),
         };
         // start / self.i 都落在 ASCII 结构符上，切片必然踩在 char 边界
-        Ok(Json { raw: self.s[start..self.i].to_string(), kind })
+        Ok(Json {
+            raw: self.s[start..self.i].to_string(),
+            kind,
+        })
     }
 
     fn object(&mut self) -> Result<Kind, String> {

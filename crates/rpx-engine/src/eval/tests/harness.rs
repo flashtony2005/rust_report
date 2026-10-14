@@ -66,7 +66,15 @@ impl FakeGrid {
     /// 创建格但**不落槽位**（不会被扫描到，供脚本引用）。
     pub(crate) fn cell(&mut self, row: i32, col: i32, ext: i8, orig: bool) -> CellId {
         let id = CellId(self.cells.len() as u32);
-        self.cells.push(FakeCell { row, col, ext, orig, loop6: false, fatal: false, grow: false });
+        self.cells.push(FakeCell {
+            row,
+            col,
+            ext,
+            orig,
+            loop6: false,
+            fatal: false,
+            grow: false,
+        });
         id
     }
     /// 创建格并坐在 (row, col) 槽位上（会被扫描到）。

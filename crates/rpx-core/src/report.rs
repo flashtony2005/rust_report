@@ -28,22 +28,22 @@ pub type CellId = usize;
 /// 步骤 6-16 的 10 个标量 + 步骤 18-24 的尾部字段（契约 C.2/C.3）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScalarTail {
-    pub disp_ratio: i32,                    // _$18，默认 133
-    pub unit: i8,                           // _$17，默认 1
-    pub tip: Option<String>,                // _$15
-    pub submit: i8,                         // _$14，默认 0
-    pub notes: Option<String>,              // _$13
+    pub disp_ratio: i32,                     // _$18，默认 133
+    pub unit: i8,                            // _$17，默认 1
+    pub tip: Option<String>,                 // _$15
+    pub submit: i8,                          // _$14，默认 0
+    pub notes: Option<String>,               // _$13
     pub future_cell_num_exp: Option<String>, // _$11
-    pub image_max_width: i32,               // _$10，默认 0
-    pub image_max_height: i32,              // _$9，默认 0
-    pub page_border_mode: i8,               // _$8，默认 1
-    pub report_style_name: Option<String>,  // _$7
-    pub chart_style_name: Option<String>,   // _$12
-    pub validity_script: Option<String>,    // _$4
-    pub big_data_set_name: Option<String>,  // _$3
-    pub password: Option<String>,           // _$2
-    pub high_precision: bool,               // _$16，默认 true
-    pub threshold: i32,                     // _$1，默认 -1
+    pub image_max_width: i32,                // _$10，默认 0
+    pub image_max_height: i32,               // _$9，默认 0
+    pub page_border_mode: i8,                // _$8，默认 1
+    pub report_style_name: Option<String>,   // _$7
+    pub chart_style_name: Option<String>,    // _$12
+    pub validity_script: Option<String>,     // _$4
+    pub big_data_set_name: Option<String>,   // _$3
+    pub password: Option<String>,            // _$2
+    pub high_precision: bool,                // _$16，默认 true
+    pub threshold: i32,                      // _$1，默认 -1
 }
 
 /// 合并区清单条目（锚点坐标 + 网格内共享的 CellId）。
@@ -123,7 +123,9 @@ impl ReportDefine {
                 .read_record_raw()
                 .map_err(|_| p(3, "rowCell record"))?
                 .ok_or_else(|| RpxError::prop(3, "empty rowCell slot"))?;
-            row_cells.push(RowCell::read(slice)?.ok_or_else(|| RpxError::prop(3, "empty rowCell record"))?);
+            row_cells.push(
+                RowCell::read(slice)?.ok_or_else(|| RpxError::prop(3, "empty rowCell record"))?,
+            );
         }
 
         // 步骤 4：ColCell（1..c-1）——同样不预分配（理由见步骤 3）
@@ -133,7 +135,9 @@ impl ReportDefine {
                 .read_record_raw()
                 .map_err(|_| p(4, "colCell record"))?
                 .ok_or_else(|| RpxError::prop(4, "empty colCell slot"))?;
-            col_cells.push(ColCell::read(slice)?.ok_or_else(|| RpxError::prop(4, "empty colCell record"))?);
+            col_cells.push(
+                ColCell::read(slice)?.ok_or_else(|| RpxError::prop(4, "empty colCell record"))?,
+            );
         }
 
         // 步骤 5：NormalCell 行优先（1..r-1 × 1..c-1）；空槽 = 合并非锚点
@@ -144,7 +148,9 @@ impl ReportDefine {
             for col in 1..cols {
                 let slot = r.read_record_raw().map_err(|_| p(5, "normalCell record"))?;
                 let Some(slice) = slot else { continue };
-                let Some(cell) = Cell::read(slice)? else { continue };
+                let Some(cell) = Cell::read(slice)? else {
+                    continue;
+                };
                 let id = store.len();
                 store.push(cell);
                 let cell = &store[id];
@@ -159,7 +165,13 @@ impl ReportDefine {
                         let end_row = (area.end_row.max(0) as usize).clamp(row, last_row);
                         let end_col = (area.end_col.max(0) as usize).clamp(col, last_col);
                         fill_merge(&mut grid, (row, col, end_row, end_col), id);
-                        merges.push(MergedArea { begin_row: row, begin_col: col, end_row, end_col, cell: id });
+                        merges.push(MergedArea {
+                            begin_row: row,
+                            begin_col: col,
+                            end_row,
+                            end_col,
+                            cell: id,
+                        });
                     }
                     // 带 mergedArea 但不在锚点位：Java 读侧 continue，网格留空
                     Some(_) => continue,
@@ -267,7 +279,9 @@ impl ReportDefine {
     }
 
     pub fn row_height(&self, row: usize) -> Option<f32> {
-        self.row_cells.get(row.checked_sub(1)?).map(|c| c.row_height)
+        self.row_cells
+            .get(row.checked_sub(1)?)
+            .map(|c| c.row_height)
     }
 
     pub fn col_width(&self, col: usize) -> Option<f32> {

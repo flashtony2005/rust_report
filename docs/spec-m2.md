@@ -3,7 +3,10 @@
 > 生成日期：2026-10-12 · 项目总监  
 > 上游：`docs/spec-m1.md` v1.4（已交付并经独立验证放行）、`docs/format-contract.md` 附件 A-L  
 > 设计依据：`re_work/reportlite-rust全链路设计.html` §5（arena / 主格图 / 扩展包络 / 附属格链）与 §6（6.1 扩展算法 / 6.2 求值调度 / 6.3 同值合并与分页）  
-> 状态：**草案待用户确认**（原定由首席架构师产出，其运行因 API 429 限流中断，由总监接管）
+> 状态：**已作为 M2 落地基线使用（未做正式评审确认）** —— 原定由首席架构师产出，其运行因
+> API 429 限流中断，由总监接管；此后代码已按本文件实施、里程碑已宣称达成，但**本文件自身从未
+> 走过正式确认流程**。⛔ §6 的 EARS 正文是**规范**、不是验收结论；逐条 AC 的**真实落地状态**
+> 以 **§6.1**（2026-10-13 实测）为准。§0 的「⚠ 待验证」项仍未验证。
 
 ---
 
@@ -175,7 +178,7 @@ crates/rpx-engine/src/
 | M2-07 | 循环引用                 | While 表达式形成环，**必须**返回引擎错误（等价 `CircularRefException`），**不得** panic 或死循环                                                                | P0     |
 | M2-08 | 同值合并                 | While 相邻格值相同且启用 mergeSame，**必须**合并为同一 CellId（对照属性码 97-100）                                                                            | P0     |
 | M2-09 | 对拍链路                 | `engine_*.expected.json` 的 `calculated` 段**必须**被逐格断言（值 + 类型 + `src_row`/`src_col`/`extend`/`sub_cells`），**不得**以"测试通过"替代比对             | P0     |
-| M2-10 | 零依赖与门禁               | `rpx-engine` **必须**零第三方依赖；所有 `.rs` ≤300 行；`clippy --all-targets -- -D warnings` 零告警                                                   | P0     |
+| M2-10 | 零依赖与门禁               | `rpx-engine` **必须**零第三方依赖；所有 `.rs` ≤500 行（原 300，2026-10-13 上调；理由与代价见 `docs/code-review.md` §3.1）；`clippy --all-targets -- -D warnings` 零告警                                                   | P0     |
 | M2-13 | **聚合语义（非 Excel）**    | While 公式为 `sum(A:B)`，**必须**等于「把 B 设为 current 后求值 A 一次」（`sum(B2:B4)`=100，**不是 450**）；两操作数形式**必须**报错；`ds2.sum(qty)`（**未被**扩展格引用的数据集，List 操作数）**必须**=450，而**被引用的** `ds1.sum(qty)` **必须**=100/200/150（`engine_sum` 夹具实测；机制 `docs/m2-engine-design.md` §5.2） | P0     |
 | M2-14 | **类型保真**             | While 求值产出 `Integer`/`Long`/`Double`/`String`/`List`，**必须**原样保留类型；**禁止**统一提升为 f64                                                     | P0     |
 | M2-15 | **extendMode 运行时改写** | While 声明 `extendMode=16` 且拓扑为竖向，**必须**按 18 处理（矩阵 = 模板行数 + 数据集行数 − 1）；`17` **必须**产出整列 `List` 而非逐行展开                                    | P0     |
@@ -189,6 +192,53 @@ crates/rpx-engine/src/
 | M2-23 | **源坐标语义** | 断言 `calculated` 的 `src_row`/`src_col` **必须**与**模板网格**比对；⛔ 不得用 `src_row` 索引计算态网格或反查模板行；同一模板格的 N 个实例 `src_row` **必须**相等；横向（19）行号**禁止**拟合 | P0 |
 | M2-11 | 分页                   | While 行高累加超出页高，**必须**按页高/行高断页（实测每页 14 行），**不得**使用 `row_num_per_page`；与 `engine_pager` 基准逐页相等；分组头每页重复                                  | **P1** |
 | M2-12 | 函数面                  | While 表达式为 `ds1.avg/max/count(...)`，计算值 **必须**与 Java 基准相等                                                                             | **P1** |
+
+### 6.1 落地状态（2026-10-13 实测，逐条对应上表）
+
+> ⛔ 上表是 **EARS 验收正文（规范）**，本节是**实测落地状态（事实）**。两者冲突时以本节为准。
+> 状态口径：**✅** 有对拍或单测 · **⚠** 接口就位但**无真实夹具背书** · **❌** 未实现。
+> 本表由 `docs/completeness-audit.md` §2.3 的实测清单落成，并在 M2-08/M2-21 落地后重核。
+
+| AC | 落地 | 证据 / 缺口 |
+| --- | --- | --- |
+| M2-01 主格图 | ✅ | `main_cell.rs`（`MainCell.java:21-39` 移植）+ 12 夹具 head 对拍 |
+| M2-02 扩展算法 | ✅ | `ext_algo` + `engine_ext` 逐格（含 `sub_cells` 逐一相等） |
+| M2-03 非扩展格 | ✅ | `engine_ext` 的 17 分支（整列 `List`、矩阵不放大） |
+| M2-04 合并区扩展 | ✅ | `engine_merge` 对拍 |
+| M2-05 算术求值 | ✅ | `engine_expr` 对拍（值 + 类型） |
+| M2-06 相对/绝对引用 | ✅ | `engine_expr` 对拍 |
+| M2-07 循环引用 | ✅ | `engine_cycle` 对拍（`chain == "B2-C2-B2-C2"`） |
+| M2-08 同值合并 | ✅ | `engine_samemerge` 对拍（**2026-10-13 落地**） |
+| M2-09 对拍链路 | ✅ | `engine_grid_compare.rs` 12 夹具逐格（值/类型/`disp_value`/`source` 六子字段/`sub_values`/head/尺寸） |
+| M2-10 零依赖与门禁 | ✅ | 零依赖 + 阈值已同步为 500 + `clippy -D warnings` 零告警（`scripts/gate.sh` G2/G4/G5） |
+| M2-11 分页 | ❌ | 无 `pager.rs` / 无 `paginate()`；`merged.page_count` 与 `pagination` 段因此缺席（见 §7） |
+| M2-12 函数面 | ✅ | **2026-10-13 落地**：`avg`/`max`/`min` 三形态（纯函数 + `ds.avg/max/min(col)` 双态）已实现，11 条单测 + 15 条故障注入自证；⛔ 仍不闭合的部分：`avg/max/min(A:B)` 的**非叶子区域形态**未建模（与 `sum(A:B)` 同类），且 `Text-Text` 字典序显式报错（缺 `ChineseComparator` 的 `rule.txt`，不在仓库）——见 `docs/m2-engine-design.md` §14 |
+| M2-13 聚合语义 | ✅ | `engine_sum` 对拍（未被引用的 `ds2`=450；被引用的 `ds1`=100·200·150） |
+| M2-14 类型保真 | ⚠ | **仅合成单测**；夹具类型面只有 `string`/`int`/`list` ⇒ **只能声明"接口就位"，不得声明"已验证"**（见 §8 同名行） |
+| M2-15 extendMode 改写 | ✅ | `engine_ext` 对拍（17/18/19 三态 + 19 把列结构放大 5×） |
+| M2-16 `is_extend` | ✅ | §5.1.1 节点级规则 + 5 条基准真值单测 |
+| M2-17 分类顺序 | ✅ | §5.1.3 的 9 步次序单测 |
+| M2-18 函数表 | ✅ | 实测 124 + 15 = 139；`priority` 三档例外（17/17/16）已落地 |
+| M2-19 不实现位运算 | ✅ | `lexer.rs` 把 `&`/`|` 词法化后交语法层报"不支持" |
+| M2-20 求值调度等价 | ✅ | `eval/` 四通道 trampoline + 12 夹具对拍；⛔ 无递归求值 |
+| M2-21 合并四趟与守卫 | ✅ | **2026-10-13 落地**；第 1 趟有 `engine_samemerge`，**第 2/3/4 趟与整个 `mergeNull` 无夹具**（见 §8、`docs/java-reference-map.md` §6.4） |
+| M2-22 属性表达式 | ❌ | `calc/run.rs:16` 标注为「未建模（缺口 1）」；属 P1，且是**分页正确性的前提**（见 §8 末行） |
+| M2-23 源坐标语义 | ✅ | 断言与**模板网格**比对（`engine_grid_compare.rs`） |
+
+> **计数**：23 条 AC 中 P1 共 3 条（M2-11 / M2-12 / M2-22），其余 20 条为 P0。
+> ⇒ **P0 全部 ✅**（仅 M2-14 是 ⚠「接口就位、无夹具背书」）；**P1 三条**中 **M2-12 已 ✅**（2026-10-13），
+> M2-11（分页）/ M2-22（属性表达式）仍 ❌。
+> 另：`docs/completeness-audit.md` §2.3 的清单**漏列了 M2-13**，本节按实测补为 ✅。
+
+### 6.2 状态增量（2026-10-14；只加日期注，不改写 §6.1 快照）
+
+本节保留 §6.1 的 **2026-10-13 快照**；以下是后续按日期追加的事实：
+
+- **M2-22 属性表达式第一阶段落地（2026-10-14）**：`calcProperties` 已接到 channel5 之后、分页之前；按行→列→普通主格顺序求值，行/列内置表达式分支遵循 `getValue`（不拆 List），普通格属性遵循 `getSingleValue`，属性依赖挂起走现有求值通道，不递归。`engine_rowheight` 17 个计算态行高逐值对拍，分页切点恢复为 `[8,9]`；分页豁免与旧三条“未实现”哨兵已移除。实现证据及边界见 `docs/m2-engine-design.md` §5.4.7。
+- **M2-11 分页已落地**：新增 `pager.rs` / `paginate()` 与 `pagination` 导出段；按 Java 的纸张双舍入、单位换算、千分位容差、页首区带、分组头重复、横向分页实现；11 个分页夹具现均逐页一致，`engine_rowheight` 由属性行高驱动 `[8,9]` 切点。详细证据见 `docs/m2-engine-design.md` §15。
+- **M2-11 对拍器本身也经过修正**：故障注入暴露逐页/逐格比较曾把显示标签当 JSON 键，导致字段两侧同时读空而静默恒真；已拆分比较标签与实际字段键，并用 24 条故障注入证明分页、导出、接线、豁免和对拍器行为（22 期望红 + 2 期望绿）确实受测试覆盖。`col1_values` 的横向首列切换另补双页合成用例。
+- **M2-21 合并支路的测试缺口已补强**：`merge/matrix.rs` 直接调用 `merge_same` / `merge_null`，11 条合成矩阵覆盖同值合并 P1–P4、空格合并四趟及三个负向判据。此前历史表中的“无夹具”结论仍成立；这是合成测试，不是产品夹具覆盖。`same_value` 对 Java 的 7 处分歧仍按当前 Rust 行为钉住，见 §5.4.6。
+- **M2 尚未整体闭合、不得据此启动 M3**：M2-11 已交付；M2-22 的已存在 `expMap` 内置属性通道已实现并有 `engine_rowheight` 产品夹具全段对拍，但 Java 独立 `customPropEngMap`、`ExtCellSet`/cell-graph 属性值对象与 state 8 属性队列仍未建模；M2-12 的 `A:B` 聚合路径与 Text-Text 字典序仍是显式缺口；M2-14 仍只有合成测试、没有产品夹具背书。下一步先闭合这些 M2 边界并重核所有 AC，再判断 M3 准入。
 
 ## 7. 边界与约束
 
@@ -273,36 +323,39 @@ crates/rpx-engine/src/
 
 ## 9. 端到端验证步骤
 
-```bash
-export LIB='C://Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.43.34808\lib\x64;C://Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\um\x64;C://Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\ucrt\x64'
+> ⚠ **本节原为 Windows 专用**（`F:/…`、`java.exe`、MSVC `LIB`、`.exe`），而本机是 macOS，
+> 原样**一条都跑不了**。2026-10-13 改写为下述 **macOS 可跑**版本，并明确一条**能力边界**：
+> 产品 JAR（`reportlite/lib`）在 Windows 机器上 ⇒ **本机不能重跑夹具生成器**，第 1 步因此是
+> "复现 ground truth"而非"日常验证"。**日常验证的入口是 `./scripts/gate.sh`**（Tier-0 机器闸，
+> 见 `docs/code-review.md` §3）。
 
-# 1. 重跑 Java 侧基准探针（产出 ground truth）
-#    全部 ≤300 行：CalcProbe / ProbeDisambig / ProbeExtend / ProbeP0 /
-#    GenEngineFixtures / EngineModels / EngineModelsP0 / CalcJson / CalcMergeJson
-cd F:/project/report/rpx/tests/fixtures
-JAVAC="D:/Tools/jdk-21.0.2/bin/javac --release 8 -cp F:/project/report/reportlite/lib/* -d out"
-JAVA="F:/project/report/common/jre/bin/java.exe -cp F:/project/report/reportlite/lib/*;out"
-$JAVAC *.java
-$JAVA rpx.fixtures.GenFixtures . --verify        # M1 三夹具（simple/merged/full）
-$JAVA rpx.fixtures.GenRealMerge . --verify       # 真合并夹具 realmerge
-$JAVA rpx.fixtures.GenEngineFixtures . --verify  # 七个引擎夹具 + expected.json（计算态+分页态+合并）
-$JAVA rpx.fixtures.CalcProbe .                   # headless 计算链路（附件 F.4）
-$JAVA rpx.fixtures.ProbeDisambig .               # 消歧：sum 语义（附件 H.1/H.2）
-$JAVA rpx.fixtures.ProbeExtend .                 # 消歧：extendMode 改写 + 分页 + 分组头（附件 H.4/H.5）
-$JAVA rpx.fixtures.ProbeP0 .                     # P0 基准实验：合并/循环/mergeSame/17-18-19（附件 H.7/H.8）
-$JAVA rpx.fixtures.VerifyDollar .                # $ = isSaved 单次运行并排实测（附件 G.1）
+```bash
+# 1. 夹具：**已在仓库内**，本机无需、也无法重跑产品生成器
+#    tests/fixtures/engine_*.rpx + engine_*.expected.json（12 个引擎夹具，产品 writer 产出、已入库）
+#    ⛔ GenEngineFixtures 要 Windows 上的 reportlite/lib/*.jar 与 common/jre ⇒ 本机跑不了。
+#    本机**唯一**能重生成的是 decimal oracle（只依赖本地 JDK，不碰产品 JAR）：
+./scripts/gen_decimal_oracle.sh     # 产出 tests/fixtures/_bdo/*.txt（⚠ 不落库，见 .gitignore 现状）
+./scripts/_selftest_gen_oracle.sh   # 其自测（假 JVM 故障注入，须 8/8）
 
 # 2. 结构态交叉校验（**仅 M1 四个结构夹具**；引擎夹具是计算态，cli_crosscheck 会 KeyError）
-cd F:/project/report/rpx
-for f in simple realmerge; do
-  python tests/fixtures/cli_crosscheck.py $f || echo "WARN $f"
-done
+python3 tests/fixtures/cli_crosscheck.py simple
+python3 tests/fixtures/cli_crosscheck.py realmerge
 #    注：merged/full 是「浅合并」，非锚点槽持自己的默认格，cli_crosscheck 的 grid fill
 #    检查会报 missing —— 属附件 E.8 的已知语义差异，不是缺陷；Rust 侧 golden 双向校验正确处理。
 
-# 3. 构建与测试
-cargo test --workspace          # M1 23 测试 + M2 新增
-cargo clippy --all-targets -- -D warnings
+# 3. 构建与测试（macOS **无需设 LIB** —— 没有 MSVC 链接步骤）
+cargo test --workspace --no-fail-fast      # 含 12 引擎夹具逐格对拍
+cargo clippy --workspace --all-targets -- -D warnings
+
+# 4. 门禁（Tier-0，**合并前置**；会打印每个 gate 的原文输出，不许只报 PASS）
+./scripts/gate.sh    # G1 fmt / G2 clippy / G3 test / G4 ≤500 行 / G5 依赖 / G6 shell 陷阱
+
+# 5. CLI 实跑（人工核对；⚠ 尚无自动化断言 —— 与 M1 遗留③ 同一个病）
+cargo run -p rpx-cli -- print tests/fixtures/simple.rpx
+#    macOS 下产物是 ./target/debug/rpx-cli（**无 .exe**）。
+#    ⚠ 引擎侧目前只有库函数 emit::render_document；CLI **没有** render/json/csv 子命令。
+#      验收口径写的是「CLI 渲染 → JSON/CSV」，实现形态是「库函数 + 集成测试」——
+#      这处脱钩见 docs/completeness-audit.md §2.5③，**尚未回写**，属待办。
 ```
 
 

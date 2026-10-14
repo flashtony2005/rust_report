@@ -123,7 +123,11 @@ fn source_is_present_iff_within_template_dims() {
 #[test]
 fn cycle_fixture_is_the_error_form() {
     let fx = load("engine_cycle");
-    assert_eq!((fx.template_rows, fx.template_cols), (3, 3), "engine_cycle 模板尺寸");
+    assert_eq!(
+        (fx.template_rows, fx.template_cols),
+        (3, 3),
+        "engine_cycle 模板尺寸"
+    );
     assert!(fx.grid().is_none(), "engine_cycle 不该有计算态网格");
     assert!(fx.is_error());
 
@@ -251,10 +255,16 @@ fn reader_preserves_exact_number_tokens_and_declared_type() {
 
     let a = fx.cell(1, 1).unwrap();
     assert_eq!(a.value_raw, "150", "整数值的 double 必须是裸整数原文");
-    assert_eq!(a.declared_type, "double", "类型取自 type 字段，不是字面形状");
+    assert_eq!(
+        a.declared_type, "double",
+        "类型取自 type 字段，不是字面形状"
+    );
     assert!(a.source.is_none());
 
     let b = fx.cell(1, 2).unwrap();
-    assert_eq!(b.value_raw, "100.00", "BigDecimal.toString() 的两位小数原样保留");
+    assert_eq!(
+        b.value_raw, "100.00",
+        "BigDecimal.toString() 的两位小数原样保留"
+    );
     assert_eq!(b.declared_type, "decimal");
 }

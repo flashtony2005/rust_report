@@ -23,8 +23,7 @@ const CELL_WITH_SUBS: &str = concat!(
 );
 
 /// 带 `disp_value` 的格（`CalcJson` 只在显示值 ≠ `String.valueOf(value)` 时写这个键）。
-const CELL_WITH_DISP: &str =
-    r#"{"r":2,"c":3,"value":null,"type":"null","disp_value":"\u4ec5\u663e\u793a\u503c","left_head":{"src_row":0,"src_col":0}}"#;
+const CELL_WITH_DISP: &str = r#"{"r":2,"c":3,"value":null,"type":"null","disp_value":"\u4ec5\u663e\u793a\u503c","left_head":{"src_row":0,"src_col":0}}"#;
 
 fn parse_one(chunk: &str) -> ExpCell {
     let parts = split_top_level(chunk);
@@ -35,8 +34,16 @@ fn parse_one(chunk: &str) -> ExpCell {
 #[test]
 fn own_value_and_type_win_over_the_same_keys_inside_sub_values() {
     let e = parse_one(CELL_WITH_SUBS);
-    assert_eq!(e.value.as_deref(), Some("\"outer\""), "取到了 sub_values 里的 value");
-    assert_eq!(e.ty.as_deref(), Some("string"), "取到了 sub_values 里的 type");
+    assert_eq!(
+        e.value.as_deref(),
+        Some("\"outer\""),
+        "取到了 sub_values 里的 value"
+    );
+    assert_eq!(
+        e.ty.as_deref(),
+        Some("string"),
+        "取到了 sub_values 里的 type"
+    );
     assert_eq!(e.subs, vec![(1, 1), (1, 2)]);
 }
 

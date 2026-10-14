@@ -14,10 +14,10 @@
 //! |--------|-----------|------|
 //! | [`ds_current`] | `_$19` 跟踪器 + `resetDSCurrent`/`setDSCurrent`/`setDSCurrent*Head` | ✅ 已落地（含单测） |
 //!
-//! 尚未落地：`CalcCtx`（生产版 `EvalCtx` + `SchedGrid` 的合体）、
-//! 逐格 `calculate`（`ExtNormalCell.java:634-700` / `ExtExtendCell.java:359-483`）、
-//! `_$2(ctx)` 的十一步编排、`calcProperties`（U5 未解）、`_$2()` 无参方法（U7 未读）、
-//! 报表/图表样式宏与尾部空列裁剪。
+//! 已落地：`CalcCtx`、逐格 `calculate`、`_$2(ctx)` 的主值通道与属性表达式 pass、
+//! `calcProperties` 的可建模内置属性（M2-22 第一阶段）、尾部空列裁剪。仍未覆盖：
+//! Java 独立 `customPropEngMap` / ExtCellSet-cellGraph 属性对象、`_$2()` 页面对齐副作用，
+//! 以及报表/图表样式宏与 `perfect`。
 //!
 //! # ⛔ 编排顺序是硬约束（`ExtCellSet.java:1483-1543` 原文顺序）
 //!
@@ -44,7 +44,8 @@
 pub mod cell_eval;
 pub mod ctx;
 pub mod ds_current;
+pub mod properties;
 pub mod run;
 
-pub use ds_current::{HeadPairTracker, DsInstance};
+pub use ds_current::{DsInstance, HeadPairTracker};
 pub use run::calculate;

@@ -33,11 +33,21 @@ fn cloning_copies_runtime_state_instead_of_sharing_it() {
     let c = g.clone_cell(a);
 
     // bit30 **保留**：克隆继承"已求值"（值关键，别改）。
-    assert!(g.get(c).unwrap().rt.calculated, "clone 必须继承 bit30（clone:136 只抹 bit31）");
+    assert!(
+        g.get(c).unwrap().rt.calculated,
+        "clone 必须继承 bit30（clone:136 只抹 bit31）"
+    );
     // bit31 清零：克隆不继承"已被要求求值"。
-    assert!(!g.get(c).unwrap().rt.demanded, "clone 必须抹 bit31（clone:136）");
+    assert!(
+        !g.get(c).unwrap().rt.demanded,
+        "clone 必须抹 bit31（clone:136）"
+    );
     // propSetMap = null（clone:135）⇒ 覆盖项不继承；模板声明继承。
-    assert_eq!(g.get(c).unwrap().disp_override, None, "clone 不继承 dispValue 覆盖");
+    assert_eq!(
+        g.get(c).unwrap().disp_override,
+        None,
+        "clone 不继承 dispValue 覆盖"
+    );
     // `_$4 = null`（ExtExtendCell.clone:52）。
     assert_eq!(g.get(c).unwrap().rt.instance, None, "clone 不继承 _$4");
     // 其余运行态字段按值拷贝（Java 的 engine 是引用共享，本 crate 有意偏离、

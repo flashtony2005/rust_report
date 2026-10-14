@@ -67,7 +67,10 @@ fn row_cells_cover_every_template_row_exactly_once() {
         let mut rows: Vec<i32> = fx.row_cells.iter().map(|rc| rc.r).collect();
         rows.sort_unstable();
         let want: Vec<i32> = (1..=fx.template_rows).collect();
-        assert_eq!(rows, want, "{name}: row_cells 的 r 应恰好覆盖 1..=template_rows");
+        assert_eq!(
+            rows, want,
+            "{name}: row_cells 的 r 应恰好覆盖 1..=template_rows"
+        );
         for rc in &fx.row_cells {
             assert!(
                 rc.row_height > 0.0,
@@ -104,7 +107,12 @@ fn formula_coordinates_stay_inside_the_template_box() {
                 f.c,
                 fx.template_cols
             );
-            assert!(!f.exp.is_empty(), "{name}: 公式 ({},{}) 的 exp 不该为空串", f.r, f.c);
+            assert!(
+                !f.exp.is_empty(),
+                "{name}: 公式 ({},{}) 的 exp 不该为空串",
+                f.r,
+                f.c
+            );
             total += 1;
         }
     }

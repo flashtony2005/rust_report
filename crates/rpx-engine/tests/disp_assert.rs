@@ -53,12 +53,26 @@ fn null_value_cell_is_emitted_because_the_rule_is_or() {
     let fx = load("engine_disp");
     let g = fx.grid().expect("engine_disp 有计算态网格");
 
-    let null_valued: Vec<_> = g.cells.iter().filter(|c| c.declared_type == "null").collect();
-    assert!(!null_valued.is_empty(), "夹具必须含 value==null 的格，否则本测试是永真式");
+    let null_valued: Vec<_> = g
+        .cells
+        .iter()
+        .filter(|c| c.declared_type == "null")
+        .collect();
+    assert!(
+        !null_valued.is_empty(),
+        "夹具必须含 value==null 的格，否则本测试是永真式"
+    );
 
     for c in &null_valued {
-        assert_eq!(c.value_raw, "null", "({0},{1}) null 值的原文 token", c.r, c.c);
-        let dv = c.disp_value.as_deref().expect("value==null 却落盘 ⇒ disp_value 必非空");
+        assert_eq!(
+            c.value_raw, "null",
+            "({0},{1}) null 值的原文 token",
+            c.r, c.c
+        );
+        let dv = c
+            .disp_value
+            .as_deref()
+            .expect("value==null 却落盘 ⇒ disp_value 必非空");
         assert!(!dv.is_empty(), "({0},{1}) disp_value 不该是空串", c.r, c.c);
     }
 
@@ -67,7 +81,9 @@ fn null_value_cell_is_emitted_because_the_rule_is_or() {
     for c in &g.cells {
         assert!(
             c.declared_type != "null" || c.disp_value.is_some(),
-            "({0},{1}) value 与 disp_value 同时为 null 的格不该落盘", c.r, c.c
+            "({0},{1}) value 与 disp_value 同时为 null 的格不该落盘",
+            c.r,
+            c.c
         );
     }
 }
@@ -81,14 +97,19 @@ fn disp_value_is_never_redundant_with_the_display_of_value() {
     let g = fx.grid().unwrap();
 
     let with_disp: Vec<_> = g.cells.iter().filter(|c| c.disp_value.is_some()).collect();
-    assert!(!with_disp.is_empty(), "夹具必须含 disp_value，否则本测试是永真式");
+    assert!(
+        !with_disp.is_empty(),
+        "夹具必须含 disp_value，否则本测试是永真式"
+    );
 
     for c in &with_disp {
         let shown = display_of(&c.value_raw, &c.declared_type);
         assert_ne!(
             c.disp_value.as_deref(),
             Some(shown.as_str()),
-            "({0},{1}) 夹具不该写出与 String.valueOf(value) 相同的 disp_value", c.r, c.c
+            "({0},{1}) 夹具不该写出与 String.valueOf(value) 相同的 disp_value",
+            c.r,
+            c.c
         );
     }
 }
@@ -104,20 +125,29 @@ fn fractional_display_never_promotes_the_declared_type() {
         .cells
         .iter()
         .filter(|c| {
-            c.disp_value.as_deref().is_some_and(|d| d.contains('.'))
-                && !c.value_raw.contains('.')
+            c.disp_value.as_deref().is_some_and(|d| d.contains('.')) && !c.value_raw.contains('.')
         })
         .collect();
-    assert!(!fractional.is_empty(), "夹具必须含『值整数但显示带小数点』的格，否则是永真式");
+    assert!(
+        !fractional.is_empty(),
+        "夹具必须含『值整数但显示带小数点』的格，否则是永真式"
+    );
 
     for c in &fractional {
         assert_ne!(
             c.declared_type, "decimal",
-            "({0},{1}) 显示值的小数点不得把类型改成 decimal", c.r, c.c
+            "({0},{1}) 显示值的小数点不得把类型改成 decimal",
+            c.r, c.c
         );
         assert!(
-            matches!(c.declared_type.as_str(), "int" | "long" | "double" | "float"),
-            "({0},{1}) 数值格声明类型应仍在数值词表内，实际 {2}", c.r, c.c, c.declared_type
+            matches!(
+                c.declared_type.as_str(),
+                "int" | "long" | "double" | "float"
+            ),
+            "({0},{1}) 数值格声明类型应仍在数值词表内，实际 {2}",
+            c.r,
+            c.c,
+            c.declared_type
         );
     }
 }
@@ -134,14 +164,19 @@ fn non_ascii_display_survives_the_utf8_round_trip() {
         .iter()
         .filter(|c| c.disp_value.as_deref().is_some_and(has_non_ascii))
         .collect();
-    assert!(!non_ascii.is_empty(), "夹具必须含非 ASCII 的 disp_value，否则是永真式");
+    assert!(
+        !non_ascii.is_empty(),
+        "夹具必须含非 ASCII 的 disp_value，否则是永真式"
+    );
 
     for c in &non_ascii {
         let dv = c.disp_value.as_deref().unwrap();
         assert!(has_non_ascii(dv), "({0},{1}) 非 ASCII 显示值丢失", c.r, c.c);
         assert!(
             !dv.contains('\u{FFFD}'),
-            "({0},{1}) 出现 U+FFFD 替换字符，说明 UTF-8 往返坏了", c.r, c.c
+            "({0},{1}) 出现 U+FFFD 替换字符，说明 UTF-8 往返坏了",
+            c.r,
+            c.c
         );
         assert!(!dv.is_empty(), "({0},{1}) 显示值不该为空", c.r, c.c);
     }
@@ -163,7 +198,10 @@ fn vertical_extension_dispatches_display_value_to_every_instance() {
         .iter()
         .filter(|c| c.source.as_ref().is_some_and(|s| s.sub_cells > 1))
         .collect();
-    assert!(!anchors.is_empty(), "夹具必须含有附属格的锚点，否则是永真式");
+    assert!(
+        !anchors.is_empty(),
+        "夹具必须含有附属格的锚点，否则是永真式"
+    );
 
     let mut instances = 0;
     for a in &anchors {
@@ -171,14 +209,20 @@ fn vertical_extension_dispatches_display_value_to_every_instance() {
         if s.extend != 18 {
             continue; // 只看纵向扩展
         }
-        assert!(a.disp_value.is_some(), "锚点 ({0},{1}) 应带 disp_value", a.r, a.c);
+        assert!(
+            a.disp_value.is_some(),
+            "锚点 ({0},{1}) 应带 disp_value",
+            a.r,
+            a.c
+        );
         for k in 1..s.sub_cells {
             let inst = g
                 .cell(a.r + k, a.c)
                 .unwrap_or_else(|| panic!("({0},{1}) 扩展实例缺失", a.r + k, a.c));
             assert_eq!(
                 inst.disp_value, a.disp_value,
-                "({0},{1}) 显示值未逐个下发给扩展实例", inst.r, inst.c
+                "({0},{1}) 显示值未逐个下发给扩展实例",
+                inst.r, inst.c
             );
             instances += 1;
         }
@@ -204,7 +248,9 @@ fn no_fixture_emits_a_cell_with_both_value_and_display_null() {
         for c in &g.cells {
             assert!(
                 c.declared_type != "null" || c.disp_value.is_some(),
-                "{name}: ({},{}) value 与 disp_value 同时为 null，不该出现在 cells 里", c.r, c.c
+                "{name}: ({},{}) value 与 disp_value 同时为 null，不该出现在 cells 里",
+                c.r,
+                c.c
             );
             checked += 1;
         }
@@ -226,7 +272,9 @@ fn display_override_covers_both_augmenting_and_replacing_forms() {
 
     let (mut augmenting, mut replacing) = (0usize, 0usize);
     for c in &g.cells {
-        let Some(dv) = c.disp_value.as_deref() else { continue };
+        let Some(dv) = c.disp_value.as_deref() else {
+            continue;
+        };
         let shown = display_of(&c.value_raw, &c.declared_type);
         assert!(!shown.is_empty(), "({0},{1}) 值不该为空串", c.r, c.c);
         if dv.starts_with(shown.as_str()) {
@@ -235,8 +283,14 @@ fn display_override_covers_both_augmenting_and_replacing_forms() {
             replacing += 1;
         }
     }
-    assert!(augmenting > 0, "夹具必须含『显示值以值为前缀』的增广型覆盖（整数补位/加单位）");
-    assert!(replacing > 0, "夹具必须含与值无前缀关系的替换型覆盖（文本映射/量纲标签）");
+    assert!(
+        augmenting > 0,
+        "夹具必须含『显示值以值为前缀』的增广型覆盖（整数补位/加单位）"
+    );
+    assert!(
+        replacing > 0,
+        "夹具必须含与值无前缀关系的替换型覆盖（文本映射/量纲标签）"
+    );
 }
 
 /// `sub_values` 与 `sub_cells` 的长度自洽（`CalcJson.java:84` 的 `if (subs > 1)`）。
@@ -253,12 +307,16 @@ fn sub_values_length_matches_sub_cells() {
         let Some(s) = &c.source else { continue };
         match &s.sub_values {
             Some(sv) => assert_eq!(
-                sv.len() as i32, s.sub_cells,
-                "({0},{1}) sub_values 长度应等于 sub_cells", c.r, c.c
+                sv.len() as i32,
+                s.sub_cells,
+                "({0},{1}) sub_values 长度应等于 sub_cells",
+                c.r,
+                c.c
             ),
             None => assert_eq!(
                 s.sub_cells, 1,
-                "({0},{1}) sub_cells>1 时必须写 sub_values", c.r, c.c
+                "({0},{1}) sub_cells>1 时必须写 sub_values",
+                c.r, c.c
             ),
         }
     }

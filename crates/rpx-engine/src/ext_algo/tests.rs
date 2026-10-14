@@ -46,9 +46,13 @@ fn expand_top_head_hits_top_subs_members() {
 
     assert_eq!(g.cells[v1.0 as usize].col_merge, 5, "受害格 (1,1)");
     assert_eq!(g.cells[v2.0 as usize].col_merge, 5, "受害格 (2,1)");
-    assert_eq!(g.cells[a.0 as usize].col_merge, 1, "⛔ 锚点被 sub1==sub 守卫挡掉");
     assert_eq!(
-        g.cells[CellId::ROOT.0 as usize].col_merge, 1,
+        g.cells[a.0 as usize].col_merge, 1,
+        "⛔ 锚点被 sub1==sub 守卫挡掉"
+    );
+    assert_eq!(
+        g.cells[CellId::ROOT.0 as usize].col_merge,
+        1,
         "⛔ cell00 被列整块包含失败挡掉"
     );
 }
@@ -105,7 +109,11 @@ fn extend_row_clones_band_downward() {
         let cl = g.at_pos(r, 1);
         assert!(cl.is_some(), "克隆 (r,1) 应存在");
         assert_eq!(g.cells[cl.0 as usize].row, r);
-        assert_eq!(g.cells[cl.0 as usize].left_head, CellId::ROOT, "head 原样共享");
+        assert_eq!(
+            g.cells[cl.0 as usize].left_head,
+            CellId::ROOT,
+            "head 原样共享"
+        );
         assert!(g.at_pos(r, 0).is_some(), "第 0 列脚手架同步克隆");
     }
 }
@@ -132,7 +140,10 @@ fn extend_row_shifts_left_head_of_clones() {
     let a1 = g.at_pos(3, 1);
     let b1 = g.at_pos(3, 2);
     assert!(a1.is_some() && b1.is_some());
-    assert_eq!(g.cells[b1.0 as usize].left_head, a1, "leftHead 平移到锚点克隆");
+    assert_eq!(
+        g.cells[b1.0 as usize].left_head, a1,
+        "leftHead 平移到锚点克隆"
+    );
 }
 
 /// `engine_ext` 的 19 场景端到端：带内部分平移（B1 类格被挤到 +4 列）、
@@ -162,7 +173,10 @@ fn extend_col_shifts_band_and_clones_anchor() {
     assert_eq!(g.col_size, 8, "4 + (5-1)×1");
     assert_eq!(g.at_pos(4, 6), b1, "带内行 +4 列平移");
     assert_eq!(g.cells[b1.0 as usize].col, 6, "字段同步 addCol");
-    assert!(g.at_pos(0, 2).is_some() && g.at_pos(0, 5).is_some(), "第 0 行列头克隆");
+    assert!(
+        g.at_pos(0, 2).is_some() && g.at_pos(0, 5).is_some(),
+        "第 0 行列头克隆"
+    );
     assert_eq!(g.cells[v1.0 as usize].col_merge, 5, "受害格撑大");
     assert_eq!(g.ext_cell_size(a), 5);
     for c in 2..6 {

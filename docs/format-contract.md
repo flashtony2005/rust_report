@@ -1620,6 +1620,25 @@ _$14 = 7                          // FINISHED
 ⚠ `Variant2.equals` 的异常被 `catch` 后只记日志、`same` 保持 `false`（:1872-1877，4 处同构）
 ⇒ **比较异常 = 视为不等**，不中断、不回滚。
 
+**⛔ 第 3 趟（横正）独有的残值守卫（`:1968`，2026-10-13 证真）**
+
+```java
+int rowMerge = cell.getRowMerge();        // :1967
+if (max2 >= colSize) continue block19;    // :1968  ← max2 是**第 1 趟留下的残值**
+for (max2 = j + cell.getColMerge(); max2 < colSize; max2 += other2.getColMerge()) { … }  // :1969
+```
+
+`max2` 是**方法级局部**（`:1842`），第 1 趟与第 3 趟共用；`:1968` 读它时 `:1969` 尚未赋值。
+`block19` 标签打在**外层 `for (i…)`** 上（`:1949`），故 `continue block19` = **跳到下一行**。
+
+- **不是反编译噪声**：双 JAR 的 CFR 产物同形；且 CFR 行为探针证明只有「显式标签 + `continue 标签`」
+  才会产出 `continue blockN;`（证据链见 `docs/java-reference-map.md` §6.6a）。
+- **后果**：第 3 趟在「某行横向跨度触到右边界」后，其后每行的首个候选格都命中并整行跳过
+  ⇒ 从那一行起整体停摆；残值本身 ≥ `colSize` 时整趟空转（§6.6b 的控制流模拟）。
+- **无夹具可辨**：全部夹具只设过 `mergeSame = 98`，没有 99/100、没有 mode 119/120、没有 `mergeNull`。
+- ⇒ **实现必须逐字保留**（本仓 `crates/rpx-engine/src/merge/same.rs` 的 `'block19`）。
+  将来补 `mergeSame = 99` 夹具时，产品会带着这个残值行为，改了反而对不上。
+
 ### K.3 `mergeNull` 四趟扫描（ExtCellSet.java:2051-2159）
 
 **方向语义（反直觉，必须记牢）**：属性码标在**空值格**上，含义是"我這個空格往哪个方向去找有值的格"。

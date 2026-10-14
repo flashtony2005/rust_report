@@ -96,7 +96,8 @@ pub fn channel4<G: SchedGrid>(g: &mut G, st: &mut Vec<CellId>) -> Result<(), Flo
                     return Err(Flow::Fatal(EngineError::Interrupted));
                 }
                 let cell0 = g.get_calc(i, j);
-                if !cell0.is_none() && g.extensible(cell0) == target && slot_matches(g, cell0, i, j) {
+                if !cell0.is_none() && g.extensible(cell0) == target && slot_matches(g, cell0, i, j)
+                {
                     // chase 循环：对应 Java 的 try{while(true){..}}catch(…)
                     let mut cell = cell0;
                     loop {
@@ -246,8 +247,8 @@ pub fn channel6<G: SchedGrid>(
 
 /// 统一入口：4 → 5 → 6，边界把未处理挂起转成 [`EngineError`]。
 ///
-/// ⚠ 顶层 `calculate()` 的完整序列（prepareCalculate / calcProperties /
-/// 样式宏 / 尾列裁剪 / `_$14 = 7`）尚未接齐 —— 见模块文档的诚实声明。
+/// ⚠ 这是独立的值通道入口，不含顶层阶段 B、属性表达式、样式宏与尾列裁剪；生产入口
+/// [`crate::calc::calculate`] 已把可建模的顶层步骤按顺序接齐。
 pub fn run_channels<G: SchedGrid>(g: &mut G) -> crate::error::Result<()> {
     let mut st = Vec::new();
     let mut special = VecDeque::new();

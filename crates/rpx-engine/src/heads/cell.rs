@@ -34,9 +34,42 @@ pub struct HeadCell {
     /// 所属计算行的 `rowType`（克隆行继承锚点模板行的类型）。
     pub row_type: i8,
     /// 纵向跨度（`containRow` 的宽度）。
+    ///
+    /// ⛔ 这是**计算矩阵** `_$26` 侧的值（`ExtNormalCell.rowMerge`，`:235-237`）。
+    /// 合并两趟会改写它；**引擎矩阵** `_$25` 侧另存一份（见 [`Self::engine_row_merge`]）。
     pub row_merge: i32,
-    /// 横向跨度（`containCol` 的宽度）。
+    /// 横向跨度（`containCol` 的宽度）。语义与坑同 [`Self::row_merge`]。
     pub col_merge: i32,
+    /// **引擎矩阵侧**（`_$25`）的纵向跨度 —— `NormalCellEngine.rowMerge`。
+    ///
+    /// 产品在构造时把 `_$25` 填成 `extCell.engine`（`ExtCellSet.java:190`）——
+    /// 与 `_$26` 里的 `ExtNormalCell` 是**两个对象**，各有一份 `rowMerge` 字段
+    /// （`ExtNormalCell.java:235-237` vs `NormalCellEngine`）。所以合并两趟只动 `_$26`，
+    /// `getSource(r,c).getRowMerge()` 读到的仍是合并前的值。
+    ///
+    /// 夹具铁证（`engine_samemerge` 的 `(2,1)`）：`merged.cells` 报 `row_merge=2`
+    /// 而同一格的 `source.row_merge` 报 `1`。
+    ///
+    /// 冻结时机见 [`super::grid::HeadState::freeze_engine_spans`]（两趟合并**之前**）。
+    pub engine_row_merge: i32,
+    /// 引擎矩阵侧的横向跨度。语义同 [`Self::engine_row_merge`]。
+    pub engine_col_merge: i32,
+    /// 列头格的 `colType`（`IColCell.getColType()`）。**只有 `row == 0` 的列头格有意义**，
+    /// 其余格保持 [`rpx_core::props::def::COL_TYPE`]。
+    ///
+    /// 合并的「同列类型」判据读它（`ExtCellSet.java:1959/1988/2012/2036`、
+    /// `:2123/2145` 的 `getColCell(j).getColType()`）。
+    pub col_type: i8,
+    /// `getMergeSame()`（`ExtNormalCell.java:2005` → 模型层 `NormalCell._$4`）：
+    /// **97=关 / 98=纵向 / 99=横向 / 100=双向**（`props::def::MERGE_SAME`）。
+    pub merge_same: i8,
+    /// `getMergeNull()`（模型层 `NormalCell._$3`）：
+    /// **113=关 / 114=UP / 115=LEFT / 116=DOWN / 117=RIGHT**。
+    pub merge_null: i8,
+    /// `getMergeSameMode()`（模型层 `NormalCell._$2`）：**118 / 119 / 120**。
+    pub merge_same_mode: i8,
+    /// `getMergeNullMode()`（模型层 `NormalCell._$1`）。
+    pub merge_null_mode: i8,
     /// 左 head 引用。阶段 B 逐格填入，初始 [`CellId::NONE`]。
     pub left_head: CellId,
     /// 上 head 引用。
@@ -94,6 +127,13 @@ impl HeadCell {
             row_type,
             row_merge: 1,
             col_merge: 1,
+            engine_row_merge: 1,
+            engine_col_merge: 1,
+            col_type: rpx_core::props::def::COL_TYPE,
+            merge_same: rpx_core::props::def::MERGE_SAME,
+            merge_null: rpx_core::props::def::MERGE_NULL,
+            merge_same_mode: rpx_core::props::def::MERGE_SAME_MODE,
+            merge_null_mode: rpx_core::props::def::MERGE_NULL_MODE,
             left_head: CellId::NONE,
             top_head: CellId::NONE,
             declared_left: None,
@@ -115,7 +155,9 @@ impl HeadCell {
     /// ⛔ 绝不按 `String.valueOf(value)` 合成默认值 —— 反例 `engine_disp` 的 `(2,3)`：
     /// `value == null` 而 `disp_value == "仅显示值"`。
     pub fn disp_value(&self) -> Option<String> {
-        self.disp_override.clone().or_else(|| self.disp_declared.clone())
+        self.disp_override
+            .clone()
+            .or_else(|| self.disp_declared.clone())
     }
 
     /// `setDispValue(v)`（`ExtNormalCell.java:1653-1662`）：**只在 v 与模板声明不同**时

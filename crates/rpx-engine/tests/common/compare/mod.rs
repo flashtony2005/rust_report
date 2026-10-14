@@ -75,8 +75,7 @@ pub fn compare_actual_file(actual_path: &Path, fixture_name: &str) -> Report {
 
 /// 引擎输出以字符串给出时用这个入口。
 pub fn compare_actual_text(actual_text: &str, fixture_name: &str) -> Report {
-    let actual = json::parse(actual_text)
-        .unwrap_or_else(|e| panic!("引擎输出不是合法 JSON：{e}"));
+    let actual = json::parse(actual_text).unwrap_or_else(|e| panic!("引擎输出不是合法 JSON：{e}"));
     compare(&actual, &load_raw(fixture_name), fixture_name)
 }
 
@@ -136,7 +135,12 @@ pub(super) fn compare(actual: &Json, expected: &Json, fixture: &str) -> Report {
     sections::compare_pagination(&mut d, actual, expected);
     sections::compare_merged(&mut d, actual, expected);
 
-    Report { fixture: fixture.to_string(), diffs: d, expected_dims: exp_dims, actual_dims: act_dims }
+    Report {
+        fixture: fixture.to_string(),
+        diffs: d,
+        expected_dims: exp_dims,
+        actual_dims: act_dims,
+    }
 }
 
 /// 错误形态：只比 `class` 与 `chain`（`message` 是本地化文本，见模块文档）。

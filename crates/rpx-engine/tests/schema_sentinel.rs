@@ -87,7 +87,8 @@ fn keys_of_opt(root: &Json, key: &str, ctx: &str) -> Vec<String> {
 /// 该夹具是否为错误形态（据**原始** JSON 判断，不依赖类型化加载器 ——
 /// 哨兵必须独立于被它监视的那层）。
 fn is_error_form(root: &Json) -> bool {
-    root.get("calculated").is_some_and(|c| c.get("error").is_some())
+    root.get("calculated")
+        .is_some_and(|c| c.get("error").is_some())
 }
 
 /// ① + ②：顶层键集合 —— 夹具之间一致，且等于清单。
@@ -129,7 +130,10 @@ fn calculated_section_keys_are_uniform_per_form() {
         }
     }
     // 非永真式守卫：两种形态都必须至少各有一个样本，否则"一致"是空的
-    assert!(n_grid > 0 && n_err > 0, "网格形态 {n_grid} 个 / 错误形态 {n_err} 个，两种都要有样本");
+    assert!(
+        n_grid > 0 && n_err > 0,
+        "网格形态 {n_grid} 个 / 错误形态 {n_err} 个，两种都要有样本"
+    );
 }
 
 /// `pagination` / `merged` 段的键：非错误形态固定；错误形态必须**不出现**。

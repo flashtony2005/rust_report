@@ -12,8 +12,10 @@
 use super::json;
 use super::num;
 use super::val;
-use super::{render_calculated, render_calculated_error};
-use crate::arena::{CalcCell, CalcGrid, SourceRef, SubValue};
+use super::{
+    render_calculated, render_calculated_error, render_document, render_merged, render_pagination,
+};
+use crate::arena::{CalcCell, CalcGrid, MergedCell, SourceRef, SubValue};
 use crate::extend::ExtendMode;
 use crate::value::Value;
 
@@ -86,19 +88,31 @@ fn quote_escapes_exactly_like_json_java() {
 #[test]
 fn render_value_mirrors_calcjson_value() {
     assert_eq!(val::render_value(&Value::Null), "null");
-    assert_eq!(val::render_value(&Value::Text("N\"orth".into())), "\"N\\\"orth\"");
+    assert_eq!(
+        val::render_value(&Value::Text("N\"orth".into())),
+        "\"N\\\"orth\""
+    );
     assert_eq!(val::render_value(&Value::Bool(true)), "true");
     assert_eq!(val::render_value(&Value::Int(100)), "100");
-    assert_eq!(val::render_value(&Value::Long(1234567890123)), "1234567890123");
+    assert_eq!(
+        val::render_value(&Value::Long(1234567890123)),
+        "1234567890123"
+    );
     // BigDecimal 原样搬（`100.0` 的尾零是精度信息，不许重排成 `100`）
-    assert_eq!(val::render_value(&Value::Decimal("100.00".into())), "100.00");
+    assert_eq!(
+        val::render_value(&Value::Decimal("100.00".into())),
+        "100.00"
+    );
     // 整数值的 Double 被折叠成裸整数（CalcJson.java:241-243）
     assert_eq!(val::render_value(&Value::Double(100.0)), "100");
     assert_eq!(val::render_value(&Value::Double(92.5)), "92.5");
     assert_eq!(val::render_value(&Value::Float(1.5)), "1.5");
     // NaN / Inf 走**带引号**字符串，且用的是 double 的写法
     assert_eq!(val::render_value(&Value::Double(f64::NAN)), "\"NaN\"");
-    assert_eq!(val::render_value(&Value::Float(f32::INFINITY)), "\"Infinity\"");
+    assert_eq!(
+        val::render_value(&Value::Float(f32::INFINITY)),
+        "\"Infinity\""
+    );
     assert_eq!(
         val::render_value(&Value::List(vec![Value::Text("R1".into()), Value::Int(2)])),
         "[\"R1\",2]"
@@ -152,7 +166,12 @@ fn disp_value_is_written_only_when_it_differs_from_string_value_of() {
     let mut a = CalcCell::bare(2, 1, Value::Null);
     a.disp_value = Some("null".to_string());
     assert_eq!(
-        render_calculated(&CalcGrid { rows: 1, cols: 1, cells: vec![a] }),
+        render_calculated(&CalcGrid {
+            rows: 1,
+            cols: 1,
+            cells: vec![a],
+            ..CalcGrid::new(1, 1)
+        }),
         "{\"calculated\":{\"rows\":1,\"cols\":1,\"cells\":[\
          {\"r\":2,\"c\":1,\"value\":null,\"type\":\"null\"}]}}"
     );
@@ -161,7 +180,12 @@ fn disp_value_is_written_only_when_it_differs_from_string_value_of() {
     let mut b = CalcCell::bare(2, 3, Value::Null);
     b.disp_value = Some("仅显示值".to_string());
     assert_eq!(
-        render_calculated(&CalcGrid { rows: 1, cols: 1, cells: vec![b] }),
+        render_calculated(&CalcGrid {
+            rows: 1,
+            cols: 1,
+            cells: vec![b],
+            ..CalcGrid::new(1, 1)
+        }),
         "{\"calculated\":{\"rows\":1,\"cols\":1,\"cells\":[\
          {\"r\":2,\"c\":3,\"value\":null,\"type\":\"null\",\
          \"disp_value\":\"\\u4ec5\\u663e\\u793a\\u503c\"}]}}"
@@ -171,7 +195,12 @@ fn disp_value_is_written_only_when_it_differs_from_string_value_of() {
     let mut c = CalcCell::bare(2, 4, Value::Double(100.0));
     c.disp_value = Some("100.0".to_string());
     assert_eq!(
-        render_calculated(&CalcGrid { rows: 1, cols: 1, cells: vec![c] }),
+        render_calculated(&CalcGrid {
+            rows: 1,
+            cols: 1,
+            cells: vec![c],
+            ..CalcGrid::new(1, 1)
+        }),
         "{\"calculated\":{\"rows\":1,\"cols\":1,\"cells\":[\
          {\"r\":2,\"c\":4,\"value\":100,\"type\":\"double\"}]}}"
     );
@@ -195,13 +224,119 @@ fn heads_and_sub_values_follow_the_optional_key_rules() {
         SubValue::new(3, 1, Value::Text("R2".into())),
     ];
     assert_eq!(
-        render_calculated(&CalcGrid { rows: 8, cols: 9, cells: vec![c] }),
+        render_calculated(&CalcGrid {
+            rows: 8,
+            cols: 9,
+            cells: vec![c],
+            ..CalcGrid::new(8, 9)
+        }),
         "{\"calculated\":{\"rows\":8,\"cols\":9,\"cells\":[\
          {\"r\":2,\"c\":1,\"value\":\"R1\",\"type\":\"string\",\
          \"left_head\":{\"src_row\":0,\"src_col\":0},\"top_head\":{\"src_row\":2,\"src_col\":2},\
          \"source\":{\"src_row\":2,\"src_col\":1,\"row_merge\":1,\"col_merge\":5,\"extend\":18,\"sub_cells\":2,\
          \"sub_values\":[{\"r\":2,\"c\":1,\"value\":\"R1\",\"type\":\"string\"},\
          {\"r\":3,\"c\":1,\"value\":\"R2\",\"type\":\"string\"}]}}]}}"
+    );
+}
+
+/// `merged` 段的键序（`CalcMergeJson.java:51-57`：`page, r, c, value, row_merge, col_merge`）
+/// 与**「不跳空值格」**这条与 `cells` 相反的规则（`:48-50`）。
+///
+/// **为什么不是空跑**：第一项故意用 `Value::Null` 且**没有** `disp_value` —— 这种格在
+/// `calculated.cells` 里会被稀疏规则剔掉（上面 `render_calculated_writes_…` 已钉），
+/// 在 `merged.cells` 里却必须留下。若谁把两段的稀疏规则写成一样，本测试立刻红。
+#[test]
+fn render_merged_keeps_null_valued_cells_and_uses_the_fixture_key_order() {
+    let mut g = CalcGrid::new(8, 4);
+    g.page_count = 1;
+    // 故意逆序放入，验证输出按 (page, r, c) 排序
+    g.merged
+        .push(MergedCell::new(1, 3, 1, Value::Text("North".into()), 2, 1));
+    g.merged.push(MergedCell::new(1, 2, 3, Value::Null, 1, 2));
+    // 跨度全 1 的格**不进** merged（`CalcMergeJson.java:48-50` 的判据在导出侧）
+    assert_eq!(
+        render_merged(&g),
+        "{\"merged\":{\"page_count\":1,\"cells\":[\
+         {\"page\":1,\"r\":2,\"c\":3,\"value\":null,\"row_merge\":1,\"col_merge\":2},\
+         {\"page\":1,\"r\":3,\"c\":1,\"value\":\"North\",\"row_merge\":2,\"col_merge\":1}]}}"
+    );
+}
+
+/// `render_document` = `calculated` + `pagination` + `merged` 三段（夹具顶层键序：
+/// `…, calculated, pagination, merged`）。
+///
+/// **为什么不是空跑**：除了钉住字面量，还断言「顶层文档 == 三个单段文档去壳拼接」——
+/// 这条身份式能同时抓住「漏掉一段」「拼接处多/少逗号」与「三段用了不同的稀疏规则」，
+/// 而只比字面量抓不到最后一条。
+#[test]
+fn render_document_concatenates_all_three_sections() {
+    let mut g = CalcGrid::new(1, 1);
+    g.cells.push(CalcCell::bare(1, 1, Value::Int(7)));
+    g.merged.push(MergedCell::new(1, 1, 1, Value::Int(7), 1, 3));
+    let doc = render_document(&g);
+    assert_eq!(
+        doc,
+        "{\"calculated\":{\"rows\":1,\"cols\":1,\"cells\":[\
+         {\"r\":1,\"c\":1,\"value\":7,\"type\":\"int\"}]},\
+         \"pagination\":null,\
+         \"merged\":{\"page_count\":1,\"cells\":[\
+         {\"page\":1,\"r\":1,\"c\":1,\"value\":7,\"row_merge\":1,\"col_merge\":3}]}}"
+    );
+    // 身份式：三个单段文档各自去掉最外层大括号后拼接
+    let parts = [
+        render_calculated(&g),
+        render_pagination(&g),
+        render_merged(&g),
+    ];
+    let joined: Vec<&str> = parts.iter().map(|s| &s[1..s.len() - 1]).collect();
+    assert_eq!(
+        doc,
+        format!("{{{}}}", joined.join(",")),
+        "顶层文档必须由三个单段渲染器拼成，不得另走一套规则"
+    );
+}
+
+/// 有分页结果时 `pagination` 段的**逐字符**形状（键序 + float 记法 + 可选键）。
+///
+/// ⛔ 三条判据各有判别力：
+/// * `paper_w` 写 **`595.0`** 而不是 `595` —— 它是 `JsonObj.put(String, float)`；
+/// * `first_value` / `last_value` 是 `String.valueOf`（走 `java_tostring`），
+///   而 `col1_values` 是 `value()` 的原文 token：同一页里 `Double(100.0)` 在前者写
+///   `"100.0"`、在后者写 `100`。这里用 `Double(100.0)` 当首值正是为了钉住这条分家；
+/// * 整列非空 ⇒ 两个可选键**都**出现；整列全空 ⇒ 两个键**都不**出现（夹具的
+///   `engine_pager` 第 4 页就是"rows 4 但只有 3 个非空值"的形态）。
+#[test]
+fn render_pagination_pins_key_order_float_notation_and_optional_keys() {
+    let mut g = CalcGrid::new(2, 1);
+    g.pagination = Some(crate::pager::Pagination {
+        paper_w: 595.0,
+        paper_h: 842.0,
+        columns: 1,
+        page_count: 2,
+        x_pages: 1,
+        y_pages: 2,
+        row_num_per_page: 20,
+        pages: vec![
+            crate::pager::PageInfo {
+                page: 1,
+                rows: 2,
+                col1_values: vec![Value::Double(100.0), Value::Text("尾".into())],
+            },
+            crate::pager::PageInfo {
+                page: 2,
+                rows: 1,
+                col1_values: Vec::new(),
+            },
+        ],
+    });
+    assert_eq!(
+        render_pagination(&g),
+        "{\"pagination\":{\"paper_w\":595.0,\"paper_h\":842.0,\"columns\":1,\
+         \"page_count\":2,\"x_pages\":1,\"y_pages\":2,\"row_num_per_page\":20,\
+         \"pages\":[\
+         {\"page\":1,\"rows\":2,\"first_value\":\"100.0\",\"last_value\":\"\\u5c3e\",\
+         \"col1_values\":[100,\"\\u5c3e\"]},\
+         {\"page\":2,\"rows\":1,\"col1_values\":[]}]}}"
     );
 }
 

@@ -71,7 +71,11 @@ fn value_str(v: &ObjValue) -> String {
         ObjValue::Bytes(b) => format!("bytes({})", b.len()),
         ObjValue::Millis { tag, millis } => format!("Millis(tag={}, {})", tag, millis),
         ObjValue::Obj { class_name, raw } => {
-            format!("Obj({}, {} bytes)", class_name.as_deref().unwrap_or("?"), raw.len())
+            format!(
+                "Obj({}, {} bytes)",
+                class_name.as_deref().unwrap_or("?"),
+                raw.len()
+            )
         }
     }
 }
@@ -143,7 +147,11 @@ pub fn render(r: &ReportDefine) -> String {
         }
     }
     s.push_str(&format!("cells: {} non-default\n", count));
-    s.push_str(&format!("params: {}  datasets: {}\n", r.params.len(), r.datasets.len()));
+    s.push_str(&format!(
+        "params: {}  datasets: {}\n",
+        r.params.len(),
+        r.datasets.len()
+    ));
     let ps = &r.print_setup;
     s.push_str(&format!(
         "print_setup: paper={} {}x{} orient={} margins(l={},r={},t={},b={}) copies={}\n",

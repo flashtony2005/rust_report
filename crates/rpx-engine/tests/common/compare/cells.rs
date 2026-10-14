@@ -4,8 +4,8 @@
 //! 值一律按**原文 token** 比，不做数值归一化（M2-14：`100` ≠ `100.0`）。
 
 use super::super::json::Json;
-use super::util::{cell_index, raw_of, sub_index, union_keys};
 use super::types::{Diff, Dim, Kind};
+use super::util::{cell_index, raw_of, sub_index, union_keys};
 
 /// 比对 `calculated` 段：`act_calc` = 引擎侧，`exp_calc` = 夹具侧。
 pub(super) fn compare_cells(d: &mut Vec<Diff>, act_calc: &Json, exp_calc: &Json) {
@@ -149,7 +149,14 @@ fn compare_source(d: &mut Vec<Diff>, rc: (i32, i32), a: &Json, e: &Json) {
     let (r, c) = rc;
     match (e.get("source"), a.get("source")) {
         (Some(es), Some(asc)) => {
-            for key in ["src_row", "src_col", "row_merge", "col_merge", "extend", "sub_cells"] {
+            for key in [
+                "src_row",
+                "src_col",
+                "row_merge",
+                "col_merge",
+                "extend",
+                "sub_cells",
+            ] {
                 let ev = raw_of(es.get(key));
                 let av = raw_of(asc.get(key));
                 if ev != av {

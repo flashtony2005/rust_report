@@ -67,7 +67,10 @@ fn merged_section_exists_for_every_non_error_fixture_and_agrees_on_page_count() 
         match (&fx.merged, fx.is_error()) {
             // 错误型夹具：merged 必须是 null（spec §7 第 ④ 条）
             (None, true) => {
-                assert!(fx.pagination.is_none(), "{name}: 错误型夹具 pagination 也应为 null");
+                assert!(
+                    fx.pagination.is_none(),
+                    "{name}: 错误型夹具 pagination 也应为 null"
+                );
             }
             (None, false) => panic!("{name}: 非错误型夹具的 merged 竟为 null"),
             (Some(m), false) => {
@@ -76,7 +79,11 @@ fn merged_section_exists_for_every_non_error_fixture_and_agrees_on_page_count() 
                     m.page_count, p.page_count,
                     "{name}: merged.page_count 应与 pagination.page_count 一致"
                 );
-                assert_eq!(p.pages.len() as i32, p.page_count, "{name}: pages 长度应等于 page_count");
+                assert_eq!(
+                    p.pages.len() as i32,
+                    p.page_count,
+                    "{name}: pages 长度应等于 page_count"
+                );
             }
             (Some(_), true) => panic!("{name}: 错误型夹具不该有 merged 段"),
         }
@@ -95,7 +102,9 @@ fn every_recorded_merged_cell_really_has_a_span() {
     let mut cells_seen = 0usize;
     for name in all_names() {
         let fx = load(name);
-        let Some(m) = fx.merged.as_ref() else { continue };
+        let Some(m) = fx.merged.as_ref() else {
+            continue;
+        };
         let mut seen: Vec<(i32, i32, i32)> = Vec::new();
         for c in &m.cells {
             assert!(
@@ -106,14 +115,22 @@ fn every_recorded_merged_cell_really_has_a_span() {
                 c.row_merge,
                 c.col_merge
             );
-            assert!(c.row_merge >= 1 && c.col_merge >= 1, "{name}: 合并度必须为正");
+            assert!(
+                c.row_merge >= 1 && c.col_merge >= 1,
+                "{name}: 合并度必须为正"
+            );
             assert!(
                 c.page >= 1 && c.page <= m.page_count,
                 "{name}: 页码 {} 越出 1..={}",
                 c.page,
                 m.page_count
             );
-            assert!(c.r >= 1 && c.c >= 1, "{name}: ({},{}) 坐标必须为正", c.r, c.c);
+            assert!(
+                c.r >= 1 && c.c >= 1,
+                "{name}: ({},{}) 坐标必须为正",
+                c.r,
+                c.c
+            );
             assert!(
                 !seen.contains(&(c.page, c.r, c.c)),
                 "{name}: ({},{}) 在第 {} 页重复出现",
@@ -143,7 +160,9 @@ fn merged_column_one_values_are_a_subsequence_of_that_page_col1_values() {
     let mut checked = 0usize;
     for name in all_names() {
         let fx = load(name);
-        let Some(m) = fx.merged.as_ref() else { continue };
+        let Some(m) = fx.merged.as_ref() else {
+            continue;
+        };
         let p = fx.pagination.as_ref().expect("非错误型夹具必有 pagination");
         for page in &p.pages {
             let mut col1: Vec<&common::MergedCell> = m

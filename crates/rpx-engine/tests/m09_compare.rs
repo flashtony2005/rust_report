@@ -90,7 +90,11 @@ fn fixture_text(name: &str) -> String {
 fn self_comparison_is_clean_for_every_fixture() {
     for name in all_names() {
         let r = compare_fixture_to_itself(name);
-        assert!(r.is_clean(), "夹具 {name} 与自身对比竟有差异：\n{}", r.summary());
+        assert!(
+            r.is_clean(),
+            "夹具 {name} 与自身对比竟有差异：\n{}",
+            r.summary()
+        );
         assert_eq!(r.fixture, name, "报告应记录夹具名");
         assert_eq!(r.expected_dims, r.actual_dims, "{name}: 自比对尺寸应一致");
         // 错误形态夹具（engine_cycle）也要能自比对通过，且没有网格尺寸
@@ -119,7 +123,12 @@ fn sparse_cells_do_not_produce_false_missing() {
         positions,
         grid.cells.len()
     );
-    assert_eq!(r.diffs.len(), 0, "稀疏网格被误报出 {} 条差异", r.diffs.len());
+    assert_eq!(
+        r.diffs.len(),
+        0,
+        "稀疏网格被误报出 {} 条差异",
+        r.diffs.len()
+    );
 }
 
 /// ③ 定向变异：删掉一格 ⇒ 必须报 `missing`（纪律 ① 的第一类）。
@@ -154,7 +163,11 @@ fn a_changed_value_is_reported_as_mismatch() {
     let name = "engine_types";
     let text = fixture_text(name);
     // (2,1) 的 100（int）→ 999
-    let mutated = text.replacen(r#"{"r":2,"c":1,"value":100,"type":"int""#, r#"{"r":2,"c":1,"value":999,"type":"int""#, 1);
+    let mutated = text.replacen(
+        r#"{"r":2,"c":1,"value":100,"type":"int""#,
+        r#"{"r":2,"c":1,"value":999,"type":"int""#,
+        1,
+    );
     assert_ne!(mutated, text, "变异未生效");
 
     let r = compare_actual_text(&mutated, name);
@@ -233,7 +246,11 @@ fn dropping_an_optional_source_is_reported_as_missing() {
 #[test]
 fn calc_coord_differing_from_src_coord_is_not_an_error() {
     let r = compare_fixture_to_itself("engine_merge");
-    assert!(r.is_clean(), "engine_merge 自比对竟有差异：\n{}", r.summary());
+    assert!(
+        r.is_clean(),
+        "engine_merge 自比对竟有差异：\n{}",
+        r.summary()
+    );
     // 确认该夹具确实存在这种格（否则本测试是永真式）
     let g = common::load("engine_merge").grid().unwrap().clone();
     let odd = g
@@ -245,14 +262,21 @@ fn calc_coord_differing_from_src_coord_is_not_an_error() {
                 .is_some_and(|s| s.src_row != c.r || s.src_col != c.c)
         })
         .count();
-    assert!(odd > 0, "engine_merge 应至少有一格 calc≠src，否则本测试是永真式");
+    assert!(
+        odd > 0,
+        "engine_merge 应至少有一格 calc≠src，否则本测试是永真式"
+    );
 }
 
 /// ⑨ 错误型夹具：形态一致时干净；形态不一致时报出来。
 #[test]
 fn error_form_compares_class_and_chain_only() {
     let r = compare_fixture_to_itself("engine_cycle");
-    assert!(r.is_clean(), "engine_cycle 自比对竟有差异：\n{}", r.summary());
+    assert!(
+        r.is_clean(),
+        "engine_cycle 自比对竟有差异：\n{}",
+        r.summary()
+    );
     assert!(r.expected_dims.is_none(), "错误形态没有网格尺寸");
 }
 
@@ -265,7 +289,10 @@ fn a_changed_head_reference_is_reported_as_mismatch() {
     let name = "engine_expr";
     let text = fixture_text(name);
     let anchor = r#""r":2,"c":2,"value":100,"type":"int","left_head":{"src_row":2,"src_col":1}"#;
-    assert!(text.contains(anchor), "锚点未找到：(2,2) 应带非零 left_head");
+    assert!(
+        text.contains(anchor),
+        "锚点未找到：(2,2) 应带非零 left_head"
+    );
     let mutated = text.replacen(
         anchor,
         r#""r":2,"c":2,"value":100,"type":"int","left_head":{"src_row":9,"src_col":1}"#,
@@ -275,7 +302,11 @@ fn a_changed_head_reference_is_reported_as_mismatch() {
     let r = compare_actual_text(&mutated, name);
     let dims: Vec<&str> = r.diffs.iter().map(|d| d.dim.as_str()).collect();
     assert!(dims.contains(&"left_head"), "应报 left_head 差异：{dims:?}");
-    let hit = r.diffs.iter().find(|d| d.dim.as_str() == "left_head").unwrap();
+    let hit = r
+        .diffs
+        .iter()
+        .find(|d| d.dim.as_str() == "left_head")
+        .unwrap();
     assert_eq!((hit.r, hit.c), (2, 2), "应精确定位到 (2,2)");
     assert_eq!(hit.detail, "src_row", "应指明是 src_row 这一项");
     assert_eq!(hit.expected, "2");
@@ -292,6 +323,11 @@ fn a_deleted_head_reference_is_reported_as_missing() {
     let mutated = text.replacen(victim, "", 1);
     let r = compare_actual_text(&mutated, name);
     let hit = r.diffs.iter().find(|d| d.dim.as_str() == "left_head");
-    assert_eq!(hit.map(|d| d.kind), Some(Kind::Missing), "\n{}", r.summary());
+    assert_eq!(
+        hit.map(|d| d.kind),
+        Some(Kind::Missing),
+        "\n{}",
+        r.summary()
+    );
     assert_eq!(hit.unwrap().detail, "夹具带该 head 引用，引擎未产出");
 }

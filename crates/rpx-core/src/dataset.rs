@@ -200,11 +200,15 @@ pub struct DataSetEntry {
 /// 从 DataSetMetaData 切出的记录体解析整表。
 pub fn read_data_set_meta(slice: &[u8]) -> Result<Vec<DataSetEntry>> {
     let mut r = RecordReader::new(slice);
-    let count = r.read_i16().map_err(|_| RpxError::prop(0, "dataSet count"))?;
+    let count = r
+        .read_i16()
+        .map_err(|_| RpxError::prop(0, "dataSet count"))?;
     let mut out = Vec::new();
     if count > 0 {
         for _ in 0..count {
-            let flag = r.read_bool().map_err(|_| RpxError::prop(0, "dataSet entry flag"))?;
+            let flag = r
+                .read_bool()
+                .map_err(|_| RpxError::prop(0, "dataSet entry flag"))?;
             if !flag {
                 continue; // 读侧跳过且不进列表（DataSetMetaData.java:160-169）
             }

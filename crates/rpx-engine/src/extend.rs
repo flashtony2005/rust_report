@@ -142,7 +142,9 @@ pub fn topology_default(left_head: CellId, top_head: CellId, cell00: CellId) -> 
 /// 角色判定与 `resolve` 在 [`role`] 子模块（本文件已接近 300 行门禁）。
 mod role;
 
-pub use role::{cell_role, cell_role_of, is_extend_excluded_type, CellRole, EXTEND_EXCLUDED_CELL_TYPES};
+pub use role::{
+    cell_role, cell_role_of, is_extend_excluded_type, CellRole, EXTEND_EXCLUDED_CELL_TYPES,
+};
 
 /// 扩展后的计算态**行数**，口径 = `IReport.getRowCount()`。
 ///

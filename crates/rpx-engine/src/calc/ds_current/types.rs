@@ -70,7 +70,11 @@ pub struct DsSpot {
 impl DsSpot {
     /// 初始态：没有 current，标志假，行号 0。
     pub fn empty() -> Self {
-        DsSpot { value: None, is_left_top: false, current_row: 0 }
+        DsSpot {
+            value: None,
+            is_left_top: false,
+            current_row: 0,
+        }
     }
 
     /// `setCurrent(g, isLeftTop)`（`:358-366`）：写 `_$6`/`_$4`，`_$5` 一律复位成 1。
@@ -101,7 +105,11 @@ impl Default for HeadPairTracker {
 impl HeadPairTracker {
     /// `_$1 = true`（Java 构造时的初值）。
     pub fn new() -> Self {
-        HeadPairTracker { left: CellId::NONE, top: CellId::NONE, changed: true }
+        HeadPairTracker {
+            left: CellId::NONE,
+            top: CellId::NONE,
+            changed: true,
+        }
     }
 
     /// `setCell(cell, cell00)`（`lIlIlllIIllllIII.java:21-39`）。

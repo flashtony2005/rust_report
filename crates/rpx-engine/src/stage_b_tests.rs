@@ -25,8 +25,8 @@ mod tripwires;
 
 use std::collections::HashMap;
 
-use json::{clone_axes, expected_text, fixtures_dir, parse_expected, template_dims};
 use crate::stage_b::{cell_expression, prepare_calculate, StageB};
+use json::{clone_axes, expected_text, fixtures_dir, parse_expected, template_dims};
 
 /// 有计算网格的夹具（`engine_cycle` 是错误型夹具，无网格，另测）。
 const GRID_FIXTURES: [&str; 11] = [
@@ -61,6 +61,27 @@ pub(super) fn cell_at(sb: &StageB, r: i32, c: i32) -> &crate::heads::HeadCell {
     &sb.grid.cells[id.0 as usize]
 }
 
+// ==================== M2-22 属性表达式 ====================
+
+#[test]
+fn row_height_property_expression_is_parsed_from_row_exp_map() {
+    let stage = stage_b_for("engine_rowheight");
+    for (row, source) in [(2, "40"), (3, "25*2"), (4, "20+5+2")] {
+        let cell = cell_at(&stage, row, 0);
+        let expression = cell
+            .rt
+            .property_exprs
+            .iter()
+            .find(|(key, _)| *key == 1)
+            .map(|(_, expression)| expression);
+        assert_eq!(
+            expression,
+            Some(&crate::expr::parse(source).unwrap()),
+            "row {row}"
+        );
+    }
+}
+
 // ==================== 判据 1：改写（全量） ====================
 
 #[test]
@@ -72,10 +93,15 @@ fn stage_b_rewrite_matches_the_source_block_of_every_fixture_cell() {
         // 同一模板坐标会被多个夹具格引用（合并块铺满、克隆格）——要求值一致。
         let mut seen: HashMap<(i32, i32), i32> = HashMap::new();
         for e in &cells {
-            let Some((sr, sc, _rm, _cm, ext)) = e.src else { continue };
+            let Some((sr, sc, _rm, _cm, ext)) = e.src else {
+                continue;
+            };
             match seen.get(&(sr, sc)) {
                 Some(prev) => {
-                    assert_eq!(*prev, ext, "{name} 模板格 ({sr},{sc}) 的 source.extend 自相矛盾")
+                    assert_eq!(
+                        *prev, ext,
+                        "{name} 模板格 ({sr},{sc}) 的 source.extend 自相矛盾"
+                    )
                 }
                 None => {
                     seen.insert((sr, sc), ext);
@@ -84,17 +110,22 @@ fn stage_b_rewrite_matches_the_source_block_of_every_fixture_cell() {
         }
         assert!(!seen.is_empty(), "{name} 没有任何 source 可比对");
         for ((sr, sc), ext) in seen {
-            let id = *sb
-                .grid
-                .by_src
-                .get(&(sr, sc))
-                .unwrap_or_else(|| panic!("{name} 模板格 ({sr},{sc}) 不在阶段 B 的引擎地址表里"));
+            let id =
+                *sb.grid.by_src.get(&(sr, sc)).unwrap_or_else(|| {
+                    panic!("{name} 模板格 ({sr},{sc}) 不在阶段 B 的引擎地址表里")
+                });
             let cell = &sb.grid.cells[id.0 as usize];
-            assert_eq!(cell.extend as i32, ext, "{name} 模板格 ({sr},{sc}) 的生效 extend 不符");
+            assert_eq!(
+                cell.extend as i32, ext,
+                "{name} 模板格 ({sr},{sc}) 的生效 extend 不符"
+            );
             total += 1;
         }
     }
-    assert!(total > 100, "比对的模板格总数过少（{total}）——扫描器可能没读到东西");
+    assert!(
+        total > 100,
+        "比对的模板格总数过少（{total}）——扫描器可能没读到东西"
+    );
 }
 
 // ==================== 判据 2：未移动区的 head 真值 ====================
@@ -123,7 +154,12 @@ fn stage_b_heads_match_the_fixture_outside_the_moved_region() {
                 .get(&(e.r, e.c))
                 .unwrap_or_else(|| panic!("{name} 阶段 B 缺格 ({},{})", e.r, e.c));
             let cell = &sb.grid.cells[id.0 as usize];
-            assert!(cell.left_head.is_some(), "{name} 格 ({},{}) 的 left_head 为空", e.r, e.c);
+            assert!(
+                cell.left_head.is_some(),
+                "{name} 格 ({},{}) 的 left_head 为空",
+                e.r,
+                e.c
+            );
             // 模板形状下：head 的计算态坐标 = 它的模板出处坐标
             let head = &sb.grid.cells[cell.left_head.0 as usize];
             assert_eq!(
@@ -135,13 +171,19 @@ fn stage_b_heads_match_the_fixture_outside_the_moved_region() {
             );
             checked += 1;
         }
-        assert!(checked > 0, "{name} 未移动区没有可比的 head —— 夹具口径变了？");
+        assert!(
+            checked > 0,
+            "{name} 未移动区没有可比的 head —— 夹具口径变了？"
+        );
         checked_total += checked;
     }
     // 实测口径（独立 Python 复算，逐夹具 9/10/3/12/6/8/7/6/4/18/16）：11 个夹具的未移动区
     // 共 **99** 格，且这 99 格**全部**带 `left_head`（引擎矩阵之外还有 3 格因插入列越界被跳过）。
     // 钉到实测值而非"够大就行"：夹具一漂移就能看出来，而不是被宽松阈值吞掉。
-    assert_eq!(checked_total, 99, "未移动区可比的 left_head 格数变了 —— 夹具或判据口径改了？");
+    assert_eq!(
+        checked_total, 99,
+        "未移动区可比的 left_head 格数变了 —— 夹具或判据口径改了？"
+    );
 }
 
 // ==================== 判据 2b：未移动区的 `disp_value` ====================
@@ -191,7 +233,10 @@ fn stage_b_disp_value_matches_the_fixture_in_the_unmoved_region() {
     // 全在 `engine_disp`：`(2,1) 北区` / `(2,2) 100.00` / `(2,3) 仅显示值` / `(2,4) 6 件` / `(3,1) Q`。
     // ⚠ 别把 5 看成"只有 5 个夹具格有显示值"：夹具**只在显示值 ≠ `String.valueOf(value)` 时落盘**
     // （`CalcJson.java:71-73`），12 个引擎夹具里只有 `engine_disp` 落过这个键。
-    assert_eq!(non_null_total, 5, "带非空显示值的格数变了（{non_null_total}）—— 夹具口径改了？");
+    assert_eq!(
+        non_null_total, 5,
+        "带非空显示值的格数变了（{non_null_total}）—— 夹具口径改了？"
+    );
 }
 
 // ==================== 阶段 B 自身的不变量 ====================
@@ -203,7 +248,10 @@ fn stage_b_wraps_only_expression_driven_cells_and_registers_subs_on_cell00() {
     let sb = stage_b_for("engine_sum");
     let text = expected_text("engine_sum");
     let formulas = text.matches("\"exp\":").count();
-    assert_eq!(sb.expressed, formulas, "带表达式的格数应等于夹具 formulas 条数");
+    assert_eq!(
+        sb.expressed, formulas,
+        "带表达式的格数应等于夹具 formulas 条数"
+    );
 
     // cell00 是 ExtExtendCell，且收下所有指向它的子格（改写/归一化都会登记）
     let root = &sb.grid.cells[0];
@@ -221,7 +269,10 @@ fn stage_b_wraps_only_expression_driven_cells_and_registers_subs_on_cell00() {
         registered, pointing,
         "cell00 的左子格列表必须恰好等于「left_head 指向 cell00」的格集合（登记漏项会静默少格）"
     );
-    assert!(!pointing.is_empty(), "engine_sum 应有多格以 cell00 为左 head");
+    assert!(
+        !pointing.is_empty(),
+        "engine_sum 应有多格以 cell00 为左 head"
+    );
 
     // 上 head 的登记必须**对称**成立 —— 单独关掉 `set_top_head` 的登记时，
     // 上面那条只查 `left_subs` 的断言是**抓不到**的（本轮变异测试实测）。
@@ -234,8 +285,14 @@ fn stage_b_wraps_only_expression_driven_cells_and_registers_subs_on_cell00() {
         .map(|(i, _)| i)
         .collect();
     let registered_top: Vec<_> = root.top_subs.iter().map(|c| c.0 as usize).collect();
-    assert_eq!(registered_top, pointing_top, "cell00 的上子格列表（_$5）必须恰好等于以它为上 head 的格集合");
-    assert!(!pointing_top.is_empty(), "engine_sum 应有多格以 cell00 为上 head");
+    assert_eq!(
+        registered_top, pointing_top,
+        "cell00 的上子格列表（_$5）必须恰好等于以它为上 head 的格集合"
+    );
+    assert!(
+        !pointing_top.is_empty(),
+        "engine_sum 应有多格以 cell00 为上 head"
+    );
 
     // 声明 16 的字面量格保留 16（§4.3 易错点 1）
     let literals = sb.grid.cells.iter().filter(|c| c.extend == 16).count();

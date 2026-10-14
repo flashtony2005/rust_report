@@ -51,7 +51,11 @@ fn channel4_chase_and_unwind() {
     let mut st = Vec::new();
     assert!(channel4(&mut g, &mut st).is_ok());
     assert!(st.is_empty(), "回卷完成后依赖栈应清空");
-    assert_eq!(g.prep, vec![a, b, a, b], "chase 轨迹 [a,b,a] + 扫描轨迹 [b]");
+    assert_eq!(
+        g.prep,
+        vec![a, b, a, b],
+        "chase 轨迹 [a,b,a] + 扫描轨迹 [b]"
+    );
 }
 
 /// state 6：入队的是**当前格**、reset 的是**挂起方**、st **不**排空（`:1398-1401`）。
@@ -69,7 +73,11 @@ fn channel5_state6_pushes_current_cell_not_suspended() {
     let mut st = Vec::new();
     let mut special = VecDeque::new();
     assert!(channel5(&mut g, &mut special, &mut st).is_ok());
-    assert_eq!(special, VecDeque::from([b]), "⛔ 入队的是当前格 b，不是挂起方 c");
+    assert_eq!(
+        special,
+        VecDeque::from([b]),
+        "⛔ 入队的是当前格 b，不是挂起方 c"
+    );
     assert_eq!(st, vec![a], "⛔ st 未被排空");
     assert_eq!(g.resets, vec![c], "reset 的是挂起方 c");
 }
@@ -145,7 +153,10 @@ fn interruption_short_circuits() {
         channel4(&mut g, &mut Vec::new()),
         Err(Flow::Fatal(EngineError::Interrupted))
     ));
-    assert!(matches!(run_channels(&mut g), Err(EngineError::Interrupted)));
+    assert!(matches!(
+        run_channels(&mut g),
+        Err(EngineError::Interrupted)
+    ));
 }
 
 /// 通道 4 只消化 state 4：state 5 上抛 ⇒ run_channels 报断言式错误。

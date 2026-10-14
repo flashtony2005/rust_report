@@ -41,7 +41,9 @@ use crate::error::{EngineError, Result};
 use super::token::{is_delimiter, Tok};
 
 fn err(detail: &str) -> EngineError {
-    EngineError::UnsupportedExpr { expr: detail.to_string() }
+    EngineError::UnsupportedExpr {
+        expr: detail.to_string(),
+    }
 }
 
 /// 词法分析入口。返回的 token 流**总是**以 [`Tok::Eof`] 结尾。

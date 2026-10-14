@@ -14,8 +14,8 @@ use super::ast::{Expr, UnOp};
 use super::call::{build_call, parse_params};
 use super::classify::{err, is_cell_id, literal, split_ds};
 use super::lexer::unescape;
-use super::token::Tok;
 use super::parser::Parser;
+use super::token::Tok;
 
 impl<'a> Parser<'a> {
     /// 原子：字面量 / 格引用 / 参数 / 调用 / 数据集列 / 未知符号。
@@ -58,9 +58,17 @@ impl<'a> Parser<'a> {
             }
             return Ok(match rest.strip_prefix('@') {
                 // ⛔ `@@p` **不查** `isParamName`（`:183-186` 无条件取参值）
-                Some(name) => Expr::Param { name: name.to_string(), is_macro: true, value: None },
+                Some(name) => Expr::Param {
+                    name: name.to_string(),
+                    is_macro: true,
+                    value: None,
+                },
                 // `@p` 要过 `ctx.isParamName`（`:187`）；参数值本切片拿不到 ⇒ `value: None`
-                None => Expr::Param { name: rest.to_string(), is_macro: false, value: None },
+                None => Expr::Param {
+                    name: rest.to_string(),
+                    is_macro: false,
+                    value: None,
+                },
             });
         }
         // `$` 整格绝对引用（Expression.java:193-200）
@@ -68,7 +76,11 @@ impl<'a> Parser<'a> {
             if rest.is_empty() {
                 return Err(err("裸 `$` 后必须跟格号".to_string()));
             }
-            return Ok(Expr::CellRef { id: rest.to_string(), absolute: true, provisional: true });
+            return Ok(Expr::CellRef {
+                id: rest.to_string(),
+                absolute: true,
+                provisional: true,
+            });
         }
         // `数据集.列`：DS 限定路径在产品里排在格引用**之前**（`Expression.java:174`
         // 早于 `:201`），所以形态像格号的 `ds1.qty` 不会被 cell 分支吞掉。
@@ -87,7 +99,11 @@ impl<'a> Parser<'a> {
         //    `CSVariable.java:379-381` 与 `Node.java:82`），但求值期（M2-06）**必须**
         //    拿引擎矩阵重新解析。未验证 ⇒ §13.5 已登记。
         if is_cell_id(&w) {
-            return Ok(Expr::CellRef { id: w, absolute: false, provisional: true });
+            return Ok(Expr::CellRef {
+                id: w,
+                absolute: false,
+                provisional: true,
+            });
         }
         // 函数调用（裸名先查普通表；DS 回退因 ds==null 不可达，见 names.rs）
         if matches!(self.peek(), Tok::LParen) {
@@ -150,12 +166,14 @@ fn join_tokens(toks: &[Tok]) -> String {
 
 /// 两个相邻 token 之间是否补空格：`[B 2]` 要还原成 `B 2`，而 `(a)` 不必补。
 fn needs_space(prev: &Tok, cur: &Tok) -> bool {
-    let word_like =
-        |t: &Tok| matches!(t, Tok::Word(_) | Tok::Str(_) | Tok::LParen | Tok::LBracket);
+    let word_like = |t: &Tok| matches!(t, Tok::Word(_) | Tok::Str(_) | Tok::LParen | Tok::LBracket);
     word_like(prev) && word_like(cur)
 }
 
 /// 前缀运算符的构造糖（`Not`/`Negative`/`Plus`/`Address` 都只挂 `right`）。
 pub(super) fn unary(op: UnOp, rhs: Expr) -> Expr {
-    Expr::Unary { op, rhs: Box::new(rhs) }
+    Expr::Unary {
+        op,
+        rhs: Box::new(rhs),
+    }
 }

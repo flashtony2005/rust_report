@@ -40,8 +40,7 @@ fn add(g: &mut HeadState, row: i32, col: i32, ext: i8, rt: i8) -> CellId {
 }
 
 #[test]
-fn left_head_returns_the_nearest_extender_hit_first_not_the_farthest()
-{
+fn left_head_returns_the_nearest_extender_hit_first_not_the_farthest() {
     // `engine_sum` 的链式语义：`(2,3)..(2,9)` 的 head 是 (2,2) 而非 (2,1)。
     // `_$3` 从 col-1 递减扫，**命中即返回**；(2,2) 自己是 18 扩展格 ⇒ 先命中它。
     let mut g = grid();
@@ -49,14 +48,17 @@ fn left_head_returns_the_nearest_extender_hit_first_not_the_farthest()
     let b = add(&mut g, 2, 2, 18, -91);
     let c = add(&mut g, 2, 3, 16, -91);
     g.set_current(c);
-    assert_eq!(find_left_head(&mut g, c).unwrap(), b, "必须命中最近的 (2,2)");
+    assert_eq!(
+        find_left_head(&mut g, c).unwrap(),
+        b,
+        "必须命中最近的 (2,2)"
+    );
     g.set_current(b);
     assert_eq!(find_left_head(&mut g, b).unwrap(), a);
 }
 
 #[test]
-fn both_axes_fall_back_to_cell00_when_no_candidate_qualifies()
-{
+fn both_axes_fall_back_to_cell00_when_no_candidate_qualifies() {
     // 扫描区内没有任何合格候选 ⇒ 兜底 `cell00`（`:665` / `:703`）。
     let mut g = grid();
     let c = add(&mut g, 2, 2, 16, -91);
@@ -66,8 +68,7 @@ fn both_axes_fall_back_to_cell00_when_no_candidate_qualifies()
 }
 
 #[test]
-fn top_head_row_type_gate_skips_a_19_extender_of_a_different_family()
-{
+fn top_head_row_type_gate_skips_a_19_extender_of_a_different_family() {
     // `engine_head_top` 的 `-96` 判别式：(2,1) 是 19 扩展格但行类型 -96
     // ⇒ `sameRowTypeAs` 假 ⇒ `:695` 硬门槛跳过它 ⇒ 落到 (1,1)。
     let mut g = grid();
@@ -75,7 +76,11 @@ fn top_head_row_type_gate_skips_a_19_extender_of_a_different_family()
     let _r2 = add(&mut g, 2, 1, 19, -96);
     let r3 = add(&mut g, 3, 1, 16, -91);
     g.set_current(r3);
-    assert_eq!(find_top_head(&mut g, r3).unwrap(), r1, "-96 必须被行类型门槛跳过");
+    assert_eq!(
+        find_top_head(&mut g, r3).unwrap(),
+        r1,
+        "-96 必须被行类型门槛跳过"
+    );
 
     // 对照组：同一结构、(2,1) 改回同族 -91 ⇒ 命中 (2,1) 本身。
     // 两条一起钉，防「把门槛删掉/放宽」与「把命中分支写死」两个方向的错误。
@@ -88,8 +93,7 @@ fn top_head_row_type_gate_skips_a_19_extender_of_a_different_family()
 }
 
 #[test]
-fn top_head_head_of_head_branch_returns_the_chain_head_and_fills_it()
-{
+fn top_head_head_of_head_branch_returns_the_chain_head_and_fills_it() {
     // S1 形态：(2,1) 不是 19 扩展格，但它已有上 head ⇒ 走 head-of-head 分支
     // 返回链头 (1,1)，且 `:697` 的递归把 (1,1) 的上 head 兜底成 cell00（副作用）。
     let mut g = grid();
@@ -103,8 +107,7 @@ fn top_head_head_of_head_branch_returns_the_chain_head_and_fills_it()
 }
 
 #[test]
-fn declared_left_head_resolves_via_the_engine_matrix_not_the_scan()
-{
+fn declared_left_head_resolves_via_the_engine_matrix_not_the_scan() {
     // 分支 A：声明的 "A1" 经**引擎矩阵**（by_src）解析，与计算态扫描无关。
     // 目标格故意放在 (9,9)——扫描永远到不了；若实现误走扫描，只会返回 cell00。
     let mut g = grid();
@@ -118,8 +121,7 @@ fn declared_left_head_resolves_via_the_engine_matrix_not_the_scan()
 }
 
 #[test]
-fn declared_left_head_pointing_at_itself_is_a_circular_error()
-{
+fn declared_left_head_pointing_at_itself_is_a_circular_error() {
     // `:638-646`：声明的 head 解析后 `isLeftHeadOf(自身)` 恒真（链上溯自含）
     // ⇒ 必须报环，而不是返回自己。
     let mut g = grid();
@@ -132,8 +134,7 @@ fn declared_left_head_pointing_at_itself_is_a_circular_error()
 }
 
 #[test]
-fn same_row_type_family_matches_the_java_set()
-{
+fn same_row_type_family_matches_the_java_set() {
     // `sameRowTypeAs:266-269`：{-90,-91,-94,-95} 同族互真；-96 只与严格相等配。
     let mut g = grid();
     let a = add(&mut g, 1, 1, 16, -91);
@@ -148,8 +149,7 @@ fn same_row_type_family_matches_the_java_set()
 }
 
 #[test]
-fn contain_row_and_contain_col_follow_the_cell_span()
-{
+fn contain_row_and_contain_col_follow_the_cell_span() {
     // `containRow:250-252` / `containCol:273-275`：从自身坐标起、跨自身 Merge 宽度。
     let mut g = grid();
     let mut hc = HeadCell::new(2, 1, 16, -91);
@@ -164,8 +164,7 @@ fn contain_row_and_contain_col_follow_the_cell_span()
 }
 
 #[test]
-fn address_parse_accepts_dollar_forms_and_rejects_garbage()
-{
+fn address_parse_accepts_dollar_forms_and_rejects_garbage() {
     // `getSource("B2")` 的解析替身：`$` 直接剥掉；非法串返回 NONE 而非 panic。
     let mut g = grid();
     let target = add(&mut g, 9, 9, 16, -91);

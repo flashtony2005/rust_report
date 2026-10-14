@@ -51,7 +51,14 @@ struct SeedAt {
 impl SeedAt {
     /// 1x1 无合并：槽坐标即出处坐标。
     fn self_at(row: i32, col: i32) -> Self {
-        Self { row, col, src_row: row, src_col: col, row_merge: 1, col_merge: 1 }
+        Self {
+            row,
+            col,
+            src_row: row,
+            src_col: col,
+            row_merge: 1,
+            col_merge: 1,
+        }
     }
 }
 
@@ -218,19 +225,28 @@ impl StageA {
                     self.seed_engine(SeedAt::self_at(i, j), tcell);
                     continue;
                 };
-                let (br, bc, er, ec) =
-                    (area.begin_row, area.begin_col, area.end_row, area.end_col);
+                let (br, bc, er, ec) = (area.begin_row, area.begin_col, area.end_row, area.end_col);
                 if br == i && bc == j {
                     // 锚点：建一个格，铺满整个矩形，两张矩阵都铺（`:177-183`）
-                    let span = SeedAt { row: i, col: j, src_row: i, src_col: j,
-                                       row_merge: er - i + 1, col_merge: ec - j + 1 };
+                    let span = SeedAt {
+                        row: i,
+                        col: j,
+                        src_row: i,
+                        src_col: j,
+                        row_merge: er - i + 1,
+                        col_merge: ec - j + 1,
+                    };
                     let id = self.push_body(span, tcell);
                     for m in br..=er {
                         for n in bc..=ec {
                             self.calc.set(m, n, id);
                             // 矩形内每个槽的引擎出处都指向**锚点**（`ExtCellSet.java:181`）
                             self.seed_engine(
-                                SeedAt { row: m, col: n, ..span },
+                                SeedAt {
+                                    row: m,
+                                    col: n,
+                                    ..span
+                                },
                                 tcell,
                             );
                         }
@@ -252,7 +268,7 @@ impl StageA {
             col: at.col,
             value: Value::Null, // 求值在阶段 C
             disp_value: None,
-            src: None,          // src 由双矩阵查询给出：calc.get(r,c) 定位格、engine.get(r,c) 给出处
+            src: None, // src 由双矩阵查询给出：calc.get(r,c) 定位格、engine.get(r,c) 给出处
             sub_values: Vec::new(),
             left_head: None,
             top_head: None,

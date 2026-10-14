@@ -40,12 +40,19 @@ impl fmt::Display for RpxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RpxError::BadLength { declared, file_len } => {
-                write!(f, "bad payload length {} in file of {} bytes", declared, file_len)
+                write!(
+                    f,
+                    "bad payload length {} in file of {} bytes",
+                    declared, file_len
+                )
             }
             RpxError::Truncated { ctx } => write!(f, "truncated stream at {}", ctx),
             RpxError::BadFooter => write!(f, "bad or missing 8-byte footer"),
             RpxError::UnsupportedFormat => {
-                write!(f, "unsupported format (legacy Java OIS files are not accepted)")
+                write!(
+                    f,
+                    "unsupported format (legacy Java OIS files are not accepted)"
+                )
             }
             RpxError::Utf8 { detail } => write!(f, "modified UTF-8 decode error: {}", detail),
             RpxError::PropertyCode { slot, detail } => {

@@ -42,12 +42,20 @@ pub struct MainCell {
 impl MainCell {
     /// 等价于 Java 的 `new MainCell()`：heads 为空，`changed` 初值 **true**。
     pub fn unset() -> Self {
-        Self { left_head: CellId::NONE, top_head: CellId::NONE, changed: true }
+        Self {
+            left_head: CellId::NONE,
+            top_head: CellId::NONE,
+            changed: true,
+        }
     }
 
     /// 等价于 Java 的 `new MainCell(left, top)`：`changed` 仍取字段初值 **true**。
     pub fn anchored(left: CellId, top: CellId) -> Self {
-        Self { left_head: left, top_head: top, changed: true }
+        Self {
+            left_head: left,
+            top_head: top,
+            changed: true,
+        }
     }
 
     /// 是否开启了一个新的主格分组。

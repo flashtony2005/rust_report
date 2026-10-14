@@ -7,12 +7,33 @@
 //! **`scale<0` 的指数形态**。只比夹具 ⇒ 后面三种规则**没有任何测试管**
 //! —— 本轮独立复核正是在这里抓到一个"方向相反"的实现（把 `scale<0` 写成补零）。
 //!
-//! 所以这条判据直接吃**产品自带 JRE 实跑出来的 oracle**：
-//! `tests/fixtures/_bdo/ProbeBigDecimalToString.java` 分别用
-//! `common/jre/bin/java.exe`（1.8.0_151）与 JDK 21 跑一遍，输出落成
-//! `out_jre8.txt` / `out_jdk21.txt`。两个 JVM **除版本头行外逐字节相同**这一点
-//! 本身就是一条断言 —— 它把"该规则是 JDK 规范、不是某版实现细节"钉住，
-//! 也让"基准到底该用哪个 JRE 跑"永远不必再问。
+//! 所以这条判据直接吃**真 JVM 实跑出来的 oracle**（禁止手写、禁止同源复制）：
+//! `tests/fixtures/ProbeBigDecimalToString.java` 分别用 **JDK 8** 与 **JDK 21** 跑一遍，
+//! 输出落成 `tests/fixtures/_bdo/out_jre8.txt` / `out_jdk21.txt`。两个 JVM
+//! **除版本头行外逐字节相同**这一点本身就是一条断言 —— 它把"该规则是 JDK 规范、
+//! 不是某版实现细节"钉住，也让"基准到底该用哪个 JRE 跑"永远不必再问。
+//!
+//! # oracle 的实际出处（2026-10-13，如实记录）
+//!
+//! | 文件 | 生成者 | 版本头 |
+//! |---|---|---|
+//! | `out_jre8.txt`  | Azul Zulu OpenJDK **8.0.504**（macOS aarch64） | `java.version=1.8.0_504` |
+//! | `out_jdk21.txt` | Azul Zulu OpenJDK **21.0.12.1**（macOS aarch64） | `java.version=21.0.12.1` |
+//!
+//! ⚠ **不是**产品自带的那个 JRE：仓库自带的 `common/jre` 是 **Windows** 版
+//! （`bin/java.exe` + 一堆 `.dll`），在 macOS 上跑不了，所以无法在那个 JRE 上重跑。
+//! 这不影响判据有效性 —— `BigDecimal.toString()` 是 JDK 规范行为、纯 Java 实现，
+//! 且**下方 `the_two_jvm_oracles_agree_byte_for_byte` 恰好就是用来证明
+//! "换个 JVM 结果一样"的那条断言**；真要在产品 JRE 上复跑，见脚本参数。
+//!
+//! 复跑命令（`scripts/gen_decimal_oracle.sh`，会自检并在失败时清掉产物）：
+//!
+//! ```text
+//! scripts/gen_decimal_oracle.sh \
+//!   --javac <JDK21>/bin/javac \
+//!   --jre8  <JDK8>/bin/java \
+//!   --jdk21 <JDK21>/bin/java
+//! ```
 //!
 //! # oracle 格式（每行 5 段，`|` 分隔）
 //!
@@ -59,7 +80,9 @@ fn parse_oracle(text: &str) -> Vec<Case> {
         let f: Vec<&str> = line.split('|').collect();
         assert_eq!(f.len(), 5, "oracle 行格式变了（应 5 段）：{line:?}");
         out.push(Case {
-            scale: f[0].parse().unwrap_or_else(|_| panic!("scale 非法：{line:?}")),
+            scale: f[0]
+                .parse()
+                .unwrap_or_else(|_| panic!("scale 非法：{line:?}")),
             bytes: parse_hex_bytes(f[1], line),
             unscaled_decimal: f[2].to_string(),
             to_string: f[3].to_string(),
@@ -80,7 +103,9 @@ fn parse_hex_bytes(field: &str, line: &str) -> Vec<u8> {
 
 /// 去掉版本头行后的正文（用于跨 JVM 比对）。
 fn body_without_version(text: &str) -> Vec<&str> {
-    text.lines().filter(|l| !l.starts_with("java.version=")).collect()
+    text.lines()
+        .filter(|l| !l.starts_with("java.version="))
+        .collect()
 }
 
 /// 两个 JVM 的输出必须**逐字节一致**（只有版本头行允许不同）。
@@ -110,19 +135,29 @@ fn the_two_jvm_oracles_agree_byte_for_byte() {
 #[test]
 fn decimal_to_string_matches_the_product_jre_on_every_probed_case() {
     let cases = read_oracle("out_jre8.txt");
-    assert!(cases.len() >= 25, "oracle 用例过少（{}）—— 文件被截断？", cases.len());
+    assert!(
+        cases.len() >= 25,
+        "oracle 用例过少（{}）—— 文件被截断？",
+        cases.len()
+    );
 
     assert!(cases.iter().any(|c| c.scale == 0), "缺 scale==0 的用例");
     assert!(
-        cases.iter().any(|c| c.scale > 0 && !c.to_string.contains('E')),
+        cases
+            .iter()
+            .any(|c| c.scale > 0 && !c.to_string.contains('E')),
         "缺普通形态（scale>0 且 adjusted>=-6）的用例"
     );
     assert!(
-        cases.iter().any(|c| c.scale > 0 && c.to_string.contains('E')),
+        cases
+            .iter()
+            .any(|c| c.scale > 0 && c.to_string.contains('E')),
         "缺 scale>0 但走指数形态（adjusted<-6）的用例"
     );
     assert!(
-        cases.iter().any(|c| c.scale < 0 && c.to_string.contains('E')),
+        cases
+            .iter()
+            .any(|c| c.scale < 0 && c.to_string.contains('E')),
         "缺 scale<0 的指数形态用例 —— 这正是本轮被写反的那一支"
     );
 
@@ -141,8 +176,15 @@ fn decimal_to_string_matches_the_product_jre_on_every_probed_case() {
 /// （oracle 第 3 段就是 `unscaled` 的十进制值，即 `bytes_to_decimal` 的期望输出）。
 #[test]
 fn scale_zero_also_pins_the_twos_complement_decoding() {
-    let zero: Vec<Case> = read_oracle("out_jre8.txt").into_iter().filter(|c| c.scale == 0).collect();
-    assert!(zero.len() >= 5, "scale==0 的用例过少（{}）—— 补码解码没被覆盖", zero.len());
+    let zero: Vec<Case> = read_oracle("out_jre8.txt")
+        .into_iter()
+        .filter(|c| c.scale == 0)
+        .collect();
+    assert!(
+        zero.len() >= 5,
+        "scale==0 的用例过少（{}）—— 补码解码没被覆盖",
+        zero.len()
+    );
     for c in &zero {
         assert_eq!(
             rpx_engine::decimal_to_string(0, &c.bytes),

@@ -29,8 +29,12 @@ fn no_fixture_has_a_blank_expression_so_the_trim_assumption_stays_unexercised() 
         let (tr, tc) = template_dims(&expected_text(name));
         for r in 1..=tr {
             for c in 1..=tc {
-                let Some(cell) = rd.cell_at(r as usize, c as usize) else { continue };
-                let Some(map) = cell.exp_map.as_ref() else { continue };
+                let Some(cell) = rd.cell_at(r as usize, c as usize) else {
+                    continue;
+                };
+                let Some(map) = cell.exp_map.as_ref() else {
+                    continue;
+                };
                 for (code, v) in map {
                     if *code != crate::stage_b::CELL_EXPR_PROP {
                         continue;
@@ -71,7 +75,9 @@ fn no_fixture_declares_18_or_19_without_an_expression_so_the_guard_equivalence_s
         let (tr, tc) = template_dims(&expected_text(name));
         for r in 1..=tr {
             for c in 1..=tc {
-                let Some(cell) = rd.cell_at(r as usize, c as usize) else { continue };
+                let Some(cell) = rd.cell_at(r as usize, c as usize) else {
+                    continue;
+                };
                 if !matches!(cell.extend_mode, 18 | 19) {
                     continue;
                 }

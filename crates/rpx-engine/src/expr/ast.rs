@@ -277,7 +277,9 @@ impl Expr {
             // Operator.isExtended() = left || right（Operator.java:51-56）——前缀只挂 right
             Expr::Unary { rhs, .. } => rhs.is_extend(),
             // ⛔ Link 是唯一的例外：它是 Operator 却覆写成 false（operator/Link.java:100-102）
-            Expr::Binary { op: BinOp::Link, .. } => false,
+            Expr::Binary {
+                op: BinOp::Link, ..
+            } => false,
             Expr::Binary { lhs, rhs, .. } => lhs.is_extend() || rhs.is_extend(),
         }
     }

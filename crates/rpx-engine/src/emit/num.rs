@@ -73,7 +73,9 @@ fn from_exp(neg: bool, sci: &str) -> String {
     let (mant, exp) = sci
         .split_once('e')
         .unwrap_or_else(|| panic!("{{:e}} 的输出必含 'e'，实得 {sci:?}"));
-    let sci_exp: i32 = exp.parse().unwrap_or_else(|_| panic!("指数应是整数，实得 {exp:?}"));
+    let sci_exp: i32 = exp
+        .parse()
+        .unwrap_or_else(|_| panic!("指数应是整数，实得 {exp:?}"));
     let digits: String = mant.chars().filter(|c| *c != '.').collect();
     let n = digits.len() as i32;
 
