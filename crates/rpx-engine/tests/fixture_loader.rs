@@ -14,8 +14,8 @@ mod common;
 
 use common::{all_names, load, parse_fixture};
 
-/// 十三个"能算出网格"的夹具（`engine_cycle` 是错误型，见下）。
-const GRID_FIXTURES: [&str; 13] = [
+/// 十四个"能算出网格"的夹具（`engine_cycle` 是错误型，见下）。
+const GRID_FIXTURES: [&str; 14] = [
     "engine_sum",
     "engine_ext",
     "engine_expr",
@@ -29,6 +29,7 @@ const GRID_FIXTURES: [&str; 13] = [
     "engine_head_left",
     "engine_avgrange",
     "engine_collate",
+    "engine_listrange",
 ];
 
 /// 一行尺寸真值：(夹具名, 模板行, 模板列, 计算行, 计算列, 非空格数, 带 source, 不带 source)。
@@ -37,7 +38,7 @@ type ShapeRow = (&'static str, i32, i32, i32, i32, usize, usize, usize);
 
 /// 全部尺寸真值。合并成一张表是为了守住"单文件 ≤300 行"门禁，
 /// 同时让尺寸与计数不会各说各话。
-const SHAPE: [ShapeRow; 13] = [
+const SHAPE: [ShapeRow; 14] = [
     ("engine_sum", 6, 9, 8, 9, 36, 36, 0),
     ("engine_ext", 4, 3, 8, 7, 42, 12, 30),
     ("engine_expr", 6, 5, 8, 5, 20, 20, 0),
@@ -51,11 +52,12 @@ const SHAPE: [ShapeRow; 13] = [
     ("engine_head_left", 5, 6, 11, 6, 66, 30, 36),
     ("engine_avgrange", 5, 6, 5, 6, 12, 12, 0),
     ("engine_collate", 8, 6, 8, 6, 48, 48, 0),
+    ("engine_listrange", 5, 6, 5, 6, 19, 19, 0),
 ];
 
 #[test]
 fn all_fixtures_load_and_self_identify() {
-    assert_eq!(all_names().len(), 14);
+    assert_eq!(all_names().len(), 15);
     for name in all_names() {
         // load 内部会校验 JSON 的 name 字段与请求名一致
         let fx = load(name);

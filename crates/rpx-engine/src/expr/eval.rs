@@ -4,8 +4,9 @@
 //! 附件 H.1/H.2 是求值语义的事实源（⛔ **不是 Excel 语义**）。
 //!
 //! 文件按职责拆分：本文件只留 [`EvalCtx`] trait、分发入口 [`evaluate`]、
-//! 函数/一元/二元分发与 `sum(A:B)` 的 [`sum_link`]；DS 函数与 List 聚合在
-//! [`dsfn`]，数值原语（`Variant2.*` 移植）在 [`num`]。
+//! 函数/一元/二元分发与区域处理器（[`sum_link`] / [`region_aggregate`]）；
+//! DS 函数与 List 聚合在 [`dsfn`]，数值原语（`Variant2.*` 移植）在 [`num`]，
+//! 区域两端点的收集（`[A:B]` / `(A:B)` → `CellSet`）在 [`super::cellset`]。
 //!
 //! # 本切片已实现（12 夹具的完整表达式面，`EngineModels.java` 全量清单）
 //!
@@ -18,6 +19,7 @@
 //! | `ds1.count()` | Root 态：行数 | `DSCount` |
 //! | `sum(x)` | List → 聚合；标量 → 透传；空 → `Double(0.0)` | `Sum.java:106-133` |
 //! | `sum(A:B)` | ⛔ **不是区域求和**：把 B 设为 current 后求值 A 一次 | `Sum.java:174-206` |
+//! | `sum(@:[B2:B4])` | List 逐格：逐格 `setCurrent` 后求值 A 再聚合（尾 4 行同） | `Sum.java:149-172` |
 //!
 //! # 求值上下文 [`EvalCtx`]
 //!
@@ -28,21 +30,24 @@
 //!
 //! # 已知边界（诚实声明）
 //!
-//! - `group`/`sort`/`Move`/`Offset`/`Select{}`、`avg/max/min` 的 `left` 形式、
-//!   其它区间运算与 `In`/`Eval` → `UnsupportedExpr`；
-//!   （`avg/max/min(A:B)` 的**单格 else 分支**已实现，见 [`region_aggregate`]；
-//!   `sum/avg/max/min` 的 **List 逐格分支**要求 cellSet 求值为 List，普通单元格
-//!   区间触达不到、无夹具，仍缺——与 `sum_link` 同一处已声明缺口。）
+//! - `group`/`sort`/`Move`/`Offset`/`Select{}` 的 `left` 语义、其它区间运算与
+//!   `In`/`Eval` → `UnsupportedExpr`；
+//! - `sum/avg/max/min(A:B)` 的**单格 else 分支**（`sum(B2:B4)=100`）与
+//!   **List 逐格分支**（`sum(@:[B2:B4])=420`）均已实现，共用 [`region_loop`]
+//!   的骨架，操作数角色不对称（avg 反转）见 [`region_aggregate`] 文档。
 //! - `firstLeft` 序列化门、`option 'r'`、`num/distinct` 参数未建模（夹具不用）。
 
 use crate::arena::CellId;
 use crate::error::{EngineError, Result};
 use crate::expr::ast::{BinOp, Call, Expr, UnOp};
-use crate::value::Value;
+use crate::value::{single_value, Value};
 
+use super::cellset::{eval_cellset, CellSet};
 use super::ds::DataSet;
 use super::dsfn::{avg_list, ds_call, ds_column, max_list, min_list, sum_list};
-use super::num::{as_bool, num_add, num_cmp, num_div, num_mod, num_mul, num_neg, num_sub, val_eq};
+use super::num::{
+    aggregate_cmp, as_bool, num_add, num_cmp, num_div, num_mod, num_mul, num_neg, num_sub, val_eq,
+};
 
 /// 求值上下文（见模块文档）。
 pub trait EvalCtx {
@@ -89,6 +94,36 @@ pub trait EvalCtx {
     }
     /// `getSource(id)`：按格号查**引擎矩阵**；不存在 → `None`。
     fn source_by_id(&self, id: &str) -> Option<CellId>;
+    // ── 计算态矩阵与几何（区域遍历 [`super::cellset`] 所需）──
+    /// `ExtCellSet.getCell(row, col)`：计算态坐标（`_$26`）→ 格 id。
+    ///
+    /// ⛔ 与 [`Self::source_by_id`] 查的是**两张不同的矩阵**：这个查计算矩阵
+    /// `_$26`（扩展后、含实例格），那个查引擎矩阵 `_$25`（模板态）。
+    /// 矩形遍历（`Link._$1:83`）读的是前者。
+    fn cell_at(&self, _row: i32, _col: i32) -> Option<CellId> {
+        None
+    }
+    /// 格的**自身**计算态坐标（`ExtCell.getRow()/getCol()`）。
+    ///
+    /// 与 [`Self::cell_at`] 的入参可能**不相等**——`_$26` 里的合并延续槽是
+    /// 指向锚点的别名，遍历靠"自身坐标 == 遍历坐标"把它排除
+    /// （`Link.java:84` 的 `cell.getRow() != i || cell.getCol() != j`）。
+    fn cell_pos(&self, _c: CellId) -> (i32, i32) {
+        (0, 0)
+    }
+    /// `getRowMerge()`：合并跨度 —— 矩形**右端点**要加它才是 bottom（`Link.java:73`）。
+    fn row_merge(&self, _c: CellId) -> i32 {
+        1
+    }
+    /// `getColMerge()`：同 [`Self::row_merge`]，取 right（`Link.java:73`）。
+    fn col_merge(&self, _c: CellId) -> i32 {
+        1
+    }
+    /// 收集期 `cell.testValue()`（`Link.java:85` / `ValueList.java:116`）。
+    /// 默认空实现（假实现不建模依赖检测）。见 [`super::cellset`] 模块文档。
+    fn test_value_gate(&mut self, _c: CellId) -> Result<()> {
+        Ok(())
+    }
     // ── 数据集与参数 ──
     fn ds(&mut self, name: &str) -> Option<&mut DataSet>;
     /// 数据集名 → 稳定下标（DS 旁路与 `DsCurrentHost` 都要用它寻址）。
@@ -228,91 +263,188 @@ fn evaluate_call(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
     }
 }
 
-/// `sum(A:B)` 的 cellSet 分支（`Sum.java:174-206`）：**先 `saveCurrent()`，把 B 设为
-/// current，求值 A 一次，`finally` 里 `resumeCurrent()`**。
+/// `sum(A:B)` 的区域入口（`Sum.java:128-144`）：`cellSet = sub1`（args[1]），
+/// 求值 `sub0`（args[0]）。
 ///
-/// ⛔ 两个都不能省：
-/// - `saveCurrent()` 把 `_$20` 覆盖成"进来时的 `_$21`"，于是 `resumeCurrent()` 回得对；
-///   只读 `saved_current()` 而不先存，遇到嵌套 `sum()` 会回到**外层**的格。
-/// - 只有单个格时才走这条；`sub1` 求值成 `List`（多格区域）时产品逐格循环
-///   （`Sum.java:161-175`），本 crate 尚无夹具覆盖该形态 ⇒ 报 `UnsupportedExpr`。
+/// 累积与收尾见 [`region_loop`]：`result == null → Double(0.0)`（`:192-195`）。
 fn sum_link(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
-    // cellSet = sub1（`Sum.java:177`）：必须是可解析到格的表达式
-    let cell = match &c.args[1] {
-        Expr::CellRef {
-            id,
-            absolute,
-            provisional: _,
-        } => super::resolve::resolve_cell(ctx, id, *absolute)
-            .ok_or_else(|| EngineError::UnknownCell { id: id.clone() })?,
-        other => {
-            return Err(EngineError::UnsupportedExpr {
-                expr: format!("sum cellSet 不是格引用: {other:?}"),
-            })
-        }
-    };
-    // `ecs.saveCurrent()`（`:150`）
-    ctx.save_current();
-    ctx.set_current(cell); // `ecs.setCurrent(cell)`（`:198`）
-    let r = evaluate(&c.args[0], ctx);
-    // `finally { ecs.resumeCurrent() }`（`:204-206`）——即使求值失败也要回卷
-    ctx.resume_current();
-    let v = r?;
-    Ok(if v.is_null() { Value::Double(0.0) } else { v })
+    let op = require_cellset(c, 1, ctx)?;
+    region_loop(&op, &c.args[0], RegionMode::Sum, ctx)
 }
 
-/// `avg/max/min(A:B)` 的区域处理器 —— 只实现**单格 else 分支**（与 [`sum_link`]
-/// 同源：`Sum.java:174-206` / `Max.java:136-185` / `Min.java:136-185` /
-/// `Average.java:155-207`）。
+/// `avg/max/min(A:B)` 的区域入口。
 ///
 /// **操作数角色：avg 与 sum/max/min 相反**（`engine_avgrange` 夹具定案，
 /// B2=100,B3=200,B4=120，产品实跑值）：
 /// - `sum/max/min(A:B)`：`cellSet = sub1`（args[1]），求值 `sub0`（args[0]）
-///   ⇒ 返回**操作数1**。实测 `sum/max/min(B2:B4)` 全 = `100`（=B2），
-///   ⛔ 不是区域聚合（否则 `max` 会是 200）。
+///   ⇒ 返回**操作数1**。实测 `sum/max/min(B2:B4)` 全 = `100`（=B2）。
 /// - `avg(A:B)`：`cellSet = sub0`（args[0]），求值 `sub1`（args[1]）
-///   ⇒ 返回**操作数2**，且 `Variant2.divide(_, count=1)` 恒升 Double。
-///   实测 `avg(B2:B4)` = `Double(120)`（=B4），⛔ 不是均值 140、不是操作数1。
-///   （`Average.java:145-149` 的 `cellSet=sub0` 与 Sum/Max/Min 的 `cellSet=sub1`
+///   ⇒ 返回**操作数2**，且 `Variant2.divide(_, 1)` 恒升 Double。
+///   实测 `avg(B2:B4)` = `Double(120)`（=B4），⛔ 不是均值 140。
+///   （`Average.java:139-149` 的 `cellSet=sub0` 与 Sum/Max/Min 的 `cellSet=sub1`
 ///   是**原文的不对称**，见 `docs/m2-engine-design.md` §14。）
 ///
-/// ⛔ 真正的 List 逐格分支（`if (cellSet instanceof List)`）要求 cellSet 求值成
-/// List，普通单元格区间语法**永远触达不到**（本夹具 + `ProbeAvgRange.java` 实证：
-/// `max(B2:B4)`=100 而非 200）⇒ 与 `sum_link` 一致只落单格分支；List 分支无夹具，
-/// 属已声明缺口（`sum_link` 的文档同理）。
+/// 单格与 List 两种 cellSet **共用** [`region_loop`] 的同一条骨架：`B2:B4` 落
+/// 单格（`sum(B2:B4)=100`），`[B2:B4]` / `(B2:B4)` 落 List 逐格
+/// （`sum(@:[B2:B4])=420`、`avg([B2:B4]:@)=140.0`）—— 第 15 个产品夹具
+/// `engine_listrange` 把两种形态钉在一起，`docs/m2-engine-design.md` §14.6。
 fn region_aggregate(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
     let is_avg = c.name == "avg";
-    // avg 的 cellSet 是 sub0、求值 sub1；sum/max/min 反之（见函数文档）。
     let (cellset_idx, value_idx) = if is_avg { (0, 1) } else { (1, 0) };
-    let cell = match &c.args[cellset_idx] {
-        Expr::CellRef {
-            id,
-            absolute,
-            provisional: _,
-        } => super::resolve::resolve_cell(ctx, id, *absolute)
-            .ok_or_else(|| EngineError::UnknownCell { id: id.clone() })?,
-        other => {
-            return Err(EngineError::UnsupportedExpr {
-                expr: format!("{} cellSet 不是格引用: {other:?}", c.name),
-            })
-        }
+    let op = require_cellset(c, cellset_idx, ctx)?;
+    let mode = match c.name.as_str() {
+        // `option.indexOf(97) != -1`（`Average.java:106`）：'a' 选项把 null 计入分母
+        "avg" => RegionMode::Avg {
+            contain_null: c.option.as_deref().unwrap_or("").contains('a'),
+        },
+        "max" => RegionMode::Max,
+        _ => RegionMode::Min,
     };
-    ctx.save_current(); // `ecs.saveCurrent()`（Sum.java:150 等）
-    ctx.set_current(cell); // `ecs.setCurrent(cell)`
-    let r = evaluate(&c.args[value_idx], ctx);
-    ctx.resume_current(); // `finally { ecs.resumeCurrent() }`（即使失败也回卷）
-    let v = r?;
-    if is_avg {
-        // Average.java:146-147 cellSet==null→Double(0.0)；:203 result==null→Double(0.0)；
-        // :206 `divide(result, count=1)` 恒 Double（§14.1#4：整除也升 Double）。
-        if v.is_null() {
-            Ok(Value::Double(0.0))
-        } else {
-            num_div(&v, &Value::Int(1))
+    region_loop(&op, &c.args[value_idx], mode, ctx)
+}
+
+/// 取第 `idx` 个操作数并求值成 [`CellSet`]；形态不认识 ⇒ `UnsupportedExpr`
+/// （产品在同样位置抛 `function.paramTypeError`，`Sum.java:165-166` 等）。
+fn require_cellset(c: &Call, idx: usize, ctx: &mut dyn EvalCtx) -> Result<CellSet> {
+    let Some(arg) = c.args.get(idx) else {
+        return Err(EngineError::UnsupportedExpr {
+            expr: format!("{} 缺少第 {} 个操作数", c.name, idx + 1),
+        });
+    };
+    eval_cellset(arg, ctx)?.ok_or_else(|| EngineError::UnsupportedExpr {
+        expr: format!("{} cellSet 形态未支持: {arg:?}", c.name),
+    })
+}
+
+/// 区域处理器的累积模式（四个函数的骨架相同，只有累积与收尾不同）。
+#[derive(Debug, Clone, Copy)]
+enum RegionMode {
+    /// `Sum.java:155-196`：`Variant2.add` 累加；收尾 `result == null → Double(0.0)`。
+    Sum,
+    /// `Max.java:136-185`：`Variant2.compare` 取大；收尾原样（可能是 `null`）。
+    Max,
+    /// `Min.java:136-185`：同 `Max`，取小。
+    Min,
+    /// `Average.java:155-207`：`add` 累加 + 记 `nullCount`；
+    /// 收尾 `divide(result, contain_null ? count : count - nullCount)`。
+    Avg { contain_null: bool },
+}
+
+/// 区域处理器的公共骨架：`saveCurrent()` → 逐格 `setCurrent` + 求值 `param2`
+/// → `finally` 语义的 `resumeCurrent()`（求值失败也回卷）。
+///
+/// ⛔ **Single 与 Many 共用同一条循环**，因为产品的 else 分支
+/// （`Sum.java:173-187` 等）与 List 分支的**单轮**迭代逐字等价：`result =
+/// Variant2.getSingleValue(obj)` 正是循环首轮（`result == null`）走的那一支。
+/// 唯一差别是 avg 的分母 —— List 分支 `count = list.size()`、else 分支
+/// `count = 1`，而单格时 `cells.len()` 恰为 1。
+///
+/// ⛔ 三条不能"顺手统一"的原文差异：
+/// 1. `add` 的右操作数**不过** `getSingleValue`（`Sum.java:171` 的 `obj` 是原始
+///    对象），而 `calculate` 的 List 分支是 `add(result, getSingleValue(...))`
+///    （`:118`）—— 两条路不是同一份代码；
+/// 2. `Max/Min` 用 `Variant2.compare`（**两侧都解包**，`Variant2.java:364-368`），
+///    不是 `compare2`；
+/// 3. avg 的 `nullCount` 只在 List 分支存在，但单格分支因 `result == null`
+///    提前返回而**用不到**分母 ⇒ 共用骨架仍等价。
+fn region_loop(
+    op: &CellSet,
+    value_expr: &Expr,
+    mode: RegionMode,
+    ctx: &mut dyn EvalCtx,
+) -> Result<Value> {
+    let cells: &[CellId] = match op {
+        CellSet::Single(c) => std::slice::from_ref(c),
+        CellSet::Many(v) => v,
+    };
+    ctx.save_current(); // `ecs.saveCurrent()`（`Sum.java:150` 等）
+    let r = region_accumulate(cells, value_expr, mode, ctx);
+    ctx.resume_current(); // `finally { ecs.resumeCurrent() }`（失败也回卷）
+    r
+}
+
+/// [`region_loop`] 的循环体与收尾（拆出来只为让 `save`/`resume` 的配对一眼可见）。
+fn region_accumulate(
+    cells: &[CellId],
+    value_expr: &Expr,
+    mode: RegionMode,
+    ctx: &mut dyn EvalCtx,
+) -> Result<Value> {
+    let mut acc: Option<Value> = None;
+    let mut null_count = 0i32;
+    for &cell in cells {
+        ctx.set_current(cell); // `ecs.setCurrent(cell)`
+        let obj = evaluate(value_expr, ctx)?; // `param2.calculate(ctx)`
+        if obj.is_null() {
+            // sum/max/min：`if (obj == null) continue;`；avg：`++nullCount; continue;`
+            if matches!(mode, RegionMode::Avg { .. }) {
+                null_count += 1;
+            }
+            continue;
         }
-    } else {
-        // Max/Min.java:157 `obj==null ⇒ result 保持 null`，无 Double(0.0) 兜底。
-        Ok(v)
+        let next = match mode {
+            RegionMode::Sum | RegionMode::Avg { .. } => match acc.take() {
+                // 首轮 `Variant2.getSingleValue(obj)`（取到 null ⇒ 保持未累积）
+                None => unwrap_single(&obj),
+                // 后续轮 `Variant2.add(result, obj)`（⛔ obj 未解包）
+                Some(a) => Some(num_add(&a, &obj)?),
+            },
+            RegionMode::Max | RegionMode::Min => match acc.take() {
+                None => unwrap_single(&obj),
+                Some(a) => {
+                    let b = unwrap_single(&obj);
+                    let bv = b.clone().unwrap_or(Value::Null);
+                    let ord = aggregate_cmp(&a, &bv)?;
+                    let take_b = match mode {
+                        RegionMode::Max => ord == std::cmp::Ordering::Less, // `>= 0 → continue`
+                        _ => ord == std::cmp::Ordering::Greater,            // `<= 0 → continue`
+                    };
+                    // 产品同处写 `result = Variant2.getSingleValue(obj)`（`Max.java:163` /
+                    // `Min.java:163`）：取到 null 时 result 变 **Java null**，下一轮
+                    // `result != null` 为假 ⇒ 走「无条件重新初始化」。`None` 正是该语义；
+                    // ⛔ 不能回写成 `Some(Value::Null)` —— 那样下轮会走比较分支
+                    // （`compare2(null, b) = -1`：Max 的 `>= 0 → continue` 判假、
+                    // Min 的 `<= 0 → continue` 判真，两边都与产品分叉）。
+                    // 可达条件：元素是「空 List 或首元素为 null 的 List」——
+                    // 产品夹具无此形态，由合成钉子 `tests_aggregate.rs` ⑫ 覆盖。
+                    if take_b {
+                        b
+                    } else {
+                        Some(a)
+                    }
+                }
+            },
+        };
+        acc = next;
+    }
+    match mode {
+        // `Sum.java:192-195`
+        RegionMode::Sum => Ok(acc.unwrap_or(Value::Double(0.0))),
+        // `Max.java:184` / `Min.java:184`：原样返回（null 保持 null）
+        RegionMode::Max | RegionMode::Min => Ok(acc.unwrap_or(Value::Null)),
+        // `Average.java:203-206`
+        RegionMode::Avg { contain_null } => {
+            let Some(res) = acc else {
+                return Ok(Value::Double(0.0)); // `result == null → Double(0.0)`（先于除零）
+            };
+            let count = cells.len() as i32;
+            let denom = if contain_null {
+                count
+            } else {
+                count - null_count
+            };
+            num_div(&res, &Value::Int(denom))
+        }
+    }
+}
+
+/// `Variant2.getSingleValue`（`Variant2.java:85-94`）的 Rust 形态，并把
+/// "取到 null"（空 List 或首元素是 null）**归一成 `None`** —— Java 的
+/// `result != null` 判的就是这个，`Option` 的 `None` 正好承载它。
+fn unwrap_single(v: &Value) -> Option<Value> {
+    match single_value(v) {
+        None | Some(Value::Null) => None,
+        Some(o) => Some(o.clone()),
     }
 }
 

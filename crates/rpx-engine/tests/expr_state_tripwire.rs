@@ -1,4 +1,4 @@
-//! ⛔ **前提钉子（夹具级）**：14 个引擎夹具里的**全部 78 条公式**，`get_state() == 4`。
+//! ⛔ **前提钉子（夹具级）**：15 个引擎夹具里的**全部 90 条公式**，`get_state() == 4`。
 //!
 //! # 为什么这条前提必须被钉住
 //!
@@ -32,7 +32,7 @@ mod common;
 
 use common::{all_names, load};
 
-/// 14 个引擎夹具的公式总数（= `EngineModels*.java` 里写进 `.rpx` 的表达式条数）。
+/// 15 个引擎夹具的公式总数（= `EngineModels*.java` 里写进 `.rpx` 的表达式条数）。
 /// 更新它必须同时说明"新加了什么形态、`get_state()` 为什么仍是 4"。
 ///
 /// 2026-10-14：`engine_avgrange` 加入 4 条 `sum/avg/max/min(B2:B4)` 区域形态
@@ -44,7 +44,12 @@ use common::{all_names, load};
 /// 重排（6 条）、由 `["…"]` 值列表驱动的文本 `max`/`min`（4 条）+ 两条 `==`
 /// 精确相等（2 条）。全部是 Binary/RegularCall ⇒ 全部 `get_state()==4`，
 /// 故 44 → 78。
-const TOTAL_FORMULAS: usize = 78;
+///
+/// 2026-10-14（M2-12 List 逐格）：`engine_listrange` 加入 12 条 —— `sum/avg/max/min`
+/// 的三种 cellSet 形态各 4 条（`[B2:B4]` ValueList 逐格、`(B2:B4)` Link 逐格、
+/// `B2:B4` 单格 else 对照）。`@` 是 `CSCurrent extends Node`（未覆写 `getState`）、
+/// `:` 是 `operator.Link extends Function` ⇒ 仍全 4，故 78 → 90。
+const TOTAL_FORMULAS: usize = 90;
 
 #[test]
 fn every_fixture_formula_is_state_four() {

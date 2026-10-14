@@ -1245,6 +1245,7 @@ pub use {CalcState, CalcGrid, CalcCell, SourceRef, CellId, Value, ExtendMode, Ma
 | V28 | `isExtend()` 在整个产品里**只有一个调用点**（`reportlite` 线），另一处在姊妹产品 `report/` 线 | §13.0；全 `re_work/src` grep |
 | V29 | `disp_value` 的落盘判定是 **`\|\|` 不是 `&&`**：`engine_disp` 的 `(2,3)` 是 `value=null` + `type="null"` + `disp_value="仅显示值"` 且**照常落盘** ⇒ **`disp_value` 不是死键**（推翻 7 夹具时代的"出现 0 次"结论） | §11.5 ②；`engine_disp.expected.json`、`CalcJson.java:51-53,71-73` |
 | V30 | `reportlite` 表达式包的 `priority` 实际取值只有 **1,2,4,5,6,10,11,13,14,16,17,18,19** ⇒ `Node.java` 里的 `PRI_ASS/BOR/BXOR/BAND/SHIFT/NEW`（3/7/8/9/12/15）**无任何类使用** ⇒ 不存在位运算/移位表达式 | §13.1；全量 grep `priority = ` |
+| V31 | **区域操作数的 List 形态**：普通 `B2:B4` 触达不到 List 分支（`:` 是**参数分隔符**）；`[A:B]`（`ValueList`）与 `(A:B)`（括号被扫描器跳过 ⇒ `operator.Link`）触达。矩形遍历的端点 = 左端格**自身**坐标 → 右端 `+rowMerge/colMerge-1`，命中判据排除别名槽，每格调 `testValue()` | §14.6；`ParamParser.java:66-79,110-117`；`Link._$1:55-90`；`ValueList._$1:85-119`；`CSVariable.getRegion:135-140`；探针 `ProbeListRange.java` + 夹具 `engine_listrange` |
 
 ### 9.2 ⚠ 待验证（**禁止当结论用**，附验证方法）
 
@@ -1789,7 +1790,7 @@ sum(ds1.select(qty))
 
 ---
 
-## 14. M2-12 `avg` / `max` / `min`（2026-10-13 落地；`A:B` 区域形态 2026-10-14 追加，见 §14.5）
+## 14. M2-12 `avg` / `max` / `min`（2026-10-13 落地；`A:B` 区域形态 2026-10-14 追加，见 §14.5；List 逐格 2026-10-14 追加，见 §14.6）
 
 事实源：`reportlite/03-model/.../expression/function/Average.java`、`Max.java`、`Min.java`
 （与 `Sum.java` 同目录）。三者的**叶子路径同构、聚合路径各不同**，本节逐条钉差别，不许"顺手统一"。
@@ -1820,7 +1821,7 @@ sum(ds1.select(qty))
 | `avg/max/min(<叶子表达式>)` 纯函数 | ✅ | `eval.rs::evaluate_call` 分发；标量透传、`List` 才聚合 |
 | `ds.avg/max/min(col)` | ✅ | `dsfn.rs::ds_call`；Root 态聚合，Row 态与 `ds.sum` 同形返回当前行（reportlite 树里这三个**没有** DS 包装类，故沿用 `DSSum.java:46` 的 `return cur;`） |
 | `sum(List)` 过 `getSingleValue` | ✅ | 与 `merge::same_value` 共用 `value::single_value`（顺带修掉的**第 8 处分歧**：原先 `sum(List[List(1)])` 会报错，产品返回 `1`） |
-| `avg/max/min(A:B)` 区域形态 | ✅（2026-10-14） | 只落 `_$1` 的 else 单格分支；**avg 操作数反转**且恒 `Double`，sum/max/min 取操作数1；真值表与缺口见 §14.5 |
+| `avg/max/min(A:B)` 区域形态 | ✅（2026-10-14） | 单格 else 分支（`sum(B2:B4)=100`）+ List 逐格分支（`sum(@:[B2:B4])=420`，`[A:B]`/`(A:B)` 形态）共用一条骨架；**avg 操作数反转**且恒 `Double`；§14.5（单格）+ §14.6（List） |
 | `Text-Text` 字典序 | ✅（2026-10-14） | 移植产品 `ChineseComparator`：规则表 `reportlite/lib/reportlite.jar!/com/raqsoft/commonl/rule.txt`（85,231 B）经 `ChineseComparator.java:34` 构造成 JDK `RuleBasedCollator`，按实测行为导出为 `crates/rpx-engine/data/collation.bin`（13 段）+ `src/collation*`；算法/数据布局/三条坑见 **`docs/m2-collation.md`**。⛔ `==` 仍走精确 `String.equals`（`Variant2.equals:470`），**不**经 collator |
 | `Bool-Bool` 排序 | ✅ | `compare2:453-455` → `compare(boolean,boolean)`，`false < true` |
 
@@ -1868,10 +1869,84 @@ List 逐格分支（`cellSet instanceof List`）要求 cellSet 求值成 `List`�
 `avg` 的 result 为 null → `Double(0.0)`（`Average.java:203-205`），`max/min` 的 `obj==null` 时
 result 保持 null、**无** `Double(0.0)` 兜底（`Max.java`/`Min.java:157`）——又一处不对称。
 
-**④ 已声明缺口**：List 逐格分支无夹具（与 `sum_link` 同一缺口）；cellSet 操作数不是格引用时
-Rust 显式报 `UnsupportedExpr`（Java 该路先 `calculate(ctx)` 再判 `instanceof CSVariable/ExtCell`，
-Rust 无对应中间值，不静默猜）。实现：`eval.rs::region_aggregate`（函数文档含上述 `file:line`）；
-对拍：`engine_avgrange` 进 `engine_grid_compare` 逐格（值 + 类型）。
+**④ 实现与对拍**：`eval.rs::region_aggregate`（函数文档含上述 `file:line`）—— 单格 else
+分支已落地；cellSet 操作数不是格引用/不认识的形态时 Rust 显式报 `UnsupportedExpr`
+（Java 该路先 `calculate(ctx)` 再判 `instanceof CSVariable/ExtCell`，Rust 无对应中间值，
+不静默猜）。对拍：`engine_avgrange` 进 `engine_grid_compare` 逐格（值 + 类型）。
+**List 逐格分支**（`[B2:B4]` / `(B2:B4)` 形态）见 §14.6。
+
+### 14.6 `(A:B)` List 逐格分支（2026-10-14 追加；第 15 个夹具 `engine_listrange`）
+
+事实源：`Sum.java:149-172` / `Average.java:155-207` / `Max.java:136-158` / `Min.java:136-158`
+的 List 分支（`if (cellSet instanceof List)`），以及把 cellSet 求值成 `List<ExtCell>` 的
+两条上游链。§14.5 证明了「普通区间触达不到它」；本节讲**什么形态触得到、触到后怎么算**。
+
+**① 让 cellSet 求值成 `List<ExtCell>` 的两种形态**（`ProbeListRange.java` 14 形态实证）：
+
+| 写法 | 上游链 | 结果 |
+|------|--------|------|
+| `B2:B4` | `ParamParser.java:66-79`：`:` 是**参数分隔符**（三级 `;`→`,`→`:`）⇒ 拆成 sub0/sub1 | cellSet = `CSVariable` **单格** ⇒ else 分支 |
+| `[B2:B4]` | `ValueList.java:161-162` 的 `:` 形态 → `_$1:68-120` | `List<ExtCell>` ⇒ List 逐格 |
+| `(B2:B4)` | `ParamParser._$1:110-117` 跳过括号 ⇒ `Expression.createNode` 表达式分支 ⇒ `Expression.java:412-413` 的 `:` → `Link`；`Link._$1:78-89` 收集 | 同一遍历，`List<ExtCell>` |
+
+⇒ 「普通区间不是区域聚合」的分水岭在**参数解析器**（`:` 被当分隔符），不在聚合语义本身。
+
+**② `@` 是让逐格循环可观测的关键**：`Expression.java:178-180` 把 `@` 建成 `CSCurrent`，
+`CSCurrent.calculate:23-28` 返回 `((ExtCellSet)_$1).getCurrent().getValue(false)`。
+若 value 操作数里是常量，每轮 `setCurrent` 后求值仍得同一常量 —— 逐不逐格无从区分。
+
+**③ 产品真值**（`engine_listrange`：B2=100/B3=200/B4=120；探针 12 项逐值吻合）：
+
+| 公式 | 产品值 | 同函数 else 对照 |
+|------|--------|------|
+| `sum(@:[B2:B4])` / `sum(@:(B2:B4))` | `420` int | `sum(B2:B4)` = `100` |
+| `max(@:[B2:B4])` / `max(@:(B2:B4))` | `200` int | `max(B2:B4)` = `100` |
+| `min(@:[B2:B4])` / `min(@:(B2:B4))` | `100` int | `min(B2:B4)` = `100` |
+| `avg([B2:B4]:@)` / `avg((B2:B4):@)` | `140.0` double | `avg(B2:B4)` = `120.0` |
+
+反序对照（List 落到 value 位置）**报循环引用**：`sum([B2:B4]:@)`、`avg(@:[B2:B4])` →
+`ReportError: …单元格C2中存在C2-C2-C2的循环引用` —— cellSet 被逐格 `setCurrent` 后，
+value 里的格引用解析回正在求值的格自身（依赖检测机制本体，`ExtCellSet` 的 `_$20` 回卷救不了）。
+
+**④ 遍历语义（`Link._$1:78-89` ≡ `ValueList._$1:112-119`，逐字等价）**：
+
+- `top/left` 取左端格**自身**坐标（`cr1.getBeginRow/BeginCol`）；`bottom/right` 取右端格
+  `row + rowMerge - 1` / `col + colMerge - 1`；
+- 命中判据 `cell.getRow() == i && cell.getCol() == j` —— `_$26` 的合并延续槽是**别名**
+  （自身坐标指向锚点）⇒ 由此被跳过；
+- 每个命中格先过 `cell.testValue()`（`Link.java:85`）—— 依赖驱动的 chase 求值由此触发，
+  挂起（`EngineError::Suspend`）与循环错误照常穿透。
+
+**⑤ 四条不能"顺手统一"的原文差异**（Rust 侧集中在 `eval.rs::region_accumulate`）：
+
+1. List 分支 `add` 的右操作数**不过** `getSingleValue`（`Sum.java:171` 的 `obj` 是原始对象，
+   `:118` 才是 `add(result, getSingleValue(...))`）—— 首轮取单值、后续轮原样加，两条不是同一份代码；
+2. `Max/Min._$1` 用 `Variant2.compare`（两侧都解包，`Variant2.java:364-368`），**不是** `compare2`；
+3. avg 的 `nullCount` 只在 List 分支存在，但单格分支因 `result == null` 提前返回而用不到分母
+   ⇒ 单格/多格**可以共用骨架**（单格时 `cells.len() == 1`，`count=1` 恰是 else 分支的常量）；
+4. **累积槽位的 null 语义**：产品写 `result = Variant2.getSingleValue(obj)`（`Max.java:163` /
+   `Min.java:163`）—— 元素是空 List 时取到 null，`result` 变 **Java null**，下一轮
+   `result != null` 判假 ⇒ 走「无条件重新初始化」（**不是**拿 null 去比较）。Rust 用
+   `Option<Value>` 的 `None` 承载；若记成 `Some(Value::Null)`，下轮会走比较分支
+   （`compare2(null,b) = -1`）而与产品分叉。
+   配套修复：`compare2:419-424` 的 **null 分支必须先于类型分派** ——
+   `num.rs::aggregate_cmp` 原先缺它（遇 null 报 `UnsupportedExpr`），由合成钉子
+   `tests_aggregate.rs` ⑫ 暴露并补齐（该钉子经变异验证承重：改回旧写法该条单独变红）。
+
+**⑥ 实现**：`crates/rpx-engine/src/expr/cellset.rs`（cellSet → `CellSet::Single/Many`，
+含矩形遍历与端点校验）+ `eval.rs::region_loop`/`region_accumulate`（四函数共用骨架，
+avg 的操作数反转在 `region_aggregate` 里换 index）。
+`EvalCtx` 新增 5 个几何/门方法（`cell_at`/`cell_pos`/`row_merge`/`col_merge`/`test_value_gate`），
+生产实现见 `calc/ctx/eval_ctx.rs`；对拍 `engine_listrange` 进 `engine_grid_compare`
+**无豁免**逐格（值 + 类型）。
+
+**⑦ 已声明缺口**：`[B2]`（`ValueList` 的 `Leaf` 形态，产品走 `CSVariable.getCells(null)`
+取该格**全部扩展实例**）与 `[a,b,c]`（逗号形态）未建模 —— 无夹具；
+`Move`/`DSOffset` 不在本路径（`Expression.java:136-155` 按 `preNode` 分类）；
+**`num_cmp`（`<`/`>`/`<=`/`>=`）无 null 分支** —— 产品这些运算符同样走 `Variant2.compare`
+（`operator/Smaller.java:40` 等）⇒ null 操作数本应返回定义值（`compare2:419-424`），
+本仓报 `UnsupportedExpr`；无夹具，与 §14.6 ⑤.4 的 `aggregate_cmp` 修复同源但**未一并改**，
+理由见 `num.rs::aggregate_cmp` 文档（不"顺手统一"跨 AC 线）。
 
 ---
 

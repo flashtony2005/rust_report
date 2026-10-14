@@ -41,6 +41,7 @@
 pub mod ast;
 pub mod atom;
 pub mod call;
+pub mod cellset;
 pub mod classify;
 pub mod ds;
 pub mod dsfn;

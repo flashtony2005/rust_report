@@ -2387,3 +2387,83 @@ brief 里的「12」指**第三行**（golden 的 IGNORABLE 行数），**不是
 `engine_grid_compare.rs:5,87`、`m09_compare.rs:85`、`schema_sentinel.rs:17`。
 凡**未被夹具数触及**的数字**一律未改** —— 例如 `engine_rowheight_pager.rs` 的「克隆 12 次」
 是**行克隆数**不是夹具数，保持 12（首版盲目 12→14 曾误伤，已回退）。
+
+---
+
+## 21. M2-12 `(A:B)` List 逐格分支（2026-10-14，第 15 个引擎夹具 `engine_listrange`）
+
+> 承接 §14.5 的结论「普通 `B2:B4` 恒走 else 单格分支」。本节问的是：
+> **什么形态能让 `cellSet` 求值成 `List<ExtCell>`、触达逐格循环，产品在那里算什么？**
+
+### 21.1 定性（源码链，`reportlite/03-model/.../expression/`）
+
+| 写法 | 上游链 | cellSet 求值成 |
+|------|--------|------|
+| `B2:B4` | `ParamParser.java:66-79`：参数分隔符按 `;`→`,`→`:` 三级试；`:` 是**分隔符** ⇒ 拆 sub0/sub1 | `CSVariable` 单格 ⇒ else 分支 |
+| `[B2:B4]` | `ValueList.java:161-162` 的 `:` 形态 → `_$1:68-120` 逐格收集（`Link.java:85` 同款 `testValue()`） | `List<ExtCell>` ⇒ 逐格 |
+| `(B2:B4)` | `ParamParser._$1:110-117` 扫描时**跳过 `()` 内** ⇒ 不被拆 ⇒ `Expression.createNode` 走表达式分支 ⇒ `Expression.java:412-413` 的 `:` → `operator.Link`；`Link._$1:78-89` 收集 | 同左 |
+
+⇒ **分水岭在参数解析器，不在聚合语义**。要让逐格循环可观测，value 操作数必须是
+`@`（`CSCurrent.java:23-28` 返回 `getCurrent().getValue(false)`）；若 value 是常量，
+每轮 `setCurrent` 后求值仍得同一值。
+
+### 21.2 探针 14 形态（`ProbeListRange.java`）
+
+```bash
+CP="F:/project/report/reportlite/lib/*;F:/project/report/rpx/tests/fixtures/out"
+F:/project/report/common/jre/bin/java.exe -cp "$CP" rpx.fixtures.ProbeListRange > _probe_listrange_raw.txt
+python _mk_listrange_summary.py   # → _probe_listrange_summary.txt（GBK 解码后的可读摘要）
+```
+
+| 公式 | (2,3) 值 | 对照（else 形态） |
+|------|---------|------------------|
+| `sum(@:[B2:B4])` / `sum(@:(B2:B4))` | `Integer(420)` | `sum(B2:B4)` = `100` |
+| `max(@:[B2:B4])` / `max(@:(B2:B4))` | `Integer(200)` | `max(B2:B4)` = `100` |
+| `min(@:[B2:B4])` / `min(@:(B2:B4))` | `Integer(100)` | `min(B2:B4)` = `100` |
+| `avg([B2:B4]:@)` / `avg((B2:B4):@)` | `Double(140.0)` | `avg(B2:B4)` = `Double(120.0)` |
+
+**2 项反序对照报错**（List 落到 value 位置 ⇒ cellSet 退化为单格、`@` 求值触发自引用）：
+`sum([B2:B4]:@)`、`avg(@:[B2:B4])` →
+`ReportError: 单元格：C2中有错误，C2-C2-C2存在循环引用`。
+
+### 21.3 第 15 个产品夹具
+
+```bash
+F:/project/report/common/jre/bin/java.exe -cp "$CP" rpx.fixtures.GenEngineFixtures --verify .
+# → PASS engine_listrange: 5518 bytes round-trip to expected.json
+# → VERIFY OK: 15 engine fixtures generated   (exit 0)
+```
+
+形状 `("engine_listrange", 5, 6, 5, 6, 19, 19, 0)`：模板 5×6、计算态 5×6、19 格**全带 source**
+（无扩展、无合并 ⇒ 双矩阵重合）。12 条公式 = 三形态 × 四函数，C 列 `[A:B]`、D 列 `(A:B)`、
+E 列 else 对照。CSV 复用 `EngineModelsRange.rows()`（B 列 100/200/120，与 `engine_avgrange` 同源）。
+
+### 21.4 Rust 落地
+
+| 文件 | 内容 |
+|------|------|
+| `crates/rpx-engine/src/expr/cellset.rs`（新，125 行） | `CellSet::Single/Many` + `eval_cellset()` + `rect_cells()`（`Link._$1:78-89` ≡ `ValueList._$1:112-119` 的遍历：左端格**自身**坐标取 top/left、右端 `+rowMerge-1` 取 bottom/right、命中判据 `cell_pos == (i,j)` 排除别名槽、每格 `testValue()` 门） |
+| `crates/rpx-engine/src/expr/eval.rs` | `sum_link` / `region_aggregate` → 统一的 `region_loop` + `region_accumulate`；avg 的操作数反转保留在 `region_aggregate`（换 index，不复制循环） |
+| `crates/rpx-engine/src/calc/ctx/eval_ctx.rs` | 新增 5 个方法：`cell_at`（`by_pos`，计算矩阵）/ `cell_pos` / `row_merge` / `col_merge` / `test_value_gate`（转发 `cell_eval::test_value`，与 `cell_value_checked` 同出口） |
+| 测试台账 | `loader.rs` 15 名 / `fixture_loader.rs` GRID 14 + SHAPE 14 行 / `expr_state_tripwire.rs` `TOTAL_FORMULAS` 78→**90** |
+
+**⚠ 两处忠实性修正（同一轮内发现并修掉，均由合成钉子钉住）**：
+
+1. **累积槽位的 null 语义**：`Max/Min` 的 List 分支里产品写
+   `result = Variant2.getSingleValue(obj)`（`Max.java:163` / `Min.java:163`），取到 `null` 时
+   `result` 变 **Java null** ⇒ 下一轮 `result != null` 为假、走「无条件重新初始化」分支。
+   首版 Rust 写成 `Some(Value::Null)`（下轮会走比较分支）——**语义分叉**，已改为 `Option`
+   的 `None`（`if take_b { b } else { Some(a) }`，`b` 为 `None` 即"槽位为空"）。
+2. **`aggregate_cmp` 缺 null 分支**（由 ① 的合成钉子暴露）：产品 `compare2:419-424` 的
+   null 判定在**最前面**（`(null,null)=0`、`(null,x)=-1`、`(x,null)=1`），而 `num.rs::aggregate_cmp`
+   原先遇 null 报 `UnsupportedExpr` —— 空 List 元素路径必踩。已补三支。
+
+**合成钉子**：`tests_aggregate.rs` ⑫ `region_min_reinitializes_after_a_null_slot_instead_of_comparing`
+（序列 `[100, 空List, 50]`，产品 min = **50**；旧写法会得 null）。为此给 `Fake` 补了区域几何
+（`FCell.row/col` + `Fake::set_pos` + `impl EvalCtx` 的 `cell_at`/`cell_pos`）。
+**变异验证（承重证明）**：把 `eval.rs` 改回旧写法 `Some(if take_b { b.unwrap_or(Value::Null) } else { a })`
+⇒ **仅该条单独变红**（245 passed / 1 failed），改回后 246 全绿、md5 复原。
+
+可达条件（元素是「空 List 或首元素为 null 的 List」）**产品夹具无此形态** ⇒ 属已声明边界
+（`docs/m2-engine-design.md` §14.6 ⑤.4/⑦）。
+**同族未改**：`num_cmp`（`<`/`>`）的 null 分支仍缺 —— 无夹具、跨 AC 线，已在 §14.6 ⑦ 声明。

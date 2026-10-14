@@ -2,7 +2,7 @@
 //!
 //! # 这条链路验收什么
 //!
-//! 对 14 个引擎夹具各跑一遍：「`.rpx` 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
+//! 对 15 个引擎夹具各跑一遍：「`.rpx` 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
 //! → `emit::render_document()` 渲染成 `expected.json` 同 schema 的 JSON」，再交给
 //! [`common::compare_actual_text`] 与夹具**逐格**比（值 / 类型 / `disp_value` /
 //! `source` 的 6 个子字段 / `sub_values` / `left_head` / `top_head` / 网格尺寸 /

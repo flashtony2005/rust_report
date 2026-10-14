@@ -59,6 +59,9 @@ final class EngineModels {
 		if ("engine_avgrange".equals(name)) {
 			return EngineModelsRange.avgRangeFixture();
 		}
+		if ("engine_listrange".equals(name)) {
+			return EngineModelsListRange.listRangeFixture();
+		}
 		if ("engine_collate".equals(name)) {
 			return EngineModelsCollate.collateFixture();
 		}
@@ -255,6 +258,9 @@ final class EngineModels {
 			return EngineModelsP0.sameRows();
 		}
 		if ("engine_avgrange".equals(fixture)) {
+			return EngineModelsRange.rows();
+		}
+		if ("engine_listrange".equals(fixture)) {
 			return EngineModelsRange.rows();
 		}
 		return new String[][] { { "North", "100" }, { "East", "200" },

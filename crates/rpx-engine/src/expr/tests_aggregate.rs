@@ -10,6 +10,7 @@
 //! 故每条差别都单开一条用例。
 
 use super::tests_eval::Fake;
+use crate::arena::CellId;
 use crate::expr::ds::DataSet;
 use crate::expr::eval::evaluate;
 use crate::expr::parse;
@@ -277,4 +278,38 @@ fn sum_list_unwraps_single_value_like_java() {
         evaluate(&parse("sum(ds1.select(qty))").unwrap(), &mut f).unwrap(),
         Value::Int(3)
     ));
+}
+
+/// ⑫ **区域 List 形态的「null 槽位」语义**（`Min.java:157-165`，`Max.java` 同形）。
+///
+/// 产品在累积处写 `result = Variant2.getSingleValue(obj)`：元素是**空 List** 时
+/// `getSingleValue` 返回 `null` ⇒ `result` 变 **Java null**，下一轮 `result != null`
+/// 判假 ⇒ 走「无条件重新初始化」，**不是**拿 null 去比较。
+///
+/// 序列 `[100, 空List, 50]` ⇒ 产品 `min` = **50**。
+/// ⛔ 反例：若把 null 槽位记成 `Some(Value::Null)`，下一轮会走比较分支 ——
+/// `compare2(null, 50) = -1`（`Variant2.java:446-448`）而 `Min` 的
+/// `if (compare(result, obj) <= 0) continue;` 判**真** ⇒ 保持 null ⇒ 返回 `null`。
+/// 本仓曾如此实现，2026-10-14 按源码改成 `Option::None`（`eval.rs` 的注释有推导）。
+///
+/// 可达条件（元素是「空 List 或首元素为 null 的 List」）**产品夹具无此形态**
+/// ⇒ 本条是**合成钉子**，与 `docs/m2-engine-design.md` §14.6 的缺口声明配套。
+#[test]
+fn region_min_reinitializes_after_a_null_slot_instead_of_comparing() {
+    let mut f = Fake::new();
+    let b2 = f.put("B2", 16, Value::Int(100));
+    let b3 = f.put("B3", 16, Value::List(Vec::new()));
+    let b4 = f.put("B4", 16, Value::Int(50));
+    // 区域遍历按计算态坐标收集（`Link._$1:83` 的 getCell(i,j)），
+    // 夹具侧由 `engine_listrange` 覆盖同一路径；这里只补"空 List 元素"这一形态。
+    f.set_pos(b2, 2, 2);
+    f.set_pos(b3, 3, 2);
+    f.set_pos(b4, 4, 2);
+    f.reg_top(CellId::ROOT, b2);
+    f.reg_top(CellId::ROOT, b4);
+    // 端点解析与 `@` 都以 current 为基准（`saveCurrent` 发生在区域入口
+    // `Sum.java:150`，由 `region_loop` 自己调，这里只需把 current 摆对）。
+    f.set_cur(b2);
+    let e = parse("min(@:[B2:B4])").unwrap();
+    assert_eq!(evaluate(&e, &mut f).unwrap(), Value::Int(50));
 }

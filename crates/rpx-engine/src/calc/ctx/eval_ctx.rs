@@ -129,12 +129,9 @@ impl EvalCtx for CalcCtx {
         // testValue()**（`:334`）—— 未算的格被引用 ⇒ 挂起 chase / 二次引用 ⇒
         // CIRCLE。字面量格因阶段 B 已置 bit30 而直接放行（`stage_b` 值写入注释）。
         // 挂起搭载在 [`EngineError::Suspend`] 上穿过求值器（`error.rs` 文档），
-        // 由 `cell_calculate` 的出口还原成 `Flow::Suspend`。
-        use crate::error::EngineError;
-        crate::calc::cell_eval::test_value(self, c, 0).map_err(|f| match f {
-            crate::eval::Flow::Suspend(s) => EngineError::Suspend(s),
-            crate::eval::Flow::Fatal(e) => e,
-        })?;
+        // 由 `cell_calculate` 的出口还原成 `Flow::Suspend`。同一道门由
+        // [`EvalCtx::test_value_gate`] 转发（收集期 `testValue` 调用点）。
+        self.test_value_gate(c)?;
         Ok(self.value_of(c))
     }
 
@@ -148,6 +145,44 @@ impl EvalCtx for CalcCtx {
         } else {
             Some(c)
         }
+    }
+
+    fn cell_at(&self, row: i32, col: i32) -> Option<CellId> {
+        // `ExtCellSet.getCell(row, col)`（`_$26` 计算矩阵）。⛔ 与
+        // [`EvalCtx::source_by_id`] 查的**不是同一张矩阵**：那个查引擎矩阵
+        // `_$25`（模板态），这个查计算矩阵（扩展后、含实例格）—— 矩形遍历
+        // （`Link._$1:83`）读的是后者。
+        self.grid.by_pos.get(&(row, col)).copied()
+    }
+
+    fn cell_pos(&self, c: CellId) -> (i32, i32) {
+        // `ExtCell.getRow()/getCol()`：格的**自身**计算态坐标。`_$26` 里的合并
+        // 延续槽是指向锚点的别名 ⇒ 自身坐标 ≠ 遍历坐标，被 `rect_cells` 跳过
+        // （`Link.java:84` 的 `cell.getRow() != i || cell.getCol() != j`）。
+        self.grid.get(c).map(|h| (h.row, h.col)).unwrap_or((0, 0))
+    }
+
+    fn row_merge(&self, c: CellId) -> i32 {
+        // `getRowMerge()`：矩形**右端点**要加它才是 bottom（`Link.java:73`）。
+        // 越界 id 返回 1（与 `HeadCell::default` 的初值一致，不制造幻影跨度）。
+        self.grid.get(c).map(|h| h.row_merge).unwrap_or(1)
+    }
+
+    fn col_merge(&self, c: CellId) -> i32 {
+        // 同 `row_merge`，取 right（`Link.java:73`）。
+        self.grid.get(c).map(|h| h.col_merge).unwrap_or(1)
+    }
+
+    fn test_value_gate(&mut self, c: CellId) -> crate::error::Result<()> {
+        // 收集期 `cell.testValue()`（`Link.java:85` / `ValueList.java:116`）——
+        // 依赖驱动的 chase 求值 / 循环检测由此触发。转发到
+        // `cell_eval::test_value`（与 [`EvalCtx::cell_value_checked`] 同一出口：
+        // `Flow::Suspend` 搭载进 `EngineError::Suspend` 穿过求值器）。
+        use crate::error::EngineError;
+        crate::calc::cell_eval::test_value(self, c, 0).map_err(|f| match f {
+            crate::eval::Flow::Suspend(s) => EngineError::Suspend(s),
+            crate::eval::Flow::Fatal(e) => e,
+        })
     }
 
     fn ds(&mut self, name: &str) -> Option<&mut DataSet> {

@@ -1,0 +1,23 @@
+# `ProbeListRange.java` 原始输出的关键行摘要（被测公式写在 (2,3) 格）
+#
+# 证据链：全量 dump 见 `_probe_listrange_raw.txt`；本文件由
+# `_mk_listrange_summary.py` 提取，**未手改**（raw 里的产品错误消息是 GBK 字节，
+# 本文件已按 GBK 解码，其余为 ASCII）。
+#
+# === 12 项成功：公式 -> (2,3) 的计算值 ===
+[LIST sum(B2:B4)] (2,3) value=Integer(100) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(100)}
+[LIST avg(B2:B4)] (2,3) value=Double(120.0) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Double(120.0)}
+[LIST max(B2:B4)] (2,3) value=Integer(100) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(100)}
+[LIST min(B2:B4)] (2,3) value=Integer(100) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(100)}
+[LIST sum(@:[B2:B4])] (2,3) value=Integer(420) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(420)}
+[LIST max(@:[B2:B4])] (2,3) value=Integer(200) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(200)}
+[LIST min(@:[B2:B4])] (2,3) value=Integer(100) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(100)}
+[LIST avg([B2:B4]:@)] (2,3) value=Double(140.0) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Double(140.0)}
+[LIST sum(@:(B2:B4))] (2,3) value=Integer(420) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(420)}
+[LIST max(@:(B2:B4))] (2,3) value=Integer(200) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(200)}
+[LIST min(@:(B2:B4))] (2,3) value=Integer(100) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Integer(100)}
+[LIST avg((B2:B4):@)] (2,3) value=Double(140.0) src=(2,3) rowMerge=1 colMerge=1 extend=17 subCells=1 {(2,3) Double(140.0)}
+#
+# === 2 项反序对照：报循环引用（List 落到 value 位置，cellSet 退化为单格）===
+[LIST sum([B2:B4]:@)] FAIL: com.raqsoft.commonl.ReportError: : 单元格：C2中有错误，C2-C2-C2存在循环引用
+[LIST avg(@:[B2:B4])] FAIL: com.raqsoft.commonl.ReportError: : 单元格：C2中有错误，C2-C2-C2存在循环引用

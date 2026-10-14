@@ -29,6 +29,12 @@ pub(crate) struct FCell {
     exts: Vec<CellId>,
     ext: i8,
     val: Value,
+    /// 计算态坐标（`ExtCell.getRow()/getCol()`，即 `_$26` 的位置）。
+    /// 默认 `(0,0)`；只有区域遍历（[`EvalCtx::cell_at`]/[`EvalCtx::cell_pos`]）
+    /// 会读它，由 [`Fake::set_pos`] 登记 —— 普通用例不登记即为 `(0,0)`，
+    /// 因为不登记时那些用例根本不走区域遍历。
+    row: i32,
+    col: i32,
 }
 
 pub(crate) struct Fake {
@@ -50,6 +56,8 @@ impl Fake {
             exts: Vec::new(),
             ext: 19,
             val: Value::Null,
+            row: 0,
+            col: 0,
         };
         Fake {
             cells: vec![root],
@@ -71,6 +79,8 @@ impl Fake {
             exts: Vec::new(),
             ext,
             val,
+            row: 0,
+            col: 0,
         });
         if !id.is_empty() {
             self.by_id.insert(id.to_string(), cid);
@@ -89,6 +99,8 @@ impl Fake {
             exts: Vec::new(),
             ext,
             val,
+            row: 0,
+            col: 0,
         });
         cid
     }
@@ -108,6 +120,15 @@ impl Fake {
     /// 拨当前格指针（`_$21`）。兄弟测试模块不用直接摸 `cur` 字段。
     pub(crate) fn set_cur(&mut self, c: CellId) {
         self.cur = c;
+    }
+    /// 登记格的**计算态坐标**（`ExtCell.getRow()/getCol()`）。
+    ///
+    /// 区域遍历（`Link._$1:83` 的 `getCell(i,j)` + `:84` 的
+    /// `cell.getRow() != i || cell.getCol() != j` 排斥判据）靠它定位与去重；
+    /// 不登记时坐标为 `(0,0)` —— 不跑区域遍历的用例无需关心。
+    pub(crate) fn set_pos(&mut self, c: CellId, row: i32, col: i32) {
+        self.cells[c.0 as usize].row = row;
+        self.cells[c.0 as usize].col = col;
     }
     /// 注册数据集。`tests_aggregate` 等兄弟测试模块要造非 Int 列，走这个入口，
     /// 免得为了复用把 `dss` 字段公开出去。
@@ -164,6 +185,18 @@ impl EvalCtx for Fake {
     }
     fn source_by_id(&self, id: &str) -> Option<CellId> {
         self.by_id.get(id).copied()
+    }
+    fn cell_at(&self, row: i32, col: i32) -> Option<CellId> {
+        // `_$26` 计算矩阵的 (row,col) → 格。假网格规模小，线性扫即可
+        // （生产实现走 `by_pos` 索引，见 `calc/ctx/eval_ctx.rs`）。
+        self.cells
+            .iter()
+            .position(|c| c.row == row && c.col == col)
+            .map(|i| CellId(i as u32))
+    }
+    fn cell_pos(&self, c: CellId) -> (i32, i32) {
+        let f = &self.cells[c.0 as usize];
+        (f.row, f.col)
     }
     fn ds(&mut self, name: &str) -> Option<&mut DataSet> {
         self.dss.iter_mut().find(|d| d.name == name)

@@ -149,14 +149,28 @@ pub(crate) fn val_eq(a: &Value, b: &Value) -> bool {
 
 /// `max` / `min` 的聚合比较：`Variant2.compare2`（`:418-458`）的**可排序子集**。
 ///
-/// 与 [`num_cmp`] 的两点差别：
+/// 调用方负责解包：产品走 `Variant2.compare`（`:364-368`）＝
+/// `compare2(getSingleValue(a), getSingleValue(b))`；本仓由调用点做 `single_value`
+/// （`eval.rs::unwrap_single` / `dsfn.rs` 的 DS 极值）。
 ///
-/// 1. 多一支 `Bool-Bool`（`compare2:453-455` → `compare(boolean,boolean):351-359`，
+/// 与 [`num_cmp`] 的三点差别：
+///
+/// 1. **null 分支**（`compare2:419-424`，**先于**类型分派）：`(null,null)=0`、
+///    `(null,x)=-1`、`(x,null)=1`。区域比较会走到它 —— `Max/Min._$1:159` 的
+///    `Variant2.compare(result, obj)` 里 `obj` 是**原始对象**，元素是空 List 时
+///    解包得 null（`Value::List(vec![])` ⇒ `single_value` → `None`）。
+/// 2. 多一支 `Bool-Bool`（`compare2:453-455` → `compare(boolean,boolean):351-359`，
 ///    `false < true`）；
-/// 2. `Text-Text` 走产品字典序 [`crate::collation::compare_text`]（`compare2:425-427` 的
+/// 3. `Text-Text` 走产品字典序 [`crate::collation::compare_text`]（`compare2:425-427` 的
 ///    String 分支 → `ChineseComparator`，即 `reportlite/lib/reportlite.jar!`
 ///    `/com/raqsoft/commonl/rule.txt` → JDK `RuleBasedCollator`）。复刻依据与坑见
 ///    `docs/m2-collation.md`。
+///
+/// ⚠ **未建模的同族缺口（已声明，勿当成"顺手统一"）**：[`num_cmp`]（`<`/`>`/
+/// `<=`/`>=` 用）**没有** null 分支，而产品那些运算符同样走 `Variant2.compare`
+/// （`operator/Smaller.java:40` 等）⇒ 表达式的操作数为 null 时本仓报
+/// `UnsupportedExpr`、产品按上面 (1) 返回定义值。**无夹具**，故本轮不动它
+/// （登记位置：`docs/m2-engine-design.md` §14.6 的缺口清单）。
 ///
 /// ⚠ 本函数**继承** `to_f64` 的全部数值语义，即 `merge/tripwire.rs` 记录的
 /// 7 处分歧在这里同样成立：`Decimal` 与数值混比会报错（分歧 A 的后果）、
@@ -164,6 +178,10 @@ pub(crate) fn val_eq(a: &Value, b: &Value) -> bool {
 /// **修 `to_f64` 时必须连这些一起重核。**
 pub(crate) fn aggregate_cmp(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
     match (a, b) {
+        // `compare2:419-424`：null 判定在**最前面**，先于 String/Number/Date/Bool 分派。
+        (Value::Null, Value::Null) => Ok(std::cmp::Ordering::Equal),
+        (Value::Null, _) => Ok(std::cmp::Ordering::Less),
+        (_, Value::Null) => Ok(std::cmp::Ordering::Greater),
         (Value::Bool(x), Value::Bool(y)) => Ok(x.cmp(y)),
         (Value::Text(x), Value::Text(y)) => Ok(crate::collation::compare_text(x, y)),
         _ => num_cmp(a, b),
