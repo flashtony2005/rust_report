@@ -1,4 +1,4 @@
-# Spec — ReportLite Rust 重实现 · M3（rpx-ds 数据源 + rpx-server 主链路）v0.1
+# Spec — ReportLite Rust 重实现 · M3（rpx-ds 数据源 + rpx-server 主链路）v0.2
 
 > 状态：**阶段 0 立档**（2026-10-14）。上游：M2 已按「务实路」定案（`spec-m2.md` §6.2 末条）。
 > 设计蓝图（L1 层）：`docs/reportlite-rust全链路设计.html` 的 **§七（数据源）/ §八（服务端 API）**；
@@ -37,14 +37,17 @@ M3 = 把 M1/M2 的**库能力**变成可用的**服务**：
 | M3-05 | `rpx-server`：axum 路由 + `POST /render` 主链路                                 | 新 crate                   |
 | M3-06 | 分页真实口径：`/render` 按 `print_setup` 驱动 `pagination`（探针口径仅为对拍保留）               | `rpx-engine` 接口 + server 接线 |
 | M3-07 | 门禁扩展（G1–G7 覆盖新 crate + 依赖分层 G5）+ e2e 冒烟                                  | `scripts/gate.sh` + tests |
-| M3-08 | 快照协议：Univer `IWorkbookData` 映射（含**样式直通**；动态样式宏后置）                            | server                    |
+| M3-08 | 快照协议：Univer `IWorkbookData` 映射（含**样式直通**；动态样式宏后置）⚠ **提为关键路径，v1 先行**（契约已定 `spec-m4.md` §4） | `rpx-server`（dev bin 先出，HTTP 后接） |
 
 ### 2.2 明确不做
 
 - **不做远端同步 / replica**：libSQL 只用本地单文件（`new_local`）——蓝图 §7.1 的部署边界：
   单实例、私有化、离线可用。
 - **不做鉴权体系**：私有化单实例内网部署；如后续需要再立任务。
-- **不做 Univer 前端**（M4）、**不做 xlsx/PDF 导出**（M5）、**不做 BigEngine 大报表分页**（M6）。
+- **M4（Univer 前端）并行推进**（2026-10-14 总监令「M3 M4 一起推进，这样可以看到报表显示」；
+  前端立档 `docs/spec-m4.md`）——本 M3 spec 仍不产前端代码，但 **M3-08 快照 v1 提为关键路径**
+  （M4 的唯一输入接口；开发期由 `rpx-server` dev bin 直出，见 `spec-m4.md` §2/§6）。
+- **不做 xlsx/PDF 导出**（M5）、**不做 BigEngine 大报表分页**（M6）。
 - **不实现样式宏**（`_$9()` / 图表宏 / `perfect`）：快照先做**模板静态属性直通**；
   动态样式宏与 M2-22 残余同账（见 §5）。
 
@@ -54,7 +57,7 @@ M3 = 把 M1/M2 的**库能力**变成可用的**服务**：
 
 ```text
 rpx-core ── rpx-engine ──┬── rpx-cli（已有，M1/M2 对拍入口）
-   │                     └── rpx-server（新，axum）
+   │                     └── rpx-server（新，已立骨架：快照映射 + dev bin；axum/http 后接）
    └── rpx-ds（新，数据源层）
 ```
 
@@ -135,8 +138,9 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | 0  | 本档 + 参数通道设计 + `rpx-ds` 设计评审               | 本文件经总监确认              |
 | 1  | M3-01 参数通道（引擎侧，不依赖新 crate）                 | 参数夹具 + 单测 + 对拍        |
 | 2  | M3-02 GBK + M3-03 `rpx-ds` + M3-04 资产库     | `rpx-ds` 单测 + 取数冒烟    |
-| 3  | M3-05 `/render` + M3-06 真实口径 + M3-08 快照    | e2e 冒烟                |
+| 3  | M3-05 `/render` + M3-06 真实口径（+ M3-08 接 HTTP） | e2e 冒烟                |
 | 4  | M3-07 门禁扩展 + 验收                           | G1–G7 扩展后全绿           |
+| ∥  | **并行轨 M4**（`docs/spec-m4.md`）：M3-08 v1 先行 → 脚手架 → Univer 装载 → HTTP 联调 | **浏览器看到报表**（M4-01..03） |
 
 ## 8. 已知坑与待验证项
 
@@ -156,3 +160,4 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | 日期         | 变更                       | 原因                                                          |
 | ---------- | ------------------------ | ----------------------------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead，阶段 0）  | 总监批准「务实路」后启动 M3；本档承接 `spec-m2.md` §6.2 的准入 v2；阶段 0 出口 = 本文件经总监确认 |
+| 2026-10-14 | v0.2：M4 并行推进 + M3-08 提关键路径 | 总监令「M3 M4 一起推进，这样可以看到报表显示」；前端立档 `docs/spec-m4.md`，快照契约 v1 已定 |

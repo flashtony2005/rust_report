@@ -2503,3 +2503,66 @@ E 列 else 对照。CSV 复用 `EngineModelsRange.rows()`（B 列 100/200/120，
 | `pager.rs` | 465 | `pub use arith::{paper_size_pt, unit_to_pt}` / `pub use guard::ensure_supported` 保持原外部路径不变 |
 
 `fits` / `breaks` 用 `pub(super)`：`pager.rs` 与 `pager/tests.rs` 均可见，外部不可见。
+
+## 23. M3/M4 并行推进：快照映射 v1 落地 + M4 前端脚手架（2026-10-14）
+
+### 23.1 决策：M3 与 M4 并行（总监令）
+
+> 「M3 M4 一起推进，这样可以看到报表显示」
+
+- **排期变更**：M3-08（快照协议）从 P1 后置**提为关键路径**——它是 M4 的唯一输入接口
+  （M4 立档 `docs/spec-m4.md`；M3 spec 同步改 v0.2）。
+- **两条数据管道**：开发期 `rpx-server snapshot`（本地文件）→ 生产 `POST /render`
+  （同一条 `snapshot::build` 代码）；前端开发不被 axum/libSQL 阻塞。
+
+### 23.2 快照契约 v1（字段名以 Univer 官方类型定义为准）
+
+2026-10-14 逐条核对 docs.univer.ai 六页：`IWorkbookData` / `IWorksheetData` /
+`ICellData` / `IStyleData` / `HorizontalAlign` / `VerticalAlign`。要点：
+
+| 项 | 结论（易错点） |
+|----|---------------|
+| `mergeData` / `cellData` / `rowData` / `columnData` | 官方字段名如此（**不是** `merges`/`colData`——第三方教程有误） |
+| `ht` / `vt` | **数字枚举**：h `-48→1(L)` `-47→2(C)` `-46→3(R)` `-45→4(JUST)` `-44→6(DIST)`；v `-32→1` `-31→2` `-30→3` |
+| `t`（CellValueType） | 1/2/3/4；文本一律 4=FORCE_STRING（防 "00123" 被推断成数字） |
+| 坐标 | Univer 0 起；引擎 `CalcCell`/`MergedCell` 1 起 ⇒ `-1` 转换 |
+
+全套映射表与声明近似（mm→px 96dpi、Decimal 丢尾零、NaN→null）见 `docs/spec-m4.md` §4/§7。
+
+### 23.3 `rpx-server` 落地（M3-08 v1）
+
+- 新 crate（`crates/rpx-server`）：`snapshot.rs` + `snapshot/{value,style,geom,tests}.rs` + `main.rs`（dev bin）。
+- 命令行：`rpx-server snapshot <file.rpx> [-o out.json]`（与 `spec-m3.md` §3.2 主链路 ①-⑩ 同构，
+  ①从文件而非 libSQL）。
+- **首个第三方依赖**：`serde_json`——G5 受审层登记（`dep_allowlist.txt` + `code-review.md` §3.2 表首行）。
+- 位置依据：快照的最终归属是 server（M3-05 只加 axum 路由，不动映射代码）。
+
+### 23.4 `mergeData` 锚点恢复：初版算法被实证证伪（重要教训）
+
+- 初版思路「过滤被其他跨度覆盖的槽」→ 端到端测试实测 **4 条（应 6 条）**：
+  延续槽 `(3,1,2,1)` 携带整块跨度 2，把下一块的真锚点 `(4,1)`/`(6,1)` "覆盖"掉了
+  ⇒ **单槽无法推断锚点**（相邻块接续时本质歧义）。
+- 现算法（`geom.rs`）：**矩形槽集不变式 → 贪心消费 + 逐格校验**（游标槽必为新块最小槽；
+  网格缺槽/重叠 ⇒ `Err`，不静默）。
+- 三个测试钉死：`engine_merge` **12 槽 → 6 锚点**（逐块坐标）/
+  `engine_samemerge` **4 槽 → 2 锚点**（该夹具跨度只在 `merged` 段可见——误用 `source` 段必红）/
+  负路径（缺槽报错）。
+- 教训入库：**映射算法必须端到端跑真实夹具**——7 个单测全绿也没拦住这个 bug。
+
+### 23.5 M4 前端脚手架（web/）
+
+- 栈：Vite 8.3.4 + React 19 + TS；Univer **1.0.4**（`@univerjs/presets` + `@univerjs/preset-sheets-core`；
+  官方包结构核对：`lib/index.css` / `locales/zh-CN`（`export default`）/
+  `createUniver → { univer, univerAPI: FUniver }`）。
+- `src/report.ts`（装载）+ `src/App.tsx`（UI）+ `vite.config.ts`（端口 5288；**不用 StrictMode**——
+  effect 双执行会二次 `createUniver` 到同一 canvas 容器）。
+- 校验：`tsc --noEmit` **0 错误**；`vite build` **exit 0**（2.57s；主包含 Univer 6.6MB 属正常）。
+- 待验证：真实浏览器截图（playwright 需 `--browser=chromium` 且下载 chrome-for-testing-1247；
+  本机 `npx` 不可用、系统无 Chrome）。
+
+### 23.6 快照实测（`engine_merge`，`rpx-server snapshot`）
+
+- `mergeData` 6 条（0 起坐标）：`(1,0)-(2,0)` / `(1,2)-(1,3)` / `(3,0)-(4,0)` / `(3,2)-(3,3)` / `(5,0)-(6,0)` / `(5,2)-(5,3)`。
+- `rowData` 行高 30.24px（8mm）、`columnData` 列宽 94.49px（25mm）。
+- `cellData`：`"region"` → `t:4`；`100` → `t:2`；样式含 `ff:"宋体"` `fs:12` `ht:1` `vt:2` `cl/bg` 色。
+- 产物：`tests/fixtures/out/engine_merge.snapshot.json`（2.4KB）。

@@ -15,3 +15,5 @@
 # 目前为空：M1/M2 的 crate 全在零依赖层，尚无第三方依赖。
 # M3 起（rpx-ds / rpx-export / rpx-server / rpx-print）在这里逐条登记，
 # 每条都要在 docs/code-review.md §3.2 的表格里写明「谁 + 为什么 + 替代方案为何不行」。
+
+rpx-server serde_json

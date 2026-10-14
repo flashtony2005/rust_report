@@ -1,0 +1,25 @@
+{
+  "name": "rpx-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "rpx 报表前端（M4）：Univer 装载服务端快照 JSON（契约 docs/spec-m4.md §4）",
+  "scripts": {
+    "dev": "vite --port 5288 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 5288 --strictPort"
+  },
+  "dependencies": {
+    "@univerjs/preset-sheets-core": "^1.0.4",
+    "@univerjs/presets": "^1.0.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  }
+}

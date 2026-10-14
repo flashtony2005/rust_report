@@ -29,5 +29,13 @@
 Thumbs.db
 *.swp
 
+# web/（M4 前端）：依赖与构建产物不入库
+/web/node_modules
+/web/dist
+# dev bin 产物（`rpx-server snapshot` 输出，可随时重生成）
+/web/public/snapshot.json
+# playwright 会话输出（验证用，可重生成）
+/web/.playwright-cli
+
 # 本机 agent 会话记忆（不入库）
 .workbuddy-ai/

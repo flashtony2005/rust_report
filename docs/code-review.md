@@ -172,11 +172,11 @@ libsql / sqlx / axum / rust_xlsxwriter / printpdf / nom / rust_decimal。旧 G5 
 | 把 `rpx-cli serde` 登记进白名单 | 绿 | ✅ 绿 |
 | 白名单留一条死条目 | FAIL | ✅ `白名单死条目` |
 
-**受审依赖登记表**（当前为空；M3 起逐条填写）：
+**受审依赖登记表**（M3 起逐条填写）：
 
 | crate | 依赖 | 为什么需要 | 替代方案为何不行 |
 |---|---|---|---|
-| _（空）_ | | | |
+| `rpx-server` | `serde_json` | 快照映射（M3-08 v1）：`CalcGrid` → Univer `IWorkbookData` 的 **JSON 文本**（契约 `docs/spec-m4.md` §4；`/render` 响应体同源） | ① 手写 JSON 序列化：转义 / 浮点 / 大整数边界全靠自证；且 M3-05 的 axum 栈**必然**引入 serde 生态，现在省下的依赖下一个任务就还回去；② 无 std 内建 JSON，替代只有自研 |
 
 ⛔ **不许做的事**：删掉 G5、把 `rpx-core`/`rpx-engine` 挪进受审层、
 或往白名单里塞没写理由的条目。
