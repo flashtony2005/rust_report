@@ -146,6 +146,90 @@ async fn render_http_matches_library_output() {
 }
 
 #[tokio::test]
+async fn pagination_block_is_real_caliber_with_page_ranges() {
+    // M3-06：`/render` 的 `pagination` = **模板真值口径**（纸码表 + 模板边距），
+    // 不是探针的 595×842。契约 `docs/spec-m4.md` §4.5（rpx 扩展键，workbook 顶层）。
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[
+        ("report", Some("engine_gbk.rpx"), &fixture("engine_gbk.rpx")),
+        (
+            "dataset",
+            Some("engine_gbk.csv"),
+            &fixture("engine_gbk.csv"),
+        ),
+    ]);
+    let (status, resp) = post(&addr, body, &ct).await;
+    assert_eq!(status, 200, "响应体：{resp}");
+    let j: serde_json::Value = serde_json::from_str(&resp).unwrap();
+    let pg = &j["pagination"];
+    // 默认 setup（paper=9 A4、边距 19/19/25/25）⇒ 可用 172×247mm ⇒ pt。
+    // Pagination 的 paper_w/h 是 f32 存储 ⇒ 与 f64 真值比到 f32 精度。
+    let expect_w = (172.0 * 72.0 / 25.4) as f32;
+    let expect_h = (247.0 * 72.0 / 25.4) as f32;
+    let got_w = pg["page_w_pt"].as_f64().unwrap() as f32;
+    let got_h = pg["page_h_pt"].as_f64().unwrap() as f32;
+    assert!(
+        (got_w - expect_w).abs() < 1e-3,
+        "page_w_pt 应为 A4 减边距的真值 {expect_w}，实得 {got_w}"
+    );
+    assert!(
+        (got_h - expect_h).abs() < 1e-3,
+        "page_h_pt 应为 A4 减边距的真值 {expect_h}，实得 {got_h}"
+    );
+    // 显然不是探针口径（595×842 零边距）。
+    assert!(
+        (got_w - 595.0).abs() > 1.0 && (got_h - 842.0).abs() > 1.0,
+        "pagination 不应是探针口径"
+    );
+    // 键集与页内结构；row_range/col_range 为 0 起坐标。
+    for key in [
+        "page_w_pt",
+        "page_h_pt",
+        "columns",
+        "page_count",
+        "x_pages",
+        "y_pages",
+        "row_num_per_page",
+        "pages",
+    ] {
+        assert!(pg.get(key).is_some(), "缺 pagination 键 {key}");
+    }
+    let page1 = &pg["pages"][0];
+    assert_eq!(page1["page"], 1);
+    assert!(page1["rows"].as_i64().unwrap() > 0);
+    let rr = page1["row_range"].as_array().unwrap();
+    let cr = page1["col_range"].as_array().unwrap();
+    assert_eq!(rr.len(), 2);
+    assert_eq!(cr.len(), 2);
+    assert!(rr[0].as_i64().unwrap() >= 0, "row_range 应为 0 起");
+    assert!(cr[0].as_i64().unwrap() >= 0, "col_range 应为 0 起");
+}
+
+#[tokio::test]
+async fn engine_error_maps_to_400() {
+    // 引擎错误 → 400 的映射（RenderError::Engine 臂）：engine_param.rpx 的表达式
+    // 用 `@p`（M3-01），不带 params ⇒ 建树期 `UnknownParam`。真值口径守卫
+    // （UnsupportedPaging）走同一映射臂，行为已在引擎侧钉死（pager_guard.rs）。
+    let addr = spawn().await;
+    let (body, ct) = multipart(&[
+        (
+            "report",
+            Some("engine_param.rpx"),
+            &fixture("engine_param.rpx"),
+        ),
+        (
+            "dataset",
+            Some("engine_param.csv"),
+            &fixture("engine_param.csv"),
+        ),
+    ]);
+    let (status, resp) = post(&addr, body, &ct).await;
+    assert_eq!(status, 400, "响应体：{resp}");
+    assert!(resp.contains("\"error\""), "错误体应为 JSON，实得：{resp}");
+    assert!(resp.contains("@"), "错误消息应含未登记参数名，实得：{resp}");
+}
+
+#[tokio::test]
 async fn gbk_csv_decodes_over_http() {
     // M3-02 × M3-05：GBK 字节过 multipart 不得被 UTF-8 化（静默乱码回归网）。
     let addr = spawn().await;

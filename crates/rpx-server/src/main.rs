@@ -85,7 +85,12 @@ fn snapshot_cmd(path: Option<&str>, out: Option<&str>) -> Result<(), Box<dyn std
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
     let ds = rpx_engine::dataset::load_datasets(dir, &rd)?;
-    let grid = rpx_engine::calculate(&rd, &ds)?;
+    let mut grid = rpx_engine::calculate(&rd, &ds)?;
+    // M3-06：与 `/render` 同构——pagination 覆盖为**模板真值口径**（纸码表 + 边距）。
+    // `calculate()` 内的是探针口径（夹具对拍基准），dev bin 不是对拍入口 ⇒ 覆盖。
+    let pg = rpx_engine::pager::paginate_with_setup(&grid, &rd.print_setup)?;
+    grid.page_count = pg.page_count();
+    grid.pagination = Some(pg);
     let name = std::path::Path::new(path)
         .file_stem()
         .and_then(|s| s.to_str())

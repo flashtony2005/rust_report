@@ -71,10 +71,13 @@ pub fn calculate(rd: &ReportDefine, ds: &[DataSet]) -> Result<CalcGrid> {
 /// 一张 `HeadState` 只跑一次（`prepareCalculate` 的改写不可逆，`ctx.rs` 文档）；
 /// 重入守卫 `_$14 <= 4` 在本形态下天然成立（每次新建 ctx，state 从 0 起）。
 pub fn calculate_with(rd: &ReportDefine, ds: &[DataSet], params: &ParamTable) -> Result<CalcGrid> {
-    // 分页支持性守卫（`spec-m2.md` §6.2 带账项）：`pagerStyle != 2` / 多栏配置下，
-    // 本实现的分页会**静默**按 `pagerStyle==2` 单栏分支算（`pager.rs::ensure_supported`）。
-    // 放最前：输入校验失败不跑计算。
+    // 分页支持性守卫（`spec-m2.md` §6.2 带账项 + M3-06 补齐项）：`pagerStyle != 2` /
+    // 多栏配置 / 列区带下，本实现的分页会**静默**按 `pagerStyle==2` 单栏全数据列
+    // 分支算（`pager::ensure_supported` 等守卫）。放最前：输入校验失败不跑计算。
+    // ⛔ 换行回填（-64/-56）**没有静态守卫**——`-64` 是普通格默认类型，任何模板
+    // 都有；核对结论见 `pager/guard.rs` 尾注与 `spec-m3.md` §8。
     crate::pager::ensure_supported(&rd.print_setup)?;
+    crate::pager::ensure_data_columns(rd)?;
     let sb = prepare_calculate(rd, params)?;
     let mut ctx = CalcCtx::new(sb.grid, ds.to_vec());
     run_orchestration(&mut ctx)?;

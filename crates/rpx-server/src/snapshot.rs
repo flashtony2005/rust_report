@@ -61,9 +61,53 @@ pub fn build(rd: &ReportDefine, grid: &CalcGrid, name: &str) -> Result<String, S
         "styles": {},
         "sheetOrder": [sheet_id],
         "sheets": { sheet_id: sheet },
+        // M3-06：`pagination` 是 **rpx 扩展键**（非 Univer `IWorkbookData` 字段，
+        // 前端/Univer 忽略之）：`/render` 的模板真值口径分页观测，
+        // M4-05（翻页）的输入。契约见 `docs/spec-m4.md` §4.5。
+        "pagination": pagination_json(grid),
     });
     Ok(serde_json::to_string(&wb)
         .expect("快照 JSON 序列化失败：value/geom 已过滤非有限数，不应发生"))
+}
+
+/// `pagination` 块（M3-06，契约 `docs/spec-m4.md` §4.5）：workbook 顶层。
+///
+/// `grid.pagination` 是 `render_request` 里刚覆盖过的**模板真值口径**
+/// （纸码表 + 边距；`http.rs` 接线）——不是探针口径。`pages` 的
+/// `row_range`/`col_range` 由引擎 1 起坐标转 **0 起**（与 §4.2 同规）；
+/// ⚠ 页首区带/分组头副本每页重复 ⇒ 相邻页的 `row_range` **可以重叠**（如实）。
+/// `grid.pagination` 为 `None`（手搭网格，HTTP 路径不会发生）⇒ 写 `null`。
+fn pagination_json(grid: &CalcGrid) -> J {
+    match &grid.pagination {
+        None => J::Null,
+        Some(pg) => json!({
+            "page_w_pt": pg.paper_w,
+            "page_h_pt": pg.paper_h,
+            "columns": pg.columns,
+            "page_count": pg.page_count,
+            "x_pages": pg.x_pages,
+            "y_pages": pg.y_pages,
+            "row_num_per_page": pg.row_num_per_page,
+            "pages": pg
+                .pages
+                .iter()
+                .map(|p| {
+                    json!({
+                        "page": p.page,
+                        "rows": p.rows,
+                        "row_range": [
+                            p.row_range.0.saturating_sub(1),
+                            p.row_range.1.saturating_sub(1)
+                        ],
+                        "col_range": [
+                            p.col_range.0.saturating_sub(1),
+                            p.col_range.1.saturating_sub(1)
+                        ],
+                    })
+                })
+                .collect::<Vec<_>>(),
+        }),
+    }
 }
 
 /// `cellData`：`{"r": {"c": ICellData}}`，坐标 **1 起 → 0 起**（`spec-m4.md` §4.2）。

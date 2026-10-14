@@ -2783,3 +2783,59 @@ encoding.rs         include_bytes!("../data/gbk.bin")，二分查找，零运行
 `rewrite: (path) => path.replace(/^\/api/, '')`（`web/vite.config.ts`）。
 教训：proxy 类的 404 要先打路径再打代理组件——「代理没生效」的直觉这次是错的。
 附带记录：vite 不带 `--host 127.0.0.1` 绑 IPv6 `::1`（§7 已记）。
+
+## §27 M3-06 分页真实口径：纸码表 + 双口径分道 + 守卫补齐（2026-10-14 深夜）
+
+### 27.1 两条口径的 Java 事实源（都是 faithful port，不是漂移）
+
+| 口径 | Java 路径 | 页尺寸 |
+|---|---|---|
+| 探针（M2-11 夹具基准） | `CalcJson.renderPages` → `ReportUtils2.getPagerInfo(rpt,595,842,1)`：`setPaperSize`（**置纸码 256=自定义**，`PagerInfo.java:118-121`）+ 清零四边边距（`ReportUtils2.java:107-115`） | 595×842pt 零边距（`paper_size_pt` 复刻 float32 往返） |
+| 模板真值（M3-06，`/render`） | `new PagerInfo(PrintSetup)` **不覆盖**（`PagerInfo.java:43-68`） | 纸码表(80 码) 或自定义字段 → (纸mm − 边距) × 72/25.4（hp=true，`ReportDefine._$16=true`） |
+
+关键实锤：**`setPaperSize` 会把纸码改成 256**——所以探针的 209.9×297.0mm 走 switch
+默认分支（自定义字段），而模板路径按纸码表（9=A4=210×297）。两套算术不同源：
+探针是 pt→mm(f32)→pt；真值的值**本来就以 mm 为单位**（模板槽 9/10），无那次往返。
+orient **不换宽高**（`PagerInfo.getPageFormat` 只写 `PageFormat.setOrientation`，
+SimplePager 走它；`PrintSetup.java:920-935` 那个轮换边距的方法不在链路上）。
+
+实现：`pager/paper.rs`（304 行）—— 纸码表由 `scripts/gen_paper_table.py` 从
+`PrintSetup.java` 两个 switch **生成**（80+80 项，禁手抄；`python3` 的文件访问
+必须走 argv，内联 `-c`/stdin 会被沙箱拦——本轮新坑）。
+
+### 27.2 双口径分道与快照接线
+
+* `calculate()`（夹具路径）保持探针口径 —— 17 夹具的 `pagination` 段对拍**不动**。
+* `pager::paginate_with_setup(grid, ps)`（新）：`usable_page_pt` + `tableColumnNum`
+  + `row_num_per_page` 取模板值，自带 `ensure_supported` 复核与可用尺寸非正检查。
+* `/render`（`http.rs`）与 dev bin（`main.rs snapshot_cmd`）计算后**覆盖** pagination
+  ⇒ 快照 workbook 顶层 `pagination` 块（契约 `spec-m4.md` §4.5，rpx 扩展键）。
+* `PageInfo` 加 `row_range`/`col_range`（emit 逐键序列化不读 ⇒ 对拍输出逐字节不变，
+  `emit/tests.rs` 断言钉死）。
+* 实测：默认 A4 减边距 = 487.559×700.157pt；`engine_sum` 真值下 2 页变 **横向 x=2**
+  （宽 487.6 < 595）；`engine_pager` 行切点不变仍 4 页；`row_range` 页间重叠如实
+  （区带/组头副本每页重复）。
+
+### 27.3 守卫：补了什么、为什么撤了一个
+
+* 补 `tableColumnNum != 1`（`PageBuilder.init1:207` → `pager.setColumns(pi.getTableColumnNum())`
+  —— 多栏的另一个入口，此前只拦 `columnMode`）。
+* 补**列区带**守卫 `ensure_data_columns`：`colType != -79`（`IColCell.java:15-17`，
+  -80 左列头/-78 右列头）显式报错——`split_cols` 固定按 1..=cols，产品 `_$2(r)`
+  会排除区带列。
+* ⛔ **撤掉换行静态守卫**（写完即被 17 夹具全红证伪）：`-64` 是
+  `INormalCell.TYPE_NORMAL`（`INormalCell.java:21`，普通文本格默认类型，任何模板
+  都有大量）——测量分支（`SimplePager._$1:1557-1573`）的条件「值 instanceof String
+  且页内放不下」**都是断页期才知道的事**，静态拦截 = 拒绝所有真实模板。核对结论：
+  运行时风险带账（`guard.rs` 尾注），精确守卫需把模板 cell_type 接进计算网格——记后续带账。
+
+### 27.4 验证矩阵
+
+| 证据 | 结果 |
+|---|---|
+| `paper.rs` 单测 | 4 条：纸码表抽查（A4/Letter/A3/9999）/ 自定义码兜底（含 f32→f64 提升精度）/ 默认 setup 可用尺寸 / 自定义纸+边距 |
+| `pager_guard.rs` | 5 条（原 2 + 新 3）：17 夹具 `ensure_data_columns` 不误伤 / `tableColumnNum=2` 拒绝 / 列区带变异（-80）拒绝 / `paginate_with_setup` 自带守卫复核 |
+| `engine_grid_compare` | 17 夹具全绿——探针口径与对拍**逐字节未变**（`PageInfo` 新字段不进 emit） |
+| `render_http.rs` | 8/8（+2）：`pagination` 块真值断言（487.559/700.157，且非 595×842）+ 0 起坐标 / 引擎错误→400 映射（UnknownParam） |
+| dev bin 冒烟 | `engine_sum` 真值 2 页(横向 x=2)、`engine_pager` 4 页、`engine_gbk` 1 页 |
+| workspace | 全绿（engine 266 lib + 全部集成） |

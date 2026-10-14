@@ -131,6 +131,38 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 
 ⚠ v1 未对拍（产品无 IWorkbookData 夹具）⇒ 前端目测 + 上述夹具级断言为准。
 
+### 4.5 `pagination` 块（M3-06，**rpx 扩展键**，workbook 顶层）
+
+**非 Univer `IWorkbookData` 字段**——前端/Univer 忽略未知顶层键；M4-05（翻页）的输入。
+值来自 `/render` 接线的**模板真值口径**（纸码表 + 模板边距，`pager::paginate_with_setup`；
+探针口径 595×842 是夹具对拍专用，不出现在快照里——双口径见 `pager.rs` 模块文档）。
+
+```json
+"pagination": {
+  "page_w_pt": 487.5590515136719,   // 可用页宽（pt）= (纸mm − 左右边距) × 72/25.4，f32 存储
+  "page_h_pt": 700.157470703125,    // 可用页高（pt）= (纸mm − 上下边距) × 72/25.4
+  "columns": 1,
+  "page_count": 2,
+  "x_pages": 1,
+  "y_pages": 2,
+  "row_num_per_page": 20,
+  "pages": [
+    { "page": 1, "rows": 12, "row_range": [0, 11], "col_range": [0, 8] },
+    { "page": 2, "rows": 12, "row_range": [1, 22], "col_range": [0, 8] }
+  ]
+}
+```
+
+* `row_range` / `col_range`：该页在网格里的足迹，**0 起含端**（与 §4.2 同规）。
+  ⚠ 页首区带（页眉/标题/表头）与分组头副本**每页重复** ⇒ 相邻页的 `row_range`
+  **可以重叠**（如实记录，`engine_pager` 第 2 页起首行 = 分组头副本行）。
+* `row_num_per_page`：模板 `rowNumPerPage` 的**回显**，`pagerStyle==2` 下不参与断页。
+* 守卫：`pagerStyle != 2` / 多栏（`columnMode`/`tableColumnNum`/重复组头）/ 列区带
+  （`colType != -79`）/ 可用尺寸非正 ⇒ HTTP 400（`UnsupportedPaging`）。
+* **换行回填无守卫**（静态不可行）：`-64` 是 `INormalCell.TYPE_NORMAL`（普通格默认
+  类型），测量分支只在「值为 String 且页内放不下」时触发——两个条件都是断页期才知道。
+  运行时风险带账（`pager/guard.rs` 尾注）；含大量长文本换行格的模板切点可能与产品有偏差。
+
 ## 5. 验收标准（EARS）
 
 | 编号    | 功能      | 验收标准                                                                                                                | 级别  |
@@ -181,3 +213,4 @@ cd web && node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5288
 | ---------- | ----------------------- | ------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead）      | 总监令「M3 M4 一起推进，看到报表显示」；M3-08 提为关键路径 |
 | 2026-10-14 | v0.2：**M4-06 闭合**（HTTP 联调） | `fetchSnapshot(files)` 走 `POST /api/render`；静态快照管道退役；工作流 §6 更新；记录 vite 代理剥前缀 + IPv6 绑定两坑（§7）；浏览器实测中文报表全链路 |
+| 2026-10-14 | v0.3：**M4-05 输入就绪**——快照加 `pagination` 块（§4.5，M3-06） | workbook 顶层 rpx 扩展键：真值口径页尺寸 + 逐页 `row_range`/`col_range`（0 起）；换行回填静态守卫不可行的核对结论（`pager/guard.rs` 尾注）；M4-05 从「依赖 M3-06」变为「可直接接线」 |

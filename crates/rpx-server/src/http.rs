@@ -87,7 +87,16 @@ pub fn render_request(req: &form::RenderRequest) -> Result<String, RenderError> 
     }
     let ds = rpx_engine::dataset::load_datasets_with(&rd, |name| req.datasets.get(name).cloned())
         .map_err(RenderError::Engine)?;
-    let grid = rpx_engine::calculate_with(&rd, &ds, &req.params).map_err(RenderError::Engine)?;
+    let mut grid =
+        rpx_engine::calculate_with(&rd, &ds, &req.params).map_err(RenderError::Engine)?;
+    // M3-06：`/render` 的 pagination = **模板真值口径**（纸码表 + 模板边距，
+    // `PagerInfo(PrintSetup)` 路径），覆盖 `calculate_with` 内的探针口径
+    // （595×842 是产品探针覆盖出来的夹具对拍基准——双口径见 `pager.rs` 模块文档）。
+    // 守卫（pagerStyle/多栏/列区带 + 可用尺寸非正）在此再复核一遍，报 400。
+    let pg = rpx_engine::pager::paginate_with_setup(&grid, &rd.print_setup)
+        .map_err(RenderError::Engine)?;
+    grid.page_count = pg.page_count();
+    grid.pagination = Some(pg);
     snapshot::build(&rd, &grid, &req.report_name).map_err(RenderError::Snapshot)
 }
 

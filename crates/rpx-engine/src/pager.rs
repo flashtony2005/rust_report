@@ -7,6 +7,21 @@
 //! 主循环 `SimplePager._$5`（`:274-`），纵向判据/累高 `_$1`/`_$4`（`:1493-1520`），横断 `_$2`（`:1836-1953`、`:2354-2374`）。
 //! 算术钉子：纸张 pt→mm→pt 经 float32（842→841.9999730868603）；高精度默认 true 不逐行 ceil；纵横超界判据均为 `cost > ceil((limit-used)*1000)/1000`。
 //!
+//! # 两种页尺寸口径（M3-06，**算法只有一份**）
+//!
+//! | 口径 | 入口 | 页尺寸 | 消费者 |
+//! | --- | --- | --- | --- |
+//! | 探针 | [`paginate`]（`calculate()` 内） | [`PAPER_W_PT`]/[`PAPER_H_PT`] 常量 595×842pt、零边距、`COLUMNS`=1 | 夹具 `pagination` 段对拍（M2-11 立的基准） |
+//! | 模板真值 | [`paginate_with_setup`]（`/render` 接线） | [`paper::usable_page_pt`]：纸码表 + 模板边距 | 快照 `pagination` 块（`spec-m3.md` §3.2/M3-06） |
+//!
+//! 探针口径是**产品探针自己覆盖出来的**（`ReportUtils2.getPagerInfo` 把纸张改成
+//! 传入的 595×842 并清零边距，`setPaperSize` 置纸码 256=自定义）——夹具的
+//! `pagination` 段记的就是它。两条口径共用 [`split_rows`]/[`split_cols`]，
+//! 差只在页尺寸与 `columns`/`row_num_per_page` 的来源。为何不合并成一条：
+//! 夹具是 M2-11 的对拍基准（探针路径），改了它 17 个夹具全红；而 `/render`
+//! 要的是产品真实路径（模板 `PrintSetup` 原值）。两份口径都有明确的 Java
+//! 事实源，不是漂移。
+//!
 //! # 边界（诚实声明）
 //!
 //! **已实现且与夹具逐页对上**：
@@ -31,11 +46,14 @@
 //! * **行/列不可见与手动分页符** —— 属性表达式先由 `calcProperties` 求值；不可见行仍
 //!   保留在页行序但不计高，列宽记零；row/col `breakPage` 在对应轴强制断页。
 //! * **列区带**（左侧列头 `_$4(currPageRows)` / 右侧列头 `_$3(currPageRows)`）——
-//!   12 个夹具的 `colType` **全是 `-79`**（数据列），左右区带恒为 `null`；
-//!   故数据列范围固定取 `1..=cols`。
-//! * **文本自动换行回填行高**（`_$1(…):1557-1573` 的 `-64`/`-56` 分支）—— 夹具无此类型格。
+//!   夹具的 `colType` 全是 `-79`（数据列），左右区带恒为 `null`；故数据列范围固定取
+//!   `1..=cols`。2026-10-14 起有显式守卫（[`ensure_data_columns`]）。
+//! * **文本自动换行回填行高**（`_$1(…):1557-1573` 的 `-64`/`-56` 分支）—— ⛔ **无守卫
+//!   也不可有**：`-64` 是 `INormalCell.TYPE_NORMAL`（普通格默认类型，任何模板都有），
+//!   测量分支只在「值为 `String` 且页内放不下」时触发——两个条件都是断页时才知道，
+//!   静态拦截会拒绝所有真实模板。核对结论与带账见 `guard.rs` 尾注（M3-06）。
 //! * **多栏布局**（`columns > 1`、`columnMode == 1`、`isColumnRepeatedGroupHeader`）——
-//!   探针固定传 `columns = 1`。⚠ 同受守卫（`columnMode` / 重复组头非默认即报）。
+//!   探针固定传 `columns = 1`。⚠ 同受守卫（`columnMode` / 重复组头 / `tableColumnNum` 非默认即报）。
 //!
 //! # 行高的来源（与 M2-22 的关系）
 //!
@@ -43,17 +61,26 @@
 //! 模板行高，再以 `calcProperties` 写回值覆盖；模板列宽与列属性同理。`engine_rowheight` 的
 //! 17 个计算态行高与产品夹具逐值一致，见 `tests/engine_rowheight_pager.rs`。
 
-use crate::arena::CalcGrid;
-use crate::value::Value;
-
-/// 算术层（[`paper_size_pt`] / [`unit_to_pt`] / 断页条件）——同批拆出。
 mod arith;
-/// 支持性守卫（[`ensure_supported`]）——2026-10-14 拆出（G4 行数门禁）。
 mod guard;
+mod paper;
+mod split;
 
+// `fits` 只被本模块的测试用（算法在 split.rs）—— cfg(test) 引入，免 unused。
+#[cfg(test)]
 use arith::fits;
 pub use arith::{paper_size_pt, unit_to_pt};
-pub use guard::ensure_supported;
+pub use guard::{ensure_data_columns, ensure_supported};
+pub use paper::{paper_height_mm, paper_width_mm, usable_page_pt};
+pub use split::{
+    data_rows, leading_run, split_cols, split_rows, trailing_run, PageRow, PageRowKind, YSplit,
+    ROW_TYPE_GROUP_HEADER,
+};
+
+use crate::arena::CalcGrid;
+use crate::error::{EngineError, Result};
+use crate::value::Value;
+use rpx_core::print_setup::PrintSetup;
 
 /// 探针的纸张口径：`CalcJson.renderPages(ecs, 595, 842, 1)` 的三个实参。
 ///
@@ -68,9 +95,6 @@ pub const PAPER_H_PT: f32 = 842.0;
 pub const COLUMNS: i32 = 1;
 /// `PagerInfo.rowNumPerPage` 的默认值 —— **只回显，不参与断页**（`pagerStyle == 2`）。
 pub const ROW_NUM_PER_PAGE: i32 = 20;
-
-/// `IRowCell.TYPE_GROUP_HEADER`：分组头行。
-pub const ROW_TYPE_GROUP_HEADER: i8 = -90;
 
 /// 一页的观测值（`CalcJson.renderPages` 的 `po` 对象，`tests/fixtures/CalcJson.java:165-175`）。
 #[derive(Debug, Clone, PartialEq)]
@@ -90,14 +114,23 @@ pub struct PageInfo {
     /// [`crate::emit`] 用 `String.valueOf` 补出（判等口径与 `value()` 不同，
     /// 见 `emit/val.rs` 的「两个函数，别混用」）。
     pub col1_values: Vec<Value>,
+    /// 该页在网格里的**行范围**（1 起，含端；页首区带与分组头副本计入）。
+    ///
+    /// M3-06 新增，**只服务快照 `pagination` 块**（`spec-m4.md` §4）：夹具对拍
+    /// 不读它（`emit` 逐键序列化，见 `emit/pagination.rs`），故加字段不影响
+    /// M2-11 立的基准。空页（无区带也无数据行）记 `(0, 0)`。
+    pub row_range: (i32, i32),
+    /// 该页的**列范围**（1 起，含端）—— 横向断页的 `(首列, 末列)`。
+    pub col_range: (i32, i32),
 }
 
 /// `expected.json` 的 `pagination` 段（键序见 `CalcJson.java:177-185`）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pagination {
-    /// 探针传入的纸张宽（pt）—— 原样回显（`JsonObj.put(String, float)`）。
+    /// 该口径下的纸张宽（pt）：探针口径 = 传入的 [`PAPER_W_PT`]；
+    /// 模板真值口径 = [`usable_page_pt`] 的可用宽（`/render` 用）。
     pub paper_w: f32,
-    /// 探针传入的纸张高（pt）。
+    /// 该口径下的纸张高（pt）（[`Self::paper_w`] 同款双口径）。
     pub paper_h: f32,
     /// 横向分栏数。
     pub columns: i32,
@@ -136,299 +169,12 @@ impl Pagination {
     }
 }
 
-/// 一页消耗的行。`kind` 决定它是**数据区行**（按数据序各出现一次）、
-/// **页首区带行**（每页都在页顶出现），还是**分组头副本**。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PageRow {
-    /// 网格行号（1 起）—— 副本记的是它复制自的那一行。
-    pub row: i32,
-    /// 这一行在页内的角色。
-    pub kind: PageRowKind,
-}
-
-/// [`PageRow`] 的角色。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PageRowKind {
-    /// 数据区（`_$18`）内的行，按数据序各出现**一次**。
-    Data,
-    /// 页首区带行（`-93` 页眉 / `-96` 标题 / `-95` 表头），**每页**都在页顶出现
-    /// （`SimplePager._$5:327-349`）。它的高度在页首**一次性**加进 `_$26`。
-    Header,
-    /// 分组头副本（`copyRowTo(..., needclone = true)`）—— 吃页高、也计入该页 `rows`。
-    GroupCopy,
-}
-
-/// 页首区带的行类型，**按页内出现顺序**：页眉（`_$24 = _$4(r, -93)`）→
-/// 标题（`_$22 = _$4(r, -96)`）→ 表头（`_$20 = _$4(r, -95)`）。
-const PAGE_PREFIX_TYPES: [i8; 3] = [-93, -96, -95];
-
-/// 页脚区带的类型：页脚（`_$23 = _$3(r, -92)`）、标题脚（`_$21 = _$3(r, -89)`）、
-/// 表脚（`_$19 = _$3(r, -94)`）。
-///
-/// ⛔ 只加**高度**、不把行复制到页顶（`_$5:329/334/339`）。夹具里三类都不存在
-/// ⇒ 高度恒 0；本 crate 仍按同式累加，以免将来有夹具时静默少算。
-const PAGE_FOOTER_TYPES: [i8; 3] = [-92, -89, -94];
-
-/// 数据区行类型（`SimplePager._$2(r):1318`）：`-91`（普通）与 `-90`（分组头）。
-fn is_data_row_type(t: i8) -> bool {
-    t == -91 || t == -90
-}
-
-/// `_$4(r, rowType)`（`SimplePager.java:1391-1412`）：类型 `t` 的**首个连续段**。
-///
-/// 扫描从第 1 行起；遇到 `t` 记下起点并继续，一旦在起点之后遇到非 `t` 就**跳出**
-/// —— 所以它是"第一个连续段"，不是"所有该类型的行"。
-fn leading_run(types: &[i8], t: i8) -> Option<(i32, i32)> {
-    let mut start: Option<i32> = None;
-    let mut end = 0i32;
-    for (i, &ty) in types.iter().enumerate() {
-        let row = i as i32 + 1;
-        if ty == t {
-            if start.is_none() {
-                start = Some(row);
-            }
-            end = row;
-        } else if start.is_some() {
-            break;
-        }
-    }
-    start.map(|s| (s, end))
-}
-
-/// `_$3(r, rowType)`（`SimplePager.java:1414-1435`）：类型 `t` 的**末个连续段**。
-fn trailing_run(types: &[i8], t: i8) -> Option<(i32, i32)> {
-    let mut end: Option<i32> = None;
-    let mut start = 0i32;
-    for (i, &ty) in types.iter().enumerate().rev() {
-        let row = i as i32 + 1;
-        if ty == t {
-            if end.is_none() {
-                end = Some(row);
-            }
-            start = row;
-        } else if end.is_some() {
-            break;
-        }
-    }
-    end.map(|e| (start, e))
-}
-
-/// `_$2(r)`（`SimplePager.java:1304-1346`）的**行**范围：首个到末个 `-91`/`-90` 行。
-///
-/// ⛔ 这个范围**可以包含非数据行**：`engine_head_left` 的数据区是行 2..11，其中
-/// 行 8~10 是标题行（`-96`）—— 它们既被当作标题复制到页顶，**也**在数据循环里
-/// 作为数据行出现一次（夹具的 `col1_values` 里 `100,200,150` 出现两遍即此）。
-/// 本 crate 的列范围固定取 `1..=cols`：12 个夹具的 `colType` **全是 `-79`**
-/// （数据列），故 `_$2(r)` 的列范围与全列一致；列区带未建模（见模块文档边界）。
-fn data_rows(types: &[i8]) -> Option<(i32, i32)> {
-    let begin = types.iter().position(|&t| is_data_row_type(t))? as i32 + 1;
-    let end = types.iter().rposition(|&t| is_data_row_type(t))? as i32 + 1;
-    Some((begin, end))
-}
-
-/// 纵向断页结果（与横向页组合前的中间态）。
-#[derive(Debug, Clone)]
-pub struct YSplit {
-    /// 每页的行清单（含页首区带与分组头副本），顺序即页内行序。
-    pub pages: Vec<Vec<PageRow>>,
-}
-
-/// 纵向断页 + 页首区带 + 分组头每页重复
-/// （`SimplePager._$5` 的 `pagerStyle == 2 && columns == 1` 分支）。
-///
-/// # 页的构成（顺序即契约，`_$5:327-349` + `:352-410`）
-///
-/// ```text
-/// [页眉 -93][标题 -96][表头 -95]   ← 每页都有；高度在页首一次性累加
-/// [分组头副本 × N]                 ← 每页都有；高度逐行累加、行数计入
-/// [数据区行 ...]                   ← 按数据序各出现一次；逐行判放不下
-/// ```
-///
-/// # 分组头规则
-///
-/// 产品在每页开头把「当前所在分组的父链」复制到页顶（`_$5:352-387`），副本也吃页高。
-/// 本实现按 `-90` 行维护一个**打开的分组头栈**：遇到 `-90` 行就把它入栈，
-/// 翻页时把整个栈按顺序复制到页顶。单层分组头（`engine_pager`）与产品的父链**完全一致**；
-/// 多层时本实现按"所有未闭合的分组头"复制，与产品的"严格更小层级链"在
-/// **同级连续出现**的形态下等价（夹具无多层样本，见模块文档的边界清单）。
-pub fn split_rows(grid: &CalcGrid, page_h: f64) -> YSplit {
-    let types = &grid.row_types;
-    let height_of = |r: i32| -> f64 {
-        if r < 1 {
-            return 0.0;
-        }
-        let index = (r - 1) as usize;
-        if grid.row_visible.get(index) == Some(&false) {
-            return 0.0;
-        }
-        grid.row_heights
-            .get(index)
-            .map(|h| unit_to_pt(*h, grid.unit))
-            .unwrap_or(0.0)
-    };
-
-    // 页首区带（行号，按页内顺序）与它的总高。
-    let mut prefix: Vec<i32> = Vec::new();
-    for t in PAGE_PREFIX_TYPES {
-        if let Some((a, b)) = leading_run(types, t) {
-            prefix.extend(a..=b);
-        }
-    }
-    let prefix_h: f64 = prefix.iter().map(|&r| height_of(r)).sum();
-    // 页脚区带只加高，不复制行。
-    let footer_h: f64 = PAGE_FOOTER_TYPES
-        .iter()
-        .filter_map(|&t| trailing_run(types, t))
-        .map(|(a, b)| (a..=b).map(height_of).sum::<f64>())
-        .sum();
-
-    let (data_begin, data_end) = data_rows(types).unwrap_or((1, 0));
-
-    let mut pages: Vec<Vec<PageRow>> = Vec::new();
-    // 打开的分组头栈（行号，按遇到顺序）。
-    let mut open_groups: Vec<i32> = Vec::new();
-    let mut next = data_begin;
-    while next <= data_end {
-        let mut page: Vec<PageRow> = Vec::new();
-        let mut used = prefix_h + footer_h;
-        for &r in &prefix {
-            page.push(PageRow {
-                row: r,
-                kind: PageRowKind::Header,
-            });
-        }
-        for &g in &open_groups {
-            page.push(PageRow {
-                row: g,
-                kind: PageRowKind::GroupCopy,
-            });
-            used += height_of(g);
-        }
-        let mut data_on_page = 0usize;
-        while next <= data_end {
-            let cost = height_of(next);
-            // 当前可见行若紧跟在 breakPage 行后，先断页（`_$1(row):1516`）。
-            let visible = grid
-                .row_visible
-                .get((next - 1) as usize)
-                .copied()
-                .unwrap_or(true);
-            let forced_break = visible
-                && next > data_begin
-                && grid
-                    .row_break_page
-                    .get((next - 2) as usize)
-                    .copied()
-                    .unwrap_or(false);
-            if data_on_page > 0 && forced_break {
-                break;
-            }
-            // 页上已有数据行且放不下 ⇒ 断页（`candisplayrow == 2`）。
-            // ⛔ 页上还没有数据行时**必须放下**：产品此时走拆分分支，而
-            // `if (row != firstDataRow && …) break` 对首页第一行不成立（`_$5:424`）。
-            if data_on_page > 0 && !fits(cost, used, page_h) {
-                break;
-            }
-            page.push(PageRow {
-                row: next,
-                kind: PageRowKind::Data,
-            });
-            used += cost;
-            data_on_page += 1;
-            if types.get((next - 1) as usize).copied() == Some(ROW_TYPE_GROUP_HEADER) {
-                open_groups.push(next);
-            }
-            next += 1;
-        }
-        if data_on_page == 0 {
-            // 防御：数据区为空却仍在循环（不可能，但别死循环）。
-            break;
-        }
-        pages.push(page);
-    }
-    if pages.is_empty() {
-        // 无数据区：仍产出一页（页首区带照旧），与产品"至少一页"一致。
-        let page: Vec<PageRow> = prefix
-            .iter()
-            .map(|&r| PageRow {
-                row: r,
-                kind: PageRowKind::Header,
-            })
-            .collect();
-        pages.push(page);
-    }
-    YSplit { pages }
-}
-
-/// 横向断页（`SimplePager._$2(currPageRows, unit):1836-1953` 的贪心累加）。
-///
-/// 返回每页的 `(首列, 末列)`。若全部列宽之和 ≤ 可用宽且无 `breakPage` 列，
-/// 产品走单列页短路（`cols = [-1]`，`:1840-1852`）—— 本实现等价地返回一个 `(1, cols)`。
-pub fn split_cols(grid: &CalcGrid, page_w: f64) -> Vec<(i32, i32)> {
-    let cols = grid.cols.max(0) as usize;
-    let width_of = |c: usize| -> f64 {
-        let index = c.wrapping_sub(1);
-        if grid.col_visible.get(index) == Some(&false) {
-            return 0.0;
-        }
-        grid.col_widths
-            .get(index)
-            .map(|w| unit_to_pt(*w, grid.unit))
-            .unwrap_or(0.0)
-    };
-    let mut out: Vec<(i32, i32)> = Vec::new();
-    if cols == 0 {
-        return vec![(1, 0)];
-    }
-    let mut start = 1usize;
-    let mut used = 0.0;
-    for c in 1..=cols {
-        let cost = width_of(c);
-        let current_visible = grid.col_visible.get(c - 1).copied().unwrap_or(true);
-        let manual_break = c > start
-            && current_visible
-            && grid.col_break_page.get(c - 2).copied().unwrap_or(false);
-        // 手动断列按当前列的前一列 breakPage 处理；宽度断列仍使用千分位容差。
-        if manual_break {
-            out.push((start as i32, (c - 1) as i32));
-            start = c;
-            used = 0.0;
-        }
-        // 每页的**第一列**必定落在该页（产品此时抛 widthOutofPage，不另起一页）。
-        if c > start && !fits(cost, used, page_w) {
-            out.push((start as i32, (c - 1) as i32));
-            start = c;
-            used = 0.0;
-        }
-        used += cost;
-    }
-    out.push((start as i32, cols as i32));
-    out
-}
-
-/// 该页**自己第 1 列**上的非空值序列（`CalcJson.java:153-164` 的扫描）。
-///
-/// ⛔ 按**页内行清单**取，不是按整张网格取 —— 否则分组头副本的值会漏掉、
-/// 翻页后的首列也会取错（`engine_pager` 第 2~4 页的 `first_value` 全是副本的
-/// `"group: R*"`）。
-fn col_values(grid: &CalcGrid, page_rows: &[PageRow], base_col: i32) -> Vec<Value> {
-    let mut out = Vec::new();
-    if base_col < 1 || base_col > grid.cols {
-        return out;
-    }
-    for pr in page_rows {
-        if let Some(cell) = grid.get(pr.row, base_col) {
-            if !cell.value.is_null() {
-                out.push(cell.value.clone());
-            }
-        }
-    }
-    out
-}
-
 /// 分页主入口：纵向断页 → 每纵向页再横向断页。
 ///
 /// 页序 **y 外层、x 内层**（`PageBuilder.getAllPages():296-302` 的 `pages[i * x + j]`）。
+///
+/// `columns` 只作回显（本实现只覆盖 `pagerStyle == 2 && columns == 1` 分支，
+/// 其余由 [`ensure_supported`] 拦住）。
 pub fn paginate(grid: &CalcGrid, paper_w_pt: f32, paper_h_pt: f32, columns: i32) -> Pagination {
     let page_h = paper_size_pt(paper_h_pt);
     let page_w = paper_size_pt(paper_w_pt);
@@ -449,16 +195,53 @@ pub fn paginate(grid: &CalcGrid, paper_w_pt: f32, paper_h_pt: f32, columns: i32)
     };
     let mut page_no = 0;
     for page_rows in &ys.pages {
-        for &(c0, _c1) in &col_spans {
+        let row_range = match (page_rows.first(), page_rows.last()) {
+            (Some(f), Some(l)) => (f.row, l.row),
+            _ => (0, 0),
+        };
+        for &(c0, c1) in &col_spans {
             page_no += 1;
             out.pages.push(PageInfo {
                 page: page_no,
                 rows: page_rows.len() as i32,
-                col1_values: col_values(grid, page_rows, c0),
+                col1_values: split::col_values(grid, page_rows, c0),
+                row_range,
+                col_range: (c0, c1),
             });
         }
     }
     out
+}
+
+/// 模板真值口径分页（M3-06）：页尺寸来自 [`paper::usable_page_pt`]
+/// （纸码表 + 模板边距，`PagerInfo.getPageFormat(true)` 的 imageable 区）。
+///
+/// 与 [`paginate`] 共用 [`split_rows`]/[`split_cols`]；差在：
+/// 页尺寸（可用区而非探针常量）、`columns`/`row_num_per_page` 取模板值
+/// （`tableColumnNum` 已由 [`ensure_supported`] 确保为 1）。
+///
+/// 自带 [`ensure_supported`] 复核（本函数是 pub API，调用方可能没经过
+/// `calculate()` 入口的守卫）与可用尺寸非正检查（边距 ≥ 纸张 ⇒ 显式失败，
+/// 不静默产出荒谬页）。
+pub fn paginate_with_setup(grid: &CalcGrid, ps: &PrintSetup) -> Result<Pagination> {
+    ensure_supported(ps)?;
+    let (usable_w, usable_h) = usable_page_pt(ps);
+    if usable_w <= 0.0 || usable_h <= 0.0 {
+        return Err(EngineError::UnsupportedPaging {
+            detail: format!(
+                "可用页尺寸非正（{usable_w:.2}×{usable_h:.2}pt）：边距 ≥ 纸张（paper={}）",
+                ps.paper
+            ),
+        });
+    }
+    let mut pg = paginate(
+        grid,
+        usable_w as f32,
+        usable_h as f32,
+        ps.table_column_num as i32,
+    );
+    pg.row_num_per_page = ps.row_num_per_page;
+    Ok(pg)
 }
 
 #[cfg(test)]

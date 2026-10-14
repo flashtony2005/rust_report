@@ -50,7 +50,22 @@ fn every_fixture_template_is_within_supported_paging() {
     }
 }
 
-/// ② `calculate()` 入口接守卫：三个字段分别改一个 ⇒ 必须报 `UnsupportedPaging`。
+/// ①'（M3-06）17 个夹具的模板**列区带**守卫不误伤：全部 `colType == -79` 数据列。
+///
+/// `ensure_data_columns` 若对夹具报错，说明夹具里有左右列头（`-80`/`-78`）——
+/// 那时 `split_cols` 的全列假设就不成立，必须先补实现再收夹具。
+#[test]
+fn every_fixture_template_has_only_data_columns() {
+    for name in all_names() {
+        let rd = open_rpx(name);
+        assert!(
+            rpx_engine::pager::ensure_data_columns(&rd).is_ok(),
+            "{name}: 夹具模板出现非数据列（列区带）—— split_cols 的 1..=cols 假设被打破"
+        );
+    }
+}
+
+/// ② `calculate()` 入口接守卫：四个字段分别改一个 ⇒ 必须报 `UnsupportedPaging`。
 ///
 /// 守卫在计算之前 ⇒ 传**空数据集**也会先报 `UnsupportedPaging`；若守卫没生效，
 /// 这条会以 `MissingDataset`（或其它错误）失败 —— 断言本身即区分二者。
@@ -59,12 +74,15 @@ type Mutate = fn(&mut rpx_core::print_setup::PrintSetup);
 
 #[test]
 fn calculate_rejects_unsupported_paging_before_any_work() {
-    let cases: [(&str, Mutate); 3] = [
+    let cases: [(&str, Mutate); 4] = [
         ("pagerStyle=1", |s| s.pager_style = 1),
         ("columnMode=1", |s| s.column_mode = 1),
         ("repeatedGroupHeader=true", |s| {
             s.column_repeated_group_header = true;
         }),
+        // M3-06：tableColumnNum > 1 走产品的多栏分支（PageBuilder.init1 →
+        // pager.setColumns），本实现未移植 —— 显式拒绝。
+        ("tableColumnNum=2", |s| s.table_column_num = 2),
     ];
     for (label, mutate) in cases {
         let mut rd = open_rpx("engine_expr");
@@ -73,5 +91,39 @@ fn calculate_rejects_unsupported_paging_before_any_work() {
             Err(EngineError::UnsupportedPaging { .. }) => {}
             other => panic!("{label}: 期望 UnsupportedPaging，实际 {other:?}"),
         }
+    }
+}
+
+/// ③（M3-06）列区带变异：把一个夹具列改成左列头（`-80`）⇒ 必须报
+/// `UnsupportedPaging`，证明 `ensure_data_columns` 真的接进了 `calculate()` 入口。
+#[test]
+fn calculate_rejects_column_bands_before_any_work() {
+    let mut rd = open_rpx("engine_expr");
+    assert!(
+        !rd.col_cells.is_empty(),
+        "engine_expr 应至少有一列（守卫变异的前提）"
+    );
+    rd.col_cells[0].col_type = -80; // IColCell.TYPE_LEFT_HEADER
+    match rpx_engine::calculate(&rd, &[]) {
+        Err(EngineError::UnsupportedPaging { detail }) => {
+            assert!(
+                detail.contains("colType=-80"),
+                "错误应点名 colType，实得：{detail}"
+            );
+        }
+        other => panic!("期望 UnsupportedPaging，实际 {other:?}"),
+    }
+}
+
+/// ④（M3-06）`paginate_with_setup` 自带守卫复核：不经 `calculate()` 直接调也安全。
+#[test]
+fn paginate_with_setup_rechecks_the_guard() {
+    let rd = open_rpx("engine_expr");
+    let mut ps = rd.print_setup.clone();
+    ps.pager_style = 0; // 单页短路分支未实现
+    let grid = rpx_engine::arena::CalcGrid::new(1, 1);
+    match rpx_engine::pager::paginate_with_setup(&grid, &ps) {
+        Err(EngineError::UnsupportedPaging { .. }) => {}
+        other => panic!("期望 UnsupportedPaging，实际 {other:?}"),
     }
 }

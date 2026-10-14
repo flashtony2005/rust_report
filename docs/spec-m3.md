@@ -107,7 +107,7 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | M3-03 | rpx-ds 取数 | While 数据源配置指向 `postgres://` / `mysql://` / `sqlite://`，**必须**经 AnyPool 取到行集并物化为引擎 `DataSet`；换库只换 URL（蓝图 §7.2）                                                        | P0  |
 | M3-04 | 报表资产     | While 上传 `.rpx`，**必须**魔数校验后存 libSQL BLOB；`GET /meta` **必须**返回参数清单（静态/动态两套 MetaData）                                                                                  | P0  |
 | M3-05 | `/render` 快照 | ✅ **已达成**（2026-10-14）：`POST /render` 返回快照 JSON（multipart：`report`/`dataset`/`params`）；同输入下与引擎库函数直调**逐字节一致**（`tests/render_http.rs` 6 用例：真 socket + 对拍基准）；GBK/参数/缺文件/坏魔数/未知字段全覆盖；浏览器端到端实测通过（截图 `tests/fixtures/out/m4-render-http.png`） | P0  |
-| M3-06 | 分页真实口径   | While 模板 `print_setup` 非默认（纸张/边距），`/render` 的 `pagination` **必须**按模板值计算；`pagerStyle != 2` 与多栏**必须**走 `UnsupportedPaging` 守卫（不静默）                                             | P0  |
+| M3-06 | 分页真实口径   | ✅ **已达成**（2026-10-14）：`/render` 的 `pagination` = **模板真值口径**（`paginate_with_setup`：纸码表 80 码 + 模板边距 → 可用 pt，`PagerInfo.getPageFormat(true)` 同构；快照 `pagination` 块见 `spec-m4.md` §4.5）；`pagerStyle != 2`/多栏（`columnMode`/`tableColumnNum`/重复组头）/列区带（`colType != -79`）/可用尺寸非正全部显式 `UnsupportedPaging`；探针口径保留为夹具对拍专用（双口径共用同一套 `split_rows`/`split_cols`）；换行回填**静态守卫不可行**（`-64` = `INormalCell.TYPE_NORMAL` 普通格默认类型，`guard.rs` 尾注） | P0  |
 | M3-07 | 门禁与端到端   | G1–G7 **必须**扩到新 crate（含依赖分层）；e2e 冒烟：上传 → render → 断言快照键集                                                                                                               | P0  |
 | M3-08 | 快照协议     | 快照**必须**含样式槽（模板静态属性直通）；动态样式宏**必须**在响应中显式标注「未应用」而非静默缺失                                                                                                              | P1  |
 
@@ -118,8 +118,7 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | 项                                      | 现状                                | 出处                               |
 | -------------------------------------- | --------------------------------- | -------------------------------- |
 | 分页 `pagerStyle 0/1` / 多栏两开关           | ✅ 守卫：`UnsupportedPaging`          | `pager.rs::ensure_supported`（2026-10-14） |
-| 跨页合并拆分 / 列区带 / 文本换行                    | ⏳ 带账（**已声明偏离，尚无守卫**：列区带/换行命中时产物可能不符真实展示） | `pager.rs` 模块文档「未实现」列表；M3-06 接线时逐项核对并补守卫 |
-| M2-22 残余（`customPropEngMap` / cell-graph / state 8） | ⏳ 显式带账（无夹具，不实现）                  | `spec-m2.md` §6.2 末条             |
+| 跨页合并拆分 / 文本换行回填                        | ⏳ 带账（**已声明偏离**：跨页合并 `merged.cells` 全空不可辨；换行测量分支静态不可判——`-64` 是普通格默认类型） | `pager.rs` 模块文档「未实现」清单 + `guard.rs` 尾注（M3-06 核对结论） || M2-22 残余（`customPropEngMap` / cell-graph / state 8） | ⏳ 显式带账（无夹具，不实现）                  | `spec-m2.md` §6.2 末条             |
 | 样式宏 / 图表宏 / `perfect`                  | ⏳ 未建模（快照不含其产物）                    | `calc/run.rs` 缺口 2               |
 | 空 List 参数                              | ✅ 已实证：矩阵**不变**、锚点 `extend=18 subCells=1`、值 `null` | RUNLOG §24.1（A 组）；`engine_param` 夹具未含空 List（探针已覆盖） |
 | **两个扩展格同行**（`@p` + `@@p` 同值为 List）       | ⏳ 显式带账：产品行带交互已实证（11×5，RUNLOG §24.4），本 crate 扩展算法未建模 | `EngineModelsM3.java` 模块文档（为何夹具去掉 `@@p` 列） |
@@ -154,7 +153,7 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | GBK 实现路径           | ✅ 已定案 | 冻结映射表（`collation.bin` 先例：`include_bytes!` 保零依赖）：`ProbeEncoding.java` dump JDK 全定义域（**23,940 对**，比常见标准表 21,886 项多——JDK 私有区映射）→ `scripts/gen_gbk_table.py` 只加头排序 → `data/gbk.bin`；Rust 单测全表逐对对拍 |
 | GB18030 四字节序列       | ⏳ 带账   | 产品默认 `encoding="GBK"` 时 JDK GBK charset 同样不接受四字节（`MalformedInputException`）；模板显式写 `GB18030` 的场景**无夹具**，按"禁止无基准对拍"带账，命中报 `UnsupportedEncoding` |
 | 样式直通范围             | 待分类  | 模板静态属性 → 快照样式字段的映射表；样式宏后置（§5）                                                                                              |
-| 列区带 / 换行守卫         | 待补   | M3-06 接线时核对（与 `pagerStyle` 同类的静默风险；本轮只装了 `pagerStyle`/多栏守卫）                                                               |
+| 列区带 / 换行守卫         | ✅ 已核对（M3-06） | 列区带：**已装守卫**（`ensure_data_columns`，`colType != -79` 显式报错）；换行回填：**静态守卫不可行**（`-64` 是 `INormalCell.TYPE_NORMAL` 普通格默认类型，测量分支条件「值为 String 且页内放不下」断页期才可知——静态拦截会拒绝所有真实模板；运行时风险带账，`pager/guard.rs` 尾注） |
 | SQL 注入面            | 待定   | 报表模板自带 SQL（用户资产）⇒ 单实例私有化下视为可信输入；如未来外网暴露需重评估                                                                             |
 | CLI 无自动化断言         | 沿用   | `spec-m2.md` §9 的待办；M3-07 顺带处理                                                                                              |
 
@@ -164,6 +163,7 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | ---------- | ------------------------ | ----------------------------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead，阶段 0）  | 总监批准「务实路」后启动 M3；本档承接 `spec-m2.md` §6.2 的准入 v2；阶段 0 出口 = 本文件经总监确认 |
 | 2026-10-14 | v0.2：M4 并行推进 + M3-08 提关键路径 | 总监令「M3 M4 一起推进，这样可以看到报表显示」；前端立档 `docs/spec-m4.md`，快照契约 v1 已定 |
+| 2026-10-14 | v0.6：**M3-06 闭合**（分页真实口径） | `pager/paper.rs`（`gen_paper_table.py` 生成 80 码纸码表 + `usable_page_pt`）+ `paginate_with_setup`（真值口径，与探针口径共用 `split_rows`/`split_cols`）；`/render` 与 dev bin 的 `pagination` 切真值 + 快照 `pagination` 块（`spec-m4.md` §4.5）；守卫补 `tableColumnNum`/列区带；换行回填核对结论 = 静态守卫不可行（带账）；`PageInfo` 加 `row_range`/`col_range`（emit 不序列化，对拍不变）；RUNLOG §27 |
 | 2026-10-14 | v0.5：**M3-05 闭合**（`POST /render` 主链路） | axum 0.8 + tokio 入 `rpx-server`（库/bin 分层：`lib.rs` + `http.rs`/`form.rs`，集成测试可 import 主链路纯函数与真 socket 双轨对拍）；引擎加 `load_datasets_with` 闭包字节源（磁盘/HTTP 上传共用一份口径）；上传完整性预检按**文件名**报缺；错误 400/500 分级；G5 登记 axum/tokio（理由见 `code-review.md` §3.2）；RUNLOG §26 |
 | 2026-10-14 | v0.4：**M3-02 GBK 闭合**（`encoding.rs` + `gbk.bin` 冻结表 + `engine_gbk` 夹具 17 对拍全绿）；M3-01 状态同步 | `ProbeEncoding.java` dump JDK 全定义域 23,940 对 → 生成器只加头 → `include_bytes!`；`parse_csv` 按 `FileDataSetConfig.encoding` 缺省 GBK 解；GB18030 四字节显式带账；RUNLOG §25 |
 | 2026-10-14 | v0.3：**M3-01 闭合**（阶段 1 出口达成） | 参数全景探针（`ProbeParamFull`）+ 建树期内联定案（`parse_with`/`calculate_with`/`ParamTable`，删除被证伪的求值期兜底）+ `engine_param` 夹具（16 夹具主对拍全绿）+ 两扩展格同行实证带账（RUNLOG §24） |
