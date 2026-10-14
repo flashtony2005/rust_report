@@ -47,12 +47,12 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 <body><div class="wrap">
 
 <h1>ReportLite Rust 全链路重建设计</h1>
-<p class="sub">基于已完成的逆向结论（.rpx 格式 / 扩展算法 / 非线性布局 / 多数据源 / 八阶段链路）· 技术栈 axum + libSQL(Turso 本地) + Univer · 2026-10-12</p>
+<p class="sub">基于已完成的逆向结论（.rpx 格式 / 扩展算法 / 非线性布局 / 多数据源 / 八阶段链路）· 技术栈 axum + libSQL(Turso 本地) + Univer · v1 2026-10-12 · <b>v2 修订 2026-10-14（同步 M1/M2 实际落地状态，见 §〇）</b></p>
 
 <div class="kpi">
-<div><b>6 个 crate</b><span class="s2">workspace 分层</span></div>
-<div><b>3 态统一</b><span class="s2">模板态 / 计算态 / 分页态同一模型</span></div>
-<div><b>CellId 图</b><span class="s2">arena + 双矩阵，替代 Java 引用网</span></div>
+<div><b>3 / 6 crate</b><span class="s2">core / engine / cli 已落地；ds / export / server 待 M3+</span></div>
+<div><b>15 产品夹具</b><span class="s2">逐格对拍（含分页）；门禁 G1–G7 全绿</span></div>
+<div><b>双矩阵</b><span class="s2">引擎矩阵 _$25 + 计算矩阵 _$26，CellId arena</span></div>
 <div><b>1 次查询</b><span class="s2">每数据集一次物化 + 内存交叉</span></div>
 </div>
 
@@ -63,6 +63,35 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 服务端把矩阵 + 合并区 + 样式序列化成 <code>IWorkbookData</code> 快照，前端直接装载。
 整个 Rust 工程的难点被压缩到两件事：<strong>.rpx 解析</strong>与<strong>扩展计算</strong>。
 </div>
+
+<h2>〇、文档地位与修订（2026-10-14）</h2>
+
+<div class="box key">
+<b>本文件是「全链路架构蓝图」（L1）：回答"整个产品怎么搭"，不回答"某个算法怎么做"。</b>
+crate 分层、数据源选型、API 形状、渲染与打印路线以本文为准；
+算法逐行细节、字节格式、任务验收一律以对应专项文档为准——冲突时：<b>专项文档 &gt; 本文</b>。
+</div>
+
+<table>
+<tr><th style="width:250px">文档</th><th>回答什么</th><th style="width:96px">裁决权</th></tr>
+<tr><td class="mono">docs/spec-m2.md</td><td>做什么 / 验收标准；M2 未闭合清单与 M3 准入条件见 §6.2 末条（M2 不整体闭合前不得启动 M3）</td><td class="c">任务范围</td></tr>
+<tr><td class="mono">docs/format-contract.md</td><td>.rpx 字节层逐字段契约（附件 A–L）；扩展算法逐行契约 = 附件 I</td><td class="c">格式真值</td></tr>
+<tr><td class="mono">docs/m2-engine-design.md</td><td>引擎算法正文：阶段 A/B/C（§4/§5）、执行顺序清单（§12）、分页（§15）</td><td class="c">算法真值</td></tr>
+<tr><td class="mono">docs/report-model-and-cell-extend.md</td><td>官方手册模型 × 项目实证对照（L0 入口指引，非裁决依据）</td><td class="c">手册口径</td></tr>
+<tr><td class="mono">本文件</td><td>全链路蓝图：架构决策 + M1–M6 路线；算法细节一律给指针</td><td class="c">L1 蓝图</td></tr>
+</table>
+
+<h3>v2 修订：同步 M1/M2 实际落地状态</h3>
+<p>v1 成文于 2026-10-12（M1 进行中、M2 未动）。两天内 M1 收尾、M2 主链闭合（含分页与属性表达式），
+其中<b>三处设计草案与最终实现出现关键偏差</b>，已就地更正；§七及以后为 M3+ 规划态，方案未变、本轮只补状态标注：</p>
+
+<table>
+<tr><th style="width:128px">位置</th><th>v1 草案</th><th>实际落地（正文已更新）</th></tr>
+<tr><td>§五 模型层</td><td>单矩阵 + 一张 main_of 哈希表</td><td><b>双矩阵</b>：引擎矩阵 <code>_$25</code>（模板坐标、扩展期只读）+ 计算矩阵 <code>_$26</code>（insertRows/Cols 改写）；<code>source</code> 绑定 <code>_$25</code>。见 <code>arena.rs</code> / m2-engine-design §0.1</td></tr>
+<tr><td>§6.2 求值调度</td><td>"显式 LIFO 工作栈（Step 枚举）"重写控制流</td><td><b>异常即值</b>：<code>Result&lt;(), Flow&gt;</code> 值传播 + trampoline——逐行映射 Java <code>try/catch/chase</code>，保真优先。见 <code>eval/sched.rs</code> / m2-engine-design §5</td></tr>
+<tr><td>§6.1 扩展算法</td><td>"两遍扫描：clone → 重连 main_of"</td><td>三阶段 A/B/C 落地；<code>16 → 17/18/19</code> 两条改写路径（仅对带表达式格生效）；同一锚点上 <code>extendCol</code> 先于 <code>extendRow</code>。见 m2-engine-design §12</td></tr>
+<tr><td>§13 里程碑</td><td>M1/M2 为"计划"</td><td>M1 ✅；M2 主链闭合（15 产品夹具逐格对拍 + G1–G7）；<b>未闭合项</b>见 spec-m2 §6.2 末条（pagerStyle 0/1、跨页合并、列区带、换行、多栏、GBK 数据集、cell-graph 属性值对象）</td></tr>
+</table>
 
 <h2>一、Univer 查证结论（决定前端怎么接）</h2>
 
@@ -104,7 +133,7 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 <text x="145" y="192" text-anchor="middle" font-size="11" fill="#656d76">/reports /render /export</text>
 <text x="145" y="209" text-anchor="middle" font-size="11" fill="#656d76">参数注入 · 缓存 · 大报表分页</text>
 
-<rect x="30" y="280" width="230" height="80" rx="9" fill="#fff" stroke="#8250df" stroke-width="1.5"/>
+<rect x="30" y="280" width="230" height="80" rx="9" fill="#fff" stroke="#8250df" stroke-width="1.5" stroke-dasharray="6 3"/>
 <text x="145" y="302" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">rpx-server</text>
 <text x="145" y="322" text-anchor="middle" font-size="11" fill="#656d76">编排：读库 → 解析 → 计算</text>
 <text x="145" y="339" text-anchor="middle" font-size="11" fill="#656d76">→ 快照/导出，会话与预算</text>
@@ -121,12 +150,12 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 <text x="450" y="339" text-anchor="middle" font-size="11" fill="#656d76">同值合并 · 分页 SimplePager</text>
 <text x="450" y="354" text-anchor="middle" font-size="11" fill="#656d76">表达式子集 · BigEngine</text>
 
-<rect x="630" y="150" width="240" height="70" rx="9" fill="#fff" stroke="#9a6700" stroke-width="1.5"/>
+<rect x="630" y="150" width="240" height="70" rx="9" fill="#fff" stroke="#9a6700" stroke-width="1.5" stroke-dasharray="6 3"/>
 <text x="750" y="172" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">rpx-ds（数据源）</text>
 <text x="750" y="192" text-anchor="middle" font-size="11" fill="#656d76">trait DataSource + 多库驱动</text>
 <text x="750" y="209" text-anchor="middle" font-size="11" fill="#656d76">数据集物化 · cross 哈希查找</text>
 
-<rect x="630" y="280" width="240" height="80" rx="9" fill="#fff" stroke="#9a6700" stroke-width="1.5"/>
+<rect x="630" y="280" width="240" height="80" rx="9" fill="#fff" stroke="#9a6700" stroke-width="1.5" stroke-dasharray="6 3"/>
 <text x="750" y="302" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">rpx-export（导出）</text>
 <text x="750" y="322" text-anchor="middle" font-size="11" fill="#656d76">rust_xlsxwriter → xlsx</text>
 <text x="750" y="339" text-anchor="middle" font-size="11" fill="#656d76">合并区/边框/样式映射</text>
@@ -136,7 +165,7 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 <text x="450" y="417" text-anchor="middle" font-size="12" fill="#1f2328">rpx-cli · 单机渲染 / 回归测试</text>
 <text x="450" y="435" text-anchor="middle" font-size="11" fill="#656d76">sample.rpx → json/xlsx 对拍</text>
 
-<rect x="630" y="395" width="240" height="55" rx="9" fill="#f6f7f9" stroke="#d8dee4"/>
+<rect x="630" y="395" width="240" height="55" rx="9" fill="#f6f7f9" stroke="#d8dee4" stroke-dasharray="6 3"/>
 <text x="750" y="417" text-anchor="middle" font-size="12" fill="#1f2328">Turso / libSQL（本地文件）</text>
 <text x="750" y="435" text-anchor="middle" font-size="11" fill="#656d76">报表资产 / 参数 / 数据源 / 缓存 · 单文件 .db</text>
 
@@ -156,19 +185,19 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 <path d="M330,44 L262,44" stroke="#0b6bcb" stroke-width="1.4" marker-end="url(#ar)"/>
 <text x="330" y="46" font-size="11.5" fill="#57606a">参数 / 渲染请求</text>
 </svg>
-<figcaption>总体架构：六个 crate 单向依赖（server → core/engine/ds/export），前端只认快照协议，数据库只存报表资产与缓存。</figcaption>
+<figcaption>总体架构：六个 crate 单向依赖（server → core/engine/ds/export），前端只认快照协议，数据库只存报表资产与缓存。<b>实线 = 已落地（core/engine/cli）· 虚线 = M3+ 规划（server/ds/export + Turso）</b>。</figcaption>
 </div>
 
 <h2>三、Crate 布局与职责</h2>
 
 <table>
-<tr><th>crate</th><th>职责</th><th>关键类型</th><th style="width:90px">依赖</th></tr>
-<tr><td class="mono">rpx-core</td><td>.rpx 字节解析 + 模板模型 + 属性码字典 + 版本兼容</td><td class="mono">ReportDefine, Sheet, CellMatrix, NormalCell, RowCell, ColCell, MetaData, RpxReader</td><td class="c">无（pure）</td></tr>
-<tr><td class="mono">rpx-engine</td><td>扩展计算 / 求值调度 / 同值合并 / 分页 / 表达式</td><td class="mono">ExtCellSet, CalcScheduler, ExprEvaluator, SimplePager, BigEngine</td><td class="c">core</td></tr>
-<tr><td class="mono">rpx-ds</td><td>数据源 trait + 多数据库驱动 + 数据集物化 + cross</td><td class="mono">trait DataSource, DataSet, Column, RowSet, SqlDialect</td><td class="c">libsql + sqlx(any)</td></tr>
-<tr><td class="mono">rpx-export</td><td>计算态矩阵 → xlsx</td><td class="mono">XlsxExporter, ExportOptions</td><td class="c">core</td></tr>
-<tr><td class="mono">rpx-server</td><td>axum 路由 / 会话 / 缓存 / 预算 / 编排</td><td class="mono">AppState, render_report, export_report</td><td class="c">全部</td></tr>
-<tr><td class="mono">rpx-cli</td><td>单机渲染 + 对拍测试</td><td class="mono">main</td><td class="c">全部</td></tr>
+<tr><th>crate</th><th>职责</th><th>关键类型（Rust 实际）</th><th style="width:90px">依赖</th><th style="width:72px">状态</th></tr>
+<tr><td class="mono">rpx-core</td><td>.rpx 字节解析 + 模板模型 + 属性码字典 + 版本兼容</td><td class="mono">ReportDefine, NormalCell / RowCell / ColCell, Props, PrintSetup, Param, DataSet, RpxReader</td><td class="c">无（pure）</td><td class="c">✅ M1</td></tr>
+<tr><td class="mono">rpx-engine</td><td>扩展计算 / 求值调度 / 同值合并 / 分页 / 表达式</td><td class="mono">CalcGrid, CellId, EngineMatrix, CalcMatrix, HeadState, SchedGrid, Flow, pager::paginate, merge::merge_same / merge_null</td><td class="c">core</td><td class="c">✅ M2 主链</td></tr>
+<tr><td class="mono">rpx-ds</td><td>数据源 trait + 多数据库驱动 + 数据集物化 + cross</td><td class="mono">trait DataSource, DataSet, Column, RowSet, SqlDialect</td><td class="c">libsql + sqlx(any)</td><td class="c">⏳ M3</td></tr>
+<tr><td class="mono">rpx-export</td><td>计算态矩阵 → xlsx</td><td class="mono">XlsxExporter, ExportOptions</td><td class="c">core</td><td class="c">⏳ M5</td></tr>
+<tr><td class="mono">rpx-server</td><td>axum 路由 / 会话 / 缓存 / 预算 / 编排</td><td class="mono">AppState, render_report, export_report</td><td class="c">全部</td><td class="c">⏳ M3/M4</td></tr>
+<tr><td class="mono">rpx-cli</td><td>单机渲染 + 对拍测试</td><td class="mono">main（print 子命令；逐格对拍由 tests/ 承担）</td><td class="c">core</td><td class="c">✅ 现有</td></tr>
 </table>
 
 <h2>四、.rpx 解析器设计（rpx-core）</h2>
@@ -218,7 +247,8 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 <h2>五、模型层：Rust 所有权映射</h2>
 
 <p>Java 版是<strong>引用网</strong>（合并格共享对象、主格/附属格互指、扩展实例共享 <code>ExtCell[]</code>）。Rust 不能照搬，改成
-<strong>arena + 索引</strong>，这是整个重写里最关键的架构决策：</p>
+<strong>arena + 索引</strong>，这是整个重写里最关键的架构决策——<b>已按本设计落地</b>（<code>arena.rs</code>）：</p>
+<p class="dim">v2 修订（2026-10-14）：实现期发现并落实一条设计期未预见的硬约束——<b>矩阵必须是两张</b>（下图与代码块已更新为实际结构）。</p>
 
 <div class="fig">
 <svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
@@ -241,17 +271,17 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 <text x="450" y="258" text-anchor="middle" font-size="11" fill="#656d76">跨格引用一律 CellId(u32)</text>
 
 <rect x="30" y="60" width="240" height="120" rx="10" fill="#fff" stroke="#d8dee4"/>
-<text x="150" y="82" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">grid: Vec&lt;Vec&lt;Option&lt;CellId&gt;&gt;&gt;</text>
-<text x="150" y="102" text-anchor="middle" font-size="11" fill="#656d76">(rows+1) × (cols+1)</text>
-<text x="150" y="120" text-anchor="middle" font-size="11" fill="#0b6bcb">合并区：同一 CellId 重复出现</text>
+<text x="150" y="82" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">双矩阵（_$25 / _$26）</text>
+<text x="150" y="102" text-anchor="middle" font-size="11" fill="#656d76">EngineMatrix：模板坐标、只读</text>
+<text x="150" y="120" text-anchor="middle" font-size="11" fill="#0b6bcb">CalcMatrix：插入/改写、合并铺满</text>
 <text x="150" y="138" text-anchor="middle" font-size="11" fill="#656d76">[row][0]=RowCell · [0][col]=ColCell</text>
-<text x="150" y="158" text-anchor="middle" font-size="11" fill="#656d76">[0][0]=ExtExtendCell 虚格</text>
+<text x="150" y="158" text-anchor="middle" font-size="11" fill="#656d76">[0][0]=虚格（CellId::ROOT）</text>
 
 <rect x="630" y="60" width="240" height="120" rx="10" fill="#fff" stroke="#8250df" stroke-width="1.5"/>
-<text x="750" y="82" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">main_cells: HashMap&lt;CellId, CellId&gt;</text>
-<text x="750" y="102" text-anchor="middle" font-size="11" fill="#656d76">左主格图（CellId → CellId）</text>
-<text x="750" y="120" text-anchor="middle" font-size="11" fill="#656d76">求值 = 在此图上做拓扑遍历</text>
-<text x="750" y="138" text-anchor="middle" font-size="11" fill="#656d76">00 格是所有链的终止点</text>
+<text x="750" y="82" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2328">HeadState：head 图（heads.rs）</text>
+<text x="750" y="102" text-anchor="middle" font-size="11" fill="#656d76">每格左/上 head（四处不对称）</text>
+<text x="750" y="120" text-anchor="middle" font-size="11" fill="#656d76">归一化到最近 ExtExtendCell</text>
+<text x="750" y="138" text-anchor="middle" font-size="11" fill="#656d76">ROOT 是所有链的终止点</text>
 
 <path d="M270,110 L330,110" stroke="#57606a" stroke-width="1.4"/>
 <path d="M630,110 L570,110" stroke="#57606a" stroke-width="1.4"/>
@@ -259,64 +289,68 @@ padding:1px 7px;font-size:11.5px;margin-right:5px;font-family:ui-monospace,Conso
 <text x="590" y="102" font-size="11" fill="#57606a">归属</text>
 
 <rect x="30" y="200" width="840" height="80" rx="9" fill="#f6f7f9" stroke="#d8dee4"/>
-<text x="46" y="224" font-size="12" fill="#1f2328">Rust 化要点：</text>
-<text x="46" y="244" font-size="11.5" fill="#57606a">① 单元格可变 + 被大量交叉引用 → arena 索引，避免 Rc&lt;RefCell&gt; 全面泛滥（仅计算期借用用 split_at_mut / 索引借阅）</text>
-<text x="46" y="262" font-size="11.5" fill="#57606a">② 合并格不再"共享对象"，而是 grid 中多处写同一 CellId，判等即比 id —— 与 Java 引用语义等价</text>
+<text x="46" y="224" font-size="12" fill="#1f2328">Rust 化要点（v2 修订）：</text>
+<text x="46" y="244" font-size="11.5" fill="#57606a">① 单元格可变 + 被大量交叉引用 → arena 索引（CellId(u32)），避免 Rc&lt;RefCell&gt; 泛滥；Java null → CellId::NONE（≠ ROOT，不可混用）</text>
+<text x="46" y="262" font-size="11.5" fill="#57606a">② 合并区"铺满" = 矩形槽位写同一 CellId，判等即比 id；⛔ 双矩阵不许合并：source 读 _$25、值读 _$26</text>
 </svg>
-<figcaption>arena + 双矩阵 + 主格索引表：Java 引用网的 Rust 等价物，零 Rc、零 unsafe。</figcaption>
+<figcaption>arena + 双矩阵 + head 图：Java 引用网的 Rust 等价物，零 Rc、零 unsafe。<b>v2 修订：v1 的单矩阵是错的</b>——两张矩阵职责不同且不可合并（<code>arena.rs</code> 模块文档 / m2-engine-design §0.1）。</figcaption>
 </div>
 
-<pre><b>pub struct</b> ExtCellSet {
-    arena: CellArena,
-    grid: Vec&lt;Vec&lt;Option&lt;CellId&gt;&gt;&gt;,   <i>// (rows+1)×(cols+1)，[0][0]=虚格</i>
-    main_of: HashMap&lt;CellId, CellId&gt;,     <i>// 左主格边</i>
-    rows: usize, cols: usize,
-    datasets: HashMap&lt;String, RowSet&gt;,    <i>// 本表可见的数据集</i>
-}
-<b>pub enum</b> Cell {
-    Normal(NormalCell), Row(RowCell), Col(ColCell),
-    Extend(ExtExtendCell),           <i>// 可扩展主格/附属格</i>
-    Sub(Box&lt;ExtCellSet&gt;),            <i>// 子报表（TYPE_SUBREPORT=-60）格中格</i>
+<pre><i>// v2：实际落地结构（rpx-engine/src/arena.rs）</i>
+<b>pub struct</b> CellId(pub u32);          <i>// NONE = Java null；ROOT = cell00 —— 两者不相等</i>
+<b>pub struct</b> EngineMatrix { … }        <i>// _$25 引擎矩阵：模板坐标，扩展期只读（阶段 B 只填 srcCurrent）</i>
+<b>pub struct</b> CalcMatrix   { … }        <i>// _$26 计算矩阵：insertRows/insertCols 改写；合并区铺满</i>
+<b>pub struct</b> SourceRef    { … }        <i>// expected.json 的 source 段：≠null ⟺ 落在模板行列范围内</i>
+
+<i>// 导出态（与 expected.json 同构，emit 层产出）</i>
+<b>pub struct</b> CalcGrid {
+    cells: Vec&lt;CalcCell&gt;,                 <i>// 稀疏；value / disp_value / source / sub_values</i>
+    merged: Vec&lt;MergedCell&gt;,              <i>// rm&gt;1 || cm&gt;1 的槽（含延续槽）</i>
+    pagination: Option&lt;Pagination&gt;,       <i>// 分页结果（pager.rs）；未跑分页器恒 None</i>
+    row_heights / col_widths / row_types / …   <i>// 几何与行列属性</i>
 }</pre>
 
-<h2>六、引擎算法 Rust 化</h2>
+<h2>六、引擎算法 Rust 化 <span class="tag">✅ M2 已落地</span></h2>
 
-<h3>6.1 扩展算法（extendRow / extendCol）</h3>
-<p>Java 结论原样搬运，Rust 实现时注意<strong>两遍扫描</strong>：</p>
+<h3>6.1 扩展算法（extendRow / extendCol）<span class="tag">✅ 已落地</span></h3>
+<p>已按 Java 结论落地（<code>stage_a</code> / <code>stage_b</code> / <code>ext_algo.rs</code> / <code>heads.rs</code>），
+<b>执行顺序清单 = <code>docs/m2-engine-design.md</code> §12</b>（动工前读它）。三阶段拆解：</p>
 <ol>
-<li><strong>包络计算</strong>：<code>beginRow = min(主格及所有左附属格起始行)</code>，<code>endRow = max(结束行)</code>（递归沿附属链）；块高 = endRow − beginRow</li>
-<li><strong>第一遍</strong>：按方向 clone 附属格（判据 <code>isLeftHeadOf</code>：沿左主格链能走到自己才复制）+ 行首格克隆 + <code>addRow(k)</code> 平移 + 铺满 rowMerge×colMerge</li>
-<li><strong>第二遍</strong>：重连 <code>main_of</code> 指针——新实例的主格是"平移后的新格"，第一遍时不存在</li>
+<li><strong>阶段 A｜建格</strong>（<code>stage_a.rs</code>）：模板 → 两张矩阵；合并锚点<b>铺满矩形</b>，后续格按自身内容覆盖；<code>rowType==-90</code> 一次性 latch 为分组头（引擎从不合成它）</li>
+<li><strong>阶段 B｜准备</strong>（<code>stage_b.rs</code>，<b>顺序即契约</b>）：<code>checkExtend</code> 决定谁是扩展格 → 逐格 head 赋值 + <code>16</code> 按拓扑改写成 <b>17/18/19</b>（两条写入路径，均只在 <code>expression != null</code> 时生效）→ head 链归一化到最近的扩展格</li>
+<li><strong>阶段 C｜求值调度</strong>（<code>eval/sched.rs</code>）：扩展本体 <code>extend_col</code> / <code>extend_row</code>（<code>ext_algo.rs</code>，算法正文 = <code>format-contract.md</code> 附件 I）在 channel4 的 19/18 趟里触发——每趟 = 包络计算 → 克隆附属格 + 插行/插列平移 → 重连 head</li>
 </ol>
-<div class="box"><b>主格自动长高</b>：<code>expandLeftHead()</code> 沿链上溯，<code>head.contain_row(this)</code> 成立就 <code>rowMerge += mergeInc</code>。左侧"部门"大格随右侧明细拉高，不是渲染技巧。</div>
+<div class="box warn">⛔ 三条实测顺序雷区（全部有夹具证据）：<b>① <code>extend_col</code> 必须先于 <code>extend_row</code></b>（反了 19 的子格落第 4 行而非第 8 行）；② <code>16</code> 改写只对带表达式格生效——字面量格保留 16（6 个夹具共 72 格如此）；③ <code>extend_col</code> 的施力点是 <code>cell00._$5</code>，不是"锚点 head 链成员"。</div>
+<div class="box"><b>主格自动长高</b>：<code>expandLeftHead()</code> 沿链上溯，<code>head.contain_row(this)</code> 成立就 <code>rowMerge += mergeInc</code>（<code>expandTopHead</code> 横向同构，但施力点不同）。左侧"部门"大格随右侧明细拉高，不是渲染技巧。</div>
 
-<h3>6.2 求值调度：异常协程 → 显式状态机</h3>
+<h3>6.2 求值调度：异常协程 → 异常即值（Flow）<span class="tag">✅ 已落地</span></h3>
 <p>Java 用 <code>IIllIIIIIIIIIlll extends RuntimeException</code> 携带 <code>(cell, state)</code> 做协程式跳转（state 4/5 换格、6 补算、8 级联失效）。
-Rust <strong>不建议仿冒异常</strong>，改为等价的显式工作栈：</p>
+<b>v1 曾设想"显式 LIFO 工作栈（Step 枚举）"重写控制流；实现期定案改为"异常即值"</b>——把异常转成 <code>Result&lt;(), Flow&gt;</code> 值传播、
+在通道边界（<code>catch</code> 的等价位置）消化。同样的语义，<b>但 <code>try/catch/chase</code> 结构可逐行映射，保真度远高于重写式工作栈</b>：</p>
 
 <div class="fig">
 <svg viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg">
 <rect x="30" y="30" width="200" height="52" rx="8" fill="#eef4fc" stroke="#0b6bcb"/>
-<text x="130" y="52" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f2328">work: Vec&lt;(CellId, Step)&gt;</text>
-<text x="130" y="70" text-anchor="middle" font-size="11" fill="#656d76">LIFO 驱动栈</text>
+<text x="130" y="52" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f2328">Result&lt;(), Flow&gt;</text>
+<text x="130" y="70" text-anchor="middle" font-size="11" fill="#656d76">Suspend{cell,state} 外抛</text>
 
 <rect x="300" y="20" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
-<text x="316" y="45" font-size="11.5" fill="#1f2328">Step::ResolveArgs（解引用/依赖就绪检查）</text>
+<text x="316" y="45" font-size="11.5" fill="#1f2328">channel4（19 趟 → 18 趟）：catch state4 → 压栈换格 chase —— 扩展本体在此触发</text>
 
 <rect x="300" y="72" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
-<text x="316" y="97" font-size="11.5" fill="#1f2328">Step::NeedCell(dep) → dep 未算 → push(dep) 后 yield 当前帧（等价 state 4/5）</text>
+<text x="316" y="97" font-size="11.5" fill="#1f2328">channel5（17 趟）：消化 state 4/5/6/8 —— 换格、special 入队、级联失效标 8</text>
 
 <rect x="300" y="124" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
-<text x="316" y="149" font-size="11.5" fill="#1f2328">Step::Evaluate（表达式求值 → value/dispValue）</text>
+<text x="316" y="149" font-size="11.5" fill="#1f2328">channel6：special 队列排空（重入有上限 DEFAULT_MAX_SPECIAL_REQUEUES，防活锁）</text>
 
 <rect x="300" y="176" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
-<text x="316" y="201" font-size="11.5" fill="#1f2328">Step::AfterExtend（主格变化 → setDSCurrent 重定位数据集游标）</text>
+<text x="316" y="201" font-size="11.5" fill="#1f2328">calcProperties：属性表达式（channel5 之后、分页之前；共用同一套 trampoline）</text>
 
 <rect x="300" y="228" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
-<text x="316" y="253" font-size="11.5" fill="#1f2328">Step::Invalidate(deps) → 级联重算（等价 state 8）</text>
+<text x="316" y="253" font-size="11.5" fill="#1f2328">state 1/3 → EngineError::CircularRef（终局，不再重试）</text>
 
 <rect x="300" y="280" width="570" height="42" rx="8" fill="#fff" stroke="#d8dee4"/>
-<text x="316" y="305" font-size="11.5" fill="#1f2328">Step::Done（写回 arena，出栈）</text>
+<text x="316" y="305" font-size="11.5" fill="#1f2328">收口：编排与循环链诊断在 calc/run.rs::calculate()（chain = chase 栈 + 抛出方）</text>
 
 <path d="M230,56 L300,41" stroke="#57606a" stroke-width="1.4"/>
 <path d="M585,63 L585,72" stroke="#57606a" stroke-width="1.4"/>
@@ -326,24 +360,26 @@ Rust <strong>不建议仿冒异常</strong>，改为等价的显式工作栈：<
 <path d="M585,271 L585,280" stroke="#57606a" stroke-width="1.4"/>
 
 <text x="30" y="120" font-size="11.5" fill="#57606a">等价性：</text>
-<text x="30" y="140" font-size="11.5" fill="#57606a">异常传播的"任意深度</text>
-<text x="30" y="158" font-size="11.5" fill="#57606a">依赖"→ 栈的显式回退；</text>
-<text x="30" y="176" font-size="11.5" fill="#57606a">JVM 栈深度限制 → 堆栈，</text>
-<text x="30" y="194" font-size="11.5" fill="#57606a">深依赖不再爆栈；</text>
-<text x="30" y="212" font-size="11.5" fill="#57606a">且可快照/暂停（大报表</text>
-<text x="30" y="230" font-size="11.5" fill="#57606a">分页直接收益）。</text>
+<text x="30" y="140" font-size="11.5" fill="#57606a">Java 异常 = Rust 值；</text>
+<text x="30" y="158" font-size="11.5" fill="#57606a">通道边界（try/catch）</text>
+<text x="30" y="176" font-size="11.5" fill="#57606a">消化挂起；换格 chase =</text>
+<text x="30" y="194" font-size="11.5" fill="#57606a">重入通道 + 换格参数；</text>
+<text x="30" y="212" font-size="11.5" fill="#57606a">⛔ 禁止递归求值（M2-20）；</text>
+<text x="30" y="230" font-size="11.5" fill="#57606a">深依赖不爆栈、逐行对齐。</text>
 </svg>
-<figcaption>CalcScheduler：异常协程的 Rust 等价物——显式 LIFO 工作栈，每格一个状态步进序列。</figcaption>
+<figcaption>三通道 trampoline（<code>eval/sched.rs</code>，<code>ExtCellSet.java:1297-1446</code> 逐行移植）：Flow 值传播 + 通道边界消化；⛔ 无递归求值（M2-20 硬约束）。</figcaption>
 </div>
 
-<h3>6.3 同值合并与分页</h3>
+<h3>6.3 同值合并与分页 <span class="tag">✅ 合并 / 分页已落地</span></h3>
 <ul>
-<li><strong>同值合并</strong>：4 趟扫描（正/反 × 纵/横）× 4 种模式（同源校验/邻格/逆向/不校验），带交叉检测——出现交叉就回缩合并区，所以合并范围可能小于同值连续区间。Rust 里用并查集或区间合并均可，注意<strong>回缩要双向</strong>。</li>
-<li><strong>分页 SimplePager</strong>：按行高累加断页；每页是 <strong>1×全列数空壳</strong>（不是全表克隆）+ <code>copyRowTo/copyCellTo</code> 增量填充；合并格恢复算法：非锚点时问左邻/上邻"你的 rowMerge/colMerge 跨度够不够到我这儿"，够就沿用引用。<strong>保留那个深拷贝特例</strong>：分栏 + 行式分页 + 分组尾行必须深拷，否则同一行被多栏复用会改一处坏全局。</li>
-<li><strong>大报表 BigEngine</strong>：注入 <code>_pageNo_/_rowsBefore_/_pageRows_/_pageCount_</code> 四个参数，数据集工厂按页物化；每页独立 new ExtCellSet + calculate。Rust 里同样实现，但游标来自 SQL <code>LIMIT/OFFSET</code>，比 Java 的缓存文件更简单。</li>
+<li><strong>同值合并 ✅</strong>（<code>merge.rs</code>，M2-21）：4 趟扫描（正/反 × 纵/横）——120 反向、119 比左邻、118 比 <code>getSource()</code>，带交叉检测（<strong>回缩要双向</strong>）；<code>mergeNull</code> 114/116/115/117 按"空值格指向值格"，第 2/4 趟<strong>先移锚点再回填</strong>。
+<br>⚠ <b>已声明偏离</b>：产品在 pager 里逐页调合并；本项目在计算态对<strong>整表</strong>跑（单页夹具下两者不可辨，见 m2-engine-design §8.1/§15）。</li>
+<li><strong>分页 SimplePager ✅</strong>（<code>pager.rs</code>，M2-11）：按行高累加断页（照抄纸张双舍入 + 单位换算 + 千分位容差）；每页是 <strong>1×全列数空壳</strong> + 增量填充；页首区带、分组头每页重复、横向分页均已落地，11 个分页夹具逐页一致。</li>
+<li><strong>大报表 BigEngine ⏳（M6）</strong>：注入 <code>_pageNo_/_rowsBefore_/_pageRows_/_pageCount_</code> 四个参数，数据集按页物化、每页独立计算。
+<br>⚠ v1 曾写"显式栈可快照/暂停是大报表分页的直接收益"——<b>实际方案不依赖暂停快照</b>：每页独立重算，游标来自 SQL <code>LIMIT/OFFSET</code>。</li>
 </ul>
 
-<h2>七、数据源设计（rpx-ds）</h2>
+<h2>七、数据源设计（rpx-ds） <span class="tag">⏳ M3 规划</span></h2>
 
 <h3>7.1 选型：libSQL（Turso）</h3>
 <p>数据库职责边界先厘清：<strong>Turso 只做平台库</strong>（报表资产 / 参数 / 数据源配置 / 结果缓存），
@@ -480,7 +516,7 @@ sqlx::any::install_default_drivers();        <i>// 必须：否则 AnyPool 直�
 <i>// Row.getData(0) 固定返回行号（第 0 列内置）；getData(name) 查不到回退中文别名</i></pre>
 <div class="box"><b><code>Row.cross()</code> 的 Rust 实现</b>：Java 用对象身份做半连接（命中返回自身，否则 <code>NullRow</code>——<strong>不是 null 而是合法空值载体</strong>，跨库表达式 <code>A.x * B.y</code> 不匹配时继续传播空值而非 NPE）。Rust 侧装载数据集时预建 <code>HashMap&lt;JoinKey, RowIdx&gt;</code>，cross 即一次哈希查找，miss 返回 <code>RowRef::Null</code>。一次物化 + 内存查找，避免 Java 里逐行回调的开销。</div>
 
-<h2>八、服务端 API 设计（axum）</h2>
+<h2>八、服务端 API 设计（axum） <span class="tag">⏳ M3/M4 规划</span></h2>
 
 <table>
 <tr><th>方法 / 路由</th><th>说明</th></tr>
@@ -538,6 +574,7 @@ sqlx::any::install_default_drivers();        <i>// 必须：否则 AnyPool 直�
 <text x="60" y="268">RowCell 行高 → rowData · ColCell 列宽 → columnData · 单元格样式 → s:{bl,bg,ff,fs,ht,vt,cl}</text>
 <text x="60" y="290">子报表（Cell::Sub）→ 递归展开进同一 sheet（或独立 sheet）· 分页 → 多 sheet 或前端分页</text>
 </g>
+</g>
 </svg>
 <figcaption>render 主链路与快照映射：服务端输出的 JSON 就是 Univer 的装载协议，前端零业务逻辑。</figcaption>
 </div>
@@ -570,7 +607,7 @@ sqlx::any::install_default_drivers();        <i>// 必须：否则 AnyPool 直�
   expires_at TEXT NOT NULL,   <i>-- ISO8601</i>
   PRIMARY KEY (report_id, args_hash));</pre>
 
-<h2>九、Univer 前端设计</h2>
+<h2>九、Univer 前端设计 <span class="tag">⏳ M4 规划</span></h2>
 
 <pre><b>import</b> { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core'
 <b>import</b> { createUniver, LocaleType, mergeLocales } from '@univerjs/presets'
@@ -593,7 +630,7 @@ univerAPI.createWorkbook(snapshot)   <i>// snapshot 即 IWorkbookData</i></pre>
 <li><strong>不需要 Univer Pro</strong>：导入导出/协同/打印我们一概自建，省掉商业授权成本与免费档的页数限制。</li>
 </ul>
 
-<h2>十、导出设计（rpx-export）</h2>
+<h2>十、导出设计（rpx-export） <span class="tag">⏳ M5 规划</span></h2>
 <ul>
 <li><strong>xlsx</strong>：<code>rust_xlsxwriter</code>（活跃维护、纯 Rust）。计算态矩阵 → worksheet：合并区 <code>merge_range</code>、边框/字体/对齐逐格写、行高列宽。Java 版 BaseExcel 的那套"锚点 + 跨度"逻辑可直接复用。</li>
 <li><strong>CSV</strong>：先做，用于对拍验证（rpx-cli 输出 CSV vs Java 版导出对比）。</li>
@@ -604,7 +641,7 @@ univerAPI.createWorkbook(snapshot)   <i>// snapshot 即 IWorkbookData</i></pre>
 PDF 追求<strong>版式保真</strong>（所见即所印，交给财政/档案场景）。两者读的是同一个计算态矩阵，
 差异只在渲染后端——这正是 <code>IReport</code> 单一抽象在 Rust 侧的对应收益。</div>
 
-<h2>十一、打印设计（rpx-print）——为什么不能交给 Univer</h2>
+<h2>十一、打印设计（rpx-print）——为什么不能交给 Univer <span class="tag">⏳ M5 规划</span></h2>
 
 <h3>11.1 先给结论：Univer 的打印是 Pro 付费能力，且免费档不可用</h3>
 <table>
@@ -654,8 +691,10 @@ fWorkbook.print()          <i>// 或 openPrintDialog() 打开打印配置对话�
 <i>// rpx-print：PageLayout + Vec&lt;Page&gt;（分页后的矩阵）→ printpdf Document → Vec&lt;u8&gt;</i>
 <i>// printpdf：纯 Rust，文字/字体/线条/矩形/图片/页面尺寸齐全，无外部依赖、无头可跑</i></pre>
 <ul>
-<li><strong>与 .rpx 的对应</strong>：报表级属性里已有 <code>dispRatio</code>(133 显示比例)、<code>unit</code>(1=MM)、
-<code>expMap</code> 码 33=<strong>每页行数</strong>——润乾自己的分页配置就在模板里，直接映射成 <code>PageLayout</code>，用户无需重设。</li>
+<li><strong>与 .rpx 的对应（打印配置已解析 ✅）</strong>：<code>rpx-core</code> 的 <code>print_setup.rs</code> 已把首个 MetaData 的
+33 槽全量解出（纸张 / 四边距 / 纵横 / 分栏 <code>layout</code> / 页眉页脚模式 / <code>pager_style</code>…，契约 = <code>format-contract.md</code> 附件 D）；
+报表级另有 <code>dispRatio</code>(133)、<code>unit</code>(1=MM)、<code>expMap</code> 码 33=<strong>每页行数</strong>——
+<code>PageLayout</code> 的字段几乎可从这两处直接映射，用户无需重设。</li>
 <li><strong>确定性输出</strong>：同样输入永远得到同一份 PDF（无浏览器版本差异、无字体嗅探差异），便于归档与审计。</li>
 <li><strong>零授权、零部署依赖</strong>：不引 Chrome，符合"私有化、断网可跑"的既定边界。</li>
 <li><strong>大报表</strong>：与 BigEngine 分页同源——算一页写一页，PDF 也是流式产出，内存不随总页数增长。</li>
@@ -739,34 +778,44 @@ avail_h     = printable_h - repeat_h - header_h - footer_h   <i>// 页眉页脚�
 
 <h2>十二、风险与关键取舍</h2>
 <table>
-<tr><th style="width:210px">项</th><th>风险 / 取舍</th><th>对策</th></tr>
-<tr><td>表达式语言</td><td>润乾自有表达式（ds.字段、A1 引用、集算函数）Univer 公式引擎不认</td><td>自研递归下降子集解析器（nom 或手写），MVP 覆盖算术/比较/聚合/字符串函数</td></tr>
-<tr><td>格式兼容</td><td>老 .rpx 是 Java OIS 序列化</td><td>不支持，明确报错；只保现代紧凑格式</td></tr>
-<tr><td>混淆引擎类</td><td>model/engine 里 5% 类名混淆</td><td>语义已全部还原，Rust 版用语义命名重写，无遗留</td></tr>
-<tr><td>数值精度</td><td>Java BigDecimal（scale+unscaled 记录层标签 2）</td><td><code>rust_decimal</code> + highPrecision 标志位透传</td></tr>
-<tr><td>渲染保真度</td><td>Univer 与 Swing 渲染细节差异（斜线表头/旋转角）</td><td>MVP 砍斜线与旋转；核心布局/合并/样式优先对齐</td></tr>
-<tr><td>打印依赖</td><td>若把打印押在 Univer Pro：官方已暂停新购与试用（pro.univer.ai 公告），免费档 ≤3 页/次 + 水印，价格不透明</td><td>打印走 Rust 侧 <code>rpx-print</code>（printpdf），Univer 只做屏幕渲染；Pro 仅作将来备选，且<strong>明确不反编译 Pro</strong>（授权禁止 + 无必要，见 11.6）</td></tr>
-<tr><td>PDF 中文</td><td>printpdf 需内嵌中文字体，否则 PDF 乱码</td><td>打包思源黑体/宋体子集，字体文件随产品分发；文本宽度用字体度量，不猜</td></tr>
-<tr><td>跨库方言差异</td><td>同一张报表模板换库时，SQL 里的日期函数/布尔/字符串拼接可能不兼容</td><td>方言层收敛差异点；模板标注推荐库种；对拍矩阵覆盖 PG/MySQL/SQLite 三库</td></tr>
-<tr><td>AnyPool 无编译期校验</td><td>SQL 错误只能在渲染期暴露</td><td>CLI 对拍 + 渲染期错误带 SQL 上下文回显；平台库 libSQL 可加 <code>named_params!</code> 减少错位</td></tr>
-<tr><td>Turso 写并发</td><td>SQLite 系单写者，报表上传/缓存写入会排队</td><td>写路径极短（单行 insert）；渲染是读路径不受影响；纯本地模式下无同步冲突问题</td></tr>
-<tr><td>授权合规</td><td>逆向实现的边界</td><td>仅做互操作（读公开格式 + 重实现语义），不搬运混淆字节码</td></tr>
+<tr><th style="width:150px">项</th><th>风险 / 取舍</th><th>对策</th><th style="width:74px">状态</th></tr>
+<tr><td>表达式语言</td><td>润乾自有表达式（ds.字段、A1 引用、集算函数）Univer 公式引擎不认</td><td>已落地：自研词法 / 语法 / 求值（139 函数面）+ Text-Text 字典序全保真（冻结 <code>collation.bin</code>，见 <code>m2-collation.md</code>）</td><td class="c">✅ 已落地</td></tr>
+<tr><td>格式兼容</td><td>老 .rpx 是 Java OIS 序列化</td><td>按设计执行：只实现现代紧凑格式，老文件明确报错（M1 收尾）</td><td class="c">✅ M1</td></tr>
+<tr><td>混淆引擎类</td><td>model/engine 里 5% 类名混淆</td><td>语义已全部还原，Rust 版用语义命名重写，无遗留</td><td class="c">✅ 已还原</td></tr>
+<tr><td>数值精度</td><td>Java BigDecimal（scale+unscaled 记录层标签 2）</td><td><b>实际方案：零依赖——<code>Value::Decimal</code> 保留规范十进制字面量</b>（换成 f64 正是契约禁止的事）；<code>engine_types</code> 9 类型逐格对拍。⚠ v1 设想的 <code>rust_decimal</code> 未采用</td><td class="c">✅ 已落地</td></tr>
+<tr><td>渲染保真度</td><td>Univer 与 Swing 渲染细节差异（斜线表头/旋转角）</td><td>MVP 砍斜线与旋转；核心布局/合并/样式优先对齐</td><td class="c">⏳ M4</td></tr>
+<tr><td>打印依赖</td><td>若把打印押在 Univer Pro：官方已暂停新购与试用（pro.univer.ai 公告），免费档 ≤3 页/次 + 水印，价格不透明</td><td>打印走 Rust 侧 <code>rpx-print</code>（printpdf），Univer 只做屏幕渲染；Pro 仅作将来备选，且<strong>明确不反编译 Pro</strong>（授权禁止 + 无必要，见 11.6）</td><td class="c">⏳ M5</td></tr>
+<tr><td>PDF 中文</td><td>printpdf 需内嵌中文字体，否则 PDF 乱码</td><td>打包思源黑体/宋体子集，字体文件随产品分发；文本宽度用字体度量，不猜</td><td class="c">⏳ M5</td></tr>
+<tr><td>跨库方言差异</td><td>同一张报表模板换库时，SQL 里的日期函数/布尔/字符串拼接可能不兼容</td><td>方言层收敛差异点；模板标注推荐库种；对拍矩阵覆盖 PG/MySQL/SQLite 三库</td><td class="c">⏳ M3</td></tr>
+<tr><td>AnyPool 无编译期校验</td><td>SQL 错误只能在渲染期暴露</td><td>CLI 对拍 + 渲染期错误带 SQL 上下文回显；平台库 libSQL 可加 <code>named_params!</code> 减少错位</td><td class="c">⏳ M3</td></tr>
+<tr><td>Turso 写并发</td><td>SQLite 系单写者，报表上传/缓存写入会排队</td><td>写路径极短（单行 insert）；渲染是读路径不受影响；纯本地模式下无同步冲突问题</td><td class="c">⏳ M3</td></tr>
+<tr><td>数据集中文（GBK）</td><td>数据集文本路径只解 ASCII；财政场景中文列名/值必现</td><td>M3 取数前补齐 GBK/GB18030 解码并补夹具（spec §6.2 未闭合项 ③）</td><td class="c">⏳ 缺口</td></tr>
+<tr><td>分页边界</td><td>pagerStyle 0/1、跨页合并拆分、列区带、文本换行、多栏——均无夹具（spec §6.2 未闭合项 ②）</td><td>逐项探针 + 产品夹具后再实现；<b>M2 未整体闭合前不启动 M3</b>（spec 硬规定）</td><td class="c">⏳ 缺口</td></tr>
+<tr><td>授权合规</td><td>逆向实现的边界</td><td>仅做互操作（读公开格式 + 重实现语义），不搬运混淆字节码</td><td class="c">✅ 持续</td></tr>
 </table>
 
 <h2>十三、实施里程碑</h2>
 <table>
-<tr><th style="width:70px">阶段</th><th>目标</th><th>验收标准</th></tr>
-<tr><td class="c">M1</td><td>rpx-core：解析器 + 模型</td><td>真实 .rpx → 内存模型，字段/属性码全对；CLI 打印矩阵</td></tr>
-<tr><td class="c">M2</td><td>rpx-engine：扩展 + 计算 + 合并</td><td>CLI 渲染 sample.rpx → JSON/CSV，与 Java 版导出对拍一致</td></tr>
-<tr><td class="c">M3</td><td>rpx-ds + axum 主链路</td><td>POST /render：Turso 读报表资产 + AnyPool 连业务库取数 → 出快照；参数注入生效</td></tr>
-<tr><td class="c">M4</td><td>Univer 前端</td><td>浏览器打开看到带合并/样式的报表；翻页可用</td></tr>
-<tr><td class="c">M5</td><td>rpx-export xlsx + rpx-print PDF</td><td>导出的 xlsx 与 Java 版结构比对通过；PDF 分页/重复表头/边距与润乾打印一致</td></tr>
-<tr><td class="c">M6</td><td>分页 + 缓存 + 预算 + 打印预览</td><td>BigEngine 等价分页、render_cache 命中、PerfMonitor 预算熔断、/pages 预览可用</td></tr>
+<tr><th style="width:56px">阶段</th><th>目标</th><th>验收标准</th><th style="width:170px">实际状态（2026-10-14）</th></tr>
+<tr><td class="c">M1</td><td>rpx-core：解析器 + 模型</td><td>真实 .rpx → 内存模型，字段/属性码全对；CLI 打印矩阵</td><td class="c">✅ 完成（4 夹具；CLI <code>print</code> 可用）</td></tr>
+<tr><td class="c">M2</td><td>rpx-engine：扩展 + 计算 + 合并 + 分页</td><td>CLI 渲染 → JSON，与 Java 版导出逐格对拍一致</td><td class="c">✅ 主链闭合：15 产品夹具逐格对拍 + G1–G7；M2-11/12/21/22 已交付<br>⚠ <b>边界未清</b>（见 spec §6.2 末条）</td></tr>
+<tr><td class="c">M3</td><td>rpx-ds + axum 主链路</td><td>POST /render：Turso 读报表资产 + AnyPool 连业务库取数 → 出快照；参数注入生效</td><td class="c">⏳ 未启动（<b>准入门槛：M2 全部边界闭合</b>）</td></tr>
+<tr><td class="c">M4</td><td>Univer 前端</td><td>浏览器打开看到带合并/样式的报表；翻页可用</td><td class="c">⏳ 未启动</td></tr>
+<tr><td class="c">M5</td><td>rpx-export xlsx + rpx-print PDF</td><td>导出的 xlsx 与 Java 版结构比对通过；PDF 分页/重复表头/边距与润乾打印一致</td><td class="c">⏳ 未启动（打印配置已随 M1 解析）</td></tr>
+<tr><td class="c">M6</td><td>缓存 + 预算 + 大报表分页 + 打印预览</td><td>BigEngine 等价分页、render_cache 命中、PerfMonitor 预算熔断、/pages 预览可用</td><td class="c">⏳ 未启动</td></tr>
 </table>
 
 <div class="box key">
 <b>最短闭环路径</b>：M1+M2 用 <code>rpx-cli</code> 单机验证（不碰数据库和前端），对拍通过后再上 M3/M4。
+——<b>2026-10-14 状态：M1 ✅、M2 主链闭合</b>；M2 尚未整体闭合（边界清单见 spec §6.2 末条），按 spec 规定<b>不得据此启动 M3</b>。
 . rpx 格式与算法都已是确定知识，这条路径没有未知技术风险，只有工作量。
 </div>
+
+<h2>修订记录</h2>
+<table>
+<tr><th style="width:56px">版本</th><th style="width:110px">日期</th><th>变更</th></tr>
+<tr><td class="c">v1</td><td class="c">2026-10-12</td><td>初版：Univer 查证、六 crate 蓝图、数据源 / API / 前端 / 导出 / 打印全链路设计</td></tr>
+<tr><td class="c">v2</td><td class="c">2026-10-14</td><td>同步 M1/M2 实际落地：新增 §〇（文档地位 + 修订对照）；§二 / §三 / §六 / §12 / §13 补状态标注；<b>三处设计更正</b>（§五 双矩阵、§6.2 异常即值 Flow、§6.1 三阶段执行）；§11.3 补 <code>print_setup.rs</code> 已落地事实；§12 更正数值精度方案（<code>rust_decimal</code> → 零依赖 <code>Value::Decimal</code>）并补两条 M2 缺口行</td></tr>
+</table>
 
 </div></body></html>
