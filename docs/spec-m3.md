@@ -33,7 +33,7 @@ M3 = 把 M1/M2 的**库能力**变成可用的**服务**：
 | ---- | ------------------------------------------------------------------------ | ------------------------- |
 | M3-01 | 参数通道：`calculate_with()` 参数入口 + **建树期内联**（`parse_with`）+ 参数夹具 ✅ | `rpx-engine`              |
 | M3-02 | 数据集编码：GBK/GB18030 解码 + `FileDataSetConfig` 高级槽位核对                        | `rpx-engine`（或随取数迁移至 `rpx-ds`） |
-| M3-03 | `rpx-ds`：`trait DataSource` / 方言层 / 数据集物化 / cross（蓝图 §七）                 | 新 crate                   |
+| M3-03 | `rpx-ds`：`trait DataSource` / 方言层 / 数据集物化 / cross（蓝图 §七）✅ **骨架+sqlite 冒烟已达成**（2026-10-15）；PG/MySQL 真连冒烟带账；模板级 `SqlDataSetConfig` 接入待反逆向 | `rpx-ds`                   |
 | M3-04 | 报表资产库：libSQL 本地模式（`.rpx` BLOB + 元信息 + 参数清单）                                | 新 crate（server 内或 `rpx-ds`） |
 | M3-05 | `rpx-server`：axum 路由 + `POST /render` 主链路                                 | 新 crate                   |
 | M3-06 | 分页真实口径：`/render` 按 `print_setup` 驱动 `pagination`（探针口径仅为对拍保留）               | `rpx-engine` 接口 + server 接线 |
@@ -64,9 +64,9 @@ rpx-core ── rpx-engine ──┬── rpx-cli（已有，M1/M2 对拍入口
 
 - `rpx-ds`：`trait DataSource` + SQL 方言层 + 数据集物化 + cross（蓝图 §七：
   AnyPool 换库只换 URL；`SqlDialect` 收敛占位符/引号/LIMIT/布尔/日期差异）。
-  依赖：`rpx-core` + `sqlx(any)` + `libsql`。
-  ⚠ **待定**：物化产物类型 `DataSet` 当前住在 `rpx-engine::expr::ds`——
-  「下沉到 `rpx-core`」vs「`rpx-ds` 依赖 `rpx-engine`」二选一，见 §8。
+  依赖：`rpx-core` + `sqlx(any)`。
+  ✅ **已定案**（§3.4）：物化契约 `Value` + `RowSet` 下沉 `rpx-core`，
+  `rpx-ds` **不依赖** `rpx-engine`。
 - `rpx-server`：axum 路由 + libSQL 资产库 + 主链路编排（蓝图 §八 的路由表）。
 - 门禁 G5（依赖分层）**必须扩展**：为新 crate 定义允许依赖集（M3-07；⛔ 零依赖约束只对
   `rpx-core`/`rpx-engine` 成立，`rpx-ds`/`rpx-server` 本就有依赖）。
@@ -98,13 +98,46 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 - 已知限制：参数名形如 `[A-Za-z]+\d+`（`p1`）被 `is_cell_id` 形状判定截胡
   （与 `qty1` 列名同类，等 M2-06 矩阵重解析一并修正；RUNLOG §24.2 末段）。
 
+### 3.4 `rpx-ds` 类型归属定案（M3-03 设计评审，2026-10-15）
+
+**裁决**：物化契约**下沉 `rpx-core`**——`Value`（值模型）与 `RowSet`（行集）迁入；
+`rpx-ds` 只依赖 `rpx-core` + `sqlx(any)`，**不依赖 `rpx-engine`**。
+
+```text
+rpx-core:  Value（十一变体，契约 = CalcJson.typeName 封闭集）
+           RowSet { name, cols: Vec<String>, rows: Vec<Vec<Value>> }   ← 物化产物，纯数据
+rpx-ds:    trait DataSource；SqlSource（AnyPool）取行 → RowSet          ← 供数方
+rpx-engine: expr::ds::DataSet { name/cols/rows + current/selected }     ← 运行时态
+            impl From<RowSet> for DataSet（物化 → 求值态的唯一入口）
+```
+
+**理由**（对照 §8 旧问句「下沉 `DataSet` vs `rpx-ds` 依赖 `rpx-engine`」）：
+
+1. **依赖方向**：数据源层是引擎的**供数方**，供数方不依赖消费方。`rpx-ds → rpx-engine`
+   会把 arena/expr/pager 全拉进取数 crate，且上层（cli/server/测试）想单独取数也无法。
+2. **`DataSet` 整体下沉不可行**：它带求值期指针态（`current: DsCur`、
+   `selected: Vec<Option<Value>>`——`DsValue` 缓存语义，`expr/ds.rs` 模块文档）。
+   物化契约与运行时态**必须分离**，这正是两个类型的存在理由。
+3. **`Value` 可干净下沉**：零依赖纯数据，十一变体对 `CalcJson.typeName` 封闭
+   （`value.rs` 模块文档）；core 已有同构先例（`ObjValue` 单列 `Float`）。
+   下沉后 `rpx-engine::value` 改 **re-export**，引擎内部路径零改动。
+4. **`RowSet` 与 `ReportDefine`/`PrintSetup` 同层**：都是「引擎输入契约」，
+   归 core 是本仓库既定分层（M1 起的纪律）。
+
+**取数形态**（蓝图 §7.2 的落地口径）：`sqlx::any::install_default_drivers()` 先行；
+`AnyPool::connect(url)` 按 URL 前缀选驱动（postgres/mysql/sqlite）；
+行值经 `DsValue` 映射收敛到 `Value`（Null/Bool/I64/F64/Str/Blob/Decimal→规范字面量）。
+方言差异（占位符/引号/分页/布尔字面量）在本期**只立表不实现改写**——
+M3-03 验收 = 模板 SQL 原样透传（报表 SQL 是用户资产，单实例可信输入，§8 SQL 注入面同口径）。
+sqlite:// 冒烟用内存库真连；postgres/mysql 真连冒烟**带账**（沙箱无服务器）。
+
 ## 4. 验收标准（EARS）
 
 | 编号   | 功能       | 验收标准                                                                                                                                                                | 级别  |
 | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
 | M3-01 | 参数注入生效   | While `POST /render` 携带 `params`，引擎**必须**按参数值计算：标量参数格不变；**List 参数必须**把该格包成扩展格（矩阵按子格数放大）；未登记参数**必须**报错（等价产品 `unknownParam`）；全部断言**必须**有产品夹具逐格对拍 | P0  |
 | M3-02 | 数据集编码    | ✅ **已达成**（2026-10-14）：While CSV 为 GBK 且含中文，列名与值**必须**正确解码（`encoding.rs` 按 `FileDataSetConfig.encoding` 缺省 GBK 解码；`engine_gbk` 夹具中文全链路逐格对拍）；⛔ 不得静默乱码（非法字节显式 `MalformedEncoding`）——GB18030 四字节序列**带账**（§8），与产品默认 `GBK` charset 行为一致 |
-| M3-03 | rpx-ds 取数 | While 数据源配置指向 `postgres://` / `mysql://` / `sqlite://`，**必须**经 AnyPool 取到行集并物化为引擎 `DataSet`；换库只换 URL（蓝图 §7.2）                                                        | P0  |
+| M3-03 | rpx-ds 取数 | ✅ **部分达成**（2026-10-15）：`rpx-ds` 骨架（`DataSource` trait + `SqlSource`/`AnyPool` + 方言表）——sqlite:// 内存库**真连真取**物化 `RowSet` 5/5；`From<RowSet>` 桥进引擎 `DataSet`（`ds.rs` 单测钉死）。带账：PG/MySQL 真连冒烟（沙箱无服务器）；sqlite 声明 `BOOLEAN` 列 Any 层不可取（Long 0/1 承载）；`NUMERIC`/BLOB 列显式报错；模板级 `SqlDataSetConfig`（.rpx 里声明 SQL 数据集）未反逆向，暂无模板路径接入 | P0  |
 | M3-04 | 报表资产     | While 上传 `.rpx`，**必须**魔数校验后存 libSQL BLOB；`GET /meta` **必须**返回参数清单（静态/动态两套 MetaData）                                                                                  | P0  |
 | M3-05 | `/render` 快照 | ✅ **已达成**（2026-10-14）：`POST /render` 返回快照 JSON（multipart：`report`/`dataset`/`params`）；同输入下与引擎库函数直调**逐字节一致**（`tests/render_http.rs` 6 用例：真 socket + 对拍基准）；GBK/参数/缺文件/坏魔数/未知字段全覆盖；浏览器端到端实测通过（截图 `tests/fixtures/out/m4-render-http.png`） | P0  |
 | M3-06 | 分页真实口径   | ✅ **已达成**（2026-10-14）：`/render` 的 `pagination` = **模板真值口径**（`paginate_with_setup`：纸码表 80 码 + 模板边距 → 可用 pt，`PagerInfo.getPageFormat(true)` 同构；快照 `pagination` 块见 `spec-m4.md` §4.5）；`pagerStyle != 2`/多栏（`columnMode`/`tableColumnNum`/重复组头）/列区带（`colType != -79`）/可用尺寸非正全部显式 `UnsupportedPaging`；探针口径保留为夹具对拍专用（双口径共用同一套 `split_rows`/`split_cols`）；换行回填**静态守卫不可行**（`-64` = `INormalCell.TYPE_NORMAL` 普通格默认类型，`guard.rs` 尾注） | P0  |
@@ -149,11 +182,13 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | ------------------ | ---- | -------------------------------------------------------------------------------------------------------------------------- |
 | 参数全景               | ✅ 已消歧 | `ProbeParamFull.java` 四缺口真机答案（RUNLOG §24.1）；「建树期绑定」落点定案为 `parse_with` 期内联（§3.3）                                    |
 | 空 List 参数          | ✅ 已实证 | 矩阵不变、锚点 `extend=18 subCells=1`、值 `null`（RUNLOG §24.1 A 组；修正了 §15.3「无子格」的不精确说法）                                  |
-| `DataSet` 类型归属     | 待定   | 物化产物住在 `rpx-engine::expr::ds`：下沉 `rpx-core` vs `rpx-ds` 依赖 `rpx-engine`——阶段 0 评审定案（倾向下沉：引擎输入契约属 core 层）                        |
+| `DataSet` 类型归属     | ✅ 已定案（2026-10-15，§3.4） | 物化契约 `Value` + `RowSet` 下沉 `rpx-core`；`rpx-ds` 只依赖 `rpx-core`（供数方不依赖消费方）；引擎 `DataSet` 保留运行时态（`DsCur`/`selected`）并 `From<RowSet>` |
 | GBK 实现路径           | ✅ 已定案 | 冻结映射表（`collation.bin` 先例：`include_bytes!` 保零依赖）：`ProbeEncoding.java` dump JDK 全定义域（**23,940 对**，比常见标准表 21,886 项多——JDK 私有区映射）→ `scripts/gen_gbk_table.py` 只加头排序 → `data/gbk.bin`；Rust 单测全表逐对对拍 |
 | GB18030 四字节序列       | ⏳ 带账   | 产品默认 `encoding="GBK"` 时 JDK GBK charset 同样不接受四字节（`MalformedInputException`）；模板显式写 `GB18030` 的场景**无夹具**，按"禁止无基准对拍"带账，命中报 `UnsupportedEncoding` |
 | 样式直通范围             | 待分类  | 模板静态属性 → 快照样式字段的映射表；样式宏后置（§5）                                                                                              |
 | 列区带 / 换行守卫         | ✅ 已核对（M3-06） | 列区带：**已装守卫**（`ensure_data_columns`，`colType != -79` 显式报错）；换行回填：**静态守卫不可行**（`-64` 是 `INormalCell.TYPE_NORMAL` 普通格默认类型，测量分支条件「值为 String 且页内放不下」断页期才可知——静态拦截会拒绝所有真实模板；运行时风险带账，`pager/guard.rs` 尾注） |
+| sqlite BOOLEAN 列     | ⏳ 带账   | Any 层（sqlx 0.9）对 sqlite 声明 `BOOLEAN` 的列 fetch 期即报 `AnyDriverError`（eager，级联 try_get 无机会）——布尔列在 sqlite 上用 INTEGER 0/1（`Long`）承载；PG `BOOL` 走 `Bool` 分支待真库冒烟验证（`sql_source.rs` 测试注） |
+| PG/MySQL 真连冒烟     | ⏳ 带账   | M3-03 验收的 postgres:// / mysql:// 分支：`SqlSource::connect` + 方言分派已有单测，真库往返等有服务器环境补（沙箱无 PG/MySQL） |
 | SQL 注入面            | 待定   | 报表模板自带 SQL（用户资产）⇒ 单实例私有化下视为可信输入；如未来外网暴露需重评估                                                                             |
 | CLI 无自动化断言         | 沿用   | `spec-m2.md` §9 的待办；M3-07 顺带处理                                                                                              |
 
@@ -163,6 +198,7 @@ Rust 侧对应：① libSQL 取 BLOB → ② `rpx_core::open_bytes`（已有）�
 | ---------- | ------------------------ | ----------------------------------------------------------- |
 | 2026-10-14 | v0.1 立档（team-lead，阶段 0）  | 总监批准「务实路」后启动 M3；本档承接 `spec-m2.md` §6.2 的准入 v2；阶段 0 出口 = 本文件经总监确认 |
 | 2026-10-14 | v0.2：M4 并行推进 + M3-08 提关键路径 | 总监令「M3 M4 一起推进，这样可以看到报表显示」；前端立档 `docs/spec-m4.md`，快照契约 v1 已定 |
+| 2026-10-15 | v0.7：**M3-03 定案 + rpx-ds 骨架闭合** | 类型归属定案（§3.4）：`Value`+`RowSet` 下沉 `rpx-core`，`rpx-ds` 只依赖 core（供数方不依赖消费方）；`rpx-ds` 新 crate（`DataSource` trait + `SqlSource`/`AnyPool` + 方言表，sqlx 0.9 过 G5 登记）；sqlite 内存库真连冒烟 5/5；`From<RowSet>` 桥（`ds.rs` 单测）；410 测试全绿 + G1–G7 全绿 |
 | 2026-10-14 | v0.6：**M3-06 闭合**（分页真实口径） | `pager/paper.rs`（`gen_paper_table.py` 生成 80 码纸码表 + `usable_page_pt`）+ `paginate_with_setup`（真值口径，与探针口径共用 `split_rows`/`split_cols`）；`/render` 与 dev bin 的 `pagination` 切真值 + 快照 `pagination` 块（`spec-m4.md` §4.5）；守卫补 `tableColumnNum`/列区带；换行回填核对结论 = 静态守卫不可行（带账）；`PageInfo` 加 `row_range`/`col_range`（emit 不序列化，对拍不变）；RUNLOG §27 |
 | 2026-10-14 | v0.5：**M3-05 闭合**（`POST /render` 主链路） | axum 0.8 + tokio 入 `rpx-server`（库/bin 分层：`lib.rs` + `http.rs`/`form.rs`，集成测试可 import 主链路纯函数与真 socket 双轨对拍）；引擎加 `load_datasets_with` 闭包字节源（磁盘/HTTP 上传共用一份口径）；上传完整性预检按**文件名**报缺；错误 400/500 分级；G5 登记 axum/tokio（理由见 `code-review.md` §3.2）；RUNLOG §26 |
 | 2026-10-14 | v0.4：**M3-02 GBK 闭合**（`encoding.rs` + `gbk.bin` 冻结表 + `engine_gbk` 夹具 17 对拍全绿）；M3-01 状态同步 | `ProbeEncoding.java` dump JDK 全定义域 23,940 对 → 生成器只加头 → `include_bytes!`；`parse_csv` 按 `FileDataSetConfig.encoding` 缺省 GBK 解；GB18030 四字节显式带账；RUNLOG §25 |

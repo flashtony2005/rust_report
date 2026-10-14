@@ -1,0 +1,16 @@
+[package]
+name = "rpx-ds"
+version = "0.1.0"
+edition.workspace = true
+description = "ReportLite data-source layer (M3-03): SQL via AnyPool -> materialized RowSet"
+
+[dependencies]
+rpx-core = { path = "../rpx-core" }
+sqlx = { version = "0.9", default-features = false, features = [
+    "any",
+    "postgres",
+    "mysql",
+    "sqlite",
+    "runtime-tokio",
+] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

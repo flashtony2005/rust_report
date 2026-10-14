@@ -17,6 +17,8 @@ pub mod props;
 pub mod reader;
 pub mod report;
 pub mod rowcell;
+pub mod rowset;
+pub mod value;
 
 pub use error::{Result, RpxError};
 pub use report::{CellId, MergedArea, ReportDefine, ScalarTail};

@@ -2839,3 +2839,49 @@ SimplePager 走它；`PrintSetup.java:920-935` 那个轮换边距的方法不在
 | `render_http.rs` | 8/8（+2）：`pagination` 块真值断言（487.559/700.157，且非 595×842）+ 0 起坐标 / 引擎错误→400 映射（UnknownParam） |
 | dev bin 冒烟 | `engine_sum` 真值 2 页(横向 x=2)、`engine_pager` 4 页、`engine_gbk` 1 页 |
 | workspace | 全绿（engine 266 lib + 全部集成） |
+
+## §28 M3-03：类型归属定案 + rpx-ds 骨架 + sqlite 真连冒烟（2026-10-15 凌晨）
+
+### 28.1 定案（spec-m3 §3.4）
+
+物化契约**下沉 `rpx-core`**：`Value`（值模型，11 变体对 `CalcJson.typeName` 封闭）
++ `RowSet { name, cols, rows }`；`rpx-ds` 只依赖 `rpx-core`，**不依赖 `rpx-engine`**；
+引擎 `DataSet` 保留运行时态（`DsCur`/`selected`）经 `DataSet::from_rowset` 唯一入口。
+
+裁决理由（对照 §8 旧问句）：① 供数方不依赖消费方（rpx-ds→rpx-engine 会把
+arena/expr/pager 全拖进取数 crate）；② `DataSet` 整体下沉不可行——它带求值期
+指针态，物化契约与运行时态必须分离；③ `Value` 零依赖纯数据可干净下沉，engine
+`value.rs` 改 re-export 保两条既有路径零改动（server/cli 引用不动）；④ `RowSet`
+与 `ReportDefine`/`PrintSetup` 同层（引擎输入契约归 core 是 M1 起的分层纪律）。
+
+### 28.2 rpx-ds 骨架
+
+* `DataSource` trait（`fetch(query)` → `RowSet`，Rust 原生 async fn in trait）
+* `SqlSource`：`AnyPool` 按 URL 前缀选驱动；sqlite 系池上限强制 1（蓝图坑③）；
+  `install_default_drivers()` 先行（坑①）
+* `dialect.rs`：四库方言表（占位符/分页/布尔字面量）——**只立表不实现改写**，
+  模板 SQL 原样透传（§8 SQL 注入面同口径：用户资产、单实例可信）
+* 值映射 `any_cell`：级联 try_get（i64→i32→i16→f64→f32→bool→String），
+  全落空按**列类型名**显式报 `UnsupportedColumnType`——不塞占位值
+* G5 登记：sqlx 0.9（any/postgres/mysql/sqlite/runtime-tokio）+ tokio（理由表 code-review §3.2）
+
+### 28.3 sqlx 0.9 实测坑（三个，全有单测钉着）
+
+1. **`SqlSafeStr` lint**：0.9 起动态 SQL 被拒（只认 `&'static str`）。模板 SQL 是
+   用户资产 ⇒ 按官方口径 `AssertSqlSafe(sql.to_owned())` 显式豁免并留档。
+2. **`AnyPool` 挪进私有 `reexports`**：facade 只公开 `Any`/`AnyPoolOptions`/`AnyRow` ⇒
+   字段类型用 `sqlx::pool::Pool<sqlx::any::Any>`（AnyPool = Pool<Any> 的别名）。
+   `Row`/`Column`/`ValueRef`/`TypeInfo` 四个 trait 都要显式 use（方法全在 trait 上）。
+3. **sqlite 声明 `BOOLEAN` 的列 Any 层取不出来**：fetch 期即报
+   `AnyDriverError("Any driver does not support the SQLite type SqliteTypeInfo(Bool)")`
+   ——eager 报错，级联 try_get 根本没机会。布尔列在 sqlite 上用 INTEGER 0/1
+   （`Long`）承载；PG 的 `BOOL` 走 `Bool` 分支待真库冒烟验证（spec-m3 §8 带账）。
+
+### 28.4 验证矩阵
+
+| 证据 | 结果 |
+|---|---|
+| `rpx-ds` 单测 | 5/5：sqlite 内存库真连真取（建表/插入/SELECT 物化，类型逐格断言 + NULL 落 Null）/ 未知 scheme 显式报错 / 坏 SQL 透驱动错误 / 方言分派 2 条 |
+| core/engine 桥 | `RowSet` 单测 + `from_rowset` 对拍（name/cols/rows 字段级一致 + 与 `new` 直构等价） |
+| 既有面 | `Value` 下沉后 engine 内部与 server/cli 引用**零改动**（re-export）；17 夹具对拍不变 |
+| workspace | **410 测试全绿** + **G1–G7 全绿** |

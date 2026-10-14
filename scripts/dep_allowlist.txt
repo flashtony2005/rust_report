@@ -19,3 +19,5 @@
 rpx-server serde_json
 rpx-server axum
 rpx-server tokio
+rpx-ds sqlx
+rpx-ds tokio

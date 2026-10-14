@@ -65,6 +65,22 @@ impl DataSet {
         }
     }
 
+    /// 从物化产物构造（M3-03 定案 `docs/spec-m3.md` §3.4：`rpx-ds` 产出
+    /// [`rpx_core::rowset::RowSet`]，引擎经此唯一入口进入求值态）。
+    ///
+    /// `name`/`cols`/`rows` 三槽**字段级转发**（单一事实源）；运行时态
+    /// `current`/`selected` 初始化为 Root/清空——与 [`DataSet::new`] 完全一致。
+    pub fn from_rowset(rs: rpx_core::rowset::RowSet) -> Self {
+        let n = rs.rows.len();
+        DataSet {
+            name: rs.name,
+            cols: rs.cols,
+            rows: rs.rows,
+            current: DsCur::Root,
+            selected: vec![None; n],
+        }
+    }
+
     /// 列名 → 下标（大小写敏感，产品 `getData(String)` 同规）。
     pub fn col_index(&self, col: &str) -> Option<usize> {
         self.cols.iter().position(|c| c == col)
@@ -102,5 +118,36 @@ impl DataSet {
             .cloned()
             .flatten()
             .unwrap_or(Value::Null)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 物化契约 → 求值态的唯一入口（`spec-m3.md` §3.4）：name/cols/rows 三槽
+    /// 字段级一致；运行时态初始化与 `new` 完全相同（Root/清空）。
+    #[test]
+    fn from_rowset_carries_materialized_slots_and_resets_runtime_state() {
+        let rs = rpx_core::rowset::RowSet::new(
+            "ds1",
+            &["region", "qty"],
+            vec![
+                vec![Value::Text("North".into()), Value::Int(100)],
+                vec![Value::Text("East".into()), Value::Int(200)],
+            ],
+        );
+        let ds = DataSet::from_rowset(rs);
+        assert_eq!(ds.name, "ds1");
+        assert_eq!(ds.cols, vec!["region".to_string(), "qty".to_string()]);
+        assert_eq!(ds.rows[1][1], Value::Int(200));
+        assert_eq!(ds.current, DsCur::Root);
+        assert_eq!(ds.selected, vec![None, None]);
+        // 与 new 直构等价（两条入口不许分叉）。
+        let twin = DataSet::new("ds1", &["region", "qty"], ds.rows.clone());
+        assert_eq!(twin.name, ds.name);
+        assert_eq!(twin.cols, ds.cols);
+        assert_eq!(twin.current, ds.current);
+        assert_eq!(twin.selected, ds.selected);
     }
 }
