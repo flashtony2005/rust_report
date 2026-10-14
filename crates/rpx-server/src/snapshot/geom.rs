@@ -25,7 +25,8 @@ fn px(mm: f64) -> f64 {
 
 /// 计算态尺寸 → px：`unit == 1` 是 mm（`CalcGrid.unit` 文档）；
 /// 其余单位语义未建模 ⇒ **原值直出**（声明：`spec-m4.md` §7）。
-fn size_px(v: f32, unit: i8) -> f64 {
+/// M4-05 起 `paged` 切片模块也用（页内 rowData/columnData）。
+pub(crate) fn size_px(v: f32, unit: i8) -> f64 {
     if unit == 1 {
         px(v as f64)
     } else {

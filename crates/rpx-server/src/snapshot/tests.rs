@@ -166,3 +166,41 @@ fn merge_grid_validation_fails_loudly_on_violation() {
     let err = geom::merge_data(&g).expect_err("缺槽必须报错（不静默少报一块）");
     assert!(err.contains("缺槽"), "错误需说明缺槽: {err}");
 }
+
+// ---- M4-05 多 sheet 翻页（paged 切片，`docs/spec-m4.md` §4.6）----
+
+/// 真实夹具 `engine_pager`：真值口径 4 页（row_range 页首重叠——区带副本如实）。
+/// 断言：4 sheet 顺序即页序、名「第 N 页」、每页 cellData 键 0 起且含区带副本、
+/// merged 在多页夹具下为空（`MergedCell` 文档的已声明缺口）。
+#[test]
+fn paged_snapshot_engine_pager_has_four_sheets_with_translated_rows() {
+    let wb = wb_of("engine_pager");
+    assert_eq!(
+        wb["sheetOrder"],
+        serde_json::json!(["rpx-sheet-1", "rpx-sheet-2", "rpx-sheet-3", "rpx-sheet-4"])
+    );
+    assert_eq!(wb["sheets"]["rpx-sheet-1"]["name"], "第 1 页");
+    assert_eq!(wb["sheets"]["rpx-sheet-4"]["name"], "第 4 页");
+    // 顶层 pagination 观测块保留（§4.5）。
+    assert_eq!(wb["pagination"]["page_count"], 4);
+    // 每页 cellData 键从 0 起（切片平移）；页 2 含区带副本行 0（row_range [1,22] 0 起
+    // ⇒ 页首重叠在页内表现为第 0 行就是区带行）。
+    for sid in ["rpx-sheet-1", "rpx-sheet-2", "rpx-sheet-3", "rpx-sheet-4"] {
+        let cd = &wb["sheets"][sid]["cellData"];
+        assert!(cd.get("0").is_some(), "{sid} 页内应含 0 行（区带副本）");
+        // merged 在多页夹具下为空（MergedCell 文档：多页夹具 merged.cells 全空）。
+        assert_eq!(
+            wb["sheets"][sid]["mergeData"].as_array().unwrap().len(),
+            0,
+            "{sid} 的 merged 应为空（已声明缺口）"
+        );
+    }
+    // 页 4 row_range（0 起 0..41）⇒ 页内行键**全部 ≤ 41**（末页不满页也不越界）。
+    for k in wb["sheets"]["rpx-sheet-4"]["cellData"]
+        .as_object()
+        .unwrap()
+        .keys()
+    {
+        assert!(k.parse::<u32>().unwrap() <= 41, "页 4 行键越页界：{k}");
+    }
+}

@@ -25,6 +25,7 @@ use rpx_core::ReportDefine;
 use rpx_engine::arena::CalcGrid;
 
 pub(crate) mod geom;
+mod paged;
 pub(crate) mod style;
 pub(crate) mod value;
 
@@ -37,7 +38,24 @@ mod tests;
 ///
 /// `Err` = 映射不变式被违反（当前唯一来源：[`geom::merge_data`] 的网格校验）
 /// —— 按「诚实失败优于静默错」直接上抛，不产出半成品快照。
+///
+/// # 分页分派（M4-05）
+///
+/// `grid.pagination`（`/render` 已覆盖为**模板真值口径**）页数 > 1 ⇒
+/// **多 sheet 切片**（每页一个 sheet，坐标平移，[`paged`] 模块）；
+/// 单页 / 手搭网格（无 pagination）⇒ 单 sheet 全量（本函数余部 + [`pagination_json`]）。
+/// 夹具对拍走 `rpx_engine` 的 emit（不经本模块）⇒ 结构变更不炸对拍。
 pub fn build(rd: &ReportDefine, grid: &CalcGrid, name: &str) -> Result<String, String> {
+    if let Some(pg) = &grid.pagination {
+        if pg.page_count > 1 {
+            return paged::build_paged(rd, grid, pg, name);
+        }
+    }
+    build_single(rd, grid, name)
+}
+
+/// 单 sheet 路径（M3/M4 v1 契约，多页报表不走这里）。
+fn build_single(rd: &ReportDefine, grid: &CalcGrid, name: &str) -> Result<String, String> {
     let merge_data = geom::merge_data(grid)?;
     let sheet_id = "rpx-sheet-1";
     let sheet = json!({
@@ -77,7 +95,7 @@ pub fn build(rd: &ReportDefine, grid: &CalcGrid, name: &str) -> Result<String, S
 /// `row_range`/`col_range` 由引擎 1 起坐标转 **0 起**（与 §4.2 同规）；
 /// ⚠ 页首区带/分组头副本每页重复 ⇒ 相邻页的 `row_range` **可以重叠**（如实）。
 /// `grid.pagination` 为 `None`（手搭网格，HTTP 路径不会发生）⇒ 写 `null`。
-fn pagination_json(grid: &CalcGrid) -> J {
+pub(crate) fn pagination_json(grid: &CalcGrid) -> J {
     match &grid.pagination {
         None => J::Null,
         Some(pg) => json!({

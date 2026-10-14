@@ -2975,3 +2975,41 @@ cellData/rowData/columnData/pagination/page_w_pt）+ GBK 中文数据 → 坏魔
 | e2e 冒烟 | 全绿（6 步断言） |
 | workspace | 417 测试全绿 |
 | G1–G8 | 全绿 |
+
+## §31 M4-04/M4-05 收官：多 sheet 翻页 + 参数表单（2026-10-15 晨）
+
+### 31.1 多 sheet 切片（snapshot/paged.rs）
+
+`pagination.page_count > 1` ⇒ 每页一个 sheet（`rpx-sheet-{n}` /「第 N 页」），
+`sheetOrder` 顺序即页序（Univer tab = 翻页）。坐标平移（页内 = 全局 − 页偏移）；
+页间重叠的区带/分组头副本**自然每页重现**（切片法与产品独立页矩阵同观感）；
+跨页合并区**裁剪到页界**（锚点在页内才保留）——与产品「拆分」的显示差异记
+spec-m4 §4.6 声明近似（产品拆分语义无夹具基准）。单页/无 pagination 走原单
+sheet 路径 ⇒ 夹具对拍（走 rpx-engine emit）不受影响。
+
+真实夹具 `engine_pager`（真值 4 页）实证：4 tab、页 1-4 row_range
+`[0,11]/[1,22]/[1,33]/[1,42]`（页首重叠如实）、各页 cellData 0 起平移、
+merged 全空（M2 已声明缺口）。
+
+### 31.2 参数表单（web）
+
+App.tsx：渲染改**显式按钮**；参数动态行（名称/值 + 内联 SVG 加/删图标，无 emoji；
+配色 Token 化 `:root` 变量）；值推断与 `form.rs::json_to_value` 同规
+（整数→Int / 小数→Double / 其余字符串）。tsc 0 错 + vite build exit 0。
+
+### 31.3 浏览器实测（playwright 直驱）
+
+`engine_pager` 渲染 → 4 个页 tab 全渲染 → 切「第 4 页」→ 页首区带副本
+`group: R*` 在页 4 重现、数据从 R1 起（坐标平移正确）。截图
+`tests/fixtures/out/m4-paged-tabs.png` / `m4-page4.png`。
+（选择器教训：Univer 1.0.4 的 tab 类名不是 `.univer-sheet-tab`——断言用**文本**
+`getByText('第 4 页', { exact: true })` 而非内部类名。）
+
+### 31.4 验证矩阵
+
+| 证据 | 结果 |
+|---|---|
+| paged 单测（真实夹具） | 4 sheet / 名/ 键 0 起且不越页界 / merged 空（已声明缺口） |
+| render_http / snapshot 全测 | 11/11 + 15/15 |
+| 浏览器 | canvas + 4 tab + 切页 + 参数表单交互全通 |
+| workspace | 418 测试全绿；G1–G8 全绿；e2e 冒烟全绿 |
