@@ -44,14 +44,18 @@
 //!    不截断则写库报 `MaxStringLengthExceeded` 而整份文件写不出；
 //! 3. **越界格**（row/col 超出 `rows`/`cols`）忽略（同 CSV 口径）；
 //! 4. **空网格**（rows/cols <= 0）仍产出**合法**的空 xlsx（不是空字节）；
-//! 5. **确定性**：写库的 zip 时间戳固定（`DateTime::default()`）⇒ 同输入
-//!    同字节（M6-04 的「CLI 产出与库函数直调逐字节一致」依赖这一点）。
+//! 5. **确定性**：同输入**同字节** —— 写库的 zip 条目时间戳固定
+//!    （内部 `DateTime::default()`，DOS 纪元 1980-01-01），且本函数把
+//!    `DocProperties.creation_time` 也钉死为 1980-01-01T00:00:00Z。
+//!    ⛔ 不钉 `creation_time` 则 `docProps/core.xml` 写**当前 UTC 时刻**，
+//!    跨秒两次调用字节即不同 —— M6-03 的 socket×库直调对拍实测抓到
+//!    （跨秒即不等）。M6-04 的「CLI 产出与库函数直调逐字节一致」依赖本条。
 
 use std::collections::{HashMap, HashSet};
 
 use rpx_engine::arena::{CalcCell, CalcGrid, MergedCell};
 use rpx_engine::value::Value;
-use rust_xlsxwriter::{Format, Workbook, Worksheet};
+use rust_xlsxwriter::{DocProperties, ExcelDateTime, Format, Workbook, Worksheet};
 
 use crate::text::value_text;
 
@@ -87,6 +91,11 @@ pub fn to_xlsx(grid: &CalcGrid) -> Vec<u8> {
     }
 
     let mut workbook = Workbook::new();
+    // 钉死文档时间戳（模块文档 §确定性 5）：`DocProperties::new()` 默认取
+    // 「当前 UTC 时刻」⇒ 跨秒两次调用 core.xml 字节不同。导出是可复现产物，
+    // 固定为 1980-01-01T00:00:00Z（对齐 zip 条目时间戳的 DOS 纪元）。
+    let epoch = ExcelDateTime::from_ymd(1980, 1, 1).expect("1980-01-01 恒为合法日期");
+    workbook.set_properties(&DocProperties::new().set_creation_datetime(&epoch));
     {
         let ws = workbook.add_worksheet();
         // ① 普通格：跳过全部合并槽（槽值统一由 merge_range 落锚点值）。

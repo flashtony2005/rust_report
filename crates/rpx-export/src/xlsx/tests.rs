@@ -281,7 +281,8 @@ fn merged_area_clipped_to_excel_limits() {
 
 #[test]
 fn same_input_same_bytes() {
-    // M6-04 的「CLI 产出与库函数直调逐字节一致」依赖写库 zip 时间戳固定。
+    // M6-04 的「CLI 产出与库函数直调逐字节一致」依赖写库 zip 时间戳与
+    // 文档属性时间戳固定（跨秒版判定见下方 `bytes_stable_across_second_boundary`）。
     let g = grid(
         2,
         2,
@@ -291,4 +292,21 @@ fn same_input_same_bytes() {
         ],
     );
     assert_eq!(to_xlsx(&g), to_xlsx(&g));
+}
+
+#[test]
+fn bytes_stable_across_second_boundary() {
+    // ⛔ 时间戳回归网（M6-03 的 socket × 库直调对拍实测抓到）：写库
+    // `DocProperties::new()` 默认取「当前 UTC 时刻」写进 `docProps/core.xml`，
+    // **跨秒**两次调用字节即不同；同进程连算两次（<1ms）碰巧跨不过秒界，
+    // 故 fast 版捕捉不到。本测试 sleep 过 1s 再算第二遍 —— 唯一能证明
+    // 「时间不参与字节」的断言。
+    let g = grid(1, 1, vec![CalcCell::bare(1, 1, Value::Int(1))]);
+    let a = to_xlsx(&g);
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    let b = to_xlsx(&g);
+    assert_eq!(
+        a, b,
+        "跨秒两次调用必须逐字节一致（core.xml 时间戳应已钉死）"
+    );
 }

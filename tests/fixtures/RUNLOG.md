@@ -3783,3 +3783,83 @@ Rust 引擎逐格对拍），离线（无金仓）用 CSV 文件数据集复刻�
 G1–G8 全绿。spec-m6 v0.3（本项目 §6 变更记录 + §2.5 登记补记 + §3 任务表）。
 **下一步**：M6-03（server `POST /export?fmt=csv|xlsx`）→ M6-04（CLI
 `render --out`，逐字节一致断言）→ M6-05（20 夹具导出基线收口）。
+
+### §44 M6-03 闭合 —— `POST /export?fmt=csv|xlsx`（2026-10-15）
+
+**目标**：把 M6-01/02 的两个导出器接到 HTTP 文件流（spec-m6 §3 M6-03 验收：
+真 socket 跑通、`Content-Disposition` 带文件名、body 是合法文件字节）。
+
+**共享段重构（出口分家不分叉）**
+- `http.rs` 的 `render_core` 拆出 `calculate_grid`（主链路 ②-⑨ 步，原
+  M3-06 口径注释原样搬入）——`/render` 与 `/export` 走**同一次调用**：
+  同一 pager 守卫、同一页数覆盖。导出打整个计算矩阵（不分页/不按纸切，
+  spec-m6 §4），但守卫与覆盖不因出口而异。
+- `prefetch_sql` 提为 `pub(crate)`（export 的 async 版复用）。
+
+**新模块 `crates/rpx-server/src/export.rs`**
+- `ExportFormat`：**严格小写**解析（`csv`/`xlsx`；`CSV` 也拒——不静默回落）、
+  `content_type()`、`ext()`；缺省 = `xlsx`（蓝图 §8.1 示例口径）。
+- `export_request`（纯函数，集成对拍基准）/ `export_request_ds`（HTTP 入口）
+  / `export_response`（响应组装）。
+- **文件名双形态**（新 HTTP 层契约）：
+  - ASCII fallback：`[A-Za-z0-9._-]` 外全 `_`，全空 → `export`；
+  - RFC 5987 `filename*=UTF-8''<pct>`：attr-char 集外**字节级**编码
+    ——控制字符/引号/分号/非 ASCII 全部进 `%XX`，**天然无 header 注入面**
+    （不需要单独 sanitize）；「月度报表」→ `%E6%9C%88%E5%BA%A6%E6%8A%A5%E8%A1%A8`。
+- 错误：fmt 非法 → 400（消息列可选值）；其余负路径与 `/render` 共用
+  `RenderError` 映射（缺文件 400 等）。
+
+**测试脚手架抽取（`tests/common/mod.rs`）**
+- 夹具读取 / multipart 拼装 / 真 socket HTTP 客户端（`Connection: close` +
+  EOF）三件套从 `render_http.rs` 抽出共用（体例：engine 的
+  `tests/common/loader.rs`）；**响应体保留原始字节**（`Vec<u8>`）——
+  M6-03 的 xlsx 是二进制，任何一层走 lossy 字符串都错。
+- `render_http.rs` 改为接线共用（行为不变：11 条全绿）。
+- `#![allow(dead_code)]` + 理由：两个测试 crate 各编译一份 common、
+  「各自只取所需」，未用项是分工常态。
+
+**`tests/export_http.rs`（7 条真 socket 钉测）**
+1. csv：body 与 `export_request` 直调**逐字节一致** + 头双形态 + 表头字面量；
+2. xlsx：同上 + **首 4 字节 = `PK\x03\x04`**（zip 容器的第一硬证据）；
+   calamine 读回自洽已在 M6-02 全量钉死（传递性证据，不重复构建）；
+3. 缺省 `fmt` → xlsx；
+4. `fmt=pdf` → 400（消息含 `csv / xlsx`）；
+5. 中文报表名「月度报表.rpx」过 multipart → 双形态文件名（ASCII fallback
+   + RFC 5987）逐字节断言；
+6. GBK 数据集 → 导出 CSV 是 UTF-8 中文原文（M3-02 × M6-03 回归网）；
+7. 缺数据集文件 → 400 且点名文件名（与 /render 同款）。
+
+**变异实测 3 条（改坏必红、还原必绿）**
+| 变异 | 期望红的本 | 实录 |
+| --- | --- | --- |
+| `ascii_filename` 直返原名（不消毒） | `response_filename_never_breaks_header_syntax` | ✅ FAILED |
+| `rfc5987_encode` 直返原串（不编码） | `response_headers_for_utf8_name` | ✅ FAILED |
+| 缺省格式 `Xlsx → Csv` | `export_defaults_to_xlsx_without_fmt_query` | ✅ FAILED |
+
+**验证**：`cargo test -p rpx-server` **47/47**（单测 25 + export_http 7 +
+render_http 11 + sql_fixture 4）；clippy `-D warnings` 干净；G1–G8 全绿。
+spec-m6 v0.4（§3 任务表 + §6 变更记录）。
+**下一步**：M6-04（CLI `render --out`，产出与库函数直调逐字节一致）
+→ M6-05（20 夹具导出基线收口）。
+
+**补记 —— 对拍抓到的 M6-02 缺陷（跨秒非确定性，已修）**
+- **现象**：M6-03 门禁**全量**跑（`cargo test --no-fail-fast`）时
+  `export_xlsx_matches_library_and_is_zip_container` 红（`left != right`，
+  但长度相同 5665B）；**单包**跑（`-p rpx-server`）全绿 ⇒ 非确定性。
+- **定位**（字节流级）：把失败的 socket 体与库直调体都当 zip 解析——10 个
+  条目里 **9 个字节全同**（含 CRC/sha），只有 `docProps/core.xml` 的
+  CRC/sha 不同（`d7afdd75` vs `88904257`）。core.xml 是 OOXML 文档属性，
+  含 `<dcterms:created>/<dcterms:modified>` —— 写库
+  `DocProperties::new()` 的 `creation_time = ExcelDateTime::utc_now()`：
+  **两次 to_xlsx 调用跨秒即字节不同**（且 created/modified 同源，一设全定）。
+- **为何 M6-02 没抓到**：`same_input_same_bytes` 是同进程连续调用（<1ms），
+  碰巧跨不过秒界——「同输入同字节」的快版断言**强度不足**（输入没变、
+  时间变了没测）。
+- **修复**：`to_xlsx` 里 `set_creation_datetime(&ExcelDateTime::from_ymd(1980,1,1))`
+  钉死（无需 chrono/jiff 依赖：`impl IntoCustomDateTime for &ExcelDateTime`
+  无条件可用；1980-01-01 对齐 zip 条目的 DOS 纪元 `DateTime::default()`）。
+- **回归网（变异实测）**：新增 `bytes_stable_across_second_boundary`
+  （sleep 1.1s 再算第二遍，跨秒断言逐字节一致）——去掉 `set_properties`
+  一行 → 必红（`assertion left == right failed`），还原 → 绿。
+- **教训**：「确定性」断言若时间参与字节，必须**跨秒**验证；
+  单进程连算两次是弱检验。

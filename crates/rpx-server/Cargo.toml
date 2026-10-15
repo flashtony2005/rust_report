@@ -9,6 +9,8 @@ axum = { version = "0.8", features = ["multipart"] }
 rpx-core = { path = "../rpx-core" }
 rpx-ds = { path = "../rpx-ds" }
 rpx-engine = { path = "../rpx-engine" }
+# M6-03 `POST /export`：快照（/render）之外的第二条出口——文件字节（spec-m6 §2.1）。
+rpx-export = { path = "../rpx-export" }
 serde_json = "1"
 tokio = { version = "1", features = [
     "rt-multi-thread",

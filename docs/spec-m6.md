@@ -1,9 +1,9 @@
-# Spec — ReportLite Rust 重实现 · M6（导出面）v0.3
+# Spec — ReportLite Rust 重实现 · M6（导出面）v0.4
 
-> 状态：**M6-01 / M6-02 已闭合**（2026-10-15；蓝图 §10 既有设计，同日补契约与任务表）。
-> `rpx-export`：`to_csv(&CalcGrid)`（自定 RFC 4180 子集，10 钉测）+
-> `to_xlsx(&CalcGrid)`（rust_xlsxwriter，16 钉测含 calamine 读回自洽，3 条变异证判据）；
-> M6-03..05 未启动。
+> 状态：**M6-01 / M6-02 / M6-03 已闭合**（2026-10-15；蓝图 §10 既有设计，同日补契约与任务表）。
+> `rpx-export`：`to_csv(&CalcGrid)`（10 钉测）+ `to_xlsx(&CalcGrid)`（16 钉测）；
+> server `POST /export?fmt=csv|xlsx`（与 `/render` 共享计算主链路，7 条集成钉测）。
+> M6-04/05 未启动。
 > 上游：M1–M4 已收官，M5（多数据集关联）进行中（`docs/spec-m5.md`）。
 > 蓝图：`docs/reportlite-rust全链路设计.html` §10（导出设计）/ §8.1（路由表 `/export`）。
 > 本文件定义 **M6 做什么、输入是什么、怎么验收**；实现细节以夹具与源码为准。
@@ -110,7 +110,7 @@ G5 只查 `[dependencies]`（`code-review.md` §3.2 注 3），dev-deps 不进�
 | --- | --- | --- | --- |
 | M6-01 | `rpx-export` crate 骨架 + `to_csv(&CalcGrid) -> String` | 新 crate；workspace member | ✅ **已闭合**（2026-10-15）：`crates/rpx-export`（`lib.rs` 契约文档 + `csv.rs` 规则 + `text.rs` 文本口径，G8 矩阵登记 `rpx-export -> rpx-engine`）；10 条钉测 = 满矩阵展开/零维网格/越界忽略/disp 优先/null 空串/五组转义/List 引号/数值 shortest/非有限数保留/读回逐格自洽；`full_matrix` 等以**字面量**断言（非自证） |
 | M6-02 | `to_xlsx(&CalcGrid) -> Vec<u8>`（rust_xlsxwriter） | 同 crate；`merge_range` 写合并 | ✅ **已闭合**（2026-10-15）：`xlsx.rs`（口径表 + 锚点重建 + 边界 5 条）＋`xlsx/tests.rs` 16 钉测；dev-dep `calamine` 读回自洽（逐格比值/**类型** + 合并区矩形全等）；3 条变异实测（disp 优先/延续槽判定/非有限数拦截，改坏必红）；确定性（同输入同字节）有钉 |
-| M6-03 | server `POST /export?fmt=csv\|xlsx` | `rpx-server/src/http.rs` | 真 socket 跑通：响应头 `Content-Disposition` 带文件名 + body 是合法文件字节 |
+| M6-03 | server `POST /export?fmt=csv\|xlsx` | `rpx-server/src/http.rs` | ✅ **已闭合**（2026-10-15）：`rpx-server/src/export.rs`（格式枚举=严格小写解析 / 响应组装 / 文件名双形态 ASCII fallback + RFC 5987）+ `http.rs` 拆出 `calculate_grid` **共享段**（`/render` 与 `/export` 同一次调用，出口分家不分叉口径）；真 socket 跑通（`tests/export_http.rs` 7 条：csv/xlsx **逐字节对拍库函数直调** + `Content-Disposition` 双形态 + 缺省 xlsx + 非法 fmt 400 + 中文报表名过网 + GBK 中文链路 + 缺文件 400）；3 条变异实测（消毒 / 编码 / 缺省，改坏必红） |
 | M6-04 | CLI `render sample.rpx --out out.csv\|xlsx` | `rpx-cli`（现在只有 print） | 一条真跑 CLI 的集成断言（修审计遗留③）；产出文件与库函数直调逐字节一致 |
 | M6-05 | 20 个既有引擎夹具各导出一份 CSV/xlsx 落 `tests/fixtures/out/` | 夹具资产 | 作为回归基线；任一导出改动导致读回 diff 即红（立项时 12 个，M6-01 时已增至 20——`engine_cross`/`engine_cross_root` 系 M5-04 新增） |
 
@@ -202,3 +202,44 @@ G5 只查 `[dependencies]`（`code-review.md` §3.2 注 3），dev-deps 不进�
   - 坑（记录在案）：写库 `ColNum` 是 **u16**（`RowNum` 才 u32），坐标换算
     必须按列类型转换（`pos()` 注释钉死）；clippy `approx_constant` 会把
     测试里的 `3.14` 当 π 近似（换精确二进制小数 `3.5`）。
+
+- **v0.4（2026-10-15）**：**M6-03 闭合**。
+  - 落地：`crates/rpx-server/src/export.rs`（`ExportFormat` 严格小写解析 /
+    `export_request` 纯函数 + `export_request_ds` async 版 / `export_response`
+    响应组装 / 文件名双形态）+ `src/export/tests.rs`（5 条单元钉测）+
+    `tests/export_http.rs`（7 条真 socket 集成钉测）。
+  - **共享段重构**：`http.rs` 的 `render_core` 拆出 `calculate_grid`
+    （主链路 ②-⑨ 步，原 M3-06 口径注释原样搬入）——`/render` 与 `/export`
+    用同一趟计算（导出不分页/不按纸切，但走同一 pager 守卫与页数覆盖，
+    出口分家不产生口径分叉）。
+  - **文件名口径**（HTTP 层新增契约）：`Content-Disposition` 双形态 —
+    ASCII fallback（白名单外全 `_`，全空 → `export`）+ RFC 5987
+    `filename*=UTF-8''<pct>`（attr-char 集外全编码 ⇒ 控制字符/引号天然
+    无注入面，不需要单独 sanitize）。中文报表名「月度报表」→
+    `filename="export.csv"; filename*=UTF-8''%E6%9C%88%E5%BA%A6%E6%8A%A5%E8%A1%A8.csv`。
+  - **fmt 口径**：严格小写 `csv`/`xlsx`（`CSV` 也拒，不静默回落）；
+    缺省 = `xlsx`（蓝图 §8.1 示例口径）；非法值 400 且错误消息列可选值。
+  - **body 合法性证据**：与库函数直调**逐字节一致**（xlsx 载体合法性
+    「zip 魔数 + calamine 读回」已在 M6-02 全量钉死，此处不重复构建；
+    集成层另断言 xlsx 首 4 字节 = `PK\x03\x04`）。
+  - **测试脚手架抽取**：新建 `tests/common/mod.rs`（夹具读取 / multipart
+    拼装 / 真 socket HTTP 客户端，**响应体保留原始字节**——xlsx 二进制不得
+    走 lossy 转换），`render_http.rs` 改为接线共用（体例同 engine 的
+    `tests/common/loader.rs`）。
+  - 测试：server 单测 25 + export_http 7 + render_http 11 + sql 4 全绿；
+    **变异实测 3 条**：① `ascii_filename` 不消毒（直返原名）→ 注入测试红；
+    ② `rfc5987_encode` 不编码 → utf8 头测试红；③ 缺省格式改 csv → 缺省
+    测试红。clippy `-D warnings` 干净。
+  - 验证：`cargo test -p rpx-server` 47 条全绿（25+7+11+4）；G1–G8 全绿。
+  - 坑（记录在案）：`mod common;` 的共用脚手架在两个测试 crate 各编译一份，
+    「各自只取所需」⇒ 未用项 dead_code 预警，`common/mod.rs` 顶部
+    `#![allow(dead_code)]` + 理由注释（体例：engine loader）。
+  - **对拍抓到的 M6-02 缺陷（已修）**：M6-03 的「socket × 库直调逐字节对拍」
+    在全量门禁时红——定位到 `docProps/core.xml` 单条目差异：写库
+    `DocProperties::new()` 默认取**当前 UTC 时刻**写入，**跨秒**两次调用
+    字节即不同（M6-02 的 `same_input_same_bytes` 是同进程连算两次（<1ms），
+    碰巧跨不过秒界 ⇒ 未抓到；**单包跑绿、全量跑红**）。
+    修复：`to_xlsx` 里 `set_creation_datetime(&ExcelDateTime::from_ymd(1980,1,1))`
+    钉死（对齐 zip 条目时间戳的 DOS 纪元）；xlsx.rs 模块文档 §确定性 5 更新。
+    回归网：新增 `bytes_stable_across_second_boundary`（sleep 1.1s 再算第二遍；
+    变异实测：去掉固定时间戳 → 必红）。

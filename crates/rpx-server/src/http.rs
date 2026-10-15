@@ -1,4 +1,4 @@
-//! HTTP 面（M3-05）：axum 路由 + `POST /render` 主链路。
+//! HTTP 面（M3-05）：axum 路由 + `POST /render` + `POST /export`（M6-03）主链路。
 //!
 //! 主链路十步（`docs/spec-m3.md` §3.2）到本文件的映射：
 //!
@@ -8,17 +8,20 @@
 //! | ② 解模板    | `rpx_core::open_bytes`                                                |
 //! | ③④ 物化     | [`rpx_engine::dataset::load_datasets_with`]（闭包查上传 map）            |
 //! | ⑤⑥⑦⑧ 计算  | `rpx_engine::calculate_with`（M2 已闭合，含 pager 守卫）                 |
-//! | ⑨ 分页      | **M3-06**：届时只改 [`render_request`] 一处调用                          |
-//! | ⑩ 快照      | [`crate::snapshot::build`]（契约 `docs/spec-m4.md` §4）                  |
+//! | ⑨ 分页      | **M3-06**：`paginate_with_setup`（②-⑨ 收拢在 [`calculate_grid`]）        |
+//! | ⑩ 出口      | `/render` → [`crate::snapshot::build`]；`/export` → [`crate::export`]    |
 //!
-//! 错误口径：客户端输入问题（模板坏 / 缺文件 / 参数未登记 / 编码坏）→ **400**，
-//! 消息显式（前端原样上屏）；快照不变式违反 → **500**（服务端缺陷，不该发生）。
+//! `POST /export?fmt=csv|xlsx`（M6-03）：与 `/render` **共享 ①-⑨**（同一次
+//! [`calculate_grid`] 调用），只在 ⑩ 分家——快照 JSON vs 文件字节。
+//!
+//! 错误口径：客户端输入问题（模板坏 / 缺文件 / 参数未登记 / 编码坏 / fmt 非法）
+//! → **400**，消息显式（前端原样上屏）；快照不变式违反 → **500**（服务端缺陷）。
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use axum::{
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -30,7 +33,7 @@ use rpx_core::RpxError;
 use rpx_ds::{AssetError, AssetStore};
 use rpx_engine::EngineError;
 
-use crate::{datasource::DataSourceRegistry, form, snapshot};
+use crate::{datasource::DataSourceRegistry, export, form, snapshot};
 
 /// 应用状态：资产库 + 可选数据源注册表（SQL 数据集的连接由调用方注入，
 /// 产品同构——模板只存 dsn 引用，见 `datasource.rs` 模块文档）。
@@ -50,6 +53,7 @@ pub fn app(
 ) -> Router {
     Router::new()
         .route("/render", post(render))
+        .route("/export", post(export))
         .route("/reports", post(upload_report).get(list_reports))
         .route("/reports/{id}/meta", get(report_meta))
         .route("/health", get(health))
@@ -209,6 +213,37 @@ async fn render(State(state): State<AppState>, mut multipart: Multipart) -> Resp
     }
 }
 
+/// `POST /export?fmt=csv|xlsx`（M6-03）：multipart → **文件字节** +
+/// `Content-Disposition`（文件名双形态，见 [`crate::export`]）。
+///
+/// `fmt` 缺省 = `xlsx`（蓝图 §8.1 示例口径）；非法值显式 400（不静默回落）。
+async fn export(
+    State(state): State<AppState>,
+    Query(q): Query<HashMap<String, String>>,
+    mut multipart: Multipart,
+) -> Response {
+    let fmt = match q.get("fmt").map(String::as_str) {
+        None => export::ExportFormat::Xlsx,
+        Some(s) => match export::ExportFormat::parse(s) {
+            Some(f) => f,
+            None => {
+                return error_json(
+                    StatusCode::BAD_REQUEST,
+                    &format!("不支持的导出格式：{s}（可选 csv / xlsx）"),
+                );
+            }
+        },
+    };
+    let req = match form::parse(&mut multipart).await {
+        Ok(r) => r,
+        Err(e) => return error_json(StatusCode::BAD_REQUEST, &format!("表单错误：{e}")),
+    };
+    match export::export_request_ds(&req, state.dsr.as_deref(), fmt).await {
+        Ok(bytes) => export::export_response(bytes, &req.report_name, fmt),
+        Err(e) => e.into_response(),
+    }
+}
+
 /// 主链路本体（**纯函数**：集成测试不经 socket 直调，与 socket 响应体对拍，
 /// 见 `tests/render_http.rs`）。不提供数据源注册表 ⇒ 模板含 SQL 数据集时
 /// 显式报 [`RenderError::NoDataSource`]（SQL 数据集走 [`render_request_ds`]）。
@@ -233,7 +268,7 @@ pub async fn render_request_ds(
 /// SQL 数据集预取：`(dsn, sql_text) → RowSet`。注册表缺失 / dsn 未登记 /
 /// 取数失败都**显式报错**（数据集缺失会被表达式求值期报错掩盖成更难定位
 /// 的形态，见 `rpx_engine::dataset::load_datasets_full` 的同款口径）。
-async fn prefetch_sql(
+pub(crate) async fn prefetch_sql(
     rd: &rpx_core::ReportDefine,
     dsr: Option<&DataSourceRegistry>,
 ) -> Result<HashMap<(String, String), rpx_core::rowset::RowSet>, RenderError> {
@@ -270,12 +305,32 @@ async fn prefetch_sql(
     Ok(map)
 }
 
-/// 同步主链路（输入 = 表单 + 已预取的 SQL 数据集）。
+/// 同步主链路（输入 = 表单 + 已预取的 SQL 数据集）→ 快照 JSON。
 fn render_core(
     req: &form::RenderRequest,
     rd: &rpx_core::ReportDefine,
     prefetch: &HashMap<(String, String), rpx_core::rowset::RowSet>,
 ) -> Result<String, RenderError> {
+    let grid = calculate_grid(req, rd, prefetch)?;
+    snapshot::build(rd, &grid, &req.report_name).map_err(RenderError::Snapshot)
+}
+
+/// 计算主链路（`/render` 与 `/export` 的**共享段**，主链路 ②-⑨ 步）：
+/// 请求 → 计算态网格（含分页结果与 `page_count` 覆盖）。
+///
+/// M3-06 口径（原 `render_core` 内注释原样保留）：`/render` 的 pagination =
+/// **模板真值口径**（纸码表 + 模板边距，`PagerInfo(PrintSetup)` 路径），覆盖
+/// `calculate_with` 内的探针口径（595×842 是产品探针覆盖出来的夹具对拍基准
+/// ——双口径见 `pager.rs` 模块文档）。守卫（pagerStyle/多栏/列区带 + 可用
+/// 尺寸非正）在此复核，报 400。
+///
+/// `/export`（M6-03）复用同一趟：导出打的是**整个计算矩阵**（不分页、不按纸切，
+/// spec-m6 §4），但走同一守卫与同一页数覆盖 ⇒ 出口分家不产生口径分叉。
+pub(crate) fn calculate_grid(
+    req: &form::RenderRequest,
+    rd: &rpx_core::ReportDefine,
+    prefetch: &HashMap<(String, String), rpx_core::rowset::RowSet>,
+) -> Result<rpx_engine::arena::CalcGrid, RenderError> {
     for entry in &rd.datasets {
         let Some(file) = entry.file.as_ref() else {
             continue;
@@ -305,15 +360,11 @@ fn render_core(
     )
     .map_err(RenderError::Engine)?;
     let mut grid = rpx_engine::calculate_with(rd, &ds, &req.params).map_err(RenderError::Engine)?;
-    // M3-06：`/render` 的 pagination = **模板真值口径**（纸码表 + 模板边距，
-    // `PagerInfo(PrintSetup)` 路径），覆盖 `calculate_with` 内的探针口径
-    // （595×842 是产品探针覆盖出来的夹具对拍基准——双口径见 `pager.rs` 模块文档）。
-    // 守卫（pagerStyle/多栏/列区带 + 可用尺寸非正）在此再复核一遍，报 400。
     let pg = rpx_engine::pager::paginate_with_setup(&grid, &rd.print_setup)
         .map_err(RenderError::Engine)?;
     grid.page_count = pg.page_count();
     grid.pagination = Some(pg);
-    snapshot::build(rd, &grid, &req.report_name).map_err(RenderError::Snapshot)
+    Ok(grid)
 }
 
 /// 渲染错误 → HTTP 映射（400 = 客户端输入；500 = 服务端缺陷）。

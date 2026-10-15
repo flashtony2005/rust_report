@@ -1049,6 +1049,7 @@ dependencies = [
  "rpx-core",
  "rpx-ds",
  "rpx-engine",
+ "rpx-export",
  "serde_json",
  "tokio",
 ]

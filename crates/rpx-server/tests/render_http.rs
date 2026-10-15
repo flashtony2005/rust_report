@@ -1,90 +1,31 @@
 //! `POST /render` 端到端（M3-05）：**真 socket + 真 multipart 字节**。
 //!
-//! 不引 reqwest / tower（守 G5 零新依赖）：手写 ~40 行 HTTP/1.1 客户端
-//! （tokio `TcpStream`）。断言口径（`docs/spec-m3.md` §4 M3-05）：
-//! 响应体与**库函数直调**（[`rpx_server::http::render_request`]）逐字节一致
-//! —— 同输入下 HTTP 面不得与引擎库输出有差；另覆盖 GBK 字节过网、参数
-//! 过网、缺文件 / 坏魔数 / 未知字段四条负路径。
+//! 不引 reqwest / tower（守 G5 零新依赖）：手写 HTTP/1.1 客户端在
+//! [`common`]（M6-03 起与 `export_http.rs` 共用）。断言口径
+//! （`docs/spec-m3.md` §4 M3-05）：响应体与**库函数直调**
+//! （[`rpx_server::http::render_request`]）逐字节一致 —— 同输入下 HTTP 面
+//! 不得与引擎库输出有差；另覆盖 GBK 字节过网、参数过网、缺文件 / 坏魔数 /
+//! 未知字段四条负路径。
 
-use std::path::PathBuf;
+mod common;
 
 use rpx_engine::params::ParamTable;
 use rpx_engine::value::Value;
 use rpx_server::form::RenderRequest;
-use rpx_server::http::{app, render_request};
+use rpx_server::http::render_request;
 
-const BOUNDARY: &str = "rpx-e2e-boundary";
+use common::{fixture, multipart, spawn};
 
-fn fixture(name: &str) -> Vec<u8> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures")
-        .join(name);
-    std::fs::read(&path).unwrap_or_else(|e| panic!("读夹具失败 {}：{e}", path.display()))
-}
-
-/// 拼 multipart 体（parts = (字段名, Option<文件名>, 字节)）。
-fn multipart(parts: &[(&str, Option<&str>, &[u8])]) -> (Vec<u8>, String) {
-    let mut body = Vec::new();
-    for (name, filename, bytes) in parts {
-        body.extend_from_slice(format!("--{BOUNDARY}\r\n").as_bytes());
-        match filename {
-            Some(f) => body.extend_from_slice(
-                format!("Content-Disposition: form-data; name=\"{name}\"; filename=\"{f}\"\r\n")
-                    .as_bytes(),
-            ),
-            None => body.extend_from_slice(
-                format!("Content-Disposition: form-data; name=\"{name}\"\r\n").as_bytes(),
-            ),
-        }
-        body.extend_from_slice(b"Content-Type: application/octet-stream\r\n\r\n");
-        body.extend_from_slice(bytes);
-        body.extend_from_slice(b"\r\n");
-    }
-    body.extend_from_slice(format!("--{BOUNDARY}--\r\n").as_bytes());
-    (body, format!("multipart/form-data; boundary={BOUNDARY}"))
-}
-
-/// 真 socket POST（`Connection: close` + 读到 EOF）→ (状态码, 响应体)。
+/// 文本响应的 POST（render 侧全文本断言；二进制响应走 `common::post_to` 直取字节）。
 async fn post(addr: &str, body: Vec<u8>, content_type: &str) -> (u16, String) {
-    post_to(addr, "/render", body, content_type).await
+    let r = common::post_to(addr, "/render", body, content_type).await;
+    (r.status, r.body_text())
 }
 
-/// multipart POST 到指定路径（M3-04 的 `/reports` 上传复用同一拼装器）。
+/// 文本响应的 multipart POST 到指定路径（M3-04 的 `/reports` 上传复用）。
 async fn post_to(addr: &str, path: &str, body: Vec<u8>, content_type: &str) -> (u16, String) {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
-    let head = format!(
-        "POST {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        body.len()
-    );
-    stream.write_all(head.as_bytes()).await.unwrap();
-    stream.write_all(&body).await.unwrap();
-    let mut resp = Vec::new();
-    stream.read_to_end(&mut resp).await.unwrap();
-    let text = String::from_utf8_lossy(&resp).into_owned();
-    let status = text
-        .split_whitespace()
-        .nth(1)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-    let body_text = text
-        .split_once("\r\n\r\n")
-        .map(|(_, b)| b.to_string())
-        .unwrap_or_default();
-    (status, body_text)
-}
-
-/// 起服务（ephemeral 端口），返回 `127.0.0.1:<port>`。
-/// 资产库用内存库——每个测试独享，互不串数据。
-/// 无数据源注册表（这些夹具全是文件数据集模板）。
-async fn spawn() -> String {
-    let store = std::sync::Arc::new(rpx_ds::AssetStore::open(":memory:").await.unwrap());
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    tokio::spawn(async move {
-        axum::serve(listener, app(store, None)).await.unwrap();
-    });
-    format!("127.0.0.1:{port}")
+    let r = common::post_to(addr, path, body, content_type).await;
+    (r.status, r.body_text())
 }
 
 /// 库函数直调（对拍基准；`csv_files` = 全部 CSV **完整文件名** —— 第二个
@@ -400,21 +341,6 @@ async fn raw_get_status(addr: &str, path: &str) -> u16 {
 }
 
 async fn raw_get_status_body(addr: &str, path: &str) -> (u16, String) {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
-    let head = format!("GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");
-    stream.write_all(head.as_bytes()).await.unwrap();
-    let mut resp = Vec::new();
-    stream.read_to_end(&mut resp).await.unwrap();
-    let text = String::from_utf8_lossy(&resp).into_owned();
-    let status = text
-        .split_whitespace()
-        .nth(1)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-    let body = text
-        .split_once("\r\n\r\n")
-        .map(|(_, b)| b.to_string())
-        .unwrap_or_default();
-    (status, body)
+    let r = common::get(addr, path).await;
+    (r.status, r.body_text())
 }

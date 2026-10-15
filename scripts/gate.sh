@@ -179,6 +179,7 @@ layer_out="$(awk '
     allowed["rpx-server rpx-core"] = 1
     allowed["rpx-server rpx-engine"] = 1
     allowed["rpx-server rpx-ds"] = 1
+    allowed["rpx-server rpx-export"] = 1
     # M6-01：导出面（受审层）吃已算完的 CalcGrid ⇒ 只依赖 engine，向下不溜。
     allowed["rpx-export rpx-engine"] = 1
     known["rpx-core"] = 1; known["rpx-engine"] = 1; known["rpx-ds"] = 1
