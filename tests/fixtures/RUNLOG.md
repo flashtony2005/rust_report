@@ -3969,3 +3969,24 @@ CLI 的自动化断言」。落地 `rpx-cli render <file.rpx> --out <out.csv|out
 **验证**：`cargo test -p rpx-export` 全绿（csv 10 + xlsx 17 + baseline 3）；
 clippy 干净；G1–G8 全绿。spec-m6 v0.6。
 **M6 收官**：导出面五件齐（CSV / xlsx / HTTP / CLI / 基线）。
+
+**补记 · 收口复诊（23:36–23:55，一次环境抖动窗口的完整诊断）**
+- **症状群**（同窗口内并发出现）：① 读/写 errno 5（Access Denied，读写皆有）；
+  ② 同目录 `<file>.<epoch-ms>.res` 垫片残留（内容 = **完整 xlsx 字节**——「写
+  暂存→改名」两步走的半成品）；③ 每次运行 **31.3s**（≈19 文件 × 1.65s 的固定
+  重试时长）；④ bash 级 `fork: CreateProcessW failed … errno 13`；⑤ 命令级
+  `0xC0000142`（STATUS_DLL_INIT_FAILED，进程根本没起来）。
+- **对照实验（逐一隔离单因素，全部实测）**：python 直读写 out/ **全对**；
+  `rpx-cli render` 写 out/（含**覆盖已存在的 git 追踪基线**，产出字节相同 ⇒
+  git 干净）**全对**；`timeout` 前缀单独**不复现**；人造 `.res` 残留（3 个）
+  + `timeout` 形式**不复现**。⇒ 触发条件无法用「残留 / timeout / 进程类型」
+  任一单因素复现。
+- **判定**：**环境状态窗口内的系统级抖动**（进程创建 + 文件 I/O 被系统层干预，
+  疑似沙箱/安全软件挂钩期），**非代码缺陷**——23:44 之后同样代码、同样命令
+  形式全部恢复绿色（生成 0.50s / 比对 0.38s、无新增残留、git 干净）。
+- **处置规程**（写死，防下次误诊）：见症状群 ⇒ 按**环境抖动**处置：清 `*.res`
+  （python `os.remove` 直删 ≈1s/个；bash `rm` 走 trash 流程 ≈7.6s/个）、重试、
+  必要时等待。⛔ 不要为它加 retry/绕过逻辑——失败信息里的 errno 是**真信号**，
+  该失败时就要失败。
+- **沉淀的持久改进**：写失败收集式（`export_baseline.rs`，一次运行看全貌）+
+  `.gitignore` 的 `*.res` + `export_baseline.rs` 的「环境抖动」注释提示。

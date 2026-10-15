@@ -156,6 +156,11 @@ fn update_mode() -> bool {
 }
 
 /// 生成模式：写基线（失败**收集**不中断——一次运行看全貌）。
+///
+/// ⚠ 环境抖动提示：本机曾出现「errno 5 + 同目录 `.res` 垫片残留 + 运行 31s」
+/// 的症状群（环境窗口期，完整诊断与处置规程见 `tests/fixtures/RUNLOG.md` §46
+/// 收口复诊）——见到它先清 `*.res` 并重试；**失败信息里的 errno 是真信号，
+/// 不要为环境抖动加 retry/绕过逻辑**。
 fn write_baseline(path: &Path, bytes: &[u8]) -> Result<(), String> {
     std::fs::create_dir_all(path.parent().expect("out/ 应存在")).map_err(|e| e.to_string())?;
     std::fs::write(path, bytes).map_err(|e| e.to_string())
