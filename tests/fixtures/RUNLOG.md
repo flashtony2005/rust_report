@@ -3192,3 +3192,50 @@ App.tsx：渲染改**显式按钮**；参数动态行（名称/值 + 内联 SVG 
 | engine 委托管线单测 | 全绿 |
 | 金仓真机逐格对拍 sql_fixture | 全绿（env 门控） |
 | 三 crate 全量 | core 19 / engine 263 / server 全绿 |
+
+## §35 服务面数据源注册：`/render` 吃上数据库真数（2026-10-15 午）
+
+**M3-05 的 SQL 数据集延伸：`serve --datasources <path.json>` 建 `dsn → SqlSource`
+注册表，`POST /render` 对含 `SQLDataSetConfig` 的模板预取真数后进主链路——
+浏览器端到端从此能直连金仓。**
+
+### §35.1 架构（产品同构）
+
+- `crates/rpx-server/src/datasource.rs`（新）：`DataSourceRegistry`——JSON 配置
+  （字符串形态 = 完整连接串 / 对象形态 = `{url,user,pass}` 分写）→ 启动期逐条
+  建池 **fail fast**；`Debug` 手写（连接池不进输出，凭据不入日志——与
+  「凭据不入模板」同纪律）。产品对照：`raqsoftConfig.xml` 的 `<DBList>`。
+- `http.rs` 改造：应用状态升级 `AppState { store, dsr }`（三资产 handler 同步
+  迁移——Router 内 State 类型必须统一，混用直接 E0308）；主链路拆三层：
+  - `render_request(req)`（同步纯函数，测试对拍基准）：无注册表路径；
+  - `render_request_ds(req, dsr)`（异步 handler 入口）：**先预取**——
+    `prefetch_sql` 把全部 SQL 数据集按 `(dsn, sql_text)` 物化成
+    `HashMap → RowSet`（同键只取一次），再进同步 `render_core`；
+  - `render_core`：文件预检 + `load_datasets_full`（SQL 委托闭包查预取表）
+    + 计算 + 分页 + 快照——G8 分层不动（async 取数只在 server 编排层）。
+- `main.rs`：`serve --datasources <path.json>`；不配置 = 只服务文件数据集模板。
+- 错误面（全 400，消息给前端上屏）：`NoDataSource`（模板含 SQL 数据集但没配
+  注册表，点名 dsn + 补救路径）/ `UnknownDataSource`（列出已登记数据源名）/
+  `SqlFetch`（sqlx 错误文本原样透传）。
+
+### §35.2 测试（sql_fixture.rs 3 → 6）
+
+| 测试 | 环境 | 断言 |
+|---|---|---|
+| `sql_dataset_without_registry_is_400` | 零环境 | 400 + 点名 kingbase + `--datasources` |
+| `sql_dataset_unknown_dsn_is_400` | 零环境（sqlite 内存库当注册项） | 400 + 「数据源未登记：kingbase（已登记：other）」 |
+| `render_http_sql_dataset_matches_library` | `RPX_KB_URL` 门控 | **HTTP 响应体 ≡ 库函数直调逐字节一致** + 内容抽验（HR/MKT/8500/7800 流到快照） |
+
+- 新坑一枚（真机实锤）：两条金仓测试并行 DROP/CREATE 同一张表，在金仓
+  **目录索引上撞 23505**（`_typ_typname_nsp_index`）——共享
+  `tokio::sync::Mutex` 全程互斥后收敛（模板 SQL 表名写死，串行是唯一解）。
+- 教训再钉：run_kb_tests.sh 的过滤 grep 把编译错误也吞了（两次实锤）——
+  脚本改为全量日志落盘 `target/kb_tests.log` + 失败时回显 error 行。
+- 噪音识别：每 target 「generated 1 warning」= 沙箱 incremental 锁噪音
+  （os error 5，前账），clippy `--all-targets` 强制重编译后零真告警。
+
+| 证据 | 结果 |
+|---|---|
+| rpx-core / rpx-engine / rpx-server | 全绿（263 + 全部集成） |
+| 金仓 HTTP 端到端 | 响应体 ≡ 库直调逐字节 |
+| 门禁 G1–G8 | 全绿 |

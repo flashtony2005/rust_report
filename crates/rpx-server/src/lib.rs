@@ -8,6 +8,7 @@
 //! 依赖登记（G5）：axum / tokio / serde_json —— 逐条理由见
 //! `docs/code-review.md` §3.2。
 
+pub mod datasource;
 pub mod form;
 pub mod http;
 pub mod snapshot;

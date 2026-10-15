@@ -37,6 +37,7 @@ async fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let mut out: Option<&str> = None;
     let mut addr: Option<&str> = None;
     let mut db: Option<&str> = None;
+    let mut datasources: Option<&str> = None;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
@@ -53,6 +54,10 @@ async fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
                 i += 1;
                 db = args.get(i).map(String::as_str);
             }
+            "--datasources" => {
+                i += 1;
+                datasources = args.get(i).map(String::as_str);
+            }
             other if !other.starts_with('-') => path = Some(other),
             other => {
                 eprintln!("unknown argument: {other}");
@@ -63,11 +68,12 @@ async fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     match cmd {
         Some("snapshot") => snapshot_cmd(path, out),
-        Some("serve") => serve_cmd(addr, db).await,
+        Some("serve") => serve_cmd(addr, db, datasources).await,
         _ => {
             eprintln!(
                 "usage: rpx-server snapshot <file.rpx> [-o out.json]\n       \
-                 rpx-server serve [--addr 127.0.0.1:8090] [--db rpx.db]"
+                 rpx-server serve [--addr 127.0.0.1:8090] [--db rpx.db] \
+                 [--datasources <path.json>]"
             );
             std::process::exit(2);
         }
@@ -112,16 +118,32 @@ fn snapshot_cmd(path: Option<&str>, out: Option<&str>) -> Result<(), Box<dyn std
 /// `serve` 子命令：HTTP 服务（M3-05 主链路 + M3-04 资产库三路由）。
 /// 默认 `127.0.0.1:8090`（端口约定 `docs/spec-m4.md` §3：web dev 5288 /
 /// server 8090）；资产库默认 `rpx.db`（蓝图 §7.1 的单文件部署）。
-async fn serve_cmd(addr: Option<&str>, db: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+async fn serve_cmd(
+    addr: Option<&str>,
+    db: Option<&str>,
+    datasources: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let addr: std::net::SocketAddr = addr.unwrap_or("127.0.0.1:8090").parse()?;
     let db = db.unwrap_or("rpx.db");
     // AssetStore::open 收纯文件路径（不走 sqlite URL——host/绝对化两坑，
     // asset.rs 模块文档）。
     let store = std::sync::Arc::new(rpx_ds::AssetStore::open(db).await?);
+    // 数据源注册表（SQL 数据集的连接面，`datasource.rs` 模块文档）：
+    // 配置了就启动期逐条建池（fail fast）；不配置 = 只服务文件数据集模板。
+    let dsr = match datasources {
+        Some(path) => {
+            let reg =
+                rpx_server::datasource::DataSourceRegistry::from_file(std::path::Path::new(path))
+                    .await?;
+            eprintln!("数据源注册表已就绪：{}", reg.names().join(", "));
+            Some(std::sync::Arc::new(reg))
+        }
+        None => None,
+    };
     eprintln!(
         "rpx-server listening on http://{addr}（POST /render + /reports 资产三路由；\
          资产库 {db}，契约 docs/spec-m3.md §3.2）"
     );
-    http::serve(addr, store).await?;
+    http::serve(addr, store, dsr).await?;
     Ok(())
 }

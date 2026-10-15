@@ -25,8 +25,13 @@ fn kb() -> Option<String> {
 
 const SQL_TABLE: &str = "rpx_sql_smoke";
 
+/// 两条金仓测试共用同一张表（模板 SQL 里表名是写死的）⇒ 全程互斥——
+/// 并行 DROP/CREATE 会在金仓目录索引上撞 23505（实测）。
+static KB_TABLE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn engine_sql_matches_the_product_ground_truth() {
+    let _tbl = KB_TABLE_LOCK.lock().await;
     let Some(url) = kb() else {
         eprintln!("[sql_fixture] SKIP：未设 RPX_KB_URL（无金仓环境默认跳过）");
         return;
@@ -131,4 +136,158 @@ async fn engine_sql_matches_the_product_ground_truth() {
     let max_r = grid.cells.iter().map(|c| c.row).max().unwrap_or(0);
     assert_eq!(max_r, 6, "扩展后最大行号（表头 1 + 5 数据行）");
     eprintln!("[sql_fixture] OK：金仓真机对拍逐格一致");
+}
+
+// ---- HTTP 级：数据源注册表 × `/render` 主链路（M3-05 的 SQL 延伸）----
+//
+// 三条：无注册表 400（点名 dsn 与补救路径）/ 未登记 dsn 400（零环境，sqlite
+// 内存库当注册项）/ 金仓真机 HTTP 端到端（响应体与库函数直调逐字节一致）。
+
+use std::sync::Arc;
+
+use rpx_server::datasource::DataSourceRegistry;
+use rpx_server::http::{app, render_request_ds};
+
+fn fixture(name: &str) -> Vec<u8> {
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures")
+        .join(name);
+    std::fs::read(&p).unwrap_or_else(|e| panic!("读夹具失败 {}：{e}", p.display()))
+}
+
+/// 拼 multipart 体（单字段版够用：SQL 数据集模板不带 CSV）。
+fn multipart_report(filename: &str, bytes: &[u8]) -> (Vec<u8>, String) {
+    let b = "rpx-sql-boundary";
+    let mut body = Vec::new();
+    body.extend_from_slice(format!("--{b}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"report\"; filename=\"{filename}\"\r\n\r\n")
+            .as_bytes(),
+    );
+    body.extend_from_slice(bytes);
+    body.extend_from_slice(format!("\r\n--{b}--\r\n").as_bytes());
+    (body, format!("multipart/form-data; boundary={b}"))
+}
+
+/// 起服务（ephemeral 端口；注册表由调用方给——None = 未配置）。
+async fn spawn(dsr: Option<Arc<DataSourceRegistry>>) -> String {
+    let store = Arc::new(rpx_ds::AssetStore::open(":memory:").await.unwrap());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(listener, app(store, dsr)).await.unwrap();
+    });
+    format!("127.0.0.1:{port}")
+}
+
+/// 真 socket POST /render → (状态码, 响应体)。
+async fn post_render(addr: &str, body: Vec<u8>, ct: &str) -> (u16, String) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let head = format!(
+        "POST /render HTTP/1.1\r\nHost: {addr}\r\nContent-Type: {ct}\r\n\
+         Content-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    s.write_all(head.as_bytes()).await.unwrap();
+    s.write_all(&body).await.unwrap();
+    let mut resp = Vec::new();
+    s.read_to_end(&mut resp).await.unwrap();
+    let text = String::from_utf8_lossy(&resp).into_owned();
+    let status = text
+        .split_whitespace()
+        .nth(1)
+        .and_then(|x| x.parse().ok())
+        .unwrap_or(0);
+    let body_text = text
+        .split_once("\r\n\r\n")
+        .map(|(_, b)| b.to_string())
+        .unwrap_or_default();
+    (status, body_text)
+}
+
+#[tokio::test]
+async fn sql_dataset_without_registry_is_400() {
+    // 未给 --datasources：模板含 SQL 数据集 ⇒ 400，点名 dsn 与补救路径。
+    let addr = spawn(None).await;
+    let (body, ct) = multipart_report("engine_sql.rpx", &fixture("engine_sql.rpx"));
+    let (status, resp) = post_render(&addr, body, &ct).await;
+    assert_eq!(status, 400, "响应体：{resp}");
+    assert!(resp.contains("kingbase"), "应点名数据源名：{resp}");
+    assert!(resp.contains("--datasources"), "应给补救路径：{resp}");
+}
+
+#[tokio::test]
+async fn sql_dataset_unknown_dsn_is_400() {
+    // 注册表存在但 dsn 未登记：零环境（sqlite 内存库当注册项）。
+    let reg = Arc::new(
+        DataSourceRegistry::from_json(r#"{"other": "sqlite::memory:"}"#)
+            .await
+            .unwrap(),
+    );
+    let addr = spawn(Some(reg)).await;
+    let (body, ct) = multipart_report("engine_sql.rpx", &fixture("engine_sql.rpx"));
+    let (status, resp) = post_render(&addr, body, &ct).await;
+    assert_eq!(status, 400, "响应体：{resp}");
+    assert!(resp.contains("数据源未登记：kingbase"), "{resp}");
+    assert!(resp.contains("other"), "应列出已登记数据源名：{resp}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn render_http_sql_dataset_matches_library() {
+    let _tbl = KB_TABLE_LOCK.lock().await;
+    let Some(url) = kb() else {
+        eprintln!("[sql_fixture] SKIP（HTTP 级）：未设 RPX_KB_URL");
+        return;
+    };
+    // 表自建（与上方直调级同数据）。
+    let src = SqlSource::connect(&url).await.unwrap();
+    src.fetch_sql("DROP TABLE IF EXISTS rpx_sql_smoke")
+        .await
+        .unwrap();
+    src.fetch_sql(
+        "CREATE TABLE rpx_sql_smoke (\
+         id INTEGER PRIMARY KEY, dept VARCHAR(20), salary INTEGER)",
+    )
+    .await
+    .unwrap();
+    for (id, dept, salary) in [
+        (1, "HR", 8500),
+        (2, "FIN", 9200),
+        (3, "DEV", 12000),
+        (4, "DEV", 11000),
+        (5, "MKT", 7800),
+    ] {
+        src.fetch_sql(&format!(
+            "INSERT INTO rpx_sql_smoke VALUES ({id}, '{dept}', {salary})"
+        ))
+        .await
+        .unwrap();
+    }
+    // 注册表：dsn=kingbase → 金仓连接（JSON 字符串形态 = 完整连接串）。
+    let reg = Arc::new(
+        DataSourceRegistry::from_json(&format!(r#"{{"kingbase": "{url}"}}"#))
+            .await
+            .unwrap(),
+    );
+    let addr = spawn(Some(reg.clone())).await;
+
+    let req = rpx_server::form::RenderRequest {
+        report: fixture("engine_sql.rpx"),
+        report_name: "engine_sql".to_string(),
+        datasets: Default::default(),
+        params: rpx_engine::params::ParamTable::EMPTY,
+    };
+    // 库函数直调（对拍基准）。
+    let lib = render_request_ds(&req, Some(&reg)).await.unwrap();
+    // HTTP 面同输入逐字节一致（主链路 ①..⑩ 对拍纪律同 render_http.rs）。
+    let (body, ct) = multipart_report("engine_sql.rpx", &fixture("engine_sql.rpx"));
+    let (status, resp) = post_render(&addr, body, &ct).await;
+    assert_eq!(status, 200, "响应体：{resp}");
+    assert_eq!(resp, lib, "HTTP 响应体 ≡ 库函数直调");
+    // 内容抽验：SQL 取数真的流到了快照（列名/行值/聚合列）。
+    for s in ["id", "dept", "salary", "HR", "MKT", "8500", "7800"] {
+        assert!(resp.contains(s), "快照应含 {s}");
+    }
+    eprintln!("[sql_fixture] OK：金仓 HTTP 端到端逐字节一致");
 }
