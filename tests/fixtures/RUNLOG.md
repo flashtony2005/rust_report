@@ -3273,3 +3273,86 @@ App.tsx：渲染改**显式按钮**；参数动态行（名称/值 + 内联 SVG 
 | 探针 round-trip | VERIFY OK: report_demo |
 | /render 快照 | 7 行 + 标题合并 + 中文内容全命中 |
 | 浏览器实拍 | m4-kingbase-demo.png（金仓真数 → Univer） |
+
+## §37 多数据集关联立项：显式左主格 + DSSelect 参数矩阵（2026-10-15 午后）
+
+**总监令「下一步建议 开工」。行动序 #2（`docs/lecture-notes.md`）落位：多数据集关联
+语义立项——JOIN 三分类 + 维度对齐，报表工具核心差异化。按「先探针后实现」纪律：
+本 session = 反逆向定案 + 金仓真机探针 + 立项文档，零 Rust 代码改动。**
+
+### §37.1 反逆向定案（源码级，全带 file:line）
+
+- **官方口径实锤**：润乾多数据集「不需要整合运算，直接用于报表运算，运算过程中通过
+  规则关联」——无 join、无临时表，关联发生在求值时刻（手册 §3.3）。
+- **`ds.select` 参数矩阵三层切分**（`ParamParser.java:35-64`）：`\0` 分段 →
+  `;` 分排序段 → `,`/`:` 分参数；四参形态 `select(列, 过滤, 限量n, 去重d)` +
+  次序 `x:1` + 多排序 `x; s1:1,s2:-1`。Rust 现状只有 1 参数（`dsfn.rs:216-309`）。
+- **双态分派**（`DSSelect.java:146-205`）：Row 态（current 是 Row）只测当前行，
+  **num/distinct/order 全部不生效**；Root 态（current 是 Group）走
+  filter→distinct→evaluateRows→排序，返回 List ⇒ 单元格扩展。
+- **嵌套机制 = 显式左主格（slot 30）**（本 session 最大机制发现，五步闭环）：
+  ① `NormalCell._$56/_$55` = 单元格 ID 字符串，序列化于 slot 30/31；
+  ② `ExtCellSet._$3/_$2`（`:753-810`）**先查显式字符串**再走默认近邻拓扑；
+  ③ 跨度计算 `_$4/_$3`（`:944-970`）**递归纳入左子格** ⇒ 主格跨度覆盖从格带；
+  ④ `extendRow`（`:997-1050`）复制 `cell.isLeftHeadOf(sub)` 的格子 ⇒ 从格逐实例克隆；
+  ⑤ `ReportEditor.java:4768-4776` 报表向导对从格带 `setProperty((byte)30)` +
+  `CellPosition.toExcelNotation(主格坐标)`——**显式左主格正是产品向导产物**。
+  实证推论：默认头规则只认「左近邻纵向扩展/上近邻横向扩展」，**跨行向下的从格带
+  不会自动挂头**（T1/T2 初版不嵌套的直接原因）。
+- **`ds.current` 管理**：`ExtCellSet.setDSCurrent`（`:582-593`）把 null current 设为
+  root group；`DataSet.getCurrentData`（`:384-401`）Group 态按 currentRow（默认 1）
+  取行 ⇒ **Root 态裸列 = 首行值**（Rust 现报 UnsupportedExpr，是修错项 M5-06）。
+- **`cross()` 维度对齐**（`Group.java:112-165` + `ExtExtendCell.setDSCurrentTopHead`
+  `:265-291`）：同行号归并（threshold 达标有序归并，否则位图成员测试）⇒ 交叉表
+  同数据集双方向扩展，与多数据集关联是两件事（M5-07 带账）。
+- **filtercross 多对多**（`DSFilterCross.java`）：等值/And 树抽列对，右表 count2>6
+  走排序 + 二分归并。`Group.filter` 快速路径（`:201-291`）：常量条件 / option `b`
+  + 等值树走二分——**前提是行已按该列有序**（新带账）。
+- **边界**：`filter`/`filterone` IDE 语义面板有（`JPanelDataSet.java:94-97`）但
+  `FunctionLib` 未登记（`:106-121`）⇒ 模板写了落空（新带账）。
+
+### §37.2 金仓真机探针（ProbeCross.java，9 模板 round-trip 全绿）
+
+`report` schema 两张真表：`emp_info` 5 人 + `emp_bonus` 6 行（张伟/赵敏各 2 项 =
+多匹配；孙丽 0 项 = 无匹配）。truth 落 `tests/fixtures/out/cross_*_product.json`。
+
+| 模板 | 语义点 | 真值结论 |
+|---|---|---|
+| T1 `cross_emp_bonus` | 非嵌套从格带（无显式左主格）+ num/去重/降序 | 整带单次求值；Row 态 num/去重/序不生效 |
+| T2 `cross_dept_band` | 去重主格 `select(dept:1,,,dept)` + 同/跨数据集从格 | 去重按 collation 序出部门 |
+| T3 ×6 隔离模板 | Root 态每变体独占模板 | filter→List 纵扩 / num→单值 / distinct→List 首现序 / desc→全量排序 / bare→首行值 / count→6 |
+| T4 `cross_nest` | **显式左主格** `rd.getCell(4,5).setLeftHead("A3")` | 嵌套主子表 14 行网格：多匹配展开（张伟 2 行）/ 无匹配零行（孙丽）/ 从格双列同步扩展 / 主格列空单元格合并 |
+| T5 `cross_nest_vals` | 嵌套 + 从格带跟值 | 无匹配仍产 1 行（与 T4 的差异点） |
+
+### §37.3 踩坑记录（本 session 实证）
+
+1. **裸列名在 `ds.select` 过滤里绑定本数据集列**：`ds2.select(item, id==A3)` 的裸
+   `id` 绑到 ds2 自身主键（奖金表 id 1..6），症状 = 每主格实例只匹配 1 行且数值
+   错位（张伟的年终奖挂到李娜行下）。**关联列必须写 `emp_id==A3`**（11 处全局修正）。
+2. **合带共带干扰**：同带多 DS 函数格 current 互相污染——6 个 Root 变体挤一模板，
+   首格扩展后其余格看到被改写的 ds.current（c2-c5 全 null、count=1 退化成 Row 态）。
+   **修复 = 每变体独占模板**；夹具纪律再钉「一模板一语义点」。
+3. **从格带写在主格带下方 ≠ 嵌套**：T1/T2 初版从格带整体只算一次（取主格首实例值）。
+   定位 = `ExtCellSet._$2/_$3` 默认头规则不认跨行向下；机制 = 显式 leftHead 字符串
+   （§37.1 第④步），`ReportEditor.java:4768` 向导代码实锤。
+4. javac 跑 `ProbeCross` 漏 `lib/*`（postgresql-42.7.4.jar 在 fixtures/lib）——
+   ClassNotFoundException；按纪律 `common/jre/bin/java.exe` 跑（JDK21 编译 --release 8）。
+
+### §37.4 立项文档 spec-m5 v0.1（docs/spec-m5.md，285 行）
+
+- §2 产品机制定案（2.1 表达式分派 / 2.2 参数矩阵表 / 2.3 双态 / 2.4 显式左主格
+  五步 / 2.5 cross() / 2.6 filtercross / 2.7 filter 快速路径）；
+- §3 探针结论（9 模板真值，含 T4 网格图）；
+- §4 JOIN 三分类 → ReportLite 形态映射（等值连接→嵌套主子表 / 多对多→filtercross /
+  维度对齐→cross()）；
+- §5 任务表 **M5-01..07**：01 参数矩阵 → 02 跨数据集过滤求值 → 03 显式左主格
+  reader+引擎 → 04 夹具闭环（`engine_cross`/`engine_cross_root`）→ 05 filtercross →
+  06 Root 裸列修错 → 07 cross() 带账；
+- §6 新带账 3 项：filter/filterone 不认、共带干扰、二分有序性前提。
+
+| 证据 | 结果 |
+|---|---|
+| 反编译源码 | DSSelect/ParamParser/ExtCellSet/Group/DSFilterCross 全读，file:line 齐 |
+| 金仓探针 | 9 模板 round-trip 全绿 + truth JSON |
+| 立项文档 | spec-m5 v0.1（M5-01..07 + 验收口径） |
+| Rust 代码 | 零改动（立项纪律） |

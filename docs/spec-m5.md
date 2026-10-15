@@ -1,0 +1,285 @@
+# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.1
+
+> 状态：**立项**（2026-10-15；反逆向定案 + 金仓真机探针 9 模板全绿，实现未启动）。
+> 上游：M2/M3/M4 已收官（`spec-m2.md` / `spec-m3.md` / `spec-m4.md`），HEAD `9aa6caf`。
+> 立项依据：数据蒋堂讲座行动序 #2「多数据集关联语义立项（三分类 + 维度对齐）——
+> 报表工具的核心差异化，大（先探针）」（`docs/lecture-notes.md` 行动表）。
+> 本文件定义 **M5 做什么、语义是什么、怎么验收**；实现细节以夹具与源码为准。
+
+## 0. 本文件的可信度声明
+
+凡未附证据的断言一律标注「待验证」。本文件的证据分两级：
+
+1. **源码级**（反编译 `re_work/src/reportlite/**`，带 `file:line`）——产品机制定案；
+2. **真机级**（探针 `ProbeCross.java` 打金仓 `report` schema，9 模板 round-trip 全绿，
+   truth 落 `tests/fixtures/out/cross_*_product.json`）——语义真值。
+
+## 1. 立项依据：为什么是 M5
+
+官方口径（`docs/report-model-and-cell-extend.md` §3.3，手册原文）：
+
+> 「润乾报表的多个数据集**不需要进行整合运算**，而是**直接用于报表的运算**，
+> 在报表的运算过程中，通过一定的规则把多个数据集**关联**起来。」
+> 「数据集间的整合运算……极大的占用 cpu 资源……很多传统的报表工具号称支持多数据集，
+> 其实是把多个数据集通过整合运算，合并成一个数据集……其实质还是单数据集模型。」
+
+即：**关联发生在求值时刻，没有 join、没有临时表**。Rust 侧现状（`crates/rpx-engine/src/expr/dsfn.rs:216-309`）：
+
+- `ds.select` 只有 **1 参数**形态（`("select", true, 1)` / `("select", false, 1)`）；
+- 带过滤/限量/去重的 4 参矩阵、跨数据集过滤、嵌套主子表**均未实现**（落到
+  `UnsupportedExpr`  catch-all）；
+- Root 态裸列 `ds.col` 现报 `UnsupportedExpr`（`dsfn.rs:50-54`），而产品返回首行值（§3.3）。
+
+这直接卡住财政工资场景（人员主表 × 工资项明细 × 扣款项），也是「多源分片报表」
+（手册 `dyglfpdgnytzzj105`：多源七八个乃至十几个）的入口能力。
+
+## 2. 产品机制定案（源码级）
+
+### 2.1 表达式面：`ds.名(...)` 的分派
+
+`Expression.java:175`：标识符含 `.` 时切出数据集名 → `createDSNode(cs, ds, 剩余, true)`
+（`:253-271`）：剩余名是**已登记 DS 函数**才建函数节点（`FunctionLib.isDSFunName`），
+否则按列名解析（`getDSColNo`）。已登记 DS 函数全集见 `FunctionLib.java:106-121`：
+avg / bfind / fcount / count / dcount / field / fname / **filtercross** / group /
+isfield / max / min / plot / **select** / sum。
+
+⛔ **`filter`（一对多）与 `filterone`（一对一）不在登记表里**——IDE 语义面板
+（`JPanelDataSet.java:86-101`）有这两个操作，但运行时不认；模板里写
+`ds2.filter(...)` 会落到未知符号。**边界带账**（§6.3）。
+
+### 2.2 参数矩阵：`;` → `,` → `:` 三层切分
+
+`ParamParser.java:35-64` + `:66-79`：参数串按**三层**切（`prevLevel` 递进
+`\0 → ';' → ',' → ':'`），空段返回 null IParam。`DSSelect.java:36-138` 按此解码：
+
+| 形态 | 结构 | 语义 |
+| --- | --- | --- |
+| `select(x)` | Leaf | 选列 |
+| `select(x:1)` | `:` 两层 | selectExp + order（1 升 / -1 降） |
+| `select(x; s1:1, s2:-1)` | `;` 两层 | selectExp + 多表达式排序（`ParamInfo2.java:26-110`） |
+| `select(x, f, n, d)` | `,` 四段 | selectExp + **过滤** + **限量 num** + **去重**（`:106-138`） |
+| `select(x:1, f, , d)` | 混合 | 官方主子表样例形态（`report-model-and-cell-extend.md` §3.3） |
+
+官方样例（手册 `dpkz101`）：`B2 = ds1.select(订单ID:1,,,订单ID)`（主表去重扩展）、
+`B8 = ds2.select(产品ID:1, 订单ID==B2,,产品ID)`（子表用主格过滤）。
+
+### 2.3 双态分派：Row 态 / Root 态
+
+`DSSelect.java:146-205`：
+
+- **Row 态**（`ds.getCurrent() instanceof Row`，`:148`）：只对**当前行**测过滤
+  （`Row.test`，`:150-153`），命中 → `setValue` 并返回该行；未命中 → `NullRow`。
+  **num/distinct/order 在 Row 态全部不生效**（探针 §3.1 实证）。
+- **Root 态**（current 为 Group，`:155`）：`group.filter(...)` → `group.distinct(...)`
+  → `evaluateRows` → 排序 → 取行列表；size==0 → `NullRow`（`:175`）；
+  size==1 或 num==1 → 首行（`:179`）；否则返回 List（`:185`）⇒ 单元格**扩展**。
+
+数据集 current 的来源：`ExtCellSet.setDSCurrent`（`:582-593`）把**所有 current 为 null
+的数据集设为 root group**；扩展格求值时经 `ExtExtendCell.setDSCurrent`
+（`ExtExtendCell.java:297-318`）把 current 切成行/组。`DataSet.getCurrentData`
+（`DataSet.java:384-401`）：Group 态按 `_$5`（currentRow，`setCurrent` 置 1）取行。
+
+### 2.4 嵌套机制：显式左主格（slot 30）
+
+这是本立项**最关键的机制发现**，回答「主子表为什么能逐实例嵌套」：
+
+1. **模板槽位**：`NormalCell._$56`（leftHead）/ `_$55`（topHead）是**单元格 ID 字符串**
+   （`NormalCell.java:229-242`），序列化于 slot 30/31（`:658-659` writeExternal /
+   `:1367-1368`）——`.rpx` 里真实存在，不是运行期临时物。
+2. **显式优先**：`ExtCellSet._$3(cell)`（左主格，`:781-810`）与 `_$2(cell)`
+   （上主格，`:753-780`）**先查显式字符串**（`getSource(head)` 解析单元格 ID），
+   查不到才走「左/上近邻 + 拓扑链」默认规则（`:792-793` 装配）。
+3. **跨度包含子格**：`_$4/_$3(ExtCell)`（`:944-970`）求扩展格行跨度时，
+   **递归纳入左子格**（`getLeftSubSize/ getLeftSubCell`）⇒ 从格带挂在主格下后，
+   **主格的行跨度覆盖从格带**。
+4. **复制循环**：`extendRow(cell, count)`（`:997-1050`）对跨度内每一行、
+   复制 `cell.isLeftHeadOf(sub)` 的格子（`isLeftHeadOf` 沿 leftHead 链走，
+   `ExtNormalCell.java:392-399`）⇒ 从格带逐主格实例克隆。
+5. **向导同构**：报表向导生成分组/主子表时，对从格带单元格
+   `ac.setProperty((byte)30)` + `ac.setValue(CellPosition.toExcelNotation(主格坐标))`
+   （`ReportEditor.java:4768-4776`、`:4784`、`:4847`）——即**显式左主格正是产品
+   向导的产物**，不是民间偏方。
+
+⇒ **Rust 侧必须建模显式 leftHead/topHead 槽位**（`rpx-core` reader + engine 头图），
+否则主子表模板（向导产物）无法复现。
+
+### 2.5 维度对齐：`cross()`（交叉表，同数据集双方向）
+
+`DsValue.cross`（`DsValue.java:36`）抽象 + 三实现：
+
+- `Group.cross(Group)`（`Group.java:112-165`）：同行号归并（`getRowNo`）。
+  **两条路径**：`threshold >= 0 && ds.getRowCount() >= threshold` 时走**有序归并**
+  （`_$2()` 排序行号数组双指针，O(n+m)）；否则走行号位图成员测试。
+  交集空 → `NullGroup`。
+- `Group.cross(Row)` / `Row.cross(...)`：成员/同一性判定，不中 → `NullRow`。
+
+调用点：`ExtExtendCell.setDSCurrentTopHead`（`:265-291`）——当同一数据集同时被
+**横向扩展格**驱动（`ds.isLeftTop()`，`DataSet.java:336`）时，current 与扩展格
+自身值求交。即：**交叉表（同数据集行×列双方向扩展）的维度对齐**，
+与多数据集关联是**两件事**，本 spec 只立项前者为带账、后者为实现（§5）。
+
+### 2.6 多对多：`filtercross`
+
+`DSFilterCross.java`（全文已读）。语义：`ds.filtercross(条件)` 对**当前扩展格的
+DSCurrent**（另一数据集的 Group/Row）与自身 current 求交。条件为
+`Equals`/`And` 树时可抽等值列对（`_$1(Node, ds, leftList, rightList)`，`:296-330`），
+右表 count2 > 6 时**排序 + 二分归并**（`SortDsValue.sort` + `_$1(List, col, key, low, high)`，
+`:105-145`）；否则嵌套循环。结果 Group 克隆承载命中行。
+
+### 2.7 `Group.filter` 的快速路径
+
+`Group.java:201-246`（`_$1(exp, ctx, opt, isClone)`）：
+
+1. 条件整体是常量 → 直接判布尔（`:207-218`）；
+2. **option 含 `b`（98）且条件是「本数据集列 == 外部值」的 Equals 树** →
+   抽 (col, value) 走**二分**（`_$1(int col, Object value, ...)`，`:248-291`；
+   多列走 `_$1(int[] cols, Object[] values, ...)`）；
+3. 否则逐行 `row.test(exp, ctx)`（保存/恢复 current，`:232-241`）。
+
+⚠ 二分路径要求行**已按该列有序**（`sort` 置 `_$2`）；无序时行为依赖数据，
+实现期须以夹具钉死走哪条路。
+
+## 3. 探针结论（金仓真机级）
+
+探针 `tests/fixtures/ProbeCross.java`（cwd=tests/fixtures，
+`common/jre` + `reportlite/lib/*` + `lib/postgresql-42.7.4.jar` 跑；
+金仓 `192.168.1.77:54323/test`，`report` schema）。数据：
+
+- `report.emp_info`（5 人，ProbeSqlDemo 已建）：张伟(1,人事部)/李娜(2,财务部)/
+  王强(3,技术部)/赵敏(4,技术部)/孙丽(5,市场部)；
+- `report.emp_bonus`（6 行，本探针建）：张伟 2 项（全勤奖500/年终奖3000）、
+  李娜 1（全勤奖500）、王强 1（餐补300）、赵敏 2（项目奖2000/全勤奖500）、
+  **孙丽 0 项**（无匹配用例）。
+
+9 模板全部 round-trip（回读 .rpx 重算逐字节一致）。truth：
+`tests/fixtures/out/cross_*_product.json`（含凭据的 `ds_kingbase.json` 不入库，
+`out/` 整体 gitignore）。
+
+### 3.1 T1 `cross_emp_bonus`：非嵌套从格带（无显式左主格）
+
+布局：r3 主格带（ds1 四字段）+ r4 从格带（`ds1.*` 跟随 + `ds2.select(item, emp_id==A3)`
+四变体）。**实测：从格带不嵌套**——整带只扩展一次，过滤条件取**主格第一个实例**
+（张伟 id=1）求值 → 2 行（全勤奖/年终奖）；且同带变体列（num=1/去重/降序）
+被主扩展格携带成 **Row 态**（num 不生效——r9c7 仍是年终奖）。
+
+⇒ 教训：**没有显式左主格，就没有主子表**。「从格带写在主格带下面」不等于嵌套。
+
+### 3.2 T2 `cross_dept_band`：去重主格 + 同数据集从格
+
+`A3 = ds1.select(dept:1,,,dept)` → 4 个去重部门（**按中文 collation 升序**：
+财务部<技术部<人事部<市场部），extend=18 带 4 个子格。
+`B3 = ds1.select(name, dept==A3)` 等同带从格取**每个部门第一人**
+（Row 态只测当前行，不展开组内多行——技术部 2 人只显示王强）。
+跨数据集从格 `ds2.select(item, emp_id==C3)` 同样只算一次（C3=首实例 2 → 全勤奖/500）。
+
+⇒ 去重主格（distinct）+ 同数据集过滤从格 = **组头带**形态；要组内多行需嵌套（T4）。
+
+### 3.3 T3 Root 态隔离变体（每变体独占模板，规避共带干扰）
+
+| 变体 | 表达式 | 实测真值 |
+| --- | --- | --- |
+| 过滤 | `ds2.select(item, amount>=2000)` | List [年终奖, 项目奖]，**纵向扩展**（extend=18，2 行） |
+| 限量 | `ds2.select(item, emp_id==1, 1)` | 单值 全勤奖（num=1 不扩展） |
+| 去重 | `ds2.select(item, , , item)` | List [全勤奖, 年终奖, 餐补, 项目奖]（**首现序**，4 行） |
+| 降序 | `ds2.select(item:-1)` | List 全部 6 行按 item 中文降序（项目奖>全勤奖×3>年终奖>餐补） |
+| 裸列 | `ds2.item` | **首行值 全勤奖**（extend=17，非扩展格；⛔ 非报错） |
+| 计数 | `ds2.count()` | 6（Root 态全量；Row 态为 1，合带 T3 实证） |
+
+⚠ **共带干扰实证**（合带版 T3）：同带多个 DS 函数格互相污染——首格扩展后
+其余格求值看到的 ds.current 已被改写，c2-c5 全 null、count=1。**实现期夹具必须
+一模板一语义点**（隔离原则），否则对拍结论不可归因。
+
+### 3.4 T4 `cross_nest`：嵌套主子表·经典布局（显式左主格）
+
+`E4.setLeftHead("A3")`（其余默认）。实测网格 **14 行**：
+
+```
+r3  张伟(1,人事部,8500)          ← 主格实例
+r4  全勤奖 500                   ┐
+r5  年终奖 3000                  ┘ 张伟 2 项（多匹配 → 2 行）
+r6  李娜(2,财务部,9200)
+r7  全勤奖 500                   ← 李娜 1 项
+r8  王强(3,技术部,12000)
+r9  餐补 300                     ← 王强 1 项
+r10 赵敏(4,技术部,11000)
+r11 项目奖 2000                  ┐
+r12 全勤奖 500                   ┘ 赵敏 2 项
+r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
+```
+
+- 主格实例行 3,6,8,10,13；从格行紧随其后，**多匹配展开、无匹配不产行**；
+- 从格两列（item/amount）同步扩展（F6 被 E4 的扩展携带，值逐行正确）；
+- 合并段（`merged`）：主格列空单元格在从格行上被合并（r4/r5 c1-c4 各 rm=2）。
+- **这就是官方主子表的产品行为**，可直接作为 M5-04 夹具基准。
+
+### 3.5 T5 `cross_nest_vals`：嵌套 + 从格带跟值
+
+从格带 A-D 列也挂显式左主格并写 `ds1.id/name/dept/salary`（Row 态）。
+实测：**每个从格行都重复主格值**（r4/r5 都是 1/张伟/人事部/8500）；
+且**无匹配的主格仍产 1 个从格行**（r14：5/孙丽/市场部/7800，奖金两列空）。
+
+⇒ 与 T4 的差异全部来自「从格带是否存在非扩展的显式头跟随格」——
+**无匹配是否产行取决于从格带构成**，实现必须两条路都建模（T4/T5 双夹具）。
+
+## 4. JOIN 三分类 → ReportLite 表达形式映射
+
+数据蒋堂分类（`docs/lecture-notes.md` 启发 7/8）与产品形态的对应：
+
+| 蒋堂分类 | ReportLite 形态 | 产品机制 | 本 spec 处置 |
+| --- | --- | --- | --- |
+| 外键关联（多对一，事实→维表） | `维表.select(维列, 事实键==主格)` | select 带过滤（Row/Root 双态） | **M5-01/02 实现** |
+| 主子表（一对多，主→从） | 显式左主格 + `从表.select(从列, 主键==主格)` | slot 30 + 跨度 + 复制循环 | **M5-03/04 实现** |
+| 同维表（一对一） | `ds.filterone(...)`（IDE 有、运行时不认） | 未登记 | **带账**（§6.3）；等价写法 = num=1 的 select |
+| 多对多 | `ds.filtercross(条件)` | `DSFilterCross` | **M5-05 实现**（先探针） |
+| 维度对齐（交叉表） | 同数据集行×列双扩展 | `cross()` 归并/位图 | **M5-07 带账→后续里程碑** |
+
+## 5. 任务表（M5）
+
+| 编号 | 任务 | 落点 | 验收 |
+| --- | --- | --- | --- |
+| M5-01 | `ds.select` 参数矩阵：`,` 四段（过滤/限量/去重）+ `:` 次序 + `;` 多排序 | `rpx-engine`（`expr/call.rs` 参数树 + `expr/dsfn.rs` 双态） | 单测覆盖四形态；T3 六变体复现 |
+| M5-02 | 跨数据集过滤求值：过滤式里的 CSVariable/DSVariable 解析与 current 管理 | `rpx-engine`（`calc/ds_current.rs` 扩展） | T1/T2 复现；电流语义变异测试 |
+| M5-03 | 显式 leftHead/topHead 槽位：reader 解析 + 头图 + 跨度计算 + 嵌套复制 | `rpx-core`（slot 30/31）+ `rpx-engine`（`heads/` + `ext_algo/`） | T4/T5 网格逐格对拍 |
+| M5-04 | 产品夹具 `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点） | `tests/fixtures`（`EngineModelsM5.java` + `GenEngineFixtures`） | 进 19+ 夹具主对拍全绿；Java 侧 round-trip |
+| M5-05 | `filtercross` 多对多 | `rpx-engine` | 先探针（多对多真机模板）后实现；对拍 |
+| M5-06 | Root 态裸列 `ds.col` = 首行值（修 `UnsupportedExpr`） | `rpx-engine`（`expr/dsfn.rs:50-54`） | T3 裸列变体；单测钉死 |
+| M5-07 | `cross()` 维度对齐（交叉表同数据集双方向） | `rpx-engine` | **带账**：无夹具不实现；复现路径见 §6.4 |
+
+依赖序：M5-01 → M5-02 → M5-03 → M5-04（夹具闭环）→ M5-05/M5-06 并行 → M5-07 后置。
+
+## 6. 边界与带账
+
+### 6.1 明确不做
+
+- **不做笛卡尔积/整合运算**：产品语义是求值时关联（§1），Rust 不建中间连接表。
+- **不做 SQL 下推关联**：`ds.select` 的过滤在内存行上求值（产品同构）；
+  「关联尽量下推到 SQL」是模板设计建议（讲座行动序 #1 注），不是引擎任务。
+- **不做 `esproc`/`spl` 表达式函数**（`FunctionLib.java:131-132`）：SPL 引擎另立里程碑。
+
+### 6.2 继承带账（spec-m3 §5 仍然有效）
+
+分页高级 / 跨页合并 / 文本换行 / M2-22 残余 / 样式宏 / 两扩展格同行 11×5 等
+沿用 `spec-m3.md` §5 与 `spec-m2.md` §6.2 的结论，本 spec 不重复。
+
+### 6.3 新带账（本立项核出）
+
+1. **`ds.filter` / `ds.filterone` 运行时不认**：IDE 语义面板有这两个操作
+   （`JPanelDataSet.java:94-97`），但 `FunctionLib` 未登记（`:106-121`），
+   模板写了一定落空。等同维表关联的可用写法是 `select(..., num=1)`。
+2. **共带干扰**（§3.3）：同带多 DS 函数格的 current 互相污染有确定性但未完全
+   建模的顺序依赖；夹具按「一模板一语义点」隔离（已定为 M5-04 纪律）。
+3. **`Group.filter` 二分快速路径的有序性前提**（§2.7）：option `b` + 等值条件时
+   产品假设行已按该列有序；无序数据上的行为**未探针**（实现期以夹具钉死）。
+
+### 6.4 M5-07 复现路径
+
+交叉表维度对齐（`cross()`）：先造「同一数据集既纵向扩展又横向扩展」的探针模板
+（如 `ds1.select(region)` 行带 × `ds1.select(product)` 列带），dump 产品真值 →
+建夹具 → 才实现。在那之前维持带账。
+
+## 7. 变更记录
+
+- **v0.1（2026-10-15）**：立项。反逆向定案 §2（参数矩阵/双态/显式左主格/
+  cross/filtercross/filter 快速路径）；金仓探针 9 模板 §3；三分类映射 §4；
+  任务表 M5-01..07 §5；新带账 3 项 §6.3。探针产物：`ProbeCross.java` +
+  `out/cross_*_product.json`（9 份，round-trip 全绿）。
