@@ -1,0 +1,8 @@
+A,B,gt,lt,ge,le
+张,阿,true,false,true,false
+阿,张,false,true,false,true
+b,a,true,false,true,false
+一,丁,true,false,true,false
+false,true,true,false,false,true
+true,true,false,true,false,false
+张,阿,一,丁,true,true

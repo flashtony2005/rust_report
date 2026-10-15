@@ -36,6 +36,10 @@
 #   截图）是有意入库的 ⇒ ⛔ 不能整体忽略，只禁数据源注册表这一文件族。
 /tests/fixtures/out/ds_*.json
 
+# agent 沙箱写入垫片的残留（`<file>.<epoch-ms>.res`；2026-10-15 M6-05 实录：
+# 沙箱内跑生成类测试留下的半成品/锁标记，非仓库资产）。
+/tests/fixtures/out/*.res
+
 # 操作系统 / 编辑器
 .DS_Store
 Thumbs.db

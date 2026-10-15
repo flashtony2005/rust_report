@@ -1,8 +1,8 @@
-# Spec — ReportLite Rust 重实现 · M6（导出面）v0.5
+# Spec — ReportLite Rust 重实现 · M6（导出面）v0.6
 
-> 状态：**M6-01 / M6-02 / M6-03 / M6-04 已闭合**（2026-10-15；蓝图 §10 既有设计，同日补契约与任务表）。
-> `rpx-export`：`to_csv` / `to_xlsx`；server `POST /export`；CLI `render --out`
-> （审计遗留③闭合）。M6-05 未启动。
+> 状态：**M6 全部闭合（M6-01..05）**（2026-10-15；蓝图 §10 既有设计，同日补契约与任务表）。
+> `rpx-export`：`to_csv` / `to_xlsx`；server `POST /export`；CLI `render --out`；
+> 19 夹具导出基线（`tests/fixtures/out/export_*`）。审计遗留③闭合。
 > 上游：M1–M4 已收官，M5（多数据集关联）进行中（`docs/spec-m5.md`）。
 > 蓝图：`docs/reportlite-rust全链路设计.html` §10（导出设计）/ §8.1（路由表 `/export`）。
 > 本文件定义 **M6 做什么、输入是什么、怎么验收**；实现细节以夹具与源码为准。
@@ -111,7 +111,7 @@ G5 只查 `[dependencies]`（`code-review.md` §3.2 注 3），dev-deps 不进�
 | M6-02 | `to_xlsx(&CalcGrid) -> Vec<u8>`（rust_xlsxwriter） | 同 crate；`merge_range` 写合并 | ✅ **已闭合**（2026-10-15）：`xlsx.rs`（口径表 + 锚点重建 + 边界 5 条）＋`xlsx/tests.rs` 16 钉测；dev-dep `calamine` 读回自洽（逐格比值/**类型** + 合并区矩形全等）；3 条变异实测（disp 优先/延续槽判定/非有限数拦截，改坏必红）；确定性（同输入同字节）有钉 |
 | M6-03 | server `POST /export?fmt=csv\|xlsx` | `rpx-server/src/http.rs` | ✅ **已闭合**（2026-10-15）：`rpx-server/src/export.rs`（格式枚举=严格小写解析 / 响应组装 / 文件名双形态 ASCII fallback + RFC 5987）+ `http.rs` 拆出 `calculate_grid` **共享段**（`/render` 与 `/export` 同一次调用，出口分家不分叉口径）；真 socket 跑通（`tests/export_http.rs` 7 条：csv/xlsx **逐字节对拍库函数直调** + `Content-Disposition` 双形态 + 缺省 xlsx + 非法 fmt 400 + 中文报表名过网 + GBK 中文链路 + 缺文件 400）；3 条变异实测（消毒 / 编码 / 缺省，改坏必红） |
 | M6-04 | CLI `render sample.rpx --out out.csv\|xlsx` | `rpx-cli`（现在只有 print） | ✅ **已闭合**（2026-10-15）：`render_cmd`（子命令分派重构 + `--out` 扩展名判格式（不分大小写）/ `--data-dir` 缺省 = `.rpx` 同目录）+ `tests/cli_render.rs` **7 条真跑 CLI 二进制的断言**（`CARGO_BIN_EXE_rpx-cli`）：csv/xlsx 与库直调**逐字节一致**、默认目录三段（缺 CSV 失败 / 同目录成功 / flag 生效）、未知扩展名 exit 2、缺 `--out` usage、大写扩展名、print 回归；3 条变异实测（扩展名互换 / exit code / 默认目录，改坏必红） |
-| M6-05 | 20 个既有引擎夹具各导出一份 CSV/xlsx 落 `tests/fixtures/out/` | 夹具资产 | 作为回归基线；任一导出改动导致读回 diff 即红（立项时 12 个，M6-01 时已增至 20——`engine_cross`/`engine_cross_root` 系 M5-04 新增） |
+| M6-05 | 19 个**可导出**引擎夹具各导出一份 CSV/xlsx 落 `tests/fixtures/out/` | 夹具资产 | ✅ **已闭合**（2026-10-15）：`crates/rpx-export/tests/export_baseline.rs` 生成/比对双模（`RPX_UPDATE_BASELINES=1` 生成；默认 CSV **逐字节** + xlsx **读回级**比对）；口径 = 20 名义 **− `engine_cycle`**（错误型夹具，活证断言 `engine_cycle_is_error_fixture_thus_excluded`——「20 个」立项数字的实证修正）；3 条变异实测（CSV 行尾 / xlsx disp / 不跳 cycle，改坏必红）；`out/README-export-baselines.md` 说明生成方式。⚠ 生成/比对**必须在沙箱外执行**（沙箱写入垫片会留 `*.res` 残留并干扰写盘——踩坑实录见 RUNLOG §46） |
 
 依赖序：M6-01 → M6-02 → M6-03/M6-04 并行 → M6-05 收口。
 
@@ -267,3 +267,30 @@ G5 只查 `[dependencies]`（`code-review.md` §3.2 注 3），dev-deps 不进�
   - **变异实测 3 条**：① csv/xlsx 扩展名判定互换 → csv 对拍红；② 未知扩展名
     exit 2→1 → usage 测试红；③ 默认数据目录改 CWD → 默认目录测试红。
   - 验证：`cargo test -p rpx-cli` 8/8；clippy `-D warnings` 干净；G1–G8 全绿。
+
+- **v0.6（2026-10-15）**：**M6-05 闭合 —— M6 全部收官**。
+  - 落地：`crates/rpx-export/tests/export_baseline.rs`（生成/比对双模，
+    体例同 Java 侧 `out/gen.ps1` 的 gen/verify）+ 基线资产
+    `tests/fixtures/out/export_engine_*.{csv,xlsx}`（19×2 = 38 份）
+    + `out/README-export-baselines.md`（生成方式与归档性质说明）。
+  - **口径修正（有据）**：「20 个夹具」→ **19 个可导出**：`engine_cycle`
+    是错误型夹具（`calculate` 必报循环引用、无计算态网格）⇒ 物理上不可能
+    导出；活证断言 `engine_cycle_is_error_fixture_thus_excluded`（变异 C
+    实测：不跳 cycle → 双红）。
+  - **比对口径**（「读回 diff 即红」的落地）：CSV 逐字节（文本格式即契约）；
+    xlsx **读回级**——新导出与基线都经 calamine → 逐格 `(r,c)=Data` +
+    合并区矩形文本，比差异即红（zip 层噪声不在契约内，spec §2.4）。
+    失败报**首个差异行**（含行号与上下文）。
+  - **生成模式**：`RPX_UPDATE_BASELINES=1 cargo test ...`——显式维护动作，
+    仅契约合法变更后执行（README 写死）。
+  - 输入口径：数据集 fixtures 直读；参数仅 `engine_param` 有
+    （`p=[1,2,3]`/`s=7`，出处 = 其 expected.json 的 `params` 段）。
+  - **变异实测 3 条**：① CSV 行尾 CRLF→LF → csv 基线红；② xlsx disp 优先
+    去掉 → xlsx 基线读回红；③ 不跳 `engine_cycle` → csv+xlsx 双红。
+  - **环境坑（重要，实录见 RUNLOG §46）**：生成/比对必须在**沙箱外**执行
+    ——沙箱内的写盘垫片会留下 `<file>.<epoch-ms>.res` 残留并**稳定干扰
+    写盘**（errno 5 假象：表现像「特定文件写不进去」，实为垫片残留）；
+    `.gitignore` 已补 `*.res` 忽略，测试的写失败已改**收集式**（一次运行
+    看全貌，不再首个失败即中断）。
+  - 验证：`cargo test -p rpx-export` 全绿（csv 10 + xlsx 17 + baseline 3）；
+    clippy `-D warnings` 干净；G1–G8 全绿。

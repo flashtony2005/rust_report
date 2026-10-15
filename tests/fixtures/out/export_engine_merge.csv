@@ -1,0 +1,8 @@
+region,qty,hspan,
+North,100,span,span
+North,,,
+East,200,span,span
+East,,,
+South,150,span,span
+South,,,
+tail,,,

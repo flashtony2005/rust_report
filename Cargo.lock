@@ -1039,6 +1039,7 @@ name = "rpx-export"
 version = "0.1.0"
 dependencies = [
  "calamine",
+ "rpx-core",
  "rpx-engine",
  "rust_xlsxwriter",
 ]

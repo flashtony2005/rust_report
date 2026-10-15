@@ -9,3 +9,10 @@
 *.html text eol=lf
 *.py text eol=lf
 *.txt text eol=lf
+
+# 导出基线（M6-05）：**字节保真入库**。
+# CSV 的行尾 CRLF 是格式契约（spec-m6 §2.3）；`* text=auto eol=lf` 会把行尾
+# 规范化成 LF ⇒ 非本机（LF 工作区）checkout 后与 to_csv 产出比对必红。
+# ⛔ 用 `-text` 覆盖（同文件多规则时**后行优先**），xlsx 是 zip 二进制同样显式声明。
+/tests/fixtures/out/export_*.csv -text
+/tests/fixtures/out/export_*.xlsx -text

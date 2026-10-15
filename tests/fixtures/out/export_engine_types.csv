@@ -1,0 +1,4 @@
+int,long,double-frac,double-integral
+100,1234567890123,92.5,100
+decimal,boolean-true,boolean-false,float
+100.00,true,false,1.5

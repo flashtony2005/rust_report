@@ -3917,3 +3917,55 @@ CLI 的自动化断言」。落地 `rpx-cli render <file.rpx> --out <out.csv|out
 `-D warnings` 干净；G1–G8 全绿。spec-m6 v0.5。
 **下一步**：M6-05（20 个既有引擎夹具各导出一份 CSV/xlsx 落
 `tests/fixtures/out/` 作回归基线；任一导出改动导致读回 diff 即红）。
+
+### §46 M6-05 闭合 —— 19 夹具导出基线（M6 收官，2026-10-15）
+
+**目标**：spec-m6 §3 M6-05 ——「引擎夹具各导出一份 CSV/xlsx 落
+`tests/fixtures/out/`，任一导出改动导致读回 diff 即红」。
+
+**口径修正（有据）**：验收文写「20 个既有引擎夹具」，实证为 **19 个可导出**：
+- `engine_cycle` 是错误型夹具（`calculate` 必报循环引用、**无计算态网格**
+  —— `engine_grid_compare.rs` 第 3 组 + `disp_assert.rs:245`）⇒ 物理上
+  不可能导出；活证断言 `engine_cycle_is_error_fixture_thus_excluded`。
+
+**落地**
+- `crates/rpx-export/tests/export_baseline.rs`（生成/比对双模，体例同
+  Java 侧 `out/gen.ps1` 的 gen/verify）：
+  - 生成：`RPX_UPDATE_BASELINES=1 cargo test -p rpx-export --test export_baseline`
+    （显式维护动作；写失败**收集式**——一次运行看全貌）；
+  - 比对（默认）：CSV 逐字节；xlsx **读回级**（calamine → 逐格 `(r,c)=Data`
+    + 合并区矩形（排序）文本——zip 层噪声不在契约内，spec §2.4；但读回
+    的任何一格/一个合并区变化都红）；失败报**首个差异行**。
+- 基线资产 38 份：`out/export_engine_*.{csv,xlsx}`（19×2）
+  + `out/README-export-baselines.md`。
+- 输入口径：数据集 fixtures 直读；参数仅 `engine_param`（`p=[1,2,3]`/`s=7`，
+  出处 = expected.json `params` 段，Java 侧 GenEngineFixtures 同款）。
+- dev-deps：`rpx-export` 加 `rpx-core`（测试要 open 模板；dev-deps 不进
+  G5/G8 闸门——两闸都只扫 `[dependencies]`）。
+
+**变异实测 3 条（改坏必红、还原必绿）**
+| 变异 | 期望红的本 | 实录 |
+| --- | --- | --- |
+| CSV 行尾 CRLF→LF | csv 基线 | ✅ FAILED |
+| xlsx disp 优先去掉 | xlsx 基线读回 | ✅ FAILED |
+| 不跳 `engine_cycle` | csv+xlsx 双红 | ✅ FAILED |
+
+**★ 环境坑实录：沙箱写入垫片的「errno 5」假象**
+- **现象**：生成模式在**沙箱内**首跑，写到第 5 个 xlsx
+  （`export_engine_merge.xlsx`）报 `OS Error 5`；随后**禁沙箱**重跑两遍，
+  仍稳定在同一文件处失败（改用系统 shell 直写同名文件却成功 ⇒ 排除文件
+  系统权限）。
+- **排查**：写失败改**收集式**（不中断）一次跑全貌 + 查 out/ 目录 →
+  发现 `export_engine_*.xlsx.<epoch-ms>.res` **残留文件**（第一次沙箱内
+  运行留下的写入垫片残余）；「失败总在同一文件」= 首个失败即 panic 中断的表象。
+- **根因**：agent 沙箱对 out/ 的**写盘垫片**（沙箱内运行时逐文件转义/锁定），
+  其 `.res` 残留**持续干扰**后续（即使禁沙箱）对同目录的写。
+- **处置**：清 `*.res` 残留 + 全程**沙箱外**跑；`.gitignore` 补
+  `/tests/fixtures/out/*.res`；测试写失败改收集式。清残留后：生成 0.5s
+  全绿、比对 0.4s 全绿（此前 30s 的「慢」也是垫片挣扎的表象）。
+- **纪律补充**：**凡写盘类测试/生成（导出基线、夹具产物）必须沙箱外跑**；
+  若在沙箱内跑过，先 `ls tests/fixtures/out/ | grep .res` 清残留再继续。
+
+**验证**：`cargo test -p rpx-export` 全绿（csv 10 + xlsx 17 + baseline 3）；
+clippy 干净；G1–G8 全绿。spec-m6 v0.6。
+**M6 收官**：导出面五件齐（CSV / xlsx / HTTP / CLI / 基线）。
