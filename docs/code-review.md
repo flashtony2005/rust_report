@@ -182,6 +182,9 @@ libsql / sqlx / axum / rust_xlsxwriter / printpdf / nom / rust_decimal。旧 G5 
 | `rpx-server` | `tokio`（features = `rt-multi-thread`/`macros`/`net`/`io-util`） | axum 0.8 的运行时底座：`#[tokio::main]` + `TcpListener`（`serve` 子命令）+ 集成测试的异步 socket 客户端（`tests/render_http.rs`） | axum 的 `serve`/`Router` 全部构建在 tokio 之上，没有"用 axum 但不引 tokio"的路径；std 无异步运行时，替代只有自研 executor（axum 不接受） |
 | `rpx-ds` | `sqlx` 0.9（default-features=false，features = `any`/`postgres`/`mysql`/`sqlite`/`runtime-tokio`） | M3-03 取数主链路：`AnyPool` 按 URL 前缀选驱动（`postgres://`/`mysql://`/`sqlite://`，换库只换 URL——蓝图 §7.2 的既定选型）；sqlite 内存库冒烟 5/5 | ① 每库一个原生客户端（postgres/mysql/sqlite 三套协议）：三份连接池/类型映射/错误处理，维护面 ×3 且无对拍基准；② 自研协议：不可行；③ `libsql` 只覆盖 SQLite 一族，PG/MySQL 无解 |
 | `rpx-ds` | `tokio`（features = `rt-multi-thread`/`macros`） | sqlx 0.9 的 runtime-tokio 底座 + `#[tokio::test]`（sqlite 冒烟） | 同 rpx-server 行：sqlx async 只跑在 tokio 上，std 无异步运行时 |
+| `rpx-export` | `rust_xlsxwriter` 0.99（默认 features） | M6-02 xlsx 写器：`CalcGrid` → xlsx 字节（`merge_range` + 类型化 `write_*`）；zip 容器 + OOXML 由库负责 | ① 手写 xlsx（zip + OOXML + `_xHHHH_` 控制字符转义 + 共享字符串表）是几百节点的格式工程，边界全靠自证且**无产品真值可对拍**（spec-m6 §0）；② `umya-spreadsheet` 偏读改场景、写从零场景更重；③ 零依赖层（rpx-core/rpx-engine）不能为它引——本 crate 是受审层，正是为这类出口依赖而分层 |
+
+> （dev-dep，不经 G5）`rpx-export` 的 `calamine`（读回校验）：xlsx 是 zip 容器、**字节级对拍无意义**（时间戳/条目序），M6-02 的验收是「读回自洽」——`to_xlsx` 产出 → `calamine` 读回 → 与 `CalcGrid` 逐格比值/类型 + 合并区全等。只进 `[dev-dependencies]`（不进产物，`code-review.md` §3.2 注 3 的已知缺口的**正当用法**，与「藏生产依赖」相对）；正文见 `docs/spec-m6.md` §2.4。
 
 ⛔ **不许做的事**：删掉 G5、把 `rpx-core`/`rpx-engine` 挪进受审层、
 或往白名单里塞没写理由的条目。

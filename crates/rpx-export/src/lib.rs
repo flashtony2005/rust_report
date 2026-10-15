@@ -18,5 +18,7 @@
 
 pub mod csv;
 mod text;
+pub mod xlsx;
 
 pub use csv::to_csv;
+pub use xlsx::to_xlsx;

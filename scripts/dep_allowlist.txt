@@ -21,3 +21,4 @@ rpx-server axum
 rpx-server tokio
 rpx-ds sqlx
 rpx-ds tokio
+rpx-export rust_xlsxwriter

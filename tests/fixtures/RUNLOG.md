@@ -3730,3 +3730,56 @@ Rust 引擎逐格对拍），离线（无金仓）用 CSV 文件数据集复刻�
 - 若后续版本（或商业版）恢复 `_$4`/`_$3` 的实例接线，复现路径：重跑
   `re_work/tmp_probe/filtercross/run.ps1`，观察 `cell_$4` 是否非空即可判定。
 - M5 剩余：M5-07（cross() 维度对齐）维持带账后置；M5 主体（01-04/06）全部闭合。
+
+### §43 M6-02 闭合 —— xlsx 导出 + calamine 读回自洽（2026-10-15）
+
+**目标**：按 spec-m6 §2.4 的既定验收，`CalcGrid` → `to_xlsx` → 字节 → `calamine`
+读回 → **逐格比值/类型 + 合并区与 `MergedCell` 全等**。xlsx 是 zip 容器，
+字节级对拍无意义，读回自洽是唯一可钉的闭环。
+
+**依赖前置（先登记后引）**
+- `scripts/dep_allowlist.txt` 加 `rpx-export rust_xlsxwriter`（受审层）；
+- `docs/code-review.md` §3.2 登记表加行（含 `calamine` dev-dep 注记——
+  只进 `[dev-dependencies]`、不进产物，§3.2 注 3 的正当用法）；
+- Cargo 解析实际版本：`rust_xlsxwriter 0.99.1` / `calamine 0.36.1`。
+  写库 0.99.1 vs 0.99.0 的 diff 已核（clippy 清理 + 一处公式修复，
+  不动 merge_range / store_number / escape 逻辑）。
+
+**新问题：合并区锚点重建**
+- `CalcGrid::merged` 是**逐槽**视图（M5-02 `global_slots`：合并区矩形内每槽
+  一条记录、都报**锚点整段跨度**）；`merge_range` 要**每区一条锚点矩形**
+  ⇒ 导出前重建。
+- 规则：**延续槽 = 存在另一条同跨度记录，其矩形覆盖本槽**（严格包含判定）；
+  锚点值 = cells 里有该格则走统一取值口径（disp 优先），否则用 merged
+  记录带的锚点值（`merged` 不受 cells 稀疏规则约束，锚点可能不在 cells 里）。
+- 病态输入（重叠矩形，引擎不产出）：`taken` 去重保首见——否则写库报
+  `MergeRangeOverlaps`。测试用「A=[1..2]×[3..4] 与 B=[2..3]×[1..3] 交于 (2,3)、
+  两锚点互不在对方矩形内」的构造钉住（这是唯一能让「两条都当锚点」成立的形态）。
+
+**写值口径（自定并写死，逐条有测试）**
+- 数值族 → number（Excel 存储本体 = f64；`ColNum` u16 / `RowNum` u32 由 `pos()`
+  统一换算，防坐标类型错）；`Decimal` f64 解析失败/溢出 → 文本原样；
+- **非有限数 → 文本 `NaN`/`inf`/`-inf`**：写库 `store_number_type` 会把
+  NaN/inf 擅自落成 `NAN`/`INF`/`-INF` **全大写**文本——导出面拦截以统一
+  text.rs 口径（变异 C 实录：不拦截 → 读回 `String("NAN")` ≠ `String("NaN")`）；
+- `Bool` 原生布尔；`List` 逗号连接文本；`disp_value` 优先；
+  `Text("")` 被写库忽略 ⇒ 读回空（与 Null 同形态，有钉）。
+
+**边界（有测试钉）**
+- Excel 硬上限裁剪：行 > 1,048,576 / 列 > 16,384（整区跨界 → 裁到界内、
+  退化成 1×1 则跳过）；超长文本截断到 32,767 **字符**（整字截断防破 UTF-8，
+  写库判据同粒度）；越界格忽略；空网格仍产出合法 xlsx；**同输入同字节**
+  （写库 zip 时间戳固定 `DateTime::default()`，M6-04 的逐字节断言依赖此条）。
+
+**变异实测 3 条（改坏必红、还原必绿）**
+| 变异 | 期望红的本 | 实录 |
+| --- | --- | --- |
+| `cell_payload` disp 分支改走 `payload_of(value)` | `disp_value_wins` | ✅ FAILED → 还原 ok |
+| 延续槽判定 `j != i` → `j == i` | `continuation` | ✅ FAILED（重建出 0 区） |
+| `number_or_text` 的 `is_finite` 改 `true` | `non_finite` | ✅ 读回 `NAN` ≠ `NaN` |
+
+**验证**：`cargo test -p rpx-export` **26/26**（csv 10 + xlsx 16）；
+`cargo clippy -p rpx-export --all-targets -- -D warnings` 干净；
+G1–G8 全绿。spec-m6 v0.3（本项目 §6 变更记录 + §2.5 登记补记 + §3 任务表）。
+**下一步**：M6-03（server `POST /export?fmt=csv|xlsx`）→ M6-04（CLI
+`render --out`，逐字节一致断言）→ M6-05（20 夹具导出基线收口）。
