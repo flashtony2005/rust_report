@@ -21,14 +21,15 @@
 
 use crate::error::{EngineError, Result};
 use crate::expr::ast::{Call, Expr};
+use crate::expr::eval::NULL_ROW_NOTE;
 use crate::value::{single_value, Value};
 
 use super::ds::DsCur;
 use super::eval::EvalCtx;
 use super::num::{aggregate_cmp, num_add, num_div};
 
-/// `ds.col`（DSVariable）：Row 态取当前行该列；Root 态产品的 Group 语义
-/// 未核实且 12 夹具不用 → `UnsupportedExpr`（§13.5 同类，诚实不支持）。
+/// `ds.col`（DSVariable）：Row 态取当前行该列；Root 态按产品
+/// `DataSet.getCurrentData` 的 Group 分支取**首行**（currentRow 光标 ≡ 1）。
 pub(crate) fn ds_column(ctx: &mut dyn EvalCtx, ds: &str, col: &str) -> Result<Value> {
     // 借用期收缩：`ctx.ds()` 的 &mut 不能跨后续调用存活
     let idx = {
@@ -47,12 +48,27 @@ pub(crate) fn ds_column(ctx: &mut dyn EvalCtx, ds: &str, col: &str) -> Result<Va
             .and_then(|r| r.get(idx))
             .cloned()
             .unwrap_or(Value::Null),
-        DsCur::Root => {
-            return Err(EngineError::UnsupportedExpr {
-                expr: format!("{ds}.{col} (Root)"),
-            })
-        }
+        DsCur::Root => root_current_data(set, idx),
     })
+}
+
+/// Root 态的 `getCurrentData`（产品 `DataSet.java:395-410` 的 Group 分支）：
+/// 读 currentRow 光标（`_$5`）—— 越界（`<1` 或 `>rowCount`）⇒ `null`，
+/// 在界内 ⇒ `row[_$5-1]` 的数据。
+///
+/// `_$5` 初值 **1**（`DataSet.java:31`）且**每次 `setCurrent` 重置为 1**
+/// （`:362-364`；`restoreCurrent` 成对带回旧值，`:380-382`）⇒ 本仓
+/// [`DsCur::Root`]（不建模 `DSOffset.java:43` 的 `setCurrentRow` 写入）
+/// 等价于 currentRow ≡ 1 ⇒ **首行**数据；空表（`1 > 0` 越界）⇒ `Null`。
+///
+/// M5-01 实证出口：`ds2.select(item:item)` 的次序表达式在产品里求值为
+/// 首行 `item`（Text）⇒ `paramTypeError`（`DSSelect.java:83-87`）。
+fn root_current_data(set: &crate::expr::ds::DataSet, idx: usize) -> Value {
+    set.rows
+        .first()
+        .and_then(|r| r.get(idx))
+        .cloned()
+        .unwrap_or(Value::Null)
 }
 
 /// `Sum.calculate` 的 List 聚合（`Sum.java:117-133`）：跳 null、`Variant2.add`
@@ -183,7 +199,9 @@ pub(crate) fn eval_ds_arg(arg: &Expr, dsn: &str, ctx: &mut dyn EvalCtx) -> Resul
 }
 
 /// `DataSet.getCurrentData(colNo)`：当前 DsValue 的该列数据。
-/// Row 态 → 当前行该列；Root 态 → 不支持（同 [`ds_column`]）。
+/// Row 态 → 当前行该列；Root 态 → 同 [`ds_column`] 的首行口径
+/// （`UnknownSymbol.setDS` 与 `DSVariable.calculate` 走同一条
+/// `getCurrentData`，产品两侧不分叉）。
 pub(crate) fn ds_current_data(ctx: &mut dyn EvalCtx, dsn: &str, col: &str) -> Result<Value> {
     let idx = {
         let set = ctx.ds(dsn).ok_or_else(|| EngineError::MissingDataset {
@@ -201,11 +219,7 @@ pub(crate) fn ds_current_data(ctx: &mut dyn EvalCtx, dsn: &str, col: &str) -> Re
             .and_then(|r| r.get(idx))
             .cloned()
             .unwrap_or(Value::Null),
-        DsCur::Root => {
-            return Err(EngineError::UnsupportedExpr {
-                expr: format!("{dsn}.{col} (Root)"),
-            })
-        }
+        DsCur::Root => root_current_data(set, idx),
     })
 }
 
@@ -213,6 +227,10 @@ pub(crate) fn ds_current_data(ctx: &mut dyn EvalCtx, dsn: &str, col: &str) -> Re
 ///
 /// Row 态（数据集被扩展格引用，指针随实例推进）返回当前行的值；
 /// Root 态做全量收集/聚合 —— 附件 H.2 的双态语义。
+///
+/// M5-01：`select` 的**全参数矩阵**（`,` 四段 + `:` 次序 + `;` 多排序）与
+/// 双态求值整体搬到 [`super::dsselect`]（`DSSelect.calculate` 的逐行移植），
+/// 这里只留分派；`sum`/`avg`/`max`/`min` 的 Row 态尾段抽成 [`row_path`]。
 pub(crate) fn ds_call(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Value> {
     let is_row = {
         let set = ctx.ds(dsn).ok_or_else(|| EngineError::MissingDataset {
@@ -221,53 +239,12 @@ pub(crate) fn ds_call(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Valu
         matches!(set.current, DsCur::Row(_))
     };
     match (c.name.as_str(), is_row, c.args.len()) {
-        // DSSelect Row 态（`DSSelect.java:143-149`）：setValue + 返回 Row ⇒ 拆包缓存值
-        ("select", true, 1) => {
-            let v = eval_ds_arg(&c.args[0], dsn, ctx)?;
-            let i = {
-                let set = ctx.ds(dsn).expect("上面刚取到");
-                let i = set.current_row().unwrap_or(0);
-                set.selected[i] = Some(v.clone());
-                i
-            };
-            // ⛔ 旁路（§5.4 建模缺口）：产品此路返回的是 **Row 对象本身**
-            // （`return cur;`，`DSSelect.java:149`），`ExtExtendCell.calculate:403/461`
-            // 靠 `result instanceof DsValue` 把 `_$4` 定到这一行。Rust 的 [`Value`]
-            // 是封闭九类、不携带身份 ⇒ 用 [`EvalCtx::note_ds_row`] 补记，
-            // 由 `calc::cell_eval` 在求值后消费。
-            if let Some(idx) = ctx.ds_index(dsn) {
-                ctx.note_ds_row(idx, i);
-            }
-            Ok(ctx.ds(dsn).expect("同上").unwrap_row(i))
-        }
-        // DSSelect Root 态：全量 evaluateRows → List（`DSSelect.java:186-190`）
-        ("select", false, 1) => {
-            let rows = eval_rows(dsn, &c.args[0], ctx)?;
-            // ⛔ 旁路：产品 Root 态返回 **List<Row>** —— `Group.getRows()`
-            // （`Group.java:455-457`）返回的 `_$3` 元素全是 Row 对象
-            // （`Group.evaluateRows:436-447` 逐元素 `(Row)this._$3.get(i)`），
-            // 扩展格靠它逐元素写 `_$4`（`ExtExtendCell.calculate:401-407`）。
-            // `eval_rows` 无 filter/distinct/sort ⇒ 元素 i 恒对应第 i 行。
-            if let Some(idx) = ctx.ds_index(dsn) {
-                let all: Vec<usize> = (0..rows.len()).collect();
-                ctx.note_ds_list(idx, &all);
-            }
-            Ok(Value::List(rows))
-        }
+        // DSSelect 全形态（M5-01）：参数矩阵 + Row/Root 双态，见 dsselect 模块文档
+        ("select", _, _) => super::dsselect::ds_select(c, dsn, ctx),
         // DSSum Row 态（`DSSum.java:41-47`）：同 select 的 Row 路径
         ("sum", true, 1) => {
             let v = eval_ds_arg(&c.args[0], dsn, ctx)?;
-            let i = {
-                let set = ctx.ds(dsn).expect("上面刚取到");
-                let i = set.current_row().unwrap_or(0);
-                set.selected[i] = Some(v.clone());
-                i
-            };
-            // ⛔ 旁路：同 select Row 态（`DSSum.java:46` 同样 `return cur;`）。
-            if let Some(idx) = ctx.ds_index(dsn) {
-                ctx.note_ds_row(idx, i);
-            }
-            Ok(ctx.ds(dsn).expect("同上").unwrap_row(i))
+            row_path(dsn, v, ctx)
         }
         // DSSum Root 态：全量和（`DSSum.java:50-61`）。⛔ 返回**标量**
         // （聚合值或 `Double(0.0)`），不是 Row 也不是 List ⇒ 不记旁路。
@@ -278,17 +255,7 @@ pub(crate) fn ds_call(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Valu
         //    ⇒ 与 sum 共用 DSSum 的 `return cur;` 形态，取 row 态同一返回值）。
         ("avg" | "max" | "min", true, 1) => {
             let v = eval_ds_arg(&c.args[0], dsn, ctx)?;
-            let i = {
-                let set = ctx.ds(dsn).expect("上面刚取到");
-                let i = set.current_row().unwrap_or(0);
-                set.selected[i] = Some(v.clone());
-                i
-            };
-            // ⛔ 旁路：同 sum 的 Row 态（产品这三个函数也返回当前 Row）。
-            if let Some(idx) = ctx.ds_index(dsn) {
-                ctx.note_ds_row(idx, i);
-            }
-            Ok(ctx.ds(dsn).expect("同上").unwrap_row(i))
+            row_path(dsn, v, ctx)
         }
         ("avg", false, 1) => {
             let rows = eval_rows(dsn, &c.args[0], ctx)?;
@@ -306,6 +273,34 @@ pub(crate) fn ds_call(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Valu
             expr: format!("{dsn}.{name} 该形态未支持（{n} 参数）"),
         }),
     }
+}
+
+/// Row 态 DS 调用的公共尾段（`DSSelect.java:148-153` / `DSSum.java:41-47` 同形）：
+/// 写 `selected` 缓存（产品 `row.setValue(...)`）、记行旁路（产品 `return cur;`
+/// 的 Row 身份，`eval.rs` 的 `note_ds_row` 契约）、拆包返回值。
+///
+/// M5-01 加闸：current 是**空行哨兵**时（上游 select 过滤未命中钉下的
+/// `getNullRow()`，calc `mirror` 投影成 `DsCur::Row(NULL_ROW)`）不许直写
+/// `selected[i]`（越界 panic）⇒ 按空行身份返回 Null。
+pub(crate) fn row_path(dsn: &str, v: Value, ctx: &mut dyn EvalCtx) -> Result<Value> {
+    let row_i = {
+        let set = ctx.ds(dsn).expect("上面刚取到");
+        set.current_row_checked()
+    };
+    let Some(i) = row_i else {
+        if let Some(di) = ctx.ds_index(dsn) {
+            ctx.note_ds_row(di, NULL_ROW_NOTE);
+        }
+        return Ok(Value::Null);
+    };
+    {
+        let set = ctx.ds(dsn).expect("上面刚取到");
+        set.selected[i] = Some(v.clone());
+    }
+    if let Some(di) = ctx.ds_index(dsn) {
+        ctx.note_ds_row(di, i);
+    }
+    Ok(ctx.ds(dsn).expect("同上").unwrap_row(i))
 }
 
 /// `Group.evaluateRows`：逐行把 ds 指针切到该行求值（`Row.java:97-110` 的循环

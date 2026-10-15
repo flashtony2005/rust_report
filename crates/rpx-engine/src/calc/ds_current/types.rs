@@ -6,9 +6,16 @@
 //! 语义与出处见父模块的模块文档。
 
 use crate::arena::CellId;
+use crate::expr::eval::NULL_ROW_NOTE;
 
 /// `getNullRow()`（`DataSet.java:82`）：值全空的哨兵行（`Row.cross` 的失败返回）。
 pub const NULL_ROW: usize = usize::MAX;
+
+/// 编译期钉子：expr 侧旁路哨兵（`note_ds_row(ds, NULL_ROW_NOTE)`，
+/// M5-01 `ds.select` Row 态过滤未命中）与本常量**必须同值** ——
+/// `mirror` 把它投影成 `DsCur::Row(NULL_ROW)`、`is_real_row` 按它分流，
+/// 漂移会让空行身份静默变成真实行（或反向）。
+const _: () = assert!(NULL_ROW == NULL_ROW_NOTE);
 
 /// 根 Group（`ds.getRootGroup()`，`DataSet.java:344-352`）的哨兵行号。
 ///

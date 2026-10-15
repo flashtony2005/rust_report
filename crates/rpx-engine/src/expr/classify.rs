@@ -161,3 +161,21 @@ pub fn split_top<'a>(toks: &'a [Tok], sep: &Tok) -> Vec<&'a [Tok]> {
     out.push(&toks[start..]);
     out
 }
+
+/// 顶层是否出现分隔符 `sep` —— `ParamParser._$1(str, separator):81-129` 的
+/// **存在性判定**（跳过引号与 `(`/`[`/`{` 内部；与 [`top_level_kind`] 同一套深度规则）。
+///
+/// M5-01：[`super::call::build_param`] 的层级递进要逐档问「本层分隔符出现没有」，
+/// 而 [`top_level_kind`] 只返回第一个出现的那一档，答不了这个问。
+pub fn has_top_sep(toks: &[Tok], sep: &Tok) -> bool {
+    let mut depth = 0i32;
+    for t in toks {
+        match t {
+            Tok::LParen | Tok::LBracket | Tok::LBrace => depth += 1,
+            Tok::RParen | Tok::RBracket | Tok::RBrace => depth -= 1,
+            _ if depth == 0 && t == sep => return true,
+            _ => {}
+        }
+    }
+    false
+}

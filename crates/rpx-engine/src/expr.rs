@@ -45,6 +45,7 @@ pub mod cellset;
 pub mod classify;
 pub mod ds;
 pub mod dsfn;
+pub mod dsselect;
 pub mod dsstate;
 pub mod eval;
 pub mod lexer;
@@ -60,8 +61,10 @@ mod tests;
 mod tests_aggregate;
 #[cfg(test)]
 mod tests_eval;
+#[cfg(test)]
+mod tests_select;
 
-pub use ast::{BinOp, Call, Expr, ParamKind, UnOp};
+pub use ast::{BinOp, Call, Expr, Param, ParamKind, UnOp};
 pub use classify::err;
 pub use ds::{DataSet, DsCur};
 pub use eval::{evaluate, EvalCtx};

@@ -1,6 +1,8 @@
-# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.1
+# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.2
 
-> 状态：**立项**（2026-10-15；反逆向定案 + 金仓真机探针 9 模板全绿，实现未启动）。
+> 状态：**M5-01 已闭合**（2026-10-15；参数矩阵 + 双态求值落地，`expr/dsselect/`
+> 三文件 628 行，13 单测全绿 + workspace 450+ 测试全绿 + G1–G8 门禁全绿）。
+> M5-06 的 Root 态裸列语义（`ds.col` = 首行值）同批闭合。M5-02/03/04/05/07 未启动。
 > 上游：M2/M3/M4 已收官（`spec-m2.md` / `spec-m3.md` / `spec-m4.md`），HEAD `9aa6caf`。
 > 立项依据：数据蒋堂讲座行动序 #2「多数据集关联语义立项（三分类 + 维度对齐）——
 > 报表工具的核心差异化，大（先探针）」（`docs/lecture-notes.md` 行动表）。
@@ -25,10 +27,14 @@
 
 即：**关联发生在求值时刻，没有 join、没有临时表**。Rust 侧现状（`crates/rpx-engine/src/expr/dsfn.rs:216-309`）：
 
-- `ds.select` 只有 **1 参数**形态（`("select", true, 1)` / `("select", false, 1)`）；
+- ~~`ds.select` 只有 **1 参数**形态~~ → **M5-01 已闭合**：全参数矩阵
+  （`,` 四段 + `:` 次序 + `;` 多排序）+ 双态求值落地于 `expr/dsselect/`
+  （`DSSelect.calculate:27-209` 逐行移植，13 单测含 T3 六变体复现）；
 - 带过滤/限量/去重的 4 参矩阵、跨数据集过滤、嵌套主子表**均未实现**（落到
-  `UnsupportedExpr`  catch-all）；
-- Root 态裸列 `ds.col` 现报 `UnsupportedExpr`（`dsfn.rs:50-54`），而产品返回首行值（§3.3）。
+  `UnsupportedExpr` catch-all）；
+- ~~Root 态裸列 `ds.col` 现报 `UnsupportedExpr`~~ → **M5-01 同批闭合**
+  （`dsfn::root_current_data`：产品 `DataSet.getCurrentData:395-410` 的
+  currentRow 光标语义，本仓 Root 态恒 ≡1 ⇒ 首行值；空表 ⇒ null）。
 
 这直接卡住财政工资场景（人员主表 × 工资项明细 × 扣款项），也是「多源分片报表」
 （手册 `dyglfpdgnytzzj105`：多源七八个乃至十几个）的入口能力。
@@ -237,12 +243,12 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 
 | 编号 | 任务 | 落点 | 验收 |
 | --- | --- | --- | --- |
-| M5-01 | `ds.select` 参数矩阵：`,` 四段（过滤/限量/去重）+ `:` 次序 + `;` 多排序 | `rpx-engine`（`expr/call.rs` 参数树 + `expr/dsfn.rs` 双态） | 单测覆盖四形态；T3 六变体复现 |
+| M5-01 | `ds.select` 参数矩阵：`,` 四段（过滤/限量/去重）+ `:` 次序 + `;` 多排序 | `rpx-engine`（`expr/call.rs` 参数树 + `expr/dsselect/` 双态求值） | ✅ **已闭合**（2026-10-15）：单测覆盖四形态 + 6 种产品报错；T3 六变体复现；门禁全绿 |
 | M5-02 | 跨数据集过滤求值：过滤式里的 CSVariable/DSVariable 解析与 current 管理 | `rpx-engine`（`calc/ds_current.rs` 扩展） | T1/T2 复现；电流语义变异测试 |
 | M5-03 | 显式 leftHead/topHead 槽位：reader 解析 + 头图 + 跨度计算 + 嵌套复制 | `rpx-core`（slot 30/31）+ `rpx-engine`（`heads/` + `ext_algo/`） | T4/T5 网格逐格对拍 |
 | M5-04 | 产品夹具 `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点） | `tests/fixtures`（`EngineModelsM5.java` + `GenEngineFixtures`） | 进 19+ 夹具主对拍全绿；Java 侧 round-trip |
 | M5-05 | `filtercross` 多对多 | `rpx-engine` | 先探针（多对多真机模板）后实现；对拍 |
-| M5-06 | Root 态裸列 `ds.col` = 首行值（修 `UnsupportedExpr`） | `rpx-engine`（`expr/dsfn.rs:50-54`） | T3 裸列变体；单测钉死 |
+| M5-06 | Root 态裸列 `ds.col` = 首行值（修 `UnsupportedExpr`） | `rpx-engine`（`expr/dsfn.rs` `root_current_data`） | ✅ **已闭合**（随 M5-01）：`dsfn::root_current_data` 实现产品 currentRow 语义；`select(item:item)` → paramTypeError 单测 + 裸列首行值单测双钉 |
 | M5-07 | `cross()` 维度对齐（交叉表同数据集双方向） | `rpx-engine` | **带账**：无夹具不实现；复现路径见 §6.4 |
 
 依赖序：M5-01 → M5-02 → M5-03 → M5-04（夹具闭环）→ M5-05/M5-06 并行 → M5-07 后置。
@@ -270,6 +276,15 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
    建模的顺序依赖；夹具按「一模板一语义点」隔离（已定为 M5-04 纪律）。
 3. **`Group.filter` 二分快速路径的有序性前提**（§2.7）：option `b` + 等值条件时
    产品假设行已按该列有序；无序数据上的行为**未探针**（实现期以夹具钉死）。
+4. **`;` 多键排序「全键相等」时的次序**：产品是手写归并（`SortDsValue.sort:384-401`
+   的 run 切分），本仓用稳定多键比较等价——**全键相等时产品归并的产出次序**
+   无夹具基准，未逐位复刻（`dsselect/rows.rs` 文档同）。
+5. **Root 态 currentRow 光标只建模了恒 1**：产品 `DSOffset.java:43`（`ds[i]`
+   偏移语法）会 `setCurrentRow` 改写光标，本仓未建模该语法 ⇒ Root 态
+   `getCurrentData` 恒读首行（`DataSet.java:362-364`：`setCurrent` 重置为 1，
+   与「进入格求值即 Root」的本仓流程一致；写了 `ds[i]` 的模板才会分叉）。
+6. **Row 态过滤非布尔**：产品抛 `error.Row.test`（`Row.java:91`），本仓
+   `as_bool` 显式报错（同构，非分歧）—— 登记以备夹具期核对消息文本。
 
 ### 6.4 M5-07 复现路径
 
@@ -283,3 +298,19 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
   cross/filtercross/filter 快速路径）；金仓探针 9 模板 §3；三分类映射 §4；
   任务表 M5-01..07 §5；新带账 3 项 §6.3。探针产物：`ProbeCross.java` +
   `out/cross_*_product.json`（9 份，round-trip 全绿）。
+- **v0.2（2026-10-15）**：**M5-01 + M5-06 闭合**。
+  - 落地：`expr/ast.rs` `Param` 树 + `Call.param_tree`（Box 断环）；
+    `expr/call.rs` `build_param`（`ParamParser._$1:35-64` 递进复刻）；
+    `expr/dsselect/{mod,decode,rows}.rs`（`DSSelect.calculate:27-209` 逐行移植
+    + `ParamInfo2.parse` + `SortDsValue.sort` + `Group.filter/distinct`）；
+    `expr/dsfn.rs` `row_path` 抽公共尾段 + `root_current_data`。
+  - 实证新出口（本版核出，均已写进代码注释）：产品 `DataSet.getCurrentData:395-410`
+    的 Root 态走 currentRow 光标（初值 1、`setCurrent` 重置，`DataSet.java:31/362-364`）
+    ⇒ `select(item:item)` 次序表达式求值为首行 Text ⇒ paramTypeError；
+    `DSVariable.calculate` 与 `UnknownSymbol.setDS` 同走 `getCurrentData`（两侧不分叉）。
+  - 坑（本版踩并修复）：lexer `is_delimiter` 原不含 `;` ⇒ `item;emp_id` 被粘成一个
+    `Word`（产品的 `;` 切分发生在字符串级、扫描之前，本仓同趟处理必须硬断）——
+    已修并登记为 `token.rs` 第 4 处刻意偏差。
+  - 测试：`expr/tests_select.rs` 13 个（四形态/6 种产品报错/T3 六变体/num-z/空单果/
+    `;` 多键/Row 四钉/哨符闸/指针恢复）；workspace 450+ 全绿；G1–G8 全绿。
+  - 带账新增 ④⑤⑥（§6.3）。

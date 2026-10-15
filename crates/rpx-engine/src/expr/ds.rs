@@ -104,6 +104,20 @@ impl DataSet {
         }
     }
 
+    /// 当前行下标，**仅当在行数范围内**。
+    ///
+    /// M5-01：`ds.select` 过滤未命中时产品返回 `getNullRow()`，格把 `_$4` 钉成
+    /// 空行 ⇒ 本仓 `note_ds_row(ds, NULL_ROW_NOTE)` → calc 镜像成
+    /// `DsCur::Row(usize::MAX)`。此时**任何** `selected[i]` 直写都会越界 panic，
+    /// 故 Row 路径统一过这道闸（产品对 NullRow 的 `setValue` 走 rowNo=-1 的
+    /// 边缘，无夹具 ⇒ 本仓显式按空值返回，见 `dsselect.rs` 的 Row 态分支）。
+    pub fn current_row_checked(&self) -> Option<usize> {
+        match self.current {
+            DsCur::Row(i) if i < self.rows.len() => Some(i),
+            _ => None,
+        }
+    }
+
     /// 当前行的某列值（`DsVariable` 在 Row 形态下的取值）。
     pub fn current_col_value(&self, col: usize) -> Option<Value> {
         let i = self.current_row()?;

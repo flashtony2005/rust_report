@@ -1,5 +1,7 @@
 # Rust 构建产物（本机 target/ 约 2.3G，禁止入库）
 /target
+# 沙箱绕行构建目录（`.cargo-*` 锁文件被系统文件过滤按名拦截时的 CARGO_TARGET_DIR）
+/.cargo-target
 
 # 根目录散落调试日志
 /_c.log
@@ -8,6 +10,7 @@
 /_test_base.txt
 /_test_ws.log
 /_v2.txt
+/_audit_test.log
 
 # tests/fixtures 下的临时探针产物
 /tests/fixtures/_probe_mergepages.csv

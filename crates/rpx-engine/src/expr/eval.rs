@@ -49,7 +49,19 @@ use super::num::{
     aggregate_cmp, as_bool, num_add, num_cmp, num_div, num_mod, num_mul, num_neg, num_sub, val_eq,
 };
 
+/// 「空行」哨兵 —— [`EvalCtx::note_ds_row`] 的 `row` 参数专用值。
+///
+/// M5-01：`ds.select` 在 Row 态**过滤未命中**时产品返回 `getNullRow()`
+/// （`DSSelect.java:153`），格靠 `result instanceof DsValue` 把 `_$4` 钉成
+/// **空行身份**（`ExtExtendCell.calculate:461`）⇒ 本仓用
+/// `note_ds_row(ds, NULL_ROW_NOTE)` 表达同一件事（calc 侧
+/// `DsInstance::is_real_row` / `mirror` 已按哨兵分流，`types.rs` 有编译期
+/// 断言把两边钉死同值）。
+pub const NULL_ROW_NOTE: usize = usize::MAX;
+
 /// 求值上下文（见模块文档）。
+///
+/// DS 值归属旁路的 trait（见 `docs/m2-engine-design.md` §5.4 的建模缺口）。
 pub trait EvalCtx {
     // ── head 图原语（CSVariable 解析所需；`ExtCell` 的可观察面）──
     /// 实例的引擎出处（`getSource()`；引擎矩阵本体格返回自身）。
@@ -171,7 +183,9 @@ pub fn evaluate(expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
         }
         // CSCurrent（`@`）：当前格的值
         Expr::CurrentCell => Ok(ctx.cell_value(ctx.current())),
-        // DSVariable（`ds1.qty`）：Row 态取当前行；Root 态产品语义未核实（未用）
+        // DSVariable（`ds1.qty`）：Row 态取当前行该列；Root 态按产品
+        // `DataSet.getCurrentData:395-410` 的 currentRow 光标取首行值
+        // （M5-01 核实并实现，见 `dsfn::root_current_data`）。
         Expr::DsColumn { ds, col } => ds_column(ctx, ds, col),
         // UnknownSymbol：DS 调用参数里的裸列名由该 DS 绑定数据集（`setDS` +
         // `ds.getCurrentData(colNo)`，`UnknownSymbol.java:32-37/48-51`，见

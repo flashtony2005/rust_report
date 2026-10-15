@@ -43,6 +43,11 @@ pub(crate) struct Fake {
     cur: CellId,
     saved: CellId,
     dss: Vec<DataSet>,
+    /// M5-01：DS 值归属旁路的捕获（`note_ds_row`/`note_ds_list` 的测试落点）。
+    /// 生产里由 calc 层每次逐格求值前 `clear_ds_notes`；本桩不自动清，
+    /// 由 `take_row_note`/`take_list_note` 读走即清。
+    note_row: Option<(usize, usize)>,
+    note_list: Option<(usize, Vec<usize>)>,
 }
 
 impl Fake {
@@ -65,6 +70,8 @@ impl Fake {
             cur: CellId::ROOT,
             saved: CellId::ROOT,
             dss: Vec::new(),
+            note_row: None,
+            note_list: None,
         }
     }
     /// 引擎矩阵本体格：`source` = 自身，head 兜底到 ROOT。
@@ -211,6 +218,38 @@ impl EvalCtx for Fake {
     }
     fn ds_index(&self, name: &str) -> Option<usize> {
         self.dss.iter().position(|d| d.name == name)
+    }
+    // ── M5-01：DS 旁路捕获（生产实现见 `calc/ctx/eval_ctx.rs`）──
+    fn note_ds_row(&mut self, ds: usize, row: usize) {
+        self.note_row = Some((ds, row));
+    }
+    fn note_ds_list(&mut self, ds: usize, rows: &[usize]) {
+        self.note_list = Some((ds, rows.to_vec()));
+    }
+    fn clear_ds_notes(&mut self) {
+        self.note_row = None;
+        self.note_list = None;
+    }
+    fn ds_row_note(&self) -> Option<(usize, usize)> {
+        self.note_row
+    }
+    fn ds_list_note(&self) -> Option<(usize, Vec<usize>)> {
+        self.note_list.clone()
+    }
+}
+
+impl Fake {
+    /// 读走行旁路并清空（M5-01 测试断言专用；生产由 calc 层每次求值前清）。
+    pub(crate) fn take_row_note(&mut self) -> Option<(usize, usize)> {
+        self.note_row.take()
+    }
+    /// 读走 List 旁路并清空（同上）。
+    pub(crate) fn take_list_note(&mut self) -> Option<(usize, Vec<usize>)> {
+        self.note_list.take()
+    }
+    /// 第 `i` 个数据集的当前指针（`dss` 不公开，测试要断言"求值后恢复"时走这）。
+    pub(crate) fn ds_current(&self, i: usize) -> DsCur {
+        self.dss[i].current
     }
 }
 

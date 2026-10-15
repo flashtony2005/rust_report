@@ -11,7 +11,7 @@ use crate::error::{EngineError, Result};
 use crate::value::Value;
 
 use super::ast::{Expr, UnOp};
-use super::call::{build_call, parse_params};
+use super::call::{build_call, build_param, parse_params};
 use super::classify::{err, is_cell_id, literal, split_ds};
 use super::lexer::unescape;
 use super::parser::Parser;
@@ -115,8 +115,17 @@ impl<'a> Parser<'a> {
         // 函数调用（裸名先查普通表；DS 回退因 ds==null 不可达，见 names.rs）
         if matches!(self.peek(), Tok::LParen) {
             self.bump();
-            let (param_kind, args) = parse_params(self.take_group(Tok::RParen)?, self.params)?;
-            return Ok(build_call(w, param_kind, args));
+            let inner = self.take_group(Tok::RParen)?;
+            let (param_kind, args) = parse_params(inner, self.params)?;
+            // M5-01：DS 调用另建完整嵌套参数树（`ds.select` 参数矩阵的唯一载体；
+            // 普通函数/`list` 的扁平 args 即全部，树为 None）。Box 断环见
+            // `Call::param_tree`（E0072）。
+            let tree = if split_ds(&w).is_some() {
+                build_param(inner, self.params, None)?.map(Box::new)
+            } else {
+                None
+            };
+            return Ok(build_call(w, param_kind, args, tree));
         }
         // 裸名参数（`Expression.java:232-234`）：`ctx.isParamName(id)` ⇒
         // `ParamNode(id, ctx.getParamValue(id))`。`ParamNode extends Constant`

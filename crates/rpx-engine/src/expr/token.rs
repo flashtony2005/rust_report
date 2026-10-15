@@ -102,6 +102,14 @@ impl Tok {
 /// ⛔ `.` 不是分隔符，所以 `ds1.select` 被整体吃成一个 `Word`；这正是
 /// `Expression.java:174` 能用 `id.lastIndexOf('.')` 切出数据集名的前提。
 /// 本模块照抄这一点：`.` 是**标识符字符**。
+///
+/// ⚠ **第 4 处刻意偏差：`;` 在本切片是分隔符，产品不是**。产品的 `;` 是
+/// `ParamParser` 的**参数级**分隔符，切分发生在**字符串级、扫描之前**
+/// （`ParamParser.java:66-79`），所以单个 Expression 的原子里永远见不到它。
+/// 本 crate 把参数切分与词法放在同一趟（见 `lexer.rs` 模块文档偏差 1），
+/// 若这里不断口，`item;emp_id:1` 会被单词扫描粘成一个
+/// `Word("item;emp_id:1")` —— `;` 后的排序段整段丢失。2026-10-15 M5-01
+/// 实证：三个 `;` 形态单测全败于此（报错点全是 `;` 后第一个词）。
 pub fn is_delimiter(c: char) -> bool {
     c.is_whitespace()
         || matches!(
@@ -124,5 +132,6 @@ pub fn is_delimiter(c: char) -> bool {
                 | ']'
                 | '{'
                 | '}'
+                | ';'
         )
 }

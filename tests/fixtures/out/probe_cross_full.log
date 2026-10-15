@@ -1,0 +1,252 @@
+seeded report.emp_bonus (6 rows)
+[2026-10-15 15:06:26] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:26] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:26] 
+INFO: 计算结束！
+
+wrote .\out\cross_emp_bonus_product.json
+[2026-10-15 15:06:26] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:26] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:26] 
+INFO: 计算结束！
+
+VERIFY OK: cross_emp_bonus round-trip
+[2026-10-15 15:06:26] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:26] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:26] 
+INFO: 计算结束！
+
+wrote .\out\cross_dept_band_product.json
+[2026-10-15 15:06:26] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:26] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:26] 
+INFO: 计算结束！
+
+VERIFY OK: cross_dept_band round-trip
+[2026-10-15 15:06:26] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:26] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:26] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:26] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:26] 
+INFO: 计算结束！
+
+wrote .\out\cross_root_product.json
+[2026-10-15 15:06:26] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:27] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:27] 
+INFO: 计算结束！
+
+VERIFY OK: cross_root round-trip
+[2026-10-15 15:06:27] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:27] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:27] 
+INFO: 计算结束！
+
+wrote .\out\cross_nest_product.json
+[2026-10-15 15:06:27] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:27] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:27] 
+INFO: 计算结束！
+
+VERIFY OK: cross_nest round-trip
+[2026-10-15 15:06:27] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:27] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:27] 
+INFO: 计算结束！
+
+wrote .\out\cross_nest_vals_product.json
+[2026-10-15 15:06:27] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds1=SELECT id, dept, name, salary FROM report.emp_info ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 下面开始打出sql
+
+[2026-10-15 15:06:27] 
+INFO: ds2=SELECT id, emp_id, item, amount FROM report.emp_bonus ORDER BY id
+
+[2026-10-15 15:06:27] 
+INFO: 取数结束,开始运算
+
+[2026-10-15 15:06:27] 
+INFO: 报表图片处理......
+
+[2026-10-15 15:06:27] 
+INFO: 计算结束！
+
+VERIFY OK: cross_nest_vals round-trip
+VERIFY OK: probe cross round-trip (5 templates)

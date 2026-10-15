@@ -161,6 +161,69 @@ impl ParamKind {
     }
 }
 
+/// 参数节点 —— 产品 `IParam` 的**完整嵌套树**（`ParamParser.java:35-64`）。
+///
+/// M5-01 补建的原因：[`Call`] 原先只存顶层切分（`param_kind` + 扁平 `args`），
+/// 表达不了 `ds.select` 的参数矩阵（`,` 段里套 `:`，如官方样例
+/// `select(产品ID:1, 订单ID==B2,,产品ID)`）⇒ `select` 的多参形态全部落
+/// `UnsupportedExpr`。本树由 [`super::call::build_param`] 在建树期生成，
+/// **只有 `ds.名(...)` 调用携带**（[`Call::param_tree]`）；`list(...)`/`[...]`
+/// 的扁平视图不变。
+#[derive(Debug, Clone, PartialEq)]
+pub enum Param {
+    /// 叶子（产品 `lllIlIlIIlIIlIll`，`getType()=='\0'`）：持一个表达式。
+    Leaf(Expr),
+    /// 内部节点（产品 `lIllIlIlIIIlIlIl`）：`getType()` = 本层分隔符 +
+    /// 子参数列表。**空段 = `None`**（产品 `ArgumentTokenizer` 的空 token →
+    /// `ParamParser.java:39-41` 的 trim 空串 → null `IParam`，如
+    /// `select(item, , , item)` 的第 2/3 段）。
+    Node {
+        /// 本层分隔符（`getType()`）。
+        kind: ParamKind,
+        /// 子参数（`getSub(i)`；`None` = 产品返回 null）。
+        subs: Vec<Option<Param>>,
+    },
+}
+
+impl Param {
+    /// `IParam.isLeaf()`。
+    pub fn is_leaf(&self) -> bool {
+        matches!(self, Param::Leaf(_))
+    }
+
+    /// `IParam.getType()`（叶子映射为 [`ParamKind::Leaf`]）。
+    pub fn kind(&self) -> ParamKind {
+        match self {
+            Param::Leaf(_) => ParamKind::Leaf,
+            Param::Node { kind, .. } => *kind,
+        }
+    }
+
+    /// `IParam.getSubSize()`（叶子为 0）。
+    pub fn sub_size(&self) -> usize {
+        match self {
+            Param::Leaf(_) => 0,
+            Param::Node { subs, .. } => subs.len(),
+        }
+    }
+
+    /// `IParam.getSub(i)`（越界或叶子 → `None`）。
+    pub fn sub(&self, i: usize) -> Option<&Param> {
+        match self {
+            Param::Node { subs, .. } => subs.get(i).and_then(|s| s.as_ref()),
+            Param::Leaf(_) => None,
+        }
+    }
+
+    /// `IParam.getLeafExpression()`（非叶子 → `None`）。
+    pub fn leaf_expr(&self) -> Option<&Expr> {
+        match self {
+            Param::Leaf(e) => Some(e),
+            Param::Node { .. } => None,
+        }
+    }
+}
+
 /// 前缀运算符。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnOp {
@@ -230,6 +293,13 @@ pub struct Call {
     pub param_kind: ParamKind,
     /// 顶层切出的子表达式（⚠ 未建模嵌套 `IParam` 树，见 §13.5）。
     pub args: Vec<Expr>,
+    /// 完整嵌套参数树（M5-01，[`Param`]）。**只有 `ds.名(...)` 调用携带**
+    /// （`build_call` 按 `qualifier.is_some()` 判定）；普通函数/`list` 为 `None`，
+    /// 扁平 [`Call::args`] 即它们的全部参数面。
+    ///
+    /// `Box` 是**断环**必需（`Expr → Call → Param → Expr` 无限尺寸，E0072）：
+    /// 与 [`Expr::Unary`] 等分支的 `Box<Expr>` 同一手法。
+    pub param_tree: Option<Box<Param>>,
 }
 
 impl Expr {

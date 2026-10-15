@@ -3356,3 +3356,69 @@ App.tsx：渲染改**显式按钮**；参数动态行（名称/值 + 内联 SVG 
 | 金仓探针 | 9 模板 round-trip 全绿 + truth JSON |
 | 立项文档 | spec-m5 v0.1（M5-01..07 + 验收口径） |
 | Rust 代码 | 零改动（立项纪律） |
+
+## §38 M5-01 闭合：ds.select 参数矩阵 + 双态求值（2026-10-15 深夜）
+
+**总监令「下一步」。按 spec-m5 §5 任务表从 M5-01 开工（M5-02/03 的前置）。
+`DSSelect.calculate`（`DSSelect.java:27-209`，211 行）逐行移植 + 三个协作者
+（`Group.filter/distinct`、`SortDsValue.sort`、`ParamInfo2.parse`）落地；
+M5-06（Root 态裸列 = 首行值）作为实现前置同批闭合。**
+
+### §38.1 落地清单
+
+| 文件 | 内容 | 产品对应 |
+|---|---|---|
+| `expr/ast.rs` | `Param` 枚举（Leaf/Node 完整 IParam 树）+ `Call.param_tree: Option<Box<Param>>`（Box 断环，E0072） | `IParam` |
+| `expr/call.rs` | `build_param`：`ParamParser._$1:35-64` 层级递进复刻（`\0→;→,→:`，每档问顶层分隔符存在性） | `ParamParser.java` |
+| `expr/dsselect/mod.rs` | 共享辅助（`bind_ds`/`eval_bound`/`missing`）+ `ds_select` 主入口（双态分派） | `DSSelect.calculate:146-208` |
+| `expr/dsselect/decode.rs` | `SelectArgs` 全字段解码 + `param_info2` + `leaf_or_err` + `as_param_int` | `DSSelect.calculate:36-145` |
+| `expr/dsselect/rows.rs` | 定序 `eval_rows_idx` + `;` 多键稳定排序 | `Group.evaluateRows` / `SortDsValue.sort:343-414` |
+| `expr/dsfn.rs` | `row_path` 抽公共尾段（select/sum/avg/max/min 的 Row 态共用，含哨兵闸）+ `root_current_data`（M5-06） | `DSSelect.java:148-153` / `DataSet.getCurrentData:395-410` |
+| `expr/tests_select.rs` | 14 单测（新建，约 460 行） | 探针 T3 六变体内存复刻 |
+
+### §38.2 三个实现期实证（代码注释均已带 file:line）
+
+1. **`getLeafExpression` 对非叶子节点是抛 `invalidParam`**（`lIllIlIlIIIlIlIl.java:56-60`）
+   不是返 null ⇒ `select(item, a:b)` 的过滤段走 `leaf_or_err` 报错（测试第 5 种产品报错）。
+2. **Root 态 `getCurrentData` 走 currentRow 光标**（`DataSet.java:395-410`）：`_$5` 初值
+   **1**（`:31`）且每次 `setCurrent` 重置为 1（`:362-364`）⇒ Root 态裸列 = **首行值**；
+   `DSVariable.calculate` 与 `UnknownSymbol.setDS` 同走此路径（两侧不分叉）⇒
+   `select(item:item)` 次序表达式求值为首行 Text ⇒ **paramTypeError**
+   （`DSSelect.java:83-87`）。**M5-06 由此闭合**（原报 `UnsupportedExpr` 是错的）。
+3. **`;` 多排序先 sort 后 evaluate、`:` 次序先 evaluate 后 sort**（`:161-171`）——
+   两条路径刻意保留，合并会改掉 `:` 形态语义（模块文档警告 1）。
+
+### §38.3 踩坑：lexer `;` 被粘进单词（本 session 最大坑，三段排查）
+
+**症状**：`ds2.select(item; emp_id:1, amount:-1)` 报「表达式在 `emp_id` 处无法继续
+解析」；三个含 `;` 的单测全败，且报错 token 全是 `;` 后第一个词。
+
+**推演与实证的张力**：按 `infix()` 表（Colon=Link bp4、Comma=bp1）手推
+`emp_id:1, amount:-1` 整段**应该**能解析通——怀疑过 `build_param` 切分、`parse_params`
+旧路径、`is_cell_id` 截胡，全部排除。**Instrument 一招定案**：临时测试直接打
+`lex()` 产物 ⇒ `Word("item;")`、`Word("1;")`——**`;` 被单词扫描粘进了前一个词**。
+
+**根因**：`token.rs::is_delimiter` 不含 `;`。lexer 的 `';'` match arm 只在 `;`
+处于 token 起始位置时生效；默认臂「吃到分隔符为止」会把词中间的 `;` 一起吞掉。
+产品侧 `;` 从不出现在单个 Expression 内部——`ParamParser` 在**字符串级**先切分
+（`ParamParser.java:66-79`），各段才交给 `Expression` 扫描；本仓把参数切分与词法
+放在同一趟（lexer 模块文档偏差 1），`;` 必须硬断。
+
+**修法**：`is_delimiter` 加 `;`，登记为第 4 处刻意偏差（token.rs 文档注明：
+产品分隔集逐字对齐 + 本偏差理由 + 实证日期）。既有夹具零含 `;` ⇒ 无回归面。
+
+**教训**：报错信息「在 X 处无法继续解析」的 X 是**解析停止处的 token**，不是病因；
+当手推全部通过时，直接 instrument 词法产物，别继续在语法层打转。
+
+### §38.4 验证
+
+| 证据 | 结果 |
+|---|---|
+| `expr::tests_select` | **14/14**（四形态解码 + 6 种产品报错 + T3 六变体真值 + num/z 限量 + 空单果 + `;` 多键 + Row 态四钉子 + 哨符闸 + 指针恢复 + Root 裸列首行值） |
+| workspace 全量 | 450+ 测试全绿（rpx-engine lib 276，含新增 14） |
+| 门禁 | G1–G8 全绿（G4 触发的 dsselect 拆分：583 → 282/253/93 三文件） |
+
+### §38.5 提交
+
+- `feat(rpx): M5-01 ds.select 参数矩阵 + 双态求值`（dsselect 三文件 + Param 树 +
+  build_param + 14 单测 + spec-m5 v0.2 + 本 RUNLOG + 记忆更新）
