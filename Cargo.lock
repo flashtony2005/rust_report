@@ -1010,6 +1010,8 @@ name = "rpx-cli"
 version = "0.1.0"
 dependencies = [
  "rpx-core",
+ "rpx-engine",
+ "rpx-export",
 ]
 
 [[package]]

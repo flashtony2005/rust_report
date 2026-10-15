@@ -3863,3 +3863,57 @@ spec-m6 v0.4（§3 任务表 + §6 变更记录）。
   一行 → 必红（`assertion left == right failed`），还原 → 绿。
 - **教训**：「确定性」断言若时间参与字节，必须**跨秒**验证；
   单进程连算两次是弱检验。
+
+### §45 M6-04 闭合 —— CLI `render --out`（审计遗留③闭合，2026-10-15）
+
+**目标**：spec-m6 §3 M6-04 / 审计遗留③ ——「凡验收写 `CLI X`，必须有真跑
+CLI 的自动化断言」。落地 `rpx-cli render <file.rpx> --out <out.csv|out.xlsx>`。
+
+**CLI 口径（自定并写死）**
+- 子命令分派重构：从「扫全参数找 print」改为标准「首参 = 子命令」；
+  错误统一 `Result<(), String>`（原 `rpx_core::Result` 只够 print 用）。
+- 格式 = `--out` 扩展名（**不区分大小写**，文件系统惯例）；
+  未知扩展名 / 缺 `--out` / 未知选项 = 用法错误 **exit 2**；
+  运行期错误（读模板/数据集/计算/写文件）= **exit 1**；
+  成功打印 `exported: <path> (<n> bytes)`。
+- 数据集：`--data-dir` 缺省 = `.rpx` 同目录（模板 `file_name` 相对名）；
+  缺失 → `MissingDataset`；SQL 数据集 → `SqlDatasetNoConnection`（CLI 无
+  连接通道，不静默跳过）。
+- **与 server `/export` 同构**：`calculate_with` + `paginate_with_setup`
+  （守卫复核）→ `rpx-export`（导出字节不分页）。两处同构链各自实现
+  （CLI 不能依赖 server——G8 方向），注释互指。
+- **参数支持整体后置**（spec-m6 §5.2 v0.5 补记）：`--param` 口径（List 需
+  JSON）无基准前不拍板；无参模板可导，`@p` 模板显式报「未登记参数」。
+
+**`tests/cli_render.rs`（7 条，全部真跑 `CARGO_BIN_EXE_rpx-cli` 二进制）**
+1. csv：产物与库直调**逐字节一致** + 表头字面量；
+2. xlsx：同上 + `PK\x03\x04` 魔数；
+3. 默认数据集目录三段：只有 .rpx（无 CSV）⇒ exit 1 显式失败；把 CSV 拷到
+   同目录 ⇒ 默认找到（**正面**钉「缺省 = .rpx 同目录」）；删 CSV 给
+   `--data-dir` ⇒ 成功（钉 flag 生效）；
+4. 未知扩展名（.txt）⇒ exit 2 + 不产文件；
+5. 缺 `--out` ⇒ usage exit 2；
+6. 大写扩展名（.XLSX）⇒ 接受（不分大小写）；
+7. `print_still_works`（回归：AC-07 的 print 未被破坏）。
+对拍基准 = 测试侧**不经 CLI 代码**的同构链（open_bytes + load_datasets_full
++ calculate_with + paginate_with_setup + to_csv|to_xlsx）。
+
+**变异实测 3 条（改坏必红、还原必绿）**
+| 变异 | 期望红的本 | 实录 |
+| --- | --- | --- |
+| csv/xlsx 扩展名判定互换 | `csv_export_matches_library_bytes` | ✅ FAILED |
+| 未知扩展名 exit 2 → 1 | `unknown_extension_exits_2` | ✅ FAILED |
+| 默认数据目录改 CWD（非 .rpx 同目录） | `default_data_dir_is_rpx_dir_and_flag_relocates` | ✅ FAILED |
+
+**审计遗留③闭合的文档回写（四处）**
+- `completeness-audit.md`：「仍未闭合的一项」块后加 **✅ 已闭合（2026-10-15，
+  M6-04）** 补记；
+- `spec-m2.md` §9 第 5 步：改「尚无自动化断言」→ 指向 `cli_render.rs`，
+  留历史注；
+- `spec-m2.md` 遗留表的「M1 遗留③」行：`部分闭合` → **已闭合**；
+- `spec-m1.md` §8 第 3 步：补注（`print_still_works` 即 M1 遗留③的断言）。
+
+**验证**：`cargo test -p rpx-cli` **8/8**（单测 1 + 集成 7）；clippy
+`-D warnings` 干净；G1–G8 全绿。spec-m6 v0.5。
+**下一步**：M6-05（20 个既有引擎夹具各导出一份 CSV/xlsx 落
+`tests/fixtures/out/` 作回归基线；任一导出改动导致读回 diff 即红）。

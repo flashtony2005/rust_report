@@ -310,7 +310,8 @@ cargo test --workspace --no-fail-fast   # M1：3 黄金夹具逐字段 + 3 错�
                                         #     + 16265 点记录层截断扫掠 + 3 健壮性(DoS) + lib 单测 + 1 CLI
 cargo clippy --workspace --all-targets -- -D warnings
 
-# 3. CLI 实跑（人工核对；⚠ 尚无自动化断言——遗留项③）
+# 3. CLI 实跑（2026-10-15 补注：自动化断言已入 `crates/rpx-cli/tests/cli_render.rs`
+#    —— `print_still_works` 真跑二进制；遗留项③闭合，状态见 completeness-audit.md）
 cargo run -p rpx-cli -- print tests/fixtures/simple.rpx
 cargo run -p rpx-cli -- print tests/fixtures/merged.rpx
 cargo run -p rpx-cli -- print tests/fixtures/full.rpx

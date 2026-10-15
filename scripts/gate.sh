@@ -176,6 +176,7 @@ layer_out="$(awk '
     allowed["rpx-ds rpx-core"] = 1
     allowed["rpx-cli rpx-core"] = 1
     allowed["rpx-cli rpx-engine"] = 1
+    allowed["rpx-cli rpx-export"] = 1
     allowed["rpx-server rpx-core"] = 1
     allowed["rpx-server rpx-engine"] = 1
     allowed["rpx-server rpx-ds"] = 1

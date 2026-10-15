@@ -1,9 +1,8 @@
-# Spec — ReportLite Rust 重实现 · M6（导出面）v0.4
+# Spec — ReportLite Rust 重实现 · M6（导出面）v0.5
 
-> 状态：**M6-01 / M6-02 / M6-03 已闭合**（2026-10-15；蓝图 §10 既有设计，同日补契约与任务表）。
-> `rpx-export`：`to_csv(&CalcGrid)`（10 钉测）+ `to_xlsx(&CalcGrid)`（16 钉测）；
-> server `POST /export?fmt=csv|xlsx`（与 `/render` 共享计算主链路，7 条集成钉测）。
-> M6-04/05 未启动。
+> 状态：**M6-01 / M6-02 / M6-03 / M6-04 已闭合**（2026-10-15；蓝图 §10 既有设计，同日补契约与任务表）。
+> `rpx-export`：`to_csv` / `to_xlsx`；server `POST /export`；CLI `render --out`
+> （审计遗留③闭合）。M6-05 未启动。
 > 上游：M1–M4 已收官，M5（多数据集关联）进行中（`docs/spec-m5.md`）。
 > 蓝图：`docs/reportlite-rust全链路设计.html` §10（导出设计）/ §8.1（路由表 `/export`）。
 > 本文件定义 **M6 做什么、输入是什么、怎么验收**；实现细节以夹具与源码为准。
@@ -111,7 +110,7 @@ G5 只查 `[dependencies]`（`code-review.md` §3.2 注 3），dev-deps 不进�
 | M6-01 | `rpx-export` crate 骨架 + `to_csv(&CalcGrid) -> String` | 新 crate；workspace member | ✅ **已闭合**（2026-10-15）：`crates/rpx-export`（`lib.rs` 契约文档 + `csv.rs` 规则 + `text.rs` 文本口径，G8 矩阵登记 `rpx-export -> rpx-engine`）；10 条钉测 = 满矩阵展开/零维网格/越界忽略/disp 优先/null 空串/五组转义/List 引号/数值 shortest/非有限数保留/读回逐格自洽；`full_matrix` 等以**字面量**断言（非自证） |
 | M6-02 | `to_xlsx(&CalcGrid) -> Vec<u8>`（rust_xlsxwriter） | 同 crate；`merge_range` 写合并 | ✅ **已闭合**（2026-10-15）：`xlsx.rs`（口径表 + 锚点重建 + 边界 5 条）＋`xlsx/tests.rs` 16 钉测；dev-dep `calamine` 读回自洽（逐格比值/**类型** + 合并区矩形全等）；3 条变异实测（disp 优先/延续槽判定/非有限数拦截，改坏必红）；确定性（同输入同字节）有钉 |
 | M6-03 | server `POST /export?fmt=csv\|xlsx` | `rpx-server/src/http.rs` | ✅ **已闭合**（2026-10-15）：`rpx-server/src/export.rs`（格式枚举=严格小写解析 / 响应组装 / 文件名双形态 ASCII fallback + RFC 5987）+ `http.rs` 拆出 `calculate_grid` **共享段**（`/render` 与 `/export` 同一次调用，出口分家不分叉口径）；真 socket 跑通（`tests/export_http.rs` 7 条：csv/xlsx **逐字节对拍库函数直调** + `Content-Disposition` 双形态 + 缺省 xlsx + 非法 fmt 400 + 中文报表名过网 + GBK 中文链路 + 缺文件 400）；3 条变异实测（消毒 / 编码 / 缺省，改坏必红） |
-| M6-04 | CLI `render sample.rpx --out out.csv\|xlsx` | `rpx-cli`（现在只有 print） | 一条真跑 CLI 的集成断言（修审计遗留③）；产出文件与库函数直调逐字节一致 |
+| M6-04 | CLI `render sample.rpx --out out.csv\|xlsx` | `rpx-cli`（现在只有 print） | ✅ **已闭合**（2026-10-15）：`render_cmd`（子命令分派重构 + `--out` 扩展名判格式（不分大小写）/ `--data-dir` 缺省 = `.rpx` 同目录）+ `tests/cli_render.rs` **7 条真跑 CLI 二进制的断言**（`CARGO_BIN_EXE_rpx-cli`）：csv/xlsx 与库直调**逐字节一致**、默认目录三段（缺 CSV 失败 / 同目录成功 / flag 生效）、未知扩展名 exit 2、缺 `--out` usage、大写扩展名、print 回归；3 条变异实测（扩展名互换 / exit code / 默认目录，改坏必红） |
 | M6-05 | 20 个既有引擎夹具各导出一份 CSV/xlsx 落 `tests/fixtures/out/` | 夹具资产 | 作为回归基线；任一导出改动导致读回 diff 即红（立项时 12 个，M6-01 时已增至 20——`engine_cross`/`engine_cross_root` 系 M5-04 新增） |
 
 依赖序：M6-01 → M6-02 → M6-03/M6-04 并行 → M6-05 收口。
@@ -141,7 +140,12 @@ G5 只查 `[dependencies]`（`code-review.md` §3.2 注 3），dev-deps 不进�
 - PDF / 打印（`rpx-print`，蓝图 §11）：版式保真，另立里程碑；
 - 按纸分页导出 / 多 sheet 分页导出 / 重复冻结行；
 - Word / HTML 出口；
-- 样式保真（边框/字体/列宽/冻结窗格）。
+- 样式保真（边框/字体/列宽/冻结窗格）；
+- **CLI 的参数支持**（v0.5 补记）：`render` 目前只收无参模板（`ParamTable::EMPTY`），
+  `@p` 模板报「未登记参数」。缺的不是管道（`calculate_with` 直接吃 `ParamTable`），
+  而是**值推断口径**——HTTP 面用 JSON（`form.rs::json_to_value`），CLI 侧若做
+  `--param k=v` 则 List/数组值不可表达、若做 `--params '<json>'` 又要引 serde_json
+  且与 server 口径镜像（两处实现）。无基准前不拍板 ⇒ 整体后置。
 
 ### 5.3 继承带账
 
@@ -243,3 +247,23 @@ G5 只查 `[dependencies]`（`code-review.md` §3.2 注 3），dev-deps 不进�
     钉死（对齐 zip 条目时间戳的 DOS 纪元）；xlsx.rs 模块文档 §确定性 5 更新。
     回归网：新增 `bytes_stable_across_second_boundary`（sleep 1.1s 再算第二遍；
     变异实测：去掉固定时间戳 → 必红）。
+
+- **v0.5（2026-10-15）**：**M6-04 闭合**（审计遗留③闭合）。
+  - 落地：`crates/rpx-cli/src/main.rs` 的 `render_cmd`（子命令分派从「扫全参数
+    找 print」重构为标准「首参 = 子命令」；错误统一 `Result<(), String>`）
+    + `tests/cli_render.rs`（7 条**真跑 CLI 二进制**的断言）。
+  - **CLI 口径**：`render <file.rpx> --out <out.csv|out.xlsx> [--data-dir <dir>]`
+    —— 格式由扩展名决定（**不区分大小写**，文件系统惯例）；未知扩展名/缺
+    `--out`/未知选项 = 用法错误 **exit 2**，运行期错误（读模板/计算/写文件）
+    = **exit 1**；成功打印 `exported: <path> (<n> bytes)`。
+  - **数据集**：`--data-dir` 缺省 = `.rpx` 同目录（模板 `file_name` 是相对名）；
+    缺失 → `MissingDataset` 显式报错；SQL 数据集 → `SqlDatasetNoConnection`
+    （CLI 无连接通道，不静默跳过）。
+  - **与 server `/export` 同构**：`calculate_with` + `paginate_with_setup`
+    （守卫复核）→ `rpx-export`；导出字节不分页。参数支持整体后置（§5.2）。
+  - 测试：8 条（单测 1 + 集成 7）；**对拍基准 = 测试侧不经 CLI 代码的
+    同构链**（`rpx_core::open_bytes + load_datasets_full + calculate_with +
+    paginate_with_setup + to_csv|to_xlsx`）——CLI 产物逐字节一致。
+  - **变异实测 3 条**：① csv/xlsx 扩展名判定互换 → csv 对拍红；② 未知扩展名
+    exit 2→1 → usage 测试红；③ 默认数据目录改 CWD → 默认目录测试红。
+  - 验证：`cargo test -p rpx-cli` 8/8；clippy `-D warnings` 干净；G1–G8 全绿。

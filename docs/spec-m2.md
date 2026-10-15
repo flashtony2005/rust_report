@@ -328,7 +328,7 @@ crates/rpx-engine/src/
 | `PropQueue.index1`                  | ✅ **已解**              | `PropQueue` 在 reportlite **无任何使用者 = 死代码**；`index1` 是从 `commonl.Queue` 复制来的未使用字段（后者有 `poll()` 才推进）。**不属于 M2 结构**                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | M1 遗留② NormalCell 默认槽               | 延后                    | 属 M1 解析层，P2 随全槽位覆盖一起补                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `cli_crosscheck.py` 不适用引擎夹具         | ✅ 已确认                 | 该脚本读的是**结构态**键（`rows/cols/cells/row_heights/...`），对 `engine_*.expected.json` 直接 `KeyError: 'rows'`。它只能跑 M1 的 `simple/merged/full/realmerge`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| M1 遗留③ CLI 无自动化断言                   | 部分闭合                  | 后端留下 `tests/fixtures/cli_crosscheck.py`（83 行，Python 侧逐字段断言）；Rust 侧断言仍缺                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| M1 遗留③ CLI 无自动化断言                   | ✅ **已闭合**（2026-10-15，M6-04） | 后端留下 `tests/fixtures/cli_crosscheck.py`（83 行，Python 侧逐字段断言）；Rust 侧断言已补：`crates/rpx-cli/tests/cli_render.rs` 7 条真跑 CLI 二进制（含 `print_still_works` 回归 + `render --out` 与库直调逐字节对拍） |
 | M1 遗留④ readObject 多标签               | 延后                    | 属 M1 解析层                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | M1 遗留⑤ readBoolean EOF              | 延后                    | 属 M1 解析层                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
@@ -361,12 +361,14 @@ cargo clippy --workspace --all-targets -- -D warnings
 # 4. 门禁（Tier-0，**合并前置**；会打印每个 gate 的原文输出，不许只报 PASS）
 ./scripts/gate.sh    # G1 fmt / G2 clippy / G3 test / G4 ≤500 行 / G5 依赖 / G6 shell 陷阱
 
-# 5. CLI 实跑（人工核对；⚠ 尚无自动化断言 —— 与 M1 遗留③ 同一个病）
+# 5. CLI 实跑（2026-10-15 M6-04 起**有自动化断言**：crates/rpx-cli/tests/cli_render.rs，
+#    真跑 CLI 二进制、与库函数直调逐字节对拍；审计遗留③至此闭合）
 cargo run -p rpx-cli -- print tests/fixtures/simple.rpx
+cargo run -p rpx-cli -- render tests/fixtures/engine_sum.rpx --out /tmp/out.csv
 #    macOS 下产物是 ./target/debug/rpx-cli（**无 .exe**）。
-#    ⚠ 引擎侧目前只有库函数 emit::render_document；CLI **没有** render/json/csv 子命令。
-#      验收口径写的是「CLI 渲染 → JSON/CSV」，实现形态是「库函数 + 集成测试」——
-#      这处脱钩见 docs/completeness-audit.md §2.5③，**尚未回写**，属待办。
+#    （历史注：M2 验收时引擎侧只有库函数 emit::render_document，CLI 无 render/json/csv 子命令，
+#      口径与实现脱钩见 docs/completeness-audit.md §2.5③；2026-10-15 M6-04 补 `render --out`
+#      子命令与 7 条真跑断言，audit 文档留有状态补记。）
 ```
 
 
