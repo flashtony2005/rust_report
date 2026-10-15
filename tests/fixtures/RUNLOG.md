@@ -3660,3 +3660,73 @@ Rust 引擎逐格对拍），离线（无金仓）用 CSV 文件数据集复刻�
 产品夹具逐格对拍，双保险落地。无引擎新源码（机制复用 M2），仅夹具+数据集+文档增量。
 
 **下一步**：M5-05 `filtercross`（多对多，先探针后实现）；M5-07 `cross()`（带账后置）。
+
+---
+
+### §42 M5-05 探针 —— `filtercross` 在本版运行时不可驱动（2026-10-15）
+
+**目标**：按 spec-m5 §5 依赖序，M5-05 要求「先探针（多对多真机模板）后实现」。
+探针回答两个问题：① `ds.filtercross(exp)` 的正确调用形态是什么；② 能否产出
+可对拍的产品真值（决定「实现」还是「带账」）。
+
+**反逆向先行**
+- `FunctionLib.java:113`：`filtercross` **已登记**（`filter`/`filterone` 没有，见 §6.3）；
+  `DSFilterCross.java:38` `isExtended()=true`。
+- 旧版转换层（`report-20260106.jar` → `com/raqsoft/report/transfer/ExpParse.class`，
+  CFR 反编译）：`dsFilter`：`filtercross(exp, true)` → **`filtercross@r(exp)`**
+  ——表达式形态与 option 语义（`'r'` = 对根组）双确认。
+- IDE 语义面板（`JPanelDataSet.java:94-97`）：`filterone`=一对一 / `filter`=一对多 /
+  `filtercross`=**多对多**（`OP_FILTERCROSS`）。
+
+**探针工具**（`re_work/tmp_probe/filtercross/`，rpx 仓外，只读不写）
+- `ProbeFilterCross.java`：离线 CSV 数据集（复用 `engine_cross.csv`/`csv2`），
+  批量跑布局矩阵；dump 计算网格 + 逐格私有态（反射 `_$4`/`_$7`）+ 数据集
+  current + 表达式解析树。
+- `TracingFilterCross.java`：反射摘 `FunctionLib._$3` 的 `filtercross` 项后注册
+  **跟踪子类**（super.calculate 委托 + 旁路记录）——记录每次调用的
+  `this.ds.getDataSetName()`/`ds.getCurrent()`/`cs.getCurrent()` 的类与
+  `_$4`/option/最终返回值。
+- `run.ps1`：JDK17 编译（`--release 8`）+ `common/jre` 运行（cwd=tests/fixtures）。
+
+**布局矩阵（8 个布局；4 个跟踪复跑；6 个解析检验）与结果**
+
+| 布局 | 位置 | 表达式 | 结果 |
+|---|---|---|---|
+| fc1 | 从格带 c3（左头 A3） | `ds1.filtercross(ds2.amount>1000)` | 每主格行调一次；`_$4=null` ⇒ `getNullGroup()`（0 行） |
+| fc2 | 同上 | `ds1.filtercross(amount>1000)`（裸列名） | 同上（无差异） |
+| fc3 | 从从带 r5（左头 E4） | `ds1.filtercross(ds2.amount>1000)` | 同上（`ds1.current` 正确 = 主格 Row） |
+| fc4 | 主格带 c5 | `ds1.filtercross(ds2.amount>1000)` | 同上 |
+| fc5 | 从格带 c3 | `ds1.filtercross@r(ds2.amount>1000)` | **`@r` 生效**：返回 root Group(5 行) **原样**——证明函数可达、option 解析正确；过滤仍未发生（`_$4=null`） |
+| fc6 | 从格带 c3 | `ds2.filtercross(ds1.salary>10000)` | 无输出（`ds2.current`=根组 ⇒ group 分支；`_$4=null`） |
+| fc7 | 从格带 c3 | `ds2.filtercross(ds2.amount>1000)` | 同上 |
+| fc8 | 从从带 r5（左头 E4） | `ds2.filtercross(ds2.amount>400)` | 同上（`ds2.current`=奖金行 ⇒ Row 分支，`_$4=null` ⇒ nullGroup） |
+| + 6 个解析检验（控制组 `ds1.select(id)`/`ds2.select(item, emp_id==A3)` + fc1/fc2 变体 + `@r` 两种写法） | — | — | 跟踪日志逐条 `cell_$4=null` |
+
+**trace 实录（fc1，节选）**
+```
+[TRACE] ds=ds1 dsCur=Row(rowNo=1) opt=null param?true cell=ExtExtendCell@C4 cell_$4=null => Group(root=false rows=0 value=null)
+[TRACE] ds=ds1 dsCur=Row(rowNo=2) ... cell_$4=null => Group(root=false rows=0 value=null)
+...（每主格行一次，共 5 次 = 每格实例恰求值一次）
+[TRACE fc5_r] ds=ds1 dsCur=Row(rowNo=1) opt=r ... cell_$4=null => Group(root=true rows=5 value=null)
+```
+⇒ ① 调用本身可达（非解析/注册问题）；② `ds1.current` 被左头链正确喂成主格 Row；
+③ `opt=r` 生效；④ **`cell._$4` 恒 null**。
+
+**源码不变量（为什么 `_$4` 不可能非空）**
+- `ExtExtendCell._$4`（即 DSFilterCross 读的 `getDSCurrent()`）的全源写入点
+  **只有两处**（其余全源 grep 无第三方写）：`ExtExtendCell.java:463`（格自身
+  非 List 结果写回）/ `:440`（扩展写回收尾循环 `_$7[i]._$4 = list.get(i)`）
+  ——**都在该格求值之后**。
+- 过滤分支要求同一格实例**二次求值**（第一次落 `_$4`，第二次求值期间才能读到）；
+  调度器实证不产生二次求值（trace 计数 = 实例数）。
+- 另一候选机制 `_$3`（`setDSCurrentLeftHead` 消费的 DsValue[]）在本 jar 中
+  **无任何写入点**（dead 字段）⇒ 亦不可用。
+- ⇒ 可达出口仅三类：`filterExp == null → return cur`（恒等）、
+  `this.ds.getNullGroup()`、原样 Group 返回（`@r`）。**过滤语义不可驱动。**
+
+**结论与处置**
+- M5-05 **不实现**（「无夹具不实现」纪律：没有能区分实现的语义出口，无对拍基准）；
+  转带账，证据链入 `spec-m5.md` v0.6 §2.6 末 + §6.3 ⑧。
+- 若后续版本（或商业版）恢复 `_$4`/`_$3` 的实例接线，复现路径：重跑
+  `re_work/tmp_probe/filtercross/run.ps1`，观察 `cell_$4` 是否非空即可判定。
+- M5 剩余：M5-07（cross() 维度对齐）维持带账后置；M5 主体（01-04/06）全部闭合。

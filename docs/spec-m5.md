@@ -1,4 +1,4 @@
-# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.5
+# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.6
 
 > 状态：**M5-01 / M5-02 / M5-03 / M5-04 / M5-06 已闭合**（2026-10-15）。
 > M5-01：`ds.select` 全参数矩阵 + 双态求值（`expr/dsselect/` 三文件，单测全绿）；
@@ -11,8 +11,11 @@
 > M5-04：产品夹具闭环 —— `engine_cross`（嵌套主子表，显式左主格 A3 承重）+
 > `engine_cross_root`（Root 态跨数据集，字面量过滤 `amount>=2000`）进 20 夹具
 > 主对拍全绿，Java 侧 round-trip 门同步闭合；
+> M5-05：**探针完成 → 带账**——12 布局实证 + 源码不变量证明 `filtercross`
+> 的过滤语义在本版运行时不可驱动（详见 §2.6 末与 §6.3 ⑧），按「无夹具不实现」
+> 纪律不实现；
 > M5-06 的 Root 态裸列语义（`ds.col` = 首行值）随 M5-01 同批闭合。
-> M5-05/07 未启动（M5-05 为 filtercross 多对多，M5-07 为 cross() 维度对齐带账后置）。
+> M5-07 未启动（cross() 维度对齐，带账后置）。
 > 上游：M2/M3/M4 已收官（`spec-m2.md` / `spec-m3.md` / `spec-m4.md`），HEAD `9aa6caf`。
 > 立项依据：数据蒋堂讲座行动序 #2「多数据集关联语义立项（三分类 + 维度对齐）——
 > 报表工具的核心差异化，大（先探针）」（`docs/lecture-notes.md` 行动表）。
@@ -145,6 +148,15 @@ DSCurrent**（另一数据集的 Group/Row）与自身 current 求交。条件�
 右表 count2 > 6 时**排序 + 二分归并**（`SortDsValue.sort` + `_$1(List, col, key, low, high)`，
 `:105-145`）；否则嵌套循环。结果 Group 克隆承载命中行。
 
+⚠ **运行时实证（2026-10-15，M5-05 探针，8 布局 × 三路取证）**：上述「与
+DSCurrent 求交」的语义在本版运行时（reportlite 20260106）**不可驱动**——
+DSCurrent 读的是 `ExtExtendCell._$4`，而 `_$4` 全源仅在其**自身求值之后**被写
+（`ExtExtendCell.java:463` 非 List 结果 / `:440` 扩展写回），filtercross 求值
+**期间**必为 `null` ⇒ 只有 `filterExp == null → return cur`（恒等）与
+`getNullGroup()`/原样 Group 返回三类出口可达，过滤分支（含 `@r` 的
+many-to-many 合并）需要同一格实例**二次求值**才能读到上一次结果，而实证
+每实例恰求值一次。证据链见 §6.3 ⑧ 与 `tests/fixtures/RUNLOG.md` §42。
+
 ### 2.7 `Group.filter` 的快速路径
 
 `Group.java:201-246`（`_$1(exp, ctx, opt, isClone)`）：
@@ -260,11 +272,11 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 | M5-02 | 跨数据集过滤求值：过滤式里的 CSVariable/DSVariable 解析与 current 管理 | `rpx-engine`（`calc/ds_current.rs` 扩展） | ✅ **已闭合**（2026-10-15）：T1/T2/T3 八夹具逐格逐页零差异；电流语义与页内投影双变异实测；`calc/merged_view.rs` 双视图落地（跨页合并拆分同批闭合） |
 | M5-03 | 显式 leftHead/topHead 槽位：reader 解析 + 头图 + 跨度计算 + 嵌套复制 | `rpx-core`（slot 30/31）+ `rpx-engine`（`heads/` + `ext_algo/`） | ✅ **已闭合**（2026-10-15）：机制在 M2 头图工作实装，本里程碑以 T4/T5 嵌套主子表夹具固化验收（`cross_dataset_compare` 现 10 夹具）；变异测试摘除 `heads/find.rs` 分支 A ⇒ T4/T5 均从 14 行塌陷为 9 行（证明显式 head 承重，非默认近邻误判）；`merge_data` 跨页克隆/服务面双视图不变式不受影响 |
 | M5-04 | 产品夹具 `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点） | `tests/fixtures`（`EngineModelsM5.java` + `GenEngineFixtures` + `engine_cross.csv`/`engine_cross.csv2`） | ✅ **已闭合**（2026-10-15）：`EngineModelsM5.crossFixture()`（r3 主格 `ds1.select(id/name/dept/salary)` + r4 从格 `ds2.select(item/amount, emp_id==A3)` 带 `setLeftHead("A3")`，title 跨 6 列合并）+ `crossRootFixture()`（3×2，Root 态 `ds2.select(item/amount, amount>=2000)` 无主格引用）；离线用 CSV 文件数据集复刻，进 `engine_grid_compare` 20 夹具主对拍全绿，Java 侧 `--verify` round-trip 同步闭合 |
-| M5-05 | `filtercross` 多对多 | `rpx-engine` | 先探针（多对多真机模板）后实现；对拍 |
+| M5-05 | `filtercross` 多对多 | `rpx-engine` | **探针完成 → 带账**（2026-10-15）：8 布局实证（从格带/主带/从从带 × 裸列/限定名 × 无选项/`@r`）+ 跟踪子类 + 解析树三路取证 ⇒ 过滤语义依赖的 `ExtExtendCell._$4` 在 filtercross 求值期间恒为 null（全源唯一写入点在其自身求值**之后**）⇒ 本版运行时不可驱动。按「无夹具不实现」纪律不实现，理由与复现路径见 §2.6 末、§6.3 ⑧ |
 | M5-06 | Root 态裸列 `ds.col` = 首行值（修 `UnsupportedExpr`） | `rpx-engine`（`expr/dsfn.rs` `root_current_data`） | ✅ **已闭合**（随 M5-01）：`dsfn::root_current_data` 实现产品 currentRow 语义；`select(item:item)` → paramTypeError 单测 + 裸列首行值单测双钉 |
 | M5-07 | `cross()` 维度对齐（交叉表同数据集双方向） | `rpx-engine` | **带账**：无夹具不实现；复现路径见 §6.4 |
 
-依赖序：M5-01 → M5-02 → M5-03（机制 M2 实装，本里程碑验收）→ M5-04（夹具闭环）→ M5-05/M5-06 并行 → M5-07 后置。
+依赖序：M5-01 → M5-02 → M5-03（机制 M2 实装，本里程碑验收）→ M5-04（夹具闭环）→ M5-05（探针→带账）/M5-06 并行 → M5-07 后置。
 
 ## 6. 边界与带账
 
@@ -302,6 +314,22 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
    产品 `SimplePager._$1:1550-1596` 在分页点落在 `rowType == -90` 的分组头行时
    会把上一页合并区伸长盖住；本仓只做「合并区矩形 × 页矩形求交」
    （`calc/merged_view.rs` `page_slots`），现有夹具无此形态 ⇒ 带账待夹具。
+8. **`filtercross` 在本版运行时不可驱动**（M5-05 探针核出，证据链）：
+   - **依赖字段**：过滤语义读 `cell.getDSCurrent()` = `ExtExtendCell._$4`；
+   - **写入点全集**（全源 grep 确认无第三方写入）：`ExtExtendCell.java:463`
+     （格自身非 List 结果写回）与 `:440`（扩展写回收尾循环）——**都在该格
+     求值之后**；`_$3`（另一个候选机制，`setDSCurrentLeftHead` 消费）在本
+     jar 中**无任何写入点**（dead 字段，`clone()` 只置 null）；
+   - **实证**：探针 `ProbeFilterCross`（跟踪子类注册替换 + 反射读私有态）
+     8 布局（主带/从格带/从从带 × 裸列名/`ds2.` 限定名 × 无选项/`@r`）：
+     `filtercross` 每实例恰被调用一次，`cell._$4` **恒 null** ⇒ 恒走
+     `getNullGroup()`；`@r` 变体证明函数可达（返回根组原样），但过滤分支
+     需要同一格实例**二次求值**（第一次落 `_$4`、第二次才能读到）——本版
+     调度器不产生二次求值；
+   - **处置**：M5-05 转带账，Rust 侧不实现（「无夹具不实现」纪律——
+     没有能区分实现的语义出口，实现无对拍基准）；
+   - **复现**：探针源码 `re_work/tmp_probe/filtercross/`（rpx 仓外），
+     运行 `run.ps1`（cwd=tests/fixtures）；完整记录见 RUNLOG §42。
 
 ### 6.4 M5-07 复现路径
 
@@ -391,3 +419,20 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
     src_col:1），`merged` 段含 (4,6)/(6,6) 等金额带 row_merge=2 跨度。
   - 测试：`engine_grid_compare` 20 夹具全绿；`cross_dataset_compare` 10 夹具不变；
     G1–G8 全绿（M5-04 无引擎新源码，仅夹具 + 数据集 + 文档增量，故 G4 不触发新超限）。
+
+- **v0.6（2026-10-15）**：**M5-05 探针完成 → 带账（不可驱动）**。
+  - 反逆向先行：`FunctionLib.java:113` 确认 `filtercross` 已登记（与
+    `filter`/`filterone` 不同）；旧版转换层 `transfer/ExpParse.dsFilter` 证实
+    表达式形态 `filtercross(exp)` / `filtercross@r(exp)`（旧语法第二参
+    `true` → `@r`），与源码 option `'r'` 一致。
+  - 探针（`re_work/tmp_probe/filtercross/`，rpx 仓外）：`ProbeFilterCross`
+    （8 布局）+ `TracingFilterCross`（注册替换 `FunctionLib._$3` 的
+    `filtercross` 项为跟踪子类，记录 `this.ds.current`/`cs.current`/
+    `cs.current._$4`/option/结果）。
+  - 实证结论：`cell._$4` 在该函数求值期间**恒 null**（每实例恰求值一次；
+    `_$4` 全源唯一写入点 `ExtExtendCell.java:463/:440` 均在其自身求值
+    **之后**）⇒ 过滤分支（Row 匹配 / Group many-to-many 合并）不可达，
+    仅有恒等（`filterExp == null`）、`getNullGroup()`、原样 Group 返回
+    三类出口。`_$3`（另一候选）在本 jar 无写入点（dead）。
+  - 处置：不实现（无夹具不实现）；新带账 §6.3 ⑧（含证据链与复现路径）；
+    完整探针记录见 RUNLOG §42。M5 剩余：M5-07（cross()）维持带账后置。
