@@ -49,7 +49,8 @@ public class GenEngineFixtures {
 			"engine_samemerge", "engine_disp", "engine_types",
 			"engine_rowheight", "engine_head_top", "engine_head_left",
 			"engine_avgrange", "engine_collate", "engine_listrange",
-			"engine_param", "engine_gbk", "engine_emp" };
+			"engine_param", "engine_gbk", "engine_emp",
+			"engine_cross", "engine_cross_root" };
 
 	public static void main(String[] args) throws Exception {
 		String dir = args.length > 0 ? args[0] : ".";
@@ -212,7 +213,12 @@ public class GenEngineFixtures {
 				? new String[] { "区域", "数量" }
 				: "engine_emp.csv".equals(EngineModels.csvName(name))
 						? new String[] { "编号", "部门", "姓名", "性别", "工资" }
-						: new String[] { "region", "qty" };
+						: "engine_cross.csv".equals(EngineModels.csvName(name))
+								|| "engine_cross_root.csv".equals(
+										EngineModels.csvName(name))
+												? new String[] { "id", "name",
+														"dept", "salary" }
+												: new String[] { "region", "qty" };
 		o.put("dataset", CalcJson.renderDataSet(dsHeader, EngineModels.rows(name)));
 		o.put("template_rows", rd.getRowCount());
 		o.put("template_cols", rd.getColCount());
@@ -301,7 +307,11 @@ public class GenEngineFixtures {
 				? new String[] { "区域", "数量" }
 				: "engine_emp.csv".equals(name)
 						? new String[] { "编号", "部门", "姓名", "性别", "工资" }
-						: new String[] { "region", "qty" };
+						: "engine_cross.csv".equals(name)
+								|| "engine_cross_root.csv".equals(name)
+										? new String[] { "id", "name", "dept",
+												"salary" }
+										: new String[] { "region", "qty" };
 		CalcProbe.writeCsv(dir + File.separator + name, header, data);
 		// engine_sum carries a second dataset with identical content but no
 		// extending cells referencing it, so the two aggregate scopes can be

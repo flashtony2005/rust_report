@@ -63,7 +63,10 @@ use common::{all_names, load};
 /// 2026-10-15（员工信息查询夹具）：`engine_emp` 加入 5 条 ——
 /// `ds1.select(编号)` + 四条裸 `ds1.部门/姓名/性别/工资`。Select 同上、
 /// DSVariable extends Node 未覆写 ⇒ 仍全 4，故 97 → 102。
-const TOTAL_FORMULAS: usize = 102;
+/// 2026-10-15（M5-04）：`engine_cross` 6 条（`ds1.select(id/name/dept/salary)` ×4 +
+/// `ds2.select(item/amount, emp_id==A3)` ×2）+ `engine_cross_root` 2 条
+/// （`ds2.select(item/amount, amount>=2000)` ×2），均 state 4 ⇒ 102 → 110。
+const TOTAL_FORMULAS: usize = 110;
 
 #[test]
 fn every_fixture_formula_is_state_four() {

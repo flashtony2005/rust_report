@@ -11,8 +11,9 @@ use std::path::PathBuf;
 use super::json::{self, Json};
 use super::model::*;
 
-/// 18 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致）。
-pub fn all_names() -> [&'static str; 18] {
+/// 20 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致；末两位是 M5-04
+/// 新增的嵌套主子表夹具 `engine_cross` / Root 态跨数据集 `engine_cross_root`）。
+pub fn all_names() -> [&'static str; 20] {
     [
         "engine_sum",
         "engine_ext",
@@ -32,6 +33,8 @@ pub fn all_names() -> [&'static str; 18] {
         "engine_param",
         "engine_gbk",
         "engine_emp",
+        "engine_cross",
+        "engine_cross_root",
     ]
 }
 

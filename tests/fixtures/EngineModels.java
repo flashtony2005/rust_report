@@ -26,6 +26,12 @@ final class EngineModels {
 		if ("engine_sum".equals(name)) {
 			return sumFixture();
 		}
+		if ("engine_cross".equals(name)) {
+			return EngineModelsM5.crossFixture();
+		}
+		if ("engine_cross_root".equals(name)) {
+			return EngineModelsM5.crossRootFixture();
+		}
 		if ("engine_ext".equals(name)) {
 			return extFixture();
 		}
@@ -277,6 +283,10 @@ final class EngineModels {
 		}
 		if ("engine_emp".equals(fixture)) {
 			return EngineModelsM3.empRows();
+		}
+		if ("engine_cross".equals(fixture)
+				|| "engine_cross_root".equals(fixture)) {
+			return EngineModelsM5.empRows();
 		}
 		return new String[][] { { "North", "100" }, { "East", "200" },
 				{ "South", "150" } };

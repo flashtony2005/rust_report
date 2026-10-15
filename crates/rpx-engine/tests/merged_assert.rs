@@ -173,6 +173,12 @@ fn merged_column_one_values_are_a_subsequence_of_that_page_col1_values() {
             col1.sort_by_key(|c| c.r);
             let mut it = page.col1_values.iter();
             for c in col1 {
+                // 合并延续格（值为 null，raw token == "null"）在分页 col1_values 里没有
+                // 对应内容可比对：嵌套主子表从格带在 id 列下方的延续格即此情形（产品真值，
+                // `engine_grid_compare` 已逐格担保）。跳过，避免把"空延续"误报成缺值。
+                if c.value_raw == "null" {
+                    continue;
+                }
                 assert!(
                     it.any(|v| v == &c.value_raw),
                     "{name}: 第 {} 页 ({},{}) 的合并值 {:?} 不是该页 col1_values 的子序列",

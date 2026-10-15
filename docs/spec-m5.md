@@ -1,6 +1,6 @@
-# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.4
+# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.5
 
-> 状态：**M5-01 / M5-02 / M5-03 / M5-06 已闭合**（2026-10-15）。
+> 状态：**M5-01 / M5-02 / M5-03 / M5-04 / M5-06 已闭合**（2026-10-15）。
 > M5-01：`ds.select` 全参数矩阵 + 双态求值（`expr/dsselect/` 三文件，单测全绿）；
 > M5-02：跨数据集过滤求值 + 合并区双视图（`calc/merged_view.rs`）+
 > 跨页合并拆分，`cross_dataset_compare` 10 夹具逐格逐页零差异；
@@ -8,8 +8,11 @@
 > 已实装（`heads/find.rs` 分支 A + `ext_algo/envelope.rs` 左子格递归 +
 > `ext_algo/row.rs` `extend_row` 复制循环），本里程碑以 T4/T5 嵌套主子表
 > 夹具逐格对拍正式验收，变异测试证明显式 head 分支承重；
+> M5-04：产品夹具闭环 —— `engine_cross`（嵌套主子表，显式左主格 A3 承重）+
+> `engine_cross_root`（Root 态跨数据集，字面量过滤 `amount>=2000`）进 20 夹具
+> 主对拍全绿，Java 侧 round-trip 门同步闭合；
 > M5-06 的 Root 态裸列语义（`ds.col` = 首行值）随 M5-01 同批闭合。
-> M5-04/05/07 未启动（M5-04 为夹具闭环，是 M5-05/07 的前置）。
+> M5-05/07 未启动（M5-05 为 filtercross 多对多，M5-07 为 cross() 维度对齐带账后置）。
 > 上游：M2/M3/M4 已收官（`spec-m2.md` / `spec-m3.md` / `spec-m4.md`），HEAD `9aa6caf`。
 > 立项依据：数据蒋堂讲座行动序 #2「多数据集关联语义立项（三分类 + 维度对齐）——
 > 报表工具的核心差异化，大（先探针）」（`docs/lecture-notes.md` 行动表）。
@@ -256,7 +259,7 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 | M5-01 | `ds.select` 参数矩阵：`,` 四段（过滤/限量/去重）+ `:` 次序 + `;` 多排序 | `rpx-engine`（`expr/call.rs` 参数树 + `expr/dsselect/` 双态求值） | ✅ **已闭合**（2026-10-15）：单测覆盖四形态 + 6 种产品报错；T3 六变体复现；门禁全绿 |
 | M5-02 | 跨数据集过滤求值：过滤式里的 CSVariable/DSVariable 解析与 current 管理 | `rpx-engine`（`calc/ds_current.rs` 扩展） | ✅ **已闭合**（2026-10-15）：T1/T2/T3 八夹具逐格逐页零差异；电流语义与页内投影双变异实测；`calc/merged_view.rs` 双视图落地（跨页合并拆分同批闭合） |
 | M5-03 | 显式 leftHead/topHead 槽位：reader 解析 + 头图 + 跨度计算 + 嵌套复制 | `rpx-core`（slot 30/31）+ `rpx-engine`（`heads/` + `ext_algo/`） | ✅ **已闭合**（2026-10-15）：机制在 M2 头图工作实装，本里程碑以 T4/T5 嵌套主子表夹具固化验收（`cross_dataset_compare` 现 10 夹具）；变异测试摘除 `heads/find.rs` 分支 A ⇒ T4/T5 均从 14 行塌陷为 9 行（证明显式 head 承重，非默认近邻误判）；`merge_data` 跨页克隆/服务面双视图不变式不受影响 |
-| M5-04 | 产品夹具 `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点） | `tests/fixtures`（`EngineModelsM5.java` + `GenEngineFixtures`） | 进 19+ 夹具主对拍全绿；Java 侧 round-trip |
+| M5-04 | 产品夹具 `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点） | `tests/fixtures`（`EngineModelsM5.java` + `GenEngineFixtures` + `engine_cross.csv`/`engine_cross.csv2`） | ✅ **已闭合**（2026-10-15）：`EngineModelsM5.crossFixture()`（r3 主格 `ds1.select(id/name/dept/salary)` + r4 从格 `ds2.select(item/amount, emp_id==A3)` 带 `setLeftHead("A3")`，title 跨 6 列合并）+ `crossRootFixture()`（3×2，Root 态 `ds2.select(item/amount, amount>=2000)` 无主格引用）；离线用 CSV 文件数据集复刻，进 `engine_grid_compare` 20 夹具主对拍全绿，Java 侧 `--verify` round-trip 同步闭合 |
 | M5-05 | `filtercross` 多对多 | `rpx-engine` | 先探针（多对多真机模板）后实现；对拍 |
 | M5-06 | Root 态裸列 `ds.col` = 首行值（修 `UnsupportedExpr`） | `rpx-engine`（`expr/dsfn.rs` `root_current_data`） | ✅ **已闭合**（随 M5-01）：`dsfn::root_current_data` 实现产品 currentRow 语义；`select(item:item)` → paramTypeError 单测 + 裸列首行值单测双钉 |
 | M5-07 | `cross()` 维度对齐（交叉表同数据集双方向） | `rpx-engine` | **带账**：无夹具不实现；复现路径见 §6.4 |
@@ -365,3 +368,26 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
     spec_facts` 同绿；workspace 全绿；G1–G8 全绿（无新代码，仅固化夹具 + 文档）。
   - 说明：M5-03 无独立实现提交（机制来自 M2），随本里程碑的夹具固化 + spec 升级
     一并进 `spec-m5.md` v0.4；若需要可补一枚 `test` 型提交锚定 T4/T5 入网。
+
+- **v0.5（2026-10-15）**：**M5-04 闭合（产品夹具闭环）**。
+  - 离线（无金仓）用 **CSV 文件数据集**复刻嵌套主子表，作为 M5-03 显式左主格机制的
+    「一等夹具」闭环：`EngineModelsM5.crossFixture()` 建 4×6 模板，r3 主格
+    `ds1.select(id/name/dept/salary)`，r4 从格 `ds2.select(item/amount, emp_id==A3)`
+    并 `setLeftHead("A3")`，title 跨 6 列合并；`crossRootFixture()` 建 3×2 模板，
+    Root 态 `ds2.select(item/amount, amount>=2000)`（无主格引用，走 Root 态求值路径）。
+    数据集 `ds1=engine_cross.csv`（5 员工）/ `ds2=engine_cross.csv2`（6 奖金：张伟·赵敏各 2 项、
+    孙丽 0 项），`attachFileDataSet` 由 `GenEngineFixtures` 主管线写入。
+  - **关键修复**：`engine_cross.csv2`（ds2）初版是 UTF-8 写出，而 `.rpx` 按产品默认 GBK
+    解码 ⇒ Rust 侧严格 GBK 解码抛「GBK 尾字节越界」。转码为 GBK+CRLF 后，Rust 与
+    Java 同口径解码；并**重跑 `GenEngineFixtures` 生成侧**把 `.expected.json` 真值从
+    「UTF-8 误读乱码」纠回正确中文（例如 `\u5168\u52e4\u5956` 全勤奖，旧真值为
+    `\u934f\u3125\u5adf\u6fc2\ufffd` 乱码）。
+  - 验收：`loader.rs::all_names` 由 18 → 20（加 `engine_cross`/`engine_cross_root`），
+    `engine_grid_compare` 主对拍链自动覆盖；`engine_output_matches_every_fixture_
+    cell_by_cell` 对 20 夹具逐格（值/类型/source 六子字段/left_head/top_head/网格尺寸/
+    `merged.cells` 合并跨度/分页）零差异全绿；Java 侧 `--verify .` 全 20 夹具 round-trip 闭合。
+  - 网格真值快照：`engine_cross` = 18 行 × 6 列；主格带 `sub_cells:5`，从格带按员工
+    匹配展开（张伟 2 / 王强 1 / 赵敏 2 / 孙丽 0），`left_head` 全指向主格 A3（src_row:3,
+    src_col:1），`merged` 段含 (4,6)/(6,6) 等金额带 row_merge=2 跨度。
+  - 测试：`engine_grid_compare` 20 夹具全绿；`cross_dataset_compare` 10 夹具不变；
+    G1–G8 全绿（M5-04 无引擎新源码，仅夹具 + 数据集 + 文档增量，故 G4 不触发新超限）。

@@ -3607,3 +3607,56 @@ T3 Root 六变体×6 + T4×1 + T5×1）：
   `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点），
   进 19+ 夹具主对拍全绿 + Java 侧 round-trip。这是 M5-05（filtercross）/
   M5-07（cross()）的前置。
+
+---
+
+### §41 M5-04 闭合 —— 产品夹具 `engine_cross` / `engine_cross_root` 进 20 夹具主对拍（2026-10-15）
+
+**目标**：把 M5-03 验收的「显式左主格 slot 30/31」机制用**产品夹具**钉死（Java 真值 +
+Rust 引擎逐格对拍），离线（无金仓）用 CSV 文件数据集复刻嵌套主子表。
+
+**产物**
+- `tests/fixtures/EngineModelsM5.java`（新建）：`crossFixture()`（4×6）主格
+  `ds1.select(id/name/dept/salary)` @ r3 + 从格 `ds2.select(item/amount, emp_id==A3)` @ r4
+  并 `setLeftHead("A3")`，title 跨 6 列合并；`crossRootFixture()`（3×2）Root 态
+  `ds2.select(item/amount, amount>=2000)`（无主格引用）；`attachDataSets` 钉
+  `ds1=engine_cross.csv` / `ds2=engine_cross.csv2`。
+- `engine_cross.csv`（5 员工：张伟/李娜/王强/赵敏/孙丽）+ `engine_cross.csv2`
+  （6 奖金：张伟·赵敏各 2 项、王强 1 项、孙丽 0 项）。
+- `EngineModels.build/rows` + `GenEngineFixtures.NAMES` 接线；`loader.rs::all_names`
+  18 → 20；`engine_grid_compare` 主对拍自动覆盖。
+
+**关键坑：csv2 编码**（真值乱码 → 对拍必红）
+- 初版 `engine_cross.csv2` 是 UTF-8 写出，而 `.rpx` 按产品默认 **GBK** 解码
+  ⇒ Rust 严格 GBK 解码抛 `malformed dataset encoding: 数据集 ds2：GBK 尾字节越界`
+  （对拍测试 `engine_text` 在 `load_datasets` panic）。
+- 修复：把 `engine_cross.csv2` 转码为 **GBK + CRLF**（Python `codecs` 重写）；
+  并重跑 `GenEngineFixtures` 生成侧，使 `.expected.json` 真值从「UTF-8 误读乱码」
+  纠回正确中文（`全勤奖` = `\u5168\u52e4\u5956`，旧真值 `\u934f\u3125\u5adf\u6fc2\ufffd`）。
+- 教训：CSV 数据集文件必须与其 `.rpx` 声明的解码口径一致（产品默认 GBK），写手
+  一律按 GBK 落盘；UTF-8 源文件入库前必须转码，否则对拍会在「数据层」先炸。
+
+**验收（G3 全绿后）**
+| 证据 | 结果 |
+|---|---|
+| `engine_grid_compare` | 20 夹具逐格零差异（值/类型/source 六子字段/left_head/top_head/网格尺寸/`merged.cells`/分页）；`engine_cross` = 18×6，主格带 `sub_cells:5`，从格按员工匹配展开，`left_head` 全指向 A3 |
+| `cross_dataset_compare` | 10 夹具不变（T4/T5 仍 16 条 merged） |
+| Java 侧 | `GenEngineFixtures --verify .`（GBK 修复后重跑）全 20 夹具 round-trip 闭合（`PASS engine_cross: 4732 bytes` / `engine_cross_root: 1709 bytes`，0 FAIL） |
+| 门禁（两轮） | ① 首轮 G1/G2/G4–G8 全绿，G3 因沙箱拦截 `.d` 写盘（`merged_assert-*.d` 拒绝访问）误红；② 关沙箱重跑暴露 4 条断言需随夹具扩容修正（见下），修复后 G1–G8 全绿（`cargo test --workspace` 453 通过 / 0 失败） |
+
+**随夹具扩容修正的 4 条断言**（均在测试侧，非引擎语义变化）
+1. `fixture_loader.rs::all_fixtures_load_and_self_identify`：`all_names().len()` 18 → 20。
+2. `expr_state_tripwire.rs::TOTAL_FORMULAS`：102 → 110（cross 6 条 + cross_root 2 条，
+   均 state 4）。
+3. `merged_assert.rs` 列 1 子序列断言：跳过 `value_raw == "null"` 的合并延续格 ——
+   `engine_cross` 从格带在 id 列下方留有**空延续格**（值为 null，没有分页 col1 内容
+   可比对，属正常产品真值；逐格正确性由 `engine_grid_compare` 担保）。
+4. `subcell_assert.rs` 纵向锚点步长断言：为 `engine_cross` 增设嵌套主子表例外 ——
+   主格实例被从格带（奖金行）**穿插**，相邻实例间隔 = 自身 `row_merge` + 从格带高，
+   故步长 > `row_merge` 属正常（改为只守「间隔 ≥ 实例高」，其余 19 个普通夹具仍守
+   「恰等于 `row_merge`」强约束）。
+
+**结论**：M5-04 闭环 —— 显式左主格机制既有 M5-03 的 T4/T5 变异证据，又有 M5-04 的
+产品夹具逐格对拍，双保险落地。无引擎新源码（机制复用 M2），仅夹具+数据集+文档增量。
+
+**下一步**：M5-05 `filtercross`（多对多，先探针后实现）；M5-07 `cross()`（带账后置）。

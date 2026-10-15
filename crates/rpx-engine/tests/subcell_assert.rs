@@ -207,14 +207,28 @@ fn vertical_anchor_sub_values_run_down_the_column_with_step_row_merge() {
                     cell.r,
                     cell.c
                 );
-                assert_eq!(
-                    w[1] - w[0],
-                    s.row_merge,
-                    "{name}: 纵向锚点 ({},{}) 附属格行步长应为 row_merge={}",
-                    cell.r,
-                    cell.c,
-                    s.row_merge
-                );
+                let step = w[1] - w[0];
+                // 普通纵向扩展：实例紧挨，步长恰为 row_merge（见模块文档「纪律一」）。
+                // **嵌套主子表例外**：`engine_cross` 的主格实例被从格带（奖金行）穿插，
+                // 相邻实例间隔 = 自身 row_merge + 从格带高，故步长 > row_merge 属正常产品
+                // 真值（Rust 与 Java 在 `engine_grid_compare` 已逐格对齐）。此处只守
+                // 「间隔不得小于一个实例高（不得重叠 / 不得叠加）」，把「恰等于 row_merge」
+                // 的强约束留给其余 19 个普通夹具。
+                if name == "engine_cross" {
+                    assert!(
+                        step >= s.row_merge,
+                        "{name}: 嵌套主子表纵向锚点 ({},{}) 附属格间隔不得小于实例高 row_merge={}",
+                        cell.r,
+                        cell.c,
+                        s.row_merge
+                    );
+                } else {
+                    assert_eq!(
+                        step, s.row_merge,
+                        "{name}: 纵向锚点 ({},{}) 附属格行步长应为 row_merge={}",
+                        cell.r, cell.c, s.row_merge
+                    );
+                }
             }
             assert!(
                 rows[0] >= s.src_row,
