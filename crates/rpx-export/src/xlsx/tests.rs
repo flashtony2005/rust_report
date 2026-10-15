@@ -187,6 +187,51 @@ fn continuation_records_rebuild_to_one_area() {
 }
 
 #[test]
+fn adjacent_same_extent_areas_all_survive() {
+    // 回归（2026-10-16）：并排/相邻的**等跨度**区不可互判延续槽。
+    // 旧实现「存在另一条同跨度记录覆盖本槽」会把后一区的**锚点**误判成延续槽
+    // ⇒ 整区**静默丢弃**。真实报表里这很常见：并排多级表头、相邻两段同值合并。
+    let mut g = grid(8, 6, vec![]);
+    let t = |s: &str| Value::Text(s.to_string());
+    g.merged = vec![
+        // 第 1 行：三个 1×2 并排表头（甲/乙/丙），跨度全同。
+        MergedCell::new(1, 1, 1, t("甲"), 1, 2),
+        MergedCell::new(1, 1, 2, t("甲"), 1, 2),
+        MergedCell::new(1, 1, 3, t("乙"), 1, 2),
+        MergedCell::new(1, 1, 4, t("乙"), 1, 2),
+        MergedCell::new(1, 1, 5, t("丙"), 1, 2),
+        MergedCell::new(1, 1, 6, t("丙"), 1, 2),
+        // 第 1 列：两段上下相邻的 3×1 同值合并（戊 A3:A5 / 己 A6:A8），跨度相同。
+        MergedCell::new(1, 3, 1, t("戊"), 3, 1),
+        MergedCell::new(1, 4, 1, t("戊"), 3, 1),
+        MergedCell::new(1, 5, 1, t("戊"), 3, 1),
+        MergedCell::new(1, 6, 1, t("己"), 3, 1),
+        MergedCell::new(1, 7, 1, t("己"), 3, 1),
+        MergedCell::new(1, 8, 1, t("己"), 3, 1),
+    ];
+    let book = read(&to_xlsx(&g));
+    // 5 个区**全部**存活（旧实现只留「甲」「戊」，乙/丙/己 三个被吞）。
+    assert_eq!(
+        book.rects(),
+        vec![
+            ((0, 0), (0, 1)),
+            ((0, 2), (0, 3)),
+            ((0, 4), (0, 5)),
+            ((2, 0), (4, 0)),
+            ((5, 0), (7, 0)),
+        ]
+    );
+    // 锚点带值、延续槽为空（证明这些确实是合并区，不是散格）。
+    assert_eq!(book.at(1, 1), Data::String("甲".into()));
+    assert_eq!(book.at(1, 3), Data::String("乙".into()));
+    assert_eq!(book.at(1, 5), Data::String("丙".into()));
+    assert_eq!(book.at(1, 2), Data::Empty);
+    assert_eq!(book.at(3, 1), Data::String("戊".into()));
+    assert_eq!(book.at(6, 1), Data::String("己".into()));
+    assert_eq!(book.at(4, 1), Data::Empty);
+}
+
+#[test]
 fn merged_anchor_display_value_wins() {
     // 锚点在 cells 里且带 disp ⇒ 与普通格同口径（disp 优先）。
     let mut with_disp = CalcCell::bare(1, 1, Value::Int(7));

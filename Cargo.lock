@@ -1049,6 +1049,7 @@ name = "rpx-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "calamine",
  "rpx-core",
  "rpx-ds",
  "rpx-engine",

@@ -19,12 +19,14 @@ pub mod report;
 pub mod rowcell;
 pub mod rowset;
 pub mod value;
+pub mod writer;
 
 pub use error::{Result, RpxError};
 pub use report::{CellId, MergedArea, ReportDefine, ScalarTail};
+pub use writer::to_bytes;
 
-const MAGIC: [u8; 4] = [82, 81, 81, 82];
-const FOOTER: [u8; 8] = [82, 81, 81, 82, 82, 81, 81, 82];
+pub(crate) const MAGIC: [u8; 4] = [82, 81, 81, 82];
+pub(crate) const FOOTER: [u8; 8] = [82, 81, 81, 82, 82, 81, 81, 82];
 
 /// 主入口：从任意 Read 源解析 .rpx。
 pub fn open<R: std::io::Read>(mut r: R) -> Result<ReportDefine> {

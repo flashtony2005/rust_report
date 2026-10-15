@@ -71,7 +71,7 @@ impl ExportFormat {
 /// 圆括号口径同 [`crate::http::render_request`]）。无数据源注册表 ⇒ 模板含
 /// SQL 数据集时显式报 [`RenderError::NoDataSource`]。
 pub fn export_request(req: &RenderRequest, fmt: ExportFormat) -> Result<Vec<u8>, RenderError> {
-    let rd = rpx_core::open_bytes(&req.report).map_err(RenderError::Core)?;
+    let rd = crate::reportdef::open_report(&req.report).map_err(RenderError::Source)?;
     export_core(req, &rd, &HashMap::new(), fmt)
 }
 
@@ -82,7 +82,7 @@ pub async fn export_request_ds(
     dsr: Option<&DataSourceRegistry>,
     fmt: ExportFormat,
 ) -> Result<Vec<u8>, RenderError> {
-    let rd = rpx_core::open_bytes(&req.report).map_err(RenderError::Core)?;
+    let rd = crate::reportdef::open_report(&req.report).map_err(RenderError::Source)?;
     let prefetch = crate::http::prefetch_sql(&rd, dsr).await?;
     export_core(req, &rd, &prefetch, fmt)
 }

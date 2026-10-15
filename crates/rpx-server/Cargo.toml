@@ -18,3 +18,9 @@ tokio = { version = "1", features = [
     "net",
     "io-util",
 ] }
+
+[dev-dependencies]
+# `/export` xlsx 的**读回**断言用（`tests/reportdef_http.rs`）：从 HTTP 响应体
+# 字节反读合并区/取值。口径同 `rpx-export` 的 dev-dep（spec-m6 §2.4）；
+# 不进产物，G5 只覆盖 `[dependencies]`（gate.sh G5 的 awk 只进 `[dependencies]` 段）。
+calamine = "0.36"

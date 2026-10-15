@@ -30,7 +30,8 @@
 //! 都报**锚点整段跨度**（`merged_view::global_slots`）。xlsx 的
 //! `merge_range` 要的是**每区一条锚点矩形**，故先重建：
 //!
-//! * 延续槽判定 = 「存在另一条记录，其矩形覆盖本槽」（同跨度前提下）；
+//! * 延续槽判定 = 「本槽已被先前（按 `(r,c)` 升序）某个矩形消费」——
+//!   同一矩形内最先遇到（最上、再最左）的槽即左上锚点；
 //! * 锚点值取 `merged` 记录带的锚点值；若锚点格在 [`CalcGrid::cells`] 里
 //!   且有 `disp_value`，disp 优先（同普通格口径）。
 //! * 病态输入防御（引擎不产出，但本函数对外部构造的 `CalcGrid` 也不 panic）：
@@ -137,23 +138,26 @@ struct Area {
 
 /// 从**逐槽**视图重建锚点矩形（规则见模块文档 §合并区）。
 ///
-/// O(N²) 的延续槽判定：N = 合并槽数（夹具规模数百），无基准不提前优化。
+/// `slots` 是**逐槽**视图：一个矩形内**每槽一条**记录，且每条都报**整段跨度**
+/// （`merged_view::global_slots`），结构里**没有**「谁是锚点」的字段。故按 `(r,c)`
+/// 升序**贪心消费**：同一矩形内最先遇到（最上、再最左）的槽即左上锚点。
+///
+/// ⛔ **不可**用「存在另一条**同跨度**记录覆盖本槽」判延续槽（旧实现，已修）：
+/// 相邻的等跨度区会互相把**对方的锚点**判成延续槽 ⇒ 整区被**静默丢弃**。
+/// 触发面很常见：并排的多级表头（`A2:B2` / `C2:D2` / `E2:F2`）或相邻两段同值合并
+/// （同为 `6×1` 的 `A4:A9` 与 `A13:A18`）。实测 18 区的报表只导出 11 区。
+///
+/// 复杂度：排序 `O(N log N)` + 消费 `O(槽数)`（旧实现是 `O(N²)` 的两两比对）。
 fn rebuild_areas(slots: &[MergedCell], max_row: i32, max_col: i32) -> Vec<Area> {
     let mut out: Vec<Area> = Vec::new();
     // 病态输入（重叠矩形）防御：已占用槽；重叠区只保首见者。
     let mut taken: HashSet<(i32, i32)> = HashSet::new();
-    for (i, s) in slots.iter().enumerate() {
-        // 延续槽：存在另一条同跨度记录，其矩形覆盖本槽。
-        let is_continuation = slots.iter().enumerate().any(|(j, o)| {
-            j != i
-                && o.row_merge == s.row_merge
-                && o.col_merge == s.col_merge
-                && s.r >= o.r
-                && s.r < o.r + o.row_merge
-                && s.c >= o.c
-                && s.c < o.c + o.col_merge
-        });
-        if is_continuation {
+    // 行主序 ⇒ 每个矩形的左上锚点必先于其延续槽出现（`sort_by_key` 稳定）。
+    let mut order: Vec<&MergedCell> = slots.iter().collect();
+    order.sort_by_key(|s| (s.r, s.c));
+    for s in order {
+        // 已被先前矩形消费 ⇒ 本槽是延续槽。
+        if taken.contains(&(s.r, s.c)) {
             continue;
         }
         // 锚点进 Excel 域：越界（含超上限）的整区跳过；跨界的裁剪到界内。
@@ -163,8 +167,9 @@ fn rebuild_areas(slots: &[MergedCell], max_row: i32, max_col: i32) -> Vec<Area> 
         }
         let r1 = (s.r + s.row_merge - 1).min(max_row);
         let c1 = (s.c + s.col_merge - 1).min(max_col);
-        if r1 == r0 && c1 == c0 {
-            continue; // 裁剪后退化成单格：Excel 不允许单格合并
+        if r1 <= r0 && c1 <= c0 {
+            // 裁剪后退化成单格（或倒矩形）：Excel 不允许单格合并。
+            continue;
         }
         let mut cells_here: Vec<(i32, i32)> = Vec::new();
         let mut overlap = false;
@@ -174,11 +179,13 @@ fn rebuild_areas(slots: &[MergedCell], max_row: i32, max_col: i32) -> Vec<Area> 
                 cells_here.push((r, c));
             }
         }
+        // ⚠ 即便因重叠要丢弃本区，也**必须整区占位**：否则本区的下半截会在后续轮次
+        // 作为「新锚点」被裁剪后单独落盘，产出半个区（`pathological_overlap…` 钉住）。
+        for &p in &cells_here {
+            taken.insert(p);
+        }
         if overlap {
             continue; // 病态重叠：丢后者（与「无构造点的分支不保留」同精神，此处保留防御）
-        }
-        for p in cells_here {
-            taken.insert(p);
         }
         out.push(Area {
             r0,

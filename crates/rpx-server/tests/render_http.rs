@@ -308,14 +308,19 @@ async fn asset_upload_list_meta_round_trip() {
     assert_eq!(items[1]["default_val"], "10");
 }
 
-/// 坏魔数：`AssetStore::put` 的 `rpx_core::open_bytes` 预检 → 400。
+/// 坏输入：既非 `.rpx`（缺 `RQQR` 魔数）也非 JSON 定义。
+///
+/// ⚠ 口径随 M7-2 变更：入库前先过 [`normalize_to_rpx`]，它对「两者都不是」
+/// 走 `open_report` 的 `UnknownFormat` 分支，报**无法识别的报表格式**
+/// （与 `/render` 同一套错误文本）；旧文本「模板解析失败」只保留给**带 `RQQR`
+/// 魔数但正文坏**的 `.rpx`（那条仍由 `AssetStore::put` 的预检产出）。
 #[tokio::test]
 async fn asset_bad_magic_is_400() {
     let addr = spawn().await;
     let (body, ct) = multipart(&[("file", Some("junk.rpx"), b"not an rpx file at all")]);
     let (status, resp) = post_to(&addr, "/reports", body, &ct).await;
     assert_eq!(status, 400, "响应体：{resp}");
-    assert!(resp.contains("模板解析失败"), "实得：{resp}");
+    assert!(resp.contains("无法识别的报表格式"), "实得：{resp}");
     // 拒收即不落库。
     let list_body = raw_get(&addr, "/reports").await;
     assert_eq!(list_body, "[]", "坏魔数不得入库：{list_body}");

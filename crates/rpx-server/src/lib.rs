@@ -1,4 +1,5 @@
-//! rpx-server 库面：快照映射（[`snapshot`]）+ HTTP 面（[`http`]）+ 导出面（[`export`]）。
+//! rpx-server 库面：快照映射（[`snapshot`]）+ HTTP 面（[`http`]）+ 导出面（[`export`]）
+//! + 报表定义（[`reportdef`]）。
 //!
 //! 二进制（`rpx-server`）只是本库的 dev 外壳：`snapshot` 子命令直出快照 JSON
 //! （M4 开发期数据管道），`serve` 子命令起 HTTP 服务（M3-05 `POST /render` +
@@ -13,4 +14,5 @@ pub mod datasource;
 pub mod export;
 pub mod form;
 pub mod http;
+pub mod reportdef;
 pub mod snapshot;

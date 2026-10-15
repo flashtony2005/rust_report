@@ -29,10 +29,10 @@ use axum::{
 };
 use serde_json::json;
 
-use rpx_core::RpxError;
 use rpx_ds::{AssetError, AssetStore};
 use rpx_engine::EngineError;
 
+use crate::reportdef::{self, SourceError};
 use crate::{datasource::DataSourceRegistry, export, form, snapshot};
 
 /// 应用状态：资产库 + 可选数据源注册表（SQL 数据集的连接由调用方注入，
@@ -86,6 +86,12 @@ async fn upload_report(State(state): State<AppState>, mut multipart: Multipart) 
         // Err 是 `Box<Response>`（clippy result_large_err：Response 体量大）。
         Err(e) => return (*e).into_response(),
     };
+    // 资产库的唯一事实源是 `.rpx`（`reports.rpx BLOB`）：JSON 定义是**入口格式**，
+    // 在此归一化落库，下游（meta 解析 / render / export）因此只有一条读侧路径。
+    let bytes = match normalize_to_rpx(&bytes) {
+        Ok(b) => b,
+        Err(e) => return (*e).into_response(),
+    };
     match store.put(&name, &bytes).await {
         Ok(id) => (
             StatusCode::OK,
@@ -95,6 +101,23 @@ async fn upload_report(State(state): State<AppState>, mut multipart: Multipart) 
             .into_response(),
         Err(e) => asset_error_response(e),
     }
+}
+
+/// 上传物 → **规范 `.rpx` 字节**（`POST /reports` 的入库前归一化）。
+///
+/// * 已是 `.rpx`（`RQQR` 魔数）→ **原样入库**，不重写（零风险，保持既有行为）；
+/// * 定义 JSON → [`reportdef::open_report`] 解析 → `rpx_core::to_bytes` 序列化。
+///   「解析后再序列化与原字节逐字节一致」已由 `crates/rpx-core/tests/roundtrip.rs`
+///   对 37 个真实夹具钉死，故这里对 `.rpx` 不做往返改写是保守但无损的选择。
+/// * 两者都不是 → 显式 400（与 `/render` 同一套错误文本）。
+fn normalize_to_rpx(bytes: &[u8]) -> Result<Vec<u8>, Box<Response>> {
+    if bytes.starts_with(b"RQQR") {
+        return Ok(bytes.to_vec());
+    }
+    let rd = reportdef::open_report(bytes)
+        .map_err(|e| Box::new(RenderError::Source(e).into_response()))?;
+    rpx_core::to_bytes(&rd)
+        .map_err(|e| Box::new(RenderError::Serialize(e.to_string()).into_response()))
 }
 
 /// `GET /reports`：列表（名称/版本/时间）。
@@ -248,7 +271,7 @@ async fn export(
 /// 见 `tests/render_http.rs`）。不提供数据源注册表 ⇒ 模板含 SQL 数据集时
 /// 显式报 [`RenderError::NoDataSource`]（SQL 数据集走 [`render_request_ds`]）。
 pub fn render_request(req: &form::RenderRequest) -> Result<String, RenderError> {
-    let rd = rpx_core::open_bytes(&req.report).map_err(RenderError::Core)?;
+    let rd = reportdef::open_report(&req.report).map_err(RenderError::Source)?;
     render_core(req, &rd, &HashMap::new())
 }
 
@@ -260,7 +283,7 @@ pub async fn render_request_ds(
     req: &form::RenderRequest,
     dsr: Option<&DataSourceRegistry>,
 ) -> Result<String, RenderError> {
-    let rd = rpx_core::open_bytes(&req.report).map_err(RenderError::Core)?;
+    let rd = reportdef::open_report(&req.report).map_err(RenderError::Source)?;
     let prefetch = prefetch_sql(&rd, dsr).await?;
     render_core(req, &rd, &prefetch)
 }
@@ -370,8 +393,8 @@ pub(crate) fn calculate_grid(
 /// 渲染错误 → HTTP 映射（400 = 客户端输入；500 = 服务端缺陷）。
 #[derive(Debug)]
 pub enum RenderError {
-    /// 模板字节解不开（魔数 / 截断 / 页长不符）。
-    Core(RpxError),
+    /// 报表来源解不开：`.rpx` 字节坏 / 定义 JSON 不合法 / 格式无法判定。
+    Source(SourceError),
     /// 引擎拒绝：缺数据集 / 未登记参数 / 编码坏 / 循环引用 / 不支持的分页…。
     Engine(EngineError),
     /// 上传不完整：模板引用的 CSV 不在表单里（按**文件名**报，见上文）。
@@ -383,6 +406,8 @@ pub enum RenderError {
     UnknownDataSource { dsn: String, available: Vec<String> },
     /// SQL 取数失败（连接/查询/列型）——sqlx 错误文本原样透传给前端上屏。
     SqlFetch(rpx_ds::DsError),
+    /// 定义 JSON → `.rpx` 序列化失败（`POST /reports` 的归一化步骤）。
+    Serialize(String),
     /// 快照映射不变式被违反（`geom::merge_data` 的网格校验）——不该发生。
     Snapshot(String),
 }
@@ -390,9 +415,17 @@ pub enum RenderError {
 impl IntoResponse for RenderError {
     fn into_response(self) -> Response {
         match self {
-            RenderError::Core(e) => {
-                error_json(StatusCode::BAD_REQUEST, &format!("模板解析失败：{e}"))
-            }
+            RenderError::Source(e) => match e {
+                // 两条入口的错误文本分开口径：`.rpx` 坏是「模板解析失败」，
+                // JSON 坏是「报表定义不合法」（带 JSON 路径），便于前端定位。
+                SourceError::Core(e) => {
+                    error_json(StatusCode::BAD_REQUEST, &format!("模板解析失败：{e}"))
+                }
+                SourceError::Def(e) => {
+                    error_json(StatusCode::BAD_REQUEST, &format!("报表定义不合法：{e}"))
+                }
+                SourceError::UnknownFormat => error_json(StatusCode::BAD_REQUEST, &e.to_string()),
+            },
             RenderError::Engine(e) => {
                 error_json(StatusCode::BAD_REQUEST, &format!("计算失败：{e}"))
             }
@@ -421,6 +454,10 @@ impl IntoResponse for RenderError {
             RenderError::SqlFetch(e) => {
                 error_json(StatusCode::BAD_REQUEST, &format!("SQL 取数失败：{e}"))
             }
+            RenderError::Serialize(detail) => error_json(
+                StatusCode::BAD_REQUEST,
+                &format!("模板序列化失败：{detail}"),
+            ),
             RenderError::Snapshot(s) => error_json(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 &format!("快照映射失败：{s}"),
