@@ -3424,3 +3424,112 @@ M5-06（Root 态裸列 = 首行值）作为实现前置同批闭合。**
   （30 文件：dsselect 三文件 + Param 树 + build_param + 14 单测 + spec-m5 v0.2 + 本 RUNLOG
   + 11 份探针 truth JSON/probe 日志；本提交由宿主环境对暂存区自动落成，内容与本轮
   最终状态逐字一致）。
+
+## §39 M5-02 闭合：跨数据集过滤求值 + 合并区双视图（2026-10-15 深夜）
+
+**总监令「推进m5 m6」第二步。M5-01 闭合后按 spec-m5 §5 依赖序推进 M5-02。
+交付两件事：① **电流语义**——过滤式里的 `A3` 解析到 current 同 row 的主格实例
+（T1 从格带逐主格实例滤出各自奖金的充要条件）；② **合并区双视图 + 跨页合并
+拆分**——M2 遗留带账「跨页合并格拆分」同批清偿（`m2-engine-design.md` §15.5
+由 ❌ 改 ✅）。端到端载体 `tests/cross_dataset_compare.rs`：8 夹具（T1 ×1 +
+T2 ×1 + T3 Root 变体 ×6）与探针真值逐格逐页零差异。**
+
+### §39.1 落地清单
+
+| 文件 | 内容 | 产品对应 |
+|---|---|---|
+| `calc/merged_view.rs` | 新（181 行）：合并区双视图——`areas` 扫描去重 / `global_slots` 全局逐槽 / `page_slots` 页内逐槽 / `attach` 双挂 | `MergedArea` + `CalcMergeJson.renderMerged` |
+| `calc/merged_view/tests.rs` | 新（234 行）：4 单测（全槽整段跨度 / 标题跨列页裁剪 / 纵向跨行页拆分 / 空页跳过） | `cross_emp_bonus` 16 条真值复刻 |
+| `calc/run.rs` | `calculate_with` 接线双视图；`export_grid` 改返 `(CalcGrid, Vec<MergedArea>)`；`export_merged` 删除（内核迁 `merged_view::areas`） | — |
+| `arena/calc_grid.rs` | 新增 `merged_pages` 字段；`MergedCell` 文档重写（坐标口径：`CalcGrid` 里全局、emit 产出才页内；删「page 恒 1 且仍然正确」的过期豁免账本） | — |
+| `emit.rs` | `merged_section` 退化为纯序列化：有 `pagination` 取 `merged_pages`，否则取 `merged` | `CalcMergeJson` 序列化侧 |
+| `emit/tests.rs` | 新钉子 `render_merged_serializes_the_page_local_view`（页内 12 条逐字 + 回落全局 13 条含第 9 槽整段跨度 9） | 真值 `cross_emp_bonus` 16 条同形 |
+| `expr/tests_select/` | **目录化拆分**（G4，见 §39.5）：`mod.rs` 493 行 + `cross_current.rs` 65 行（电流语义钉子） | — |
+| `expr/tests_eval.rs` | `Fake` 新增 `set_left_head` / `add_ext` 两个 `pub(crate)` 辅助（搭主/从格实例链） | — |
+| `tests/cross_dataset_compare.rs` | 新（265 行）：8 夹具端到端对拍 + 内存复刻与 spec 事实互证 | truth `out/cross_*_product.json` |
+| `tests/common/compare` | 对拍框架扩展（merged 段逐条比对） | — |
+| `rpx-server/src/snapshot/geom.rs` | `merge_data` 文档更新：删脆弱的行号引用，改为「M5-02 起 `merged` 定型为全局逐槽视图」 | — |
+
+### §39.2 核心设计决策：双视图（产品「一份数据两个读者」）
+
+`CalcGrid` 同时挂两份合并区投影，两条消费链各取所需：
+
+| 视图 | 坐标口径 | 消费者 | 为什么必须是这个口径 |
+|---|---|---|---|
+| `merged`（全局逐槽） | 全局坐标 + **整段**跨度 | `rpx-server` 快照 `geom::merge_data` 的矩形槽集不变式 + `paged::merge_data_paged` 的跨页 deepClone 拆分 | 页 2 的局部坐标若混进来会与页 1 碰撞（页内坐标全从 1 起） |
+| `merged_pages`（页内逐槽） | 页局部坐标 + **该页裁剪后**跨度 | emit 对拍 | `CalcMergeJson.renderMerged` 读的是**页格**（探针先 `PageBuilder.createPages()` 再逐页读 `pg.getCell(r,c)` 的 `getRowMerge/getColMerge`） |
+
+**跨页合并拆分的产品机制 → 本仓等价建模**：`SimplePager._$1` 对跨页合并做
+拆分——锚点区 `setEndRow`/`setEndCol` 收窄到页末，并 `deepClone` 出延续页新区
+（行向 `:1624-1638`、列向 `:2316-2335`）⇒ 后续页格拿到锚点值克隆与**自己的**
+裁剪跨度。等价于「合并区矩形 × 页矩形求交」：**交矩形维度**即该页所有相关槽
+报的跨度（不是「本槽还剩多宽」——产品页格读的是合并区宽高）。`1×1` 交矩形
+被探针跳过（`CalcMergeJson.java:48-50`）⇒ 同跳（`cross_emp_bonus` 第 2 页
+标题第 9 槽即此形态：真值 16 条全部落在页 1）。
+
+`/render` 会用模板真值口径覆盖 pagination 但不重算 merged ⇒ 两份都必须在引擎侧
+算好挂上，emit 只做选择。
+
+### §39.3 两次失败尝试（记档防复踩）
+
+1. **emit 侧投影**：第一版把投影逻辑写在 `emit.rs`——拿每个全局槽的 `(r,c)+跨度`
+   当矩形与页求交，延续槽算出「本槽剩余宽度」8,7,6,5,4,3,2（真值要求全部 8）。
+   **病因**：emit 侧没有锚点知识（同一 `CellId` 的槽彼此不可区分），无法知道
+   「本槽是锚点还是延续槽」。**修法**：投影移到引擎侧，`areas()` 按 `CellId`
+   去重拿锚点，`page_slots` 对锚点矩形求交后**逐槽**发射。
+2. **锚点去重单视图**：第二版把 `export_merged` 改成按 `CellId` 去重（每区一条）
+   喂给两个读者 ⇒ 单页夹具只剩 1 条/区，对拍报 **11 missing**（真值是逐槽）。
+   **修法**：承认「一份扫描、两种投影」才是产品结构，确立双视图（§39.2）。
+
+### §39.4 电流语义钉子（M5-02 的语义核心）
+
+`resolve.rs::resolve_cell` 走 left/top head 链，把过滤式里的 `A3` 解析到
+**current 同 row 的主格实例**（`CSVariable.java` 逐行移植）。钉子
+`cross_filter_tracks_master_current_row` 的搭建要点（也是本次踩的坑）：
+
+- **宿主实例的左 head 必须指向主格同 row 实例，宿主引擎格的左 head 必须是主格
+  引擎格**——`Fake::put` 默认 `lh=ROOT`，首跑缺 `f.set_left_head(host, a3)`
+  这条链，`common_left_head` 一路走到 ROOT、`via_left_subs` 返回第一个实例，
+  钉子以 `["全勤奖","年终奖"] != ["全勤奖"]` 失败（**搭建错，不是实现错**，
+  按实现改代码就会把对的实现改坏）——与真实模板结构一致后才绿。
+- 三段断言：张伟行 2 项 → 李娜行 1 项 → **回张伟行又 2 项**（反向判据，排除
+  「只看第二次调用」的假绿）。
+
+### §39.5 踩坑：G1/G4 双红（本轮门禁两次才过）
+
+- **G4**：`expr/tests_select.rs` 加钉子后 **540 行 > 500**（M5-01 时 488 行）。
+  按仓规拆成目录模块 `tests_select/{mod.rs, cross_current.rs}`（493 + 65），
+  第 6 节整节搬迁，共享夹具走 `use super::{root_fake, texts}`。
+- **G1**：新钉子写完**忘跑 `cargo fmt --all`**（两处 `assert_eq!` 超宽 + 一处
+  续行注释对齐）——与 §38.3 同源的「最后一步省掉」型失误，第二次门禁即绿。
+- **G2 clippy**（首轮提交前）：模块文档续行行首 `+ ` 被 rustdoc 当列表项
+  （doc list item without indentation ×4）→ 改措辞拆段；`|m| merged_cell_json(m)`
+  redundant closure → `map(merged_cell_json)`。
+
+### §39.6 验证
+
+| 证据 | 结果 |
+|---|---|
+| `merged_view` 4 单测 | 全绿（17 槽整段跨度 / 16 条页内裁剪 / 跨行页 3+2 / 空页跳过） |
+| `emit` 15 测试 | 全绿（含新钉子：页内 12 条逐字 + 回落全局 13 条） |
+| `expr::tests_select` 15 测试 | 全绿（14 M5-01 + 1 电流语义钉子） |
+| `cross_dataset_compare` | 8 夹具逐格逐页零差异（T1 含 16 条 merged 真值） |
+| rpx-engine lib | **283** passed（M5-01 时 276：+4 merged_view +1 电流钉子 +2 emit） |
+| workspace 全量 | **453** passed，34 个测试二进制零失败 |
+| 门禁 | G1–G8 全绿（二轮：首轮 G1/G4 红，修复后复跑） |
+| 变异 ① 电流语义 | `resolve_cell` 改 `Some(src)` 静态解析 ⇒ **仅** `cross_filter_tracks_master_current_row` 红，其余 14 个 tests_select 全绿；已还原 |
+| 变异 ② 页内投影 | `page_slots` 跨度改整段（不裁剪）⇒ `merged_view` 2 钉子红（17≠16、5≠3）+ 端到端 `extra=1 mismatch=8`；已还原 |
+
+### §39.7 新带账
+
+合并段断在**分组头行**（`rowType == -90`）时产品会把上一页合并区**伸长**盖住
+（`SimplePager.java:1550-1596` 的 `rt == -90` 分支）——本仓只做矩形求交，
+现有夹具无此形态（跨页合并首例 `cross_emp_bonus` 是标题带）。登记于
+`spec-m5.md` §6.3 第 ⑦ 项。
+
+### §39.8 提交
+
+- 见文末 git log（`feat(rpx-engine): M5-02 闭合——跨数据集过滤电流语义 + 合并区
+  双视图与跨页拆分`）；含 M4 §36 演示产物三件套补提（`out/kb_demo.cjs`、
+  `out/m4-kingbase-demo.png`、`out/report_demo_product.json`——RUNLOG §36.2
+  引用但漏提交的遗留）。

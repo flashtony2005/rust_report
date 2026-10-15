@@ -262,6 +262,93 @@ fn render_merged_keeps_null_valued_cells_and_uses_the_fixture_key_order() {
     );
 }
 
+/// M5-02：`merged` 段的**页内序列化**（`CalcMergeJson.renderMerged` 读页格）。
+///
+/// 形态复刻 `cross_emp_bonus` 真值（引擎产出的 `merged_pages`）：标题 1×9 合并
+/// 被横向断页拆到两页（第 1 页 8 列 / 第 2 页 1 列）+ 一块 2×1 纵向合并。
+/// 投影本身（合并区 × 页矩形求交）在 `calc/merged_view.rs` 单测；本条钉子
+/// emit 的序列化契约：`page_count` 取网格字段、逐条 `(page, r, c)` 排序、
+/// 键序 `page, r, c, value, row_merge, col_merge`。
+///
+/// **为什么不是空跑**：第 2 页标题槽交矩形 `1×1` 被投影跳过（`16 条不是 17 条`，
+/// 见 `merged_view` 单测），所以本条的输入里**没有**第 2 页条目 —— 若谁把
+/// 全局视图（`merged`，13 条、坐标是全局）直接序列化出来，本条立刻红。
+#[test]
+fn render_merged_serializes_the_page_local_view() {
+    let mut g = CalcGrid::new(9, 9);
+    g.page_count = 2;
+    // 引擎分页后挂上的页内视图（merged_view::page_slots 的产出形态）。
+    for c in 1..=8 {
+        g.merged_pages
+            .push(MergedCell::new(1, 1, c, Value::Text("T".into()), 1, 8));
+    }
+    for r in 8..=9 {
+        g.merged_pages
+            .push(MergedCell::new(1, r, 1, Value::Int(1), 2, 1));
+        g.merged_pages
+            .push(MergedCell::new(1, r, 2, Value::Text("N".into()), 2, 1));
+    }
+    // 全局视图同时在（服务面快照吃它）—— 不得被序列化进 merged 段。
+    for c in 1..=9 {
+        g.merged
+            .push(MergedCell::new(1, 1, c, Value::Text("T".into()), 1, 9));
+    }
+    for r in 8..=9 {
+        g.merged.push(MergedCell::new(1, r, 1, Value::Int(1), 2, 1));
+        g.merged
+            .push(MergedCell::new(1, r, 2, Value::Text("N".into()), 2, 1));
+    }
+    g.pagination = Some(crate::pager::Pagination {
+        paper_w: 595.0,
+        paper_h: 842.0,
+        columns: 1,
+        page_count: 2,
+        x_pages: 2,
+        y_pages: 1,
+        row_num_per_page: 20,
+        pages: vec![
+            crate::pager::PageInfo {
+                page: 1,
+                rows: 9,
+                col1_values: Vec::new(),
+                row_range: (1, 9),
+                col_range: (1, 8),
+            },
+            crate::pager::PageInfo {
+                page: 2,
+                rows: 9,
+                col1_values: Vec::new(),
+                row_range: (1, 9),
+                col_range: (9, 9),
+            },
+        ],
+    });
+    assert_eq!(
+        render_merged(&g),
+        "{\"merged\":{\"page_count\":2,\"cells\":[\
+         {\"page\":1,\"r\":1,\"c\":1,\"value\":\"T\",\"row_merge\":1,\"col_merge\":8},\
+         {\"page\":1,\"r\":1,\"c\":2,\"value\":\"T\",\"row_merge\":1,\"col_merge\":8},\
+         {\"page\":1,\"r\":1,\"c\":3,\"value\":\"T\",\"row_merge\":1,\"col_merge\":8},\
+         {\"page\":1,\"r\":1,\"c\":4,\"value\":\"T\",\"row_merge\":1,\"col_merge\":8},\
+         {\"page\":1,\"r\":1,\"c\":5,\"value\":\"T\",\"row_merge\":1,\"col_merge\":8},\
+         {\"page\":1,\"r\":1,\"c\":6,\"value\":\"T\",\"row_merge\":1,\"col_merge\":8},\
+         {\"page\":1,\"r\":1,\"c\":7,\"value\":\"T\",\"row_merge\":1,\"col_merge\":8},\
+         {\"page\":1,\"r\":1,\"c\":8,\"value\":\"T\",\"row_merge\":1,\"col_merge\":8},\
+         {\"page\":1,\"r\":8,\"c\":1,\"value\":1,\"row_merge\":2,\"col_merge\":1},\
+         {\"page\":1,\"r\":8,\"c\":2,\"value\":\"N\",\"row_merge\":2,\"col_merge\":1},\
+         {\"page\":1,\"r\":9,\"c\":1,\"value\":1,\"row_merge\":2,\"col_merge\":1},\
+         {\"page\":1,\"r\":9,\"c\":2,\"value\":\"N\",\"row_merge\":2,\"col_merge\":1}]}}"
+    );
+    // 摘掉 pagination ⇒ 回落全局视图（13 条整段跨度）—— 服务面快照的形态。
+    g.pagination = None;
+    let doc = render_merged(&g);
+    assert_eq!(doc.matches("\"page\":1").count(), 13, "全局视图 13 槽全在");
+    assert!(
+        doc.contains("\"r\":1,\"c\":9,\"value\":\"T\",\"row_merge\":1,\"col_merge\":9"),
+        "全局视图中标题第 9 槽必须是整段跨度 9（页内投影才裁成 8）"
+    );
+}
+
 /// `render_document` = `calculated` + `pagination` + `merged` 三段（夹具顶层键序：
 /// `…, calculated, pagination, merged`）。
 ///

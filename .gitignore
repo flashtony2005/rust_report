@@ -11,6 +11,8 @@
 /_test_ws.log
 /_v2.txt
 /_audit_test.log
+# scripts/gate.sh 的运行日志（可随时重跑，结论记 RUNLOG）
+/_gate*.log
 
 # tests/fixtures 下的临时探针产物
 /tests/fixtures/_probe_mergepages.csv

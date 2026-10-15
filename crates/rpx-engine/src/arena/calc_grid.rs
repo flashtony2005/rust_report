@@ -130,25 +130,30 @@ impl CalcCell {
 ///
 /// ⛔ 本段**不受** `cells` 稀疏规则约束（`CalcMergeJson.java:42-50` 只跳 `rm<=1 && cm<=1`，
 /// 不跳「值为空」）⇒ 锚点值可能为 [`Value::Null`]，此时 `calculated.cells` 里没有它。
+///
+/// # 坐标口径：`CalcGrid` 里是**全局**，emit 产出才是**页内**（M5-02）
+///
+/// [`CalcGrid::merged`] 由 `calc/run.rs::export_merged` 按扫描序填**全局**坐标
+/// （`page` 是占位 `1`）—— `rpx-server` 的快照映射（`snapshot/geom.rs::merge_data`
+/// 的矩形槽集不变式 + `paged.rs` 的跨页拆分）吃的就是这一份。**页内**视图
+/// （真页号 + 页局部坐标 + 页内跨度）由 `emit::merged_section` 按
+/// `grid.pagination` 投影产出，对拍真值（`CalcMergeJson` 读页格）要的是后者。
 #[derive(Debug, Clone, PartialEq)]
 pub struct MergedCell {
     /// 页号（1 起）。
     ///
-    /// ⚠ 恒为 1，且**仍然正确**：产品把跨页合并区**拆到各页**（`SimplePager._$1:1536-1700`），
-    /// 本 crate 不实现拆分；而 12 个夹具里**多页夹具的 `merged.cells` 全为空**
-    /// （`engine_pager`/`engine_sum`/`engine_rowheight` 实测 `n_cells = 0`），
-    /// 所以"合并格必在第 1 页"在夹具覆盖范围内成立。这是**已声明的缺口**，
-    /// 不是恒真式：见 `crates/rpx-engine/tests/engine_grid_compare.rs` 的豁免账本。
+    /// [`CalcGrid::merged`] 里恒为占位 `1`；emit 按 `grid.pagination` 重写为真页号
+    /// （`cross_emp_bonus`：标题 9 列合并第 1 页 8 槽 + 第 2 页 1 槽因 `1×1` 被跳过）。
     pub page: i32,
-    /// 页内行号。
+    /// 行号（`CalcGrid` 里 = 全局；emit 产出 = 页内）。
     pub r: i32,
-    /// 页内列号。
+    /// 列号（`CalcGrid` 里 = 全局；emit 产出 = 页内）。
     pub c: i32,
     /// 该槽上那一格的**计算态值**（延续槽取锚点的值）。
     pub value: Value,
-    /// 纵向跨度（`getRowMerge()`）。
+    /// 纵向跨度（`getRowMerge()`；`CalcGrid` 里 = 整段，emit 产出 = 页内交矩形）。
     pub row_merge: i32,
-    /// 横向跨度（`getColMerge()`）。
+    /// 横向跨度（`getColMerge()`；`CalcGrid` 里 = 整段，emit 产出 = 页内交矩形）。
     pub col_merge: i32,
 }
 
@@ -177,7 +182,16 @@ pub struct CalcGrid {
     pub cells: Vec<CalcCell>,
     /// `merged.cells`：合并趟之后的**计算矩阵**上所有 `rm>1 || cm>1` 的槽
     /// （含延续槽 —— 它们导出锚点的整段跨度，见 [`MergedCell`]）。
+    /// **全局坐标**（M5-02）：服务面快照（`rpx-server` 的 `merge_data` +
+    /// 跨页拆分）直接用这份全局视图；页内投影在 [`Self::merged_pages`]。
     pub merged: Vec<MergedCell>,
+    /// `merged.cells` 的**页内视图**（M5-02，对拍真值的形状）：
+    /// 页局部坐标 + 页内跨度（真页号）。由 `calc/run.rs` 分页后经
+    /// [`crate::calc::merged_view`] 填充；未跑分页器时为空（emit 回落
+    /// [`Self::merged`]）。⚠ `/render` 会用**模板真值口径**覆盖
+    /// [`Self::pagination`]，但**不**重算本字段（服务面快照不读它，
+    /// 只读 [`Self::merged`]）—— 它只服务夹具对拍（探针口径）。
+    pub merged_pages: Vec<MergedCell>,
     /// `merged.page_count`（`CalcMergeJson.java:63` → `PageBuilder.getPageCount()`）。
     ///
     /// 由 [`crate::pager`] 算出（[`Self::pagination`] 的 `page_count`）；未跑分页器时恒 1。
@@ -226,6 +240,7 @@ impl CalcGrid {
             cols,
             cells: Vec::new(),
             merged: Vec::new(),
+            merged_pages: Vec::new(),
             page_count: 1,
             row_heights: Vec::new(),
             col_widths: Vec::new(),

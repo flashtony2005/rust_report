@@ -79,6 +79,19 @@ pub fn compare_actual_text(actual_text: &str, fixture_name: &str) -> Report {
     compare(&actual, &load_raw(fixture_name), fixture_name)
 }
 
+/// 夹具以**原始 JSON**（已从任意路径读入）给出时的入口 —— M5 跨数据集夹具
+/// （`tests/fixtures/out/cross_*_product.json`，探针直出、不带 `.expected.json`
+/// 命名）走这条；比对逻辑与 [`compare_actual_text`] 完全相同（同一份
+/// [`compare`]，不复制第二套口径）。
+pub fn compare_actual_with_raw(
+    actual_text: &str,
+    expected_raw: &Json,
+    fixture_name: &str,
+) -> Report {
+    let actual = json::parse(actual_text).unwrap_or_else(|e| panic!("引擎输出不是合法 JSON：{e}"));
+    compare(&actual, expected_raw, fixture_name)
+}
+
 /// **空跑自测**：拿夹具与它自己比，必须零差异。
 ///
 /// 这是对拍器自身的自检：证明"零差异"不是恒真式 —— 若比对逻辑写错（例如把稀疏格

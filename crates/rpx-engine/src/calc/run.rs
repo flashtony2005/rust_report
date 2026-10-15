@@ -81,17 +81,17 @@ pub fn calculate_with(rd: &ReportDefine, ds: &[DataSet], params: &ParamTable) ->
     let sb = prepare_calculate(rd, params)?;
     let mut ctx = CalcCtx::new(sb.grid, ds.to_vec());
     run_orchestration(&mut ctx)?;
-    // 合并两趟。产品在 `SimplePager.createPages()` 里调（`:133-134` 单页 / `:179-180` 多页），
-    // **不在** `Engine.calc()` 里 —— 本 crate 的分页器（M2-11）已落地，但**合并仍跑在
-    // 整张计算矩阵上**（不是逐页跑）。这是**已声明的偏离**：夹具的多页夹具
-    // `merged.cells` 全为空（`engine_pager`/`engine_sum`/`engine_rowheight` 实测 n_cells = 0），
-    // 所以"逐页合并"与"整表合并"在夹具覆盖范围内**不可辨**；见
-    // `docs/m2-engine-design.md` §8.1 与 §15。
+    // 合并两趟。产品在 `SimplePager.createPages()` 里调（`:133-134` 单页 / `:180-190` 多页），
+    // **不在** `Engine.calc()` 里 —— 本 crate 同址：合并跑在**整张计算矩阵**上
+    // （不逐页跑）。合并区的**两个视图**（M5-02）在分页后经
+    // [`crate::calc::merged_view`] 一次挂上：`merged` = 全局逐槽（服务面快照
+    // `rpx-server` 的 `merge_data` + 跨页拆分吃它），`merged_pages` = 页内逐槽
+    // （emit 对拍吃它，产品 `CalcMergeJson.renderMerged` 读的是**页**格）。
     // 顺序是契约：先冻结引擎矩阵侧的跨度，再 `mergeSame`、后 `mergeNull`（`:133-134`）。
     ctx.grid.freeze_engine_spans();
     crate::merge::merge_same(&mut ctx.grid);
     crate::merge::merge_null(&mut ctx.grid);
-    let mut out = export_grid(&ctx, rd);
+    let (mut out, areas) = export_grid(&ctx, rd);
     // 分页（M2-11）：`SimplePager.createPages()` 的探针口径（595×842pt、1 栏）。
     let pg = crate::pager::paginate(
         &out,
@@ -100,6 +100,9 @@ pub fn calculate_with(rd: &ReportDefine, ds: &[DataSet], params: &ParamTable) ->
         crate::pager::COLUMNS,
     );
     out.page_count = pg.page_count();
+    // M5-02：合并区双视图（全局逐槽 + 页内逐槽）—— 页内视图即产品「跨页拆分」
+    // （`SimplePager._$1:1624-1638` 行向 / `:2316-2335` 列向）的等价建模。
+    crate::calc::merged_view::attach(&mut out, &areas, &pg);
     out.pagination = Some(pg);
     Ok(out)
 }
@@ -243,9 +246,15 @@ fn trim_tail_cols(ctx: &mut CalcCtx) {
 
 /// 导出（`CalcJson.renderCalc:33-62` + `cellJson:64-119`）：稀疏收格 + 几何。
 ///
+/// 返回 `(网格, 合并区列表)` —— 合并区的**两个视图**（全局逐槽 / 页内逐槽）
+/// 由调用方在分页后经 [`crate::calc::merged_view`] 挂上（M5-02）。
+///
 /// ⛔ `source`/`sub_values` 读**引擎矩阵**（`by_src`），格本体读**计算矩阵**
 /// （`by_pos`）—— 双矩阵契约（`arena.rs` 模块文档）。
-fn export_grid(ctx: &CalcCtx, rd: &ReportDefine) -> CalcGrid {
+fn export_grid(
+    ctx: &CalcCtx,
+    rd: &ReportDefine,
+) -> (CalcGrid, Vec<crate::calc::merged_view::MergedArea>) {
     let (row_size, col_size) = (ctx.grid.row_size, ctx.grid.col_size);
     let mut out = CalcGrid::new(row_size - 1, col_size - 1);
     out.unit = rd.scalars.unit;
@@ -295,8 +304,8 @@ fn export_grid(ctx: &CalcCtx, rd: &ReportDefine) -> CalcGrid {
             out.cells.push(cell);
         }
     }
-    export_merged(ctx, &mut out);
-    out
+    let areas = crate::calc::merged_view::areas(ctx);
+    (out, areas)
 }
 
 /// 计算态几何：把**模板**行高/列宽按扩展映射铺到计算态坐标上（分页器 M2-11 的输入）。
@@ -439,38 +448,5 @@ fn fill_geometry(ctx: &CalcCtx, rd: &ReportDefine, out: &mut CalcGrid) {
         last_col_visible = col_visible;
         last_col_break_page = col_break_page;
         last_col_break_column = col_break_column;
-    }
-}
-
-/// `merged` 段（`CalcMergeJson.renderMerged:36-61`）：扫**计算矩阵** `_$26`，
-/// 收 `rm>1 || cm>1` 的**槽**。
-///
-/// ⛔ 三条与 `calculated.cells` 不同的规则，全部照抄产品：
-///
-/// 1. **不跳空值格**（`:48-50` 只判跨度）⇒ 本段比 `cells` 稠密；
-/// 2. **延续槽照收**：`set()` 只改槽位映射、不改锚点的 `row`/`col`，所以延续槽上的
-///    格就是锚点对象 ⇒ 它报出**锚点的整段跨度**（`engine_samemerge` 的 4 行 = 2 锚点 × 2 槽）；
-/// 3. 跨度读的是**合并趟之后**的值 —— 与 `source.row_merge/col_merge`（读引擎矩阵 `_$25`）
-///    是两套数据，`engine_samemerge` 正是二者分歧的夹具。
-fn export_merged(ctx: &CalcCtx, out: &mut CalcGrid) {
-    let (row_size, col_size) = (ctx.grid.row_size, ctx.grid.col_size);
-    for r in 1..row_size {
-        for c in 1..col_size {
-            let Some(&id) = ctx.grid.by_pos.get(&(r, c)) else {
-                continue;
-            };
-            let h = &ctx.grid.cells[id.0 as usize];
-            if h.row_merge <= 1 && h.col_merge <= 1 {
-                continue;
-            }
-            out.merged.push(crate::arena::MergedCell::new(
-                1,
-                r,
-                c,
-                h.value.clone(),
-                h.row_merge,
-                h.col_merge,
-            ));
-        }
     }
 }

@@ -146,6 +146,17 @@ impl Fake {
     pub(crate) fn ds_set_row(&mut self, i: usize, row: usize) {
         self.dss[i].set_current(DsCur::Row(row));
     }
+    /// 登记格的**左 head**（`ExtCell.getCellLeftHead()`）—— 跨数据集过滤的
+    /// 电流语义钉子（M5-02，`tests_select.rs`）要用：从格宿主实例的左 head
+    /// 指向主格**同 row** 实例，`resolve_cell` 才走得到那一行。
+    pub(crate) fn set_left_head(&mut self, c: CellId, head: CellId) {
+        self.cells[c.0 as usize].lh = head;
+    }
+    /// 追加一个扩展实例（`setExtCells` 的单例形态，`extendRow` 的 `:994-996`）——
+    /// 主格多实例（跨数据集过滤的电流语义钉子，M5-02）要用。
+    pub(crate) fn add_ext(&mut self, c: CellId, sub: CellId) {
+        self.cells[c.0 as usize].exts.push(sub);
+    }
 }
 
 impl EvalCtx for Fake {

@@ -44,6 +44,7 @@
 pub mod cell_eval;
 pub mod ctx;
 pub mod ds_current;
+pub mod merged_view;
 pub mod properties;
 pub mod run;
 

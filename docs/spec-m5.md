@@ -1,8 +1,11 @@
-# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.2
+# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.3
 
-> 状态：**M5-01 已闭合**（2026-10-15；参数矩阵 + 双态求值落地，`expr/dsselect/`
-> 三文件 628 行，13 单测全绿 + workspace 450+ 测试全绿 + G1–G8 门禁全绿）。
-> M5-06 的 Root 态裸列语义（`ds.col` = 首行值）同批闭合。M5-02/03/04/05/07 未启动。
+> 状态：**M5-01 / M5-02 / M5-06 已闭合**（2026-10-15）。
+> M5-01：`ds.select` 全参数矩阵 + 双态求值（`expr/dsselect/` 三文件，单测全绿）；
+> M5-02：跨数据集过滤求值 + 合并区双视图（`calc/merged_view.rs`）+
+> 跨页合并拆分，`cross_dataset_compare` 8 夹具逐格逐页零差异；
+> M5-06 的 Root 态裸列语义（`ds.col` = 首行值）随 M5-01 同批闭合。
+> M5-03/04/05/07 未启动。
 > 上游：M2/M3/M4 已收官（`spec-m2.md` / `spec-m3.md` / `spec-m4.md`），HEAD `9aa6caf`。
 > 立项依据：数据蒋堂讲座行动序 #2「多数据集关联语义立项（三分类 + 维度对齐）——
 > 报表工具的核心差异化，大（先探针）」（`docs/lecture-notes.md` 行动表）。
@@ -30,8 +33,9 @@
 - ~~`ds.select` 只有 **1 参数**形态~~ → **M5-01 已闭合**：全参数矩阵
   （`,` 四段 + `:` 次序 + `;` 多排序）+ 双态求值落地于 `expr/dsselect/`
   （`DSSelect.calculate:27-209` 逐行移植，13 单测含 T3 六变体复现）；
-- 带过滤/限量/去重的 4 参矩阵、跨数据集过滤、嵌套主子表**均未实现**（落到
-  `UnsupportedExpr` catch-all）；
+- ~~带过滤/限量/去重的 4 参矩阵~~ → **M5-01 已闭合**；
+  ~~跨数据集过滤~~ → **M5-02 已闭合**（电流语义 + 双视图对拍）；
+  **嵌套主子表（显式左主格）均未实现**（落到 `UnsupportedExpr` catch-all）；
 - ~~Root 态裸列 `ds.col` 现报 `UnsupportedExpr`~~ → **M5-01 同批闭合**
   （`dsfn::root_current_data`：产品 `DataSet.getCurrentData:395-410` 的
   currentRow 光标语义，本仓 Root 态恒 ≡1 ⇒ 首行值；空表 ⇒ null）。
@@ -244,7 +248,7 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 | 编号 | 任务 | 落点 | 验收 |
 | --- | --- | --- | --- |
 | M5-01 | `ds.select` 参数矩阵：`,` 四段（过滤/限量/去重）+ `:` 次序 + `;` 多排序 | `rpx-engine`（`expr/call.rs` 参数树 + `expr/dsselect/` 双态求值） | ✅ **已闭合**（2026-10-15）：单测覆盖四形态 + 6 种产品报错；T3 六变体复现；门禁全绿 |
-| M5-02 | 跨数据集过滤求值：过滤式里的 CSVariable/DSVariable 解析与 current 管理 | `rpx-engine`（`calc/ds_current.rs` 扩展） | T1/T2 复现；电流语义变异测试 |
+| M5-02 | 跨数据集过滤求值：过滤式里的 CSVariable/DSVariable 解析与 current 管理 | `rpx-engine`（`calc/ds_current.rs` 扩展） | ✅ **已闭合**（2026-10-15）：T1/T2/T3 八夹具逐格逐页零差异；电流语义与页内投影双变异实测；`calc/merged_view.rs` 双视图落地（跨页合并拆分同批闭合） |
 | M5-03 | 显式 leftHead/topHead 槽位：reader 解析 + 头图 + 跨度计算 + 嵌套复制 | `rpx-core`（slot 30/31）+ `rpx-engine`（`heads/` + `ext_algo/`） | T4/T5 网格逐格对拍 |
 | M5-04 | 产品夹具 `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点） | `tests/fixtures`（`EngineModelsM5.java` + `GenEngineFixtures`） | 进 19+ 夹具主对拍全绿；Java 侧 round-trip |
 | M5-05 | `filtercross` 多对多 | `rpx-engine` | 先探针（多对多真机模板）后实现；对拍 |
@@ -285,6 +289,10 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
    与「进入格求值即 Root」的本仓流程一致；写了 `ds[i]` 的模板才会分叉）。
 6. **Row 态过滤非布尔**：产品抛 `error.Row.test`（`Row.java:91`），本仓
    `as_bool` 显式报错（同构，非分歧）—— 登记以备夹具期核对消息文本。
+7. **合并段断在分组头行时的「上一页伸长」未复刻**（M5-02 实现期核出）：
+   产品 `SimplePager._$1:1550-1596` 在分页点落在 `rowType == -90` 的分组头行时
+   会把上一页合并区伸长盖住；本仓只做「合并区矩形 × 页矩形求交」
+   （`calc/merged_view.rs` `page_slots`），现有夹具无此形态 ⇒ 带账待夹具。
 
 ### 6.4 M5-07 复现路径
 
@@ -314,3 +322,25 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
   - 测试：`expr/tests_select.rs` 13 个（四形态/6 种产品报错/T3 六变体/num-z/空单果/
     `;` 多键/Row 四钉/哨符闸/指针恢复）；workspace 450+ 全绿；G1–G8 全绿。
   - 带账新增 ④⑤⑥（§6.3）。
+- **v0.3（2026-10-15）**：**M5-02 闭合**。
+  - 落地：`calc/merged_view.rs`（新；双视图——全局逐槽 `global_slots` 供服务面
+    快照、页内逐槽 `page_slots` 供 emit 对拍）+ `calc/run.rs` 接线
+    （`export_grid` 改返 `(CalcGrid, Vec<MergedArea>)`）+ `arena/calc_grid.rs`
+    新增 `merged_pages` 字段 + `emit.rs` `merged_section` 退化为纯序列化。
+  - **跨页合并拆分**（`SimplePager._$1:1624-1638` 行向 / `:2316-2335` 列向的
+    deepClone 锚点 + `setEndRow`/`setEndCol` 收窄）等价建模为
+    「合并区矩形 × 页矩形求交」：交矩形维度即该页所有相关槽报的跨度；
+    `1×1` 交矩形跳过（`CalcMergeJson.java:48-50` 同口径）。
+  - 关键设计决策：**双视图**而非单侧投影——`rpx-server` 快照（`merge_data`）
+    与 `build_paged` 的跨页拆分需要全局坐标；emit 对拍需要页局部坐标
+    （`CalcMergeJson.renderMerged` 读页格）。两次失败尝试已记入 RUNLOG §39.3
+    （emit 侧投影算错延续槽宽度；锚点去重单视图破坏单页逐槽形态）。
+  - 测试：`merged_view` 4 单测 + `emit` 2 钉子（页内 12 条真值复刻 + null 值格）
+    + `expr/tests_select.rs` 电流语义钉子（主格实例行切换，15 测试全绿）；
+    `cross_dataset_compare` 8 夹具（T1 ×1 + T2 ×1 + T3 Root 变体 ×6）逐格逐页
+    零差异；workspace 全绿；G1–G8 全绿。
+  - 变异测试证据（两条均实测后还原）：① `resolve_cell` 静态化（丢 current 链）
+    ⇒ **仅**电流语义钉子红；② `page_slots` 跨度不裁剪 ⇒ `merged_view` 2 钉子
+    + 端到端 `extra=1 mismatch=8`。
+  - 带账新增 ⑦（§6.3：分组头行合并区伸长）；`m2-engine-design.md` §15.5
+    「跨页合并格拆分」由 ❌ 改 ✅。

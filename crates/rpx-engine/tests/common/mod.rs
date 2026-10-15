@@ -21,6 +21,9 @@ pub mod json;
 pub mod loader;
 pub mod model;
 
-pub use compare::{compare_actual_text, compare_fixture_to_itself, Diff, Dim, Kind, Report};
+pub use compare::{
+    compare_actual_text, compare_actual_with_raw, compare_fixture_to_itself, Diff, Dim, Kind,
+    Report,
+};
 pub use loader::{all_names, load, load_raw, parse_fixture};
 pub use model::*;

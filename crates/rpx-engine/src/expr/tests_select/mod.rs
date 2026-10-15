@@ -11,6 +11,11 @@
 //! 4. Row 态：**num/order/distinct 不生效**（钉子）+ 过滤命中/未命中 +
 //!    `r` 选项强制 Root；
 //! 5. 旁路（note）与最终行序的对应 —— 值 ↔ 行身份不许错位。
+//!
+//! 第 6 节「跨数据集过滤的电流语义」（M5-02 钉子）因 G4 行数门禁拆至
+//! [`cross_current`] —— 同一内存复刻、同一 `Fake` 夹具，只是物理上分文件。
+
+mod cross_current;
 
 use crate::error::EngineError;
 use crate::expr::ast::{Expr, ParamKind};

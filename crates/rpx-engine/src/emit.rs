@@ -94,6 +94,8 @@ pub fn render_pagination(grid: &CalcGrid) -> String {
 ///
 /// 事实源 `CalcMergeJson.renderMerged`：**只跳** `rm<=1 && cm<=1`，不跳「值为空」
 /// （`:48-50`）⇒ 锚点值可能是 `null`，本段因此比 `calculated.cells` 稠密。
+/// 跑了分页器时按**页格**口径投影（页内坐标 + 页内跨度，M5-02，见
+/// [`merged_section`]）。
 pub fn render_merged(grid: &CalcGrid) -> String {
     json::obj(vec![("merged", merged_section(grid))])
 }
@@ -111,11 +113,25 @@ fn calculated_section(grid: &CalcGrid) -> String {
 }
 
 /// `merged` 段的内层对象（`CalcMergeJson.java:62-64`：`page_count` 在前、`cells` 在后）。
+///
+/// # M5-02：页内视图来自 [`CalcGrid::merged_pages`]
+///
+/// 产品 `CalcMergeJson.renderMerged` 读的是**页**格 ⇒ 对拍形状是**页内逐槽 +
+/// 页内跨度**。引擎在分页后经 [`crate::calc::merged_view`] 把合并区投影成
+/// 页内视图（`merged_pages`；产品「跨页拆分」=`SimplePager._$1:1624-1638`
+/// 行向 deepClone 锚点 + `setEndRow` 收窄，`:2316-2335` 列向同构），本函数
+/// 只做序列化 —— 与产品「拆分在分页器、渲染器只读页格」的分工同构。
+///
+/// 未跑分页器（`grid.pagination == None`：错误型夹具 / 手搭网格）⇒ 全局视图
+/// （`grid.merged`）原样透出。
 fn merged_section(grid: &CalcGrid) -> String {
-    let mut shown: Vec<&MergedCell> = grid.merged.iter().collect();
+    let mut shown: Vec<MergedCell> = match &grid.pagination {
+        Some(_) => grid.merged_pages.clone(),
+        None => grid.merged.clone(),
+    };
     // `CalcMergeJson.java:37-60`：页序 → 行 → 列。
     shown.sort_by_key(|m| (m.page, m.r, m.c));
-    let cells = json::arr(shown.iter().map(|m| merged_cell_json(m)).collect());
+    let cells = json::arr(shown.iter().map(merged_cell_json).collect());
     json::obj(vec![
         ("page_count", json::int(i64::from(grid.page_count))),
         ("cells", cells),
