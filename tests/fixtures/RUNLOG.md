@@ -3975,7 +3975,10 @@ clippy 干净；G1–G8 全绿。spec-m6 v0.6。
   ② 同目录 `<file>.<epoch-ms>.res` 垫片残留（内容 = **完整 xlsx 字节**——「写
   暂存→改名」两步走的半成品）；③ 每次运行 **31.3s**（≈19 文件 × 1.65s 的固定
   重试时长）；④ bash 级 `fork: CreateProcessW failed … errno 13`；⑤ 命令级
-  `0xC0000142`（STATUS_DLL_INIT_FAILED，进程根本没起来）。
+  `0xC0000142`（STATUS_DLL_INIT_FAILED，进程根本没起来）；⑥ **00:01 用户侧**
+  同窗口一次 workspace 全量运行实测：31 套件 ok、`export_http` 7 条全挂于
+  **`WSAENOTSOCK`（os error 10038，socket 层）**——数分钟后重跑同命令**全绿**
+  （7/7，0.22s）。⇒ 症状横跨「文件 I/O + 进程创建 + socket」三层。
 - **对照实验（逐一隔离单因素，全部实测）**：python 直读写 out/ **全对**；
   `rpx-cli render` 写 out/（含**覆盖已存在的 git 追踪基线**，产出字节相同 ⇒
   git 干净）**全对**；`timeout` 前缀单独**不复现**；人造 `.res` 残留（3 个）
