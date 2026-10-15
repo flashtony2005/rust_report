@@ -3239,3 +3239,37 @@ App.tsx：渲染改**显式按钮**；参数动态行（名称/值 + 内联 SVG 
 | rpx-core / rpx-engine / rpx-server | 全绿（263 + 全部集成） |
 | 金仓 HTTP 端到端 | 响应体 ≡ 库直调逐字节 |
 | 门禁 G1–G8 | 全绿 |
+
+## §36 浏览器实拍金仓真数演示：report schema（2026-10-15 午）
+
+**总监令「① 浏览器实拍金仓真数演示 + test 库创建 report schema」。零 Rust
+代码改动——上一轮的数据源注册架构直接吃上真数。**
+
+### §36.1 金仓侧（探针 ProbeSqlDemo.java 幂等）
+
+- `CREATE SCHEMA IF NOT EXISTS report`（schema 常驻，不随演示删除）；
+  `report.emp_info(id, dept, name, salary)` 先删后建，插 5 名中文员工
+  （engine_emp 同款数据：张伟/人事部/8500 … 孙丽/市场部/7800）。
+- 模板 `report_demo.rpx`（3 行 4 列）：r1 标题格 `setMergedArea(Area(1,1,1,4))`
+  跨 4 列「员工信息查询（金仓 report schema 真数）」、r2 中文表头、
+  r3 = `ds1.select(id)` + 三条裸引用（dept/name/salary）；
+  `SQLDataSetConfig` 只存 `data_source_name=kingbase` 引用 + SQL
+  `SELECT … FROM report.emp_info ORDER BY id`（凭据不入模板）。
+- 产品真机：round-trip `VERIFY OK: report_demo`；产品真值
+  `out/report_demo_product.json` 28 格（标题合并 4 槽 + 5 行中文员工带）。
+
+### §36.2 端到端实拍（`out/kb_demo.cjs`，绝对路径单链闭环）
+
+- `serve --db kb-demo.db --datasources out/ds_kingbase.json`（注册表日志：
+  「数据源注册表已就绪：kingbase」）+ vite → playwright。
+- 服务端断言：快照 7 行、mergeData 1 块（标题合并进快照）、内容抽验全命中
+  （张伟/孙丽/人事部/市场部/12000/7800）→ Univer canvas 截图
+  `out/m4-kingbase-demo.png`。
+- ⛔ `out/ds_kingbase.json` 含真实密码——`out/` 整体 gitignore，**不入库**；
+  仓内只有不含凭据的 `report_demo.rpx`（SQL 数据集语义的实证：凭据与模板分离）。
+
+| 证据 | 结果 |
+|---|---|
+| 探针 round-trip | VERIFY OK: report_demo |
+| /render 快照 | 7 行 + 标题合并 + 中文内容全命中 |
+| 浏览器实拍 | m4-kingbase-demo.png（金仓真数 → Univer） |
