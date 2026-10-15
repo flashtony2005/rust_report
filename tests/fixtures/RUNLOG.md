@@ -3420,5 +3420,7 @@ M5-06（Root 态裸列 = 首行值）作为实现前置同批闭合。**
 
 ### §38.5 提交
 
-- `feat(rpx): M5-01 ds.select 参数矩阵 + 双态求值`（dsselect 三文件 + Param 树 +
-  build_param + 14 单测 + spec-m5 v0.2 + 本 RUNLOG + 记忆更新）
+- `dd126e0` `feat(rpx-engine): M5-01+M5-06 闭合——ds.select 全参数矩阵与双态求值 + Root 态裸列首行值`
+  （30 文件：dsselect 三文件 + Param 树 + build_param + 14 单测 + spec-m5 v0.2 + 本 RUNLOG
+  + 11 份探针 truth JSON/probe 日志；本提交由宿主环境对暂存区自动落成，内容与本轮
+  最终状态逐字一致）。
