@@ -1,0 +1,8 @@
+[package]
+name = "rpx-export"
+version = "0.1.0"
+edition.workspace = true
+description = "ReportLite export face (M6): calculated CalcGrid -> files; CSV first, xlsx next. Audited layer: rpx-core/rpx-engine stay zero-dependency."
+
+[dependencies]
+rpx-engine = { path = "../rpx-engine" }

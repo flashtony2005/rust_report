@@ -179,8 +179,10 @@ layer_out="$(awk '
     allowed["rpx-server rpx-core"] = 1
     allowed["rpx-server rpx-engine"] = 1
     allowed["rpx-server rpx-ds"] = 1
+    # M6-01：导出面（受审层）吃已算完的 CalcGrid ⇒ 只依赖 engine，向下不溜。
+    allowed["rpx-export rpx-engine"] = 1
     known["rpx-core"] = 1; known["rpx-engine"] = 1; known["rpx-ds"] = 1
-    known["rpx-cli"] = 1; known["rpx-server"] = 1
+    known["rpx-cli"] = 1; known["rpx-server"] = 1; known["rpx-export"] = 1
   }
   FNR == 1 {
     crate = FILENAME
@@ -208,7 +210,7 @@ layer_out="$(awk '
   END { exit bad }
 ' crates/*/Cargo.toml)"
 if [ -z "$layer_out" ]; then
-  printf '全部 path 依赖在分层矩阵内（core <- {engine, ds} <- {cli, server}）。\n'
+  printf '全部 path 依赖在分层矩阵内（core <- {engine, ds} <- {cli, server, export}）。\n'
   RESULTS+=("PASS  G8 crate 分层矩阵")
 else
   printf '%s\n' "$layer_out"
