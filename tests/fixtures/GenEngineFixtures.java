@@ -49,7 +49,7 @@ public class GenEngineFixtures {
 			"engine_samemerge", "engine_disp", "engine_types",
 			"engine_rowheight", "engine_head_top", "engine_head_left",
 			"engine_avgrange", "engine_collate", "engine_listrange",
-			"engine_param", "engine_gbk" };
+			"engine_param", "engine_gbk", "engine_emp" };
 
 	public static void main(String[] args) throws Exception {
 		String dir = args.length > 0 ? args[0] : ".";
@@ -293,7 +293,9 @@ public class GenEngineFixtures {
 		// byte.
 		String[] header = "engine_gbk.csv".equals(name)
 				? new String[] { "区域", "数量" }
-				: new String[] { "region", "qty" };
+				: "engine_emp.csv".equals(name)
+						? new String[] { "编号", "部门", "姓名", "性别", "工资" }
+						: new String[] { "region", "qty" };
 		CalcProbe.writeCsv(dir + File.separator + name, header, data);
 		// engine_sum carries a second dataset with identical content but no
 		// extending cells referencing it, so the two aggregate scopes can be

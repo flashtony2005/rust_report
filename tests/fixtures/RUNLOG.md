@@ -3090,3 +3090,47 @@ App.tsx：渲染改**显式按钮**；参数动态行（名称/值 + 内联 SVG 
 | rpx-ds（含 smoke_pg + BOOLEAN 钉子） | 10 lib + 1 集成全绿 |
 | rpx-server（含跨页拆分专项） | 16/16 全绿 |
 | e2e 冒烟 | 上传→meta→render→负路径→CLI print 全绿 |
+
+## §33 第 18 号夹具 engine_emp：员工信息查询——select 主格 + 裸列跟随（2026-10-15 晨）
+
+**总监拿一张设计器截图问「能实现吗」：`=ds1.select(编号)` 一列 + 同行四格裸
+`=ds1.部门/姓名/性别/工资`（员工信息查询，5 列）。答案：能，且语义早有夹具
+背书——engine_gbk 的裸引用 `ds1.区域+"站"` 已逐行跟随（华北站/华南站/华东站）。
+本轮把截图**原样**做成夹具，产品真机 + 引擎对拍 + 浏览器渲染三重实证。**
+
+### §33.1 夹具（engine_emp，3 行 × 5 列）
+
+- `EngineModelsM3.empFixture()`：r1 标题字面量「员工信息查询」、r2 表头
+  编号/部门/姓名/性别/工资、r3 = `ds1.select(编号)` + 四条**裸** `ds1.<列>`
+  （无任何算子装饰——把跟随语义钉到最素形态）。
+- 数据 5 名员工（GBK CSV，中文列头）：张伟/李娜/王强/赵敏/孙丽，工资 8500..7800。
+- 产品真机：计算网格 **7×5**（标题+表头+5 行带）；五条裸引用**逐行跟随**
+  （人事部/财务部/技术部/技术部/市场部 …），标题/表头原位不动。
+  `VERIFY OK: 18`（回读自校验），既有 17 夹具重生成零字节扰动。
+
+### §33.2 Rust 侧接入
+
+- `loader.rs::all_names` 17 → 18；`engine_grid_compare` 逐格对拍通过。
+- **钉子按设计先红**：`expr_state_tripwire` 的 `TOTAL_FORMULAS` 97 → 102
+  （5 条全 state 4：Select/DSVariable 均未覆写 getState）——先核对再改常量，
+  留档于常量注释。
+
+### §33.3 端到端演示（浏览器）
+
+- `out/emp_demo.cjs`：服务端 `POST /render` 内容断言（员工信息查询/张伟/孙丽/
+  12000/7800 全命中，cellData 7 行）+ 网页选文件渲染 → Univer canvas 截图
+  `out/m4-emp-demo.png`（标题+表头+5 员工行，与总监截图同形态）。
+- 坑三枚：① Univer 内容画在 **canvas**，`getByText('张伟')` 永远等不到
+  （DOM 无此文本）——内容断言改走服务端快照，浏览器只截图；② `cd && … &`
+  把整条 `&&` 链吞进后台子 shell（主 shell cwd 不变）——后台命令一律子 shell
+  形式 + 绝对路径；③ playwright 库三处版本漂移（mcp 1.58 要 1205 内核未装）
+  —— 用 managed node 自带的 `@playwright/cli/node_modules/playwright` 1.64
+  （chromium-1247 已装）。
+
+| 证据 | 结果 |
+|---|---|
+| 产品真机 GenEngineFixtures --verify | VERIFY OK: 18 |
+| engine_grid_compare（18 夹具逐格） | 全绿 |
+| expr_state_tripwire | 102 条全 state 4 |
+| workspace | 全绿（无 FAILED） |
+| 浏览器 | 快照内容断言 + 截图 m4-emp-demo.png |

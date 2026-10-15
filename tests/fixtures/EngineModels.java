@@ -71,6 +71,9 @@ final class EngineModels {
 		if ("engine_gbk".equals(name)) {
 			return EngineModelsM3.gbkFixture();
 		}
+		if ("engine_emp".equals(name)) {
+			return EngineModelsM3.empFixture();
+		}
 		return EngineModelsP0.samemergeFixture();
 	}
 
@@ -271,6 +274,9 @@ final class EngineModels {
 		}
 		if ("engine_gbk".equals(fixture)) {
 			return EngineModelsM3.gbkRows();
+		}
+		if ("engine_emp".equals(fixture)) {
+			return EngineModelsM3.empRows();
 		}
 		return new String[][] { { "North", "100" }, { "East", "200" },
 				{ "South", "150" } };

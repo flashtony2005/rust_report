@@ -59,7 +59,11 @@ use common::{all_names, load};
 /// 前两条是 `Select extends SpecialFunction`（Function 未覆写 getState）、
 /// 第三条是 Binary（+ 两侧：DSVariable 与 Constant(字符串) 均未覆写）
 /// ⇒ 仍全 4，故 94 → 97。
-const TOTAL_FORMULAS: usize = 97;
+///
+/// 2026-10-15（员工信息查询夹具）：`engine_emp` 加入 5 条 ——
+/// `ds1.select(编号)` + 四条裸 `ds1.部门/姓名/性别/工资`。Select 同上、
+/// DSVariable extends Node 未覆写 ⇒ 仍全 4，故 97 → 102。
+const TOTAL_FORMULAS: usize = 102;
 
 #[test]
 fn every_fixture_formula_is_state_four() {

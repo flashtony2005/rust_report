@@ -110,6 +110,52 @@ final class EngineModelsM3 {
 				{ "华东", "150" } };
 	}
 
+	/**
+	 * engine_emp -- the CLASSIC grid-report shape from the director's
+	 * screenshot (2026-10-15): one ds1.select() anchor column + four bare
+	 * ds1.<column> follower cells in the same row band (M3: 员工信息查询).
+	 *
+	 * WHY this fixture: engine_gbk pins the follow semantics only through a
+	 * concatenation ("ds1.区域 + \"站\""); this fixture uses FIVE PLAIN
+	 * references -- the anchor ds1.select(编号) plus four bare ds1.<col>
+	 * cells with no operator at all -- so the "bare DSVariable follows the
+	 * expanding anchor row by row" behaviour is pinned with zero syntactic
+	 * decoration. Expected product result: the formula row expands to one
+	 * band per employee, every follower cell taking that record's value
+	 * (engine_gbk's expected.json already shows the same: 华北站/华南站/华东站).
+	 *
+	 * Layout (3 rows x 5 cols):
+	 *   A1  员工信息查询        title literal (above the band -- untouched)
+	 *   A2..E2 编号..工资       header literals
+	 *   A3  ds1.select(编号)   the extending anchor (18)
+	 *   B3..E3 ds1.部门/姓名/性别/工资  bare DSVariable followers (16)
+	 */
+	static ReportDefine2 empFixture() {
+		ReportDefine2 rd = new ReportDefine2(3, 5);
+		rd.getCell(1, 1).setValue("员工信息查询");
+		rd.getCell(2, 1).setValue("编号");
+		rd.getCell(2, 2).setValue("部门");
+		rd.getCell(2, 3).setValue("姓名");
+		rd.getCell(2, 4).setValue("性别");
+		rd.getCell(2, 5).setValue("工资");
+		CalcProbe.setExp(rd.getCell(3, 1), "ds1.select(编号)");
+		CalcProbe.setExp(rd.getCell(3, 2), "ds1.部门");
+		CalcProbe.setExp(rd.getCell(3, 3), "ds1.姓名");
+		CalcProbe.setExp(rd.getCell(3, 4), "ds1.性别");
+		CalcProbe.setExp(rd.getCell(3, 5), "ds1.工资");
+		CalcProbe.attachFileDataSet(rd, "ds1", EngineModels.csvName("engine_emp"));
+		return rd;
+	}
+
+	/** CSV rows for engine_emp (5 employees; writeCsv encodes them GBK). */
+	static String[][] empRows() {
+		return new String[][] { { "1", "人事部", "张伟", "男", "8500" },
+				{ "2", "财务部", "李娜", "女", "9200" },
+				{ "3", "技术部", "王强", "男", "12000" },
+				{ "4", "技术部", "赵敏", "女", "11000" },
+				{ "5", "市场部", "孙丽", "女", "7800" } };
+	}
+
 	/** Parameters injected into the Context before Engine.calc (null elsewhere). */
 	static Map<String, Object> params(String fixture) {		if (!"engine_param".equals(fixture)) {
 			return null;
