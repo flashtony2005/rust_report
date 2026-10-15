@@ -168,7 +168,9 @@ schema（蓝图 §8.2 草稿落地）：`reports(id, name, rpx BLOB, version, cr
 | 项                                      | 现状                                | 出处                               |
 | -------------------------------------- | --------------------------------- | -------------------------------- |
 | 分页 `pagerStyle 0/1` / 多栏两开关           | ✅ 守卫：`UnsupportedPaging`          | `pager.rs::ensure_supported`（2026-10-14） |
-| 跨页合并拆分 / 文本换行回填                        | ⏳ 带账（**已声明偏离**：跨页合并 `merged.cells` 全空不可辨；换行测量分支静态不可判——`-64` 是普通格默认类型） | `pager.rs` 模块文档「未实现」清单 + `guard.rs` 尾注（M3-06 核对结论） || M2-22 残余（`customPropEngMap` / cell-graph / state 8） | ⏳ 显式带账（无夹具，不实现）                  | `spec-m2.md` §6.2 末条             |
+| 跨页合并拆分                                 | ✅ **产品拆分语义已实现**（2026-10-15）：页矩形 × 全局块求交，延续页注**克隆锚点**（值/样式取原锚点，deepClone 快照等价）；源码实锤 `SimplePager.java:1624-1638`（行向）/`:2316-2335`（列向）；专项测试 `paged_snapshot_splits_cross_page_merge_with_cloned_anchor` | `snapshot/paged.rs` 模块文档 + `spec-m4.md` §4.6 |
+| 文本换行回填                                 | ⏳ 带账（测量分支需字体度量，静态不可判——`-64` 是普通格默认类型） | `guard.rs` 尾注（M3-06 核对结论） |
+| M2-22 残余（`customPropEngMap` / cell-graph / state 8） | ⏳ **语义已定案的有据带账**（2026-10-15 源码定案：属性表达式求值 → 值覆盖进 `customPropSetMap`，仅渲染期元数据透传，对计算网格零影响；探针 `CalcJson` 不导出自定义属性 ⇒ 无产品基准可对拍，维持不实现） | `spec-m2.md` §6.2（2026-10-15 条目） |
 | 样式宏 / 图表宏 / `perfect`                  | ⏳ 未建模（快照不含其产物）                    | `calc/run.rs` 缺口 2               |
 | 空 List 参数                              | ✅ 已实证：矩阵**不变**、锚点 `extend=18 subCells=1`、值 `null` | RUNLOG §24.1（A 组）；`engine_param` 夹具未含空 List（探针已覆盖） |
 | **两个扩展格同行**（`@p` + `@@p` 同值为 List）       | ⏳ 显式带账：产品行带交互已实证（11×5，RUNLOG §24.4），本 crate 扩展算法未建模 | `EngineModelsM3.java` 模块文档（为何夹具去掉 `@@p` 列） |
@@ -204,8 +206,8 @@ schema（蓝图 §8.2 草稿落地）：`reports(id, name, rpx BLOB, version, cr
 | GB18030 四字节序列       | ⏳ 带账   | 产品默认 `encoding="GBK"` 时 JDK GBK charset 同样不接受四字节（`MalformedInputException`）；模板显式写 `GB18030` 的场景**无夹具**，按"禁止无基准对拍"带账，命中报 `UnsupportedEncoding` |
 | 样式直通范围             | 待分类  | 模板静态属性 → 快照样式字段的映射表；样式宏后置（§5）                                                                                              |
 | 列区带 / 换行守卫         | ✅ 已核对（M3-06） | 列区带：**已装守卫**（`ensure_data_columns`，`colType != -79` 显式报错）；换行回填：**静态守卫不可行**（`-64` 是 `INormalCell.TYPE_NORMAL` 普通格默认类型，测量分支条件「值为 String 且页内放不下」断页期才可知——静态拦截会拒绝所有真实模板；运行时风险带账，`pager/guard.rs` 尾注） |
-| sqlite BOOLEAN 列     | ⏳ 带账   | Any 层（sqlx 0.9）对 sqlite 声明 `BOOLEAN` 的列 fetch 期即报 `AnyDriverError`（eager，级联 try_get 无机会）——布尔列在 sqlite 上用 INTEGER 0/1（`Long`）承载；PG `BOOL` 走 `Bool` 分支待真库冒烟验证（`sql_source.rs` 测试注） |
-| PG/MySQL 真连冒烟     | ⏳ 带账   | M3-03 验收的 postgres:// / mysql:// 分支：`SqlSource::connect` + 方言分派已有单测，真库往返等有服务器环境补（沙箱无 PG/MySQL） |
+| sqlite BOOLEAN 列     | ✅ 已定案+钉子（2026-10-15） | Any 层（sqlx 0.9）对 sqlite 声明 `BOOLEAN` 的列 fetch 期即报 `AnyDriverError`（eager，级联 try_get 无机会）——布尔列在 sqlite 上用 INTEGER 0/1（`Long`）承载；钉子测试 `sqlite_declared_boolean_column_fails_loudly` 钉死「响亮失败」契约 |
+| PG/MySQL 真连冒烟     | ✅ **PG 半边已清偿（2026-10-15，金仓真机）** | 公司服务器 192.168.1.77:54323 自报 **KingbaseES V008R006C008B0014**（人大金仓，PG 线协议兼容）；`tests/smoke_pg.rs`（env 门控 `RPX_PG_URL`）：类型物化 9 列逐格断言 + **BOOL→Bool 分支实锤** + NUMERIC fetch 期响亮失败实锤 + **整数族统一 Long**（sqlx Any `i64::compatible = is_integer`，int.rs:15/43/71）。MySQL 仍带账（无服务器） |
 | SQL 注入面            | 待定   | 报表模板自带 SQL（用户资产）⇒ 单实例私有化下视为可信输入；如未来外网暴露需重评估                                                                             |
 | CLI 无自动化断言         | 沿用   | `spec-m2.md` §9 的待办；M3-07 顺带处理                                                                                              |
 
@@ -213,6 +215,7 @@ schema（蓝图 §8.2 草稿落地）：`reports(id, name, rpx BLOB, version, cr
 
 | 日期         | 变更                       | 原因                                                          |
 | ---------- | ------------------------ | ----------------------------------------------------------- |
+| 2026-10-15 | v1.0：**带账清偿轮**（总监令「③ 带账清偿」） | ① **PG 真连冒烟清偿**：总监提供公司服务器（192.168.1.77:54323），自报 **KingbaseES V008R006C008B0014**（人大金仓，PG 线协议兼容）——`tests/smoke_pg.rs` env 门控真连往返：类型物化 9 列逐格断言全绿、**BOOL→Bool 实锤**、**NUMERIC fetch 期响亮失败实锤**（`DsError::Sql(ColumnDecode "does not support ... Numeric")`，到不了级联——与 sqlite BOOLEAN 同构）、**整数族统一 Long**（sqlx Any `i64::compatible = is_integer`，sqlx-core int.rs:15/43/71）；② sqlite BOOLEAN **钉子** `sqlite_declared_boolean_column_fails_loudly`；③ **CLI 自动化断言**清偿（e2e_smoke.sh 步骤 ⑤：`rpx-cli print` 正路径 ASCII 锚 + 缺文件负路径）；④ **跨页合并拆分清偿**：产品拆分语义源码实锤（`SimplePager.java:1624-1638` 行向深克隆锚点 / `:2316-2335` 列向同构）→ `paged.rs` 页矩形求交 + 延续页克隆锚点注入 + 专项测试；⑤ **M2-22 残余语义定案**（customPropEngMap=模板自定义属性表达式表，求值覆盖 customPropSetMap，仅渲染元数据、对计算网格零影响；探针不导出 ⇒ 有据带账，spec-m2 §6.2）；MySQL 真连仍带账（无服务器）。rpx-ds 10+1、rpx-server 16 全绿 |
 | 2026-10-14 | v0.1 立档（team-lead，阶段 0）  | 总监批准「务实路」后启动 M3；本档承接 `spec-m2.md` §6.2 的准入 v2；阶段 0 出口 = 本文件经总监确认 |
 | 2026-10-14 | v0.2：M4 并行推进 + M3-08 提关键路径 | 总监令「M3 M4 一起推进，这样可以看到报表显示」；前端立档 `docs/spec-m4.md`，快照契约 v1 已定 |
 | 2026-10-15 | v0.9：**M3-07 闭合（M3 全任务验收达成）** | gate.sh 新增 **G8 crate 分层矩阵**（path 依赖方向 = 架构；awk 段落模式 bug 被变异测试当场抓出——RS= 使逐行匹配全失效，改必红/撤必绿闭环）；**e2e 冒烟** `scripts/e2e_smoke.sh`（真二进制全链路 + 负路径）；AssetStore 改收**纯文件路径**（sqlite URL 两坑：`//target` host 化、`///relative` 绝对化，`SqliteConnectOptions::filename()` 绕开解析层）；417 测试全绿 + G1–G8 全绿 + e2e 全绿；RUNLOG §30 |

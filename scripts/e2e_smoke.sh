@@ -78,9 +78,22 @@ LIST="$("${CURL[@]}" "http://$ADDR/reports")"
 echo "$LIST" | grep -q 'junk' && fail "坏魔数不得入库：$LIST"
 note "负路径 ok（坏魔数 400 且不入库）"
 
+# ⑤ CLI 冒烟（spec-m2 §9 账项「CLI 无自动化断言」清偿）：真二进制 print。
+#    断言只用 ASCII 锚（matrix/cells/print_setup），不碰中文控制台编码差异。
+CLI="target/debug/rpx-cli.exe"
+[ -x "$CLI" ] || { echo "[e2e] 二进制不存在：$CLI —— 先 cargo build -p rpx-cli"; exit 2; }
+POUT="$("$CLI" print "$FIX/engine_sum.rpx" 2>&1)"
+echo "$POUT" | grep -q '^matrix: ' || fail "CLI print 缺 matrix 行"
+echo "$POUT" | grep -Eq '^cells: [1-9][0-9]* non-default' || fail "CLI print 非空格数断言失败：$(echo "$POUT" | tail -3)"
+echo "$POUT" | grep -q '^print_setup: paper=' || fail "CLI print 缺 print_setup 行"
+if "$CLI" print "$FIX/does-not-exist.rpx" >/dev/null 2>&1; then
+  fail "CLI 读不存在文件应非零退出"
+fi
+note "CLI ok（print 正路径 + 缺文件负路径）"
+
 cleanup
 if [ $FAILED -eq 0 ]; then
-  note "E2E SMOKE: 全绿（上传→meta→render 键集→负路径）"
+  note "E2E SMOKE: 全绿（上传→meta→render 键集→负路径→CLI print）"
   exit 0
 fi
 note "E2E SMOKE: 有红项"

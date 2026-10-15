@@ -120,11 +120,18 @@ impl SqlSource {
 /// 逐型尝试——类型不匹配返回 Err 换下一型，全部落空时按**列类型名**报
 /// [`DsError::UnsupportedColumnType`]（如实点名，不塞占位值）。
 ///
-/// ⚠ 带账（骨架期未覆盖，命中显式报错）：`NUMERIC`/`DECIMAL` 列（需
-/// `rust_decimal` feature，蓝图口径；无真机夹具不实现——禁止无基准对拍）；
-/// 日期/时间列（Any 层无日期型，产品侧映射待 `SqlDataSetConfig` 反逆向一起定）。
+/// ⚠ 带账与真机实锤（金仓 KingbaseES 2026-10-15，`tests/smoke_pg.rs`）：
+/// `NUMERIC`/日期等 Any 层**不认识**的类型在 `fetch_all` 解码期即 eager 报
+/// `sqlx::Error::ColumnDecode("...Any driver does not support ...")`——
+/// **到不了本函数的级联**（同 sqlite BOOLEAN，见测试注）；本函数尾部
+/// `UnsupportedColumnType` 分支只对「Any 层认识、但九个 try_get 全落空」的
+/// 类型可达。两条路都满足「显式点名、不塞占位值」契约。日期/时间列映射
+/// 待 `SqlDataSetConfig` 反逆向一起定（`spec-m3.md` §8）。
 fn any_cell(row: &sqlx::any::AnyRow, idx: usize) -> Result<Value, DsError> {
-    // 整数族：BIGINT → i64 优先，INT4 → i32，SMALLINT → i16。
+    // 整数族**统一 Long**：sqlx Any 层 `i64::compatible = ty.kind().is_integer()`
+    // （sqlx-core-0.9 any/types/int.rs:15/43/71）——级联先试 i64，int2/int4/int8
+    // 全兼容，恒落 `Long`（金仓 KingbaseES 真机 2026-10-15 实测同此，
+    // `tests/smoke_pg.rs`）。下方 i32/i16 分支只是给非常规驱动的兜底，常规路走不到。
     if let Ok(v) = row.try_get::<Option<i64>, _>(idx) {
         return Ok(v.map(Value::Long).unwrap_or(Value::Null));
     }
@@ -223,5 +230,26 @@ mod tests {
         let src = SqlSource::connect("sqlite::memory:").await.unwrap();
         let err = src.fetch_sql("SELETC 1").await.unwrap_err();
         assert!(matches!(err, DsError::Sql(_)), "{err}");
+    }
+
+    /// 钉子（spec-m3 §8 账项「sqlite BOOLEAN 列」）：sqlite 上**声明** `BOOLEAN`
+    /// 的列在 Any 层 fetch 期 eager 报错——级联 `try_get` 没机会救。契约 =
+    /// **响亮失败**（`DsError::Sql` 且文本点名 "does not support"），绝不静默
+    /// 塞占位值；业务侧承载方式 = INTEGER 0/1（见 `sqlite_round_trip` 的 `ok` 列）。
+    #[tokio::test]
+    async fn sqlite_declared_boolean_column_fails_loudly() {
+        let src = SqlSource::connect("sqlite::memory:").await.unwrap();
+        src.fetch_sql("CREATE TABLE b (id INTEGER, flag BOOLEAN)")
+            .await
+            .unwrap();
+        src.fetch_sql("INSERT INTO b VALUES (1, 1)").await.unwrap();
+        let err = src.fetch_sql("SELECT flag FROM b").await.unwrap_err();
+        match err {
+            DsError::Sql(e) => assert!(
+                e.to_string().contains("does not support"),
+                "错误文本应点名不支持该类型，实得：{e}"
+            ),
+            other => panic!("BOOLEAN 列应报 Sql 级响亮错误，实得 {other}"),
+        }
     }
 }

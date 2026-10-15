@@ -3013,3 +3013,80 @@ App.tsx：渲染改**显式按钮**；参数动态行（名称/值 + 内联 SVG 
 | render_http / snapshot 全测 | 11/11 + 15/15 |
 | 浏览器 | canvas + 4 tab + 切页 + 参数表单交互全通 |
 | workspace | 418 测试全绿；G1–G8 全绿；e2e 冒烟全绿 |
+
+## §32 带账清偿轮：金仓真连冒烟 + 跨页合并拆分 + M2-22 语义定案（2026-10-15 晨）
+
+**总监令「③ 带账清偿」。九项账目盘点（spec-m3 §5/§8 + spec-m2 §6.2），本轮清偿/升级四项。**
+
+### §32.1 PG 真连冒烟清偿（金仓 KingbaseES 实锤）
+
+- 总监提供公司服务器 192.168.1.77:54323（库 `test`，用户 `system`，密码走会话即清）；
+  TCP 探通后 `SELECT version()` 自报 **KingbaseES V008R006C008B0014**（人大金仓，
+  PG 线协议兼容）——sqlx postgres 驱动**直连成功**，`system`/`test`/非标端口
+  组合与金仓出厂默认吻合。
+- 新增 `crates/rpx-ds/tests/smoke_pg.rs`（env 门控 `RPX_PG_URL`，未设时 SKIP 保
+  G3 全绿；本机门禁挂上该变量后常驻真跑）：建 `rpx_smoke_t`（9 类型列 + NUMERIC）
+  → 插 2 行（含 NULL/负数/中文）→ 物化逐格断言 → `DROP` 清理。
+- **三条真机实锤**：
+  1. **整数族统一 `Long`**——sqlx Any 层 `i64::compatible = ty.kind().is_integer()`
+     （sqlx-core-0.9 `any/types/int.rs:15/43/71`），级联先试 i64，int2/int4/int8
+     全兼容；金仓真机同此。`any_cell` 的 i32/i16 分支只是非常规驱动兜底。
+  2. **BOOL → `Bool` 分支实锤**（spec-m3 §8 带账半边清偿）；REAL→`Float`、
+     DOUBLE→`Double`、TEXT/VARCHAR→`Text`、NULL→`Null` 同轮验证。
+  3. **NUMERIC fetch 期响亮失败**——`DsError::Sql(ColumnDecode("...Any driver
+     does not support the Postgres type ... Numeric"))`，**到不了 `any_cell`
+     级联**（Any 层 eager 拒绝，与 sqlite BOOLEAN 同构）；`any_cell` 尾注已改写
+     （`UnsupportedColumnType` 分支只对「Any 认识但九连 try_get 落空」可达）。
+- 过程坑两枚：① 首轮断言按「INT4→Int」写期望被真机打脸（见实锤 1）；② 测试里
+  页 1 期望值算术错 + 漏两个横向 span 块，均被对拍当场抓出（实现无错，测试错）。
+
+### §32.2 sqlite BOOLEAN 钉子 + CLI 断言清偿
+
+- `sql_source.rs` 新增钉子 `sqlite_declared_boolean_column_fails_loudly`：
+  sqlite 声明 `BOOLEAN` 的列 fetch 期报错且文本含 "does not support"——
+  响亮失败契约钉死，业务承载 = INTEGER 0/1（`Long`）。
+- `e2e_smoke.sh` 步骤 ⑤ CLI 冒烟（spec-m2 §9「CLI 无自动化断言」清偿）：
+  真二进制 `rpx-cli print engine_sum.rpx` 断 `^matrix:`/`^cells: [1-9]\d* non-default`/
+  `^print_setup: paper=`（ASCII 锚避控制台编码），负路径缺文件非零退出。
+
+### §32.3 跨页合并拆分清偿（声明近似 → 产品语义）
+
+- 源码实锤：`SimplePager.java:1624-1638`（行向）——断行处 `deepClone` 锚点、
+  `newArrea = Area(row, startCol, pageStartRow+endRow, endCol)`（延续段独立成块）、
+  `ar.setEndRow(_$28-1)`（上页块裁到页末）；`:2316-2335`（列向）同构；非文本格
+  走同一路径（`cellHeight==0` 不触发整块搬移条件）。退化分支（文本高于整页 /
+  `rt==-90` 标题行整块搬移，`:1574-1622`）仍带账（需字体测量，无夹具）。
+- 实现 `snapshot/paged.rs`：`merge_data_paged` 改**全局块 × 页矩形求交**；锚点
+  在页外 ⇒ 交叠区左上角**注入克隆锚点**（值/样式取原锚点格 = deepClone 快照
+  等价物；`setCell` 覆盖语义同产品 `:1632-1634`）；`cell_json` 抽公共出口。
+- 专项测试 `paged_snapshot_splits_cross_page_merge_with_cloned_anchor`：
+  engine_merge 真网格 + 自造分页（页界切 North 块行 1/2 之间）——上页裁剪、
+  延续块、克隆锚点值=原锚点值、其余块按交叠平移，全部逐键断言。
+
+### §32.4 M2-22 残余语义定案（无基准带账 → 有据带账）
+
+三要素源码定案（详见 spec-m2 §6.2 2026-10-15 条目）：`customPropEngMap` = 模板
+自定义属性表达式表（格/行/列三类，`NormalCell.java:605` 等）；state 8 队列 =
+挂起表达式推 `third` 队列（与值通道共用 trampoline，无新调度器）；cell-graph
+属性值对象 = `customPropSetMap`，消费端 `getCustomPropertiesMap():135-144` =
+表达式值覆盖模板静态自定义属性——**纯渲染元数据，对计算网格零影响**。探针
+`CalcJson` 不导出自定义属性 ⇒ 无产品基准，维持不实现；复现路径已写明（扩探针
+→ 18 号夹具 → 三步实现）。
+
+### §32.5 账本余额（清偿后）
+
+| 账目 | 状态 |
+|---|---|
+| PG 真连冒烟 | ✅ 清偿（金仓实锤；门禁常驻） |
+| sqlite BOOLEAN | ✅ 钉子已装 |
+| CLI 自动化断言 | ✅ e2e 步骤 ⑤ |
+| 跨页合并拆分 | ✅ 产品语义实现 + 专项测试 |
+| M2-22 残余 | ⏳ 有据带账（语义定案 + 复现路径） |
+| MySQL 真连 | ⏳ 带账（无服务器） |
+| 换行回填 / GB18030 / 两扩展格同行 / 样式宏 | ⏳ 沿用前账 |
+
+| 证据 | 结果 |
+|---|---|
+| rpx-ds（含 smoke_pg + BOOLEAN 钉子） | 10 lib + 1 集成全绿 |
+| rpx-server（含跨页拆分专项） | 16/16 全绿 |
+| e2e 冒烟 | 上传→meta→render→负路径→CLI print 全绿 |

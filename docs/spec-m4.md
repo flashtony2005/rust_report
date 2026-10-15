@@ -173,7 +173,7 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 | `sheetOrder` | **顺序即页序**（Univer 底部 tab 即翻页；M4-05 的交付形态） |
 | `cellData`/`rowData`/`columnData` | 页内坐标 = 全局 − 页偏移（0 起，与 §4.2 同规）；页首区带/分组头副本因页间 `row_range` 重叠**自然每页重现**（与产品每页独立矩阵同观感） |
 | `rowCount`/`columnCount` | 页尺寸 + 余量（同 §4.2 规则） |
-| `mergeData` | 锚点在页内才保留；**跨页合并区裁剪**到页界（⚠ 声明近似：产品做拆分、延续段独立成块，两者块边缘有显示差异；产品拆分语义无夹具基准——`merged.cells` 多页全空是 M2 已声明缺口，等价性待探针补证） |
+| `mergeData` | **跨页合并拆分 = 产品语义已实现**（2026-10-15，源码实锤 `SimplePager.java:1624-1638` 行向 / `:2316-2335` 列向）：全局块 × 页矩形求交；锚点在页外（延续页）时在交叠区左上角**注入克隆锚点**（值/样式取原锚点格——产品 `deepClone` 的快照等价物），上页块自然裁到页末。退化分支（文本高于整页整块搬移 / 标题行 `rt==-90`）仍带账（无夹具基准） |
 | 顶层 `pagination` | 保留（§4.5 观测块，不因多 sheet 退役） |
 
 单页 / 手搭网格（无 pagination）⇒ 单 sheet（§4.1 现状）；夹具对拍走 `rpx-engine`
@@ -194,7 +194,7 @@ Double、其余字符串），随 multipart `params` 段提交。v1 手工核对
 | M4-02 | Univer 壳 | While dev server 打开，**必须**渲染出空工作簿（canvas 挂载、无控制台错误）                                                                   | P0  |
 | M4-03 | 快照装载    | ✅ **已达成**（2026-10-14）：值/合并区/行高列宽/样式 9 字段直通（`style.rs`：bl/it/ul/ff/fs/cl/bg/ht/vt；对齐总输出）；`mergeData` 锚点断言（§4.4） | P0  |
 | M4-04 | 参数表单    | ✅ **已达成（v1 手工核对）**（2026-10-15）：动态参数行表单（§4.7）→ multipart `params`；值推断与 `form.rs` 同规；浏览器实测表单交互全链路（截图 `tests/fixtures/out/m4-paged-tabs.png`）；自动生成表单待 `/meta` 接前端（后置） | P1  |
-| M4-05 | 翻页      | ✅ **已达成**（2026-10-15）：多 sheet 切片（§4.6）——`engine_pager` 真值 4 页 = 4 个「第 N 页」tab，`sheetOrder` 即页序；坐标平移/区带副本每页重现/跨页合并裁剪（声明近似）；单测（真实夹具）+ 浏览器实测切页截图（`m4-page4.png`） | P1  |
+| M4-05 | 翻页      | ✅ **已达成**（2026-10-15）：多 sheet 切片（§4.6）——`engine_pager` 真值 4 页 = 4 个「第 N 页」tab，`sheetOrder` 即页序；坐标平移/区带副本每页重现/跨页合并拆分（2026-10-15 升级为产品语义：延续页克隆锚点）；单测（真实夹具）+ 浏览器实测切页截图（`m4-page4.png`） | P1  |
 | M4-06 | HTTP 联调  | ✅ **已达成**（2026-10-14）：`fetchSnapshot(files)` 走 `POST /api/render`（multipart：`.rpx` → `report`，其余 → `dataset`）；vite dev 代理 `/api` → `127.0.0.1:8090`；错误体 `{"error":…}` 原样上屏；浏览器实测中文报表全链路（截图 `tests/fixtures/out/m4-render-http.png`） | P1  |
 
 ## 6. 本地开发工作流
@@ -237,4 +237,5 @@ cd web && node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5288
 | 2026-10-14 | v0.1 立档（team-lead）      | 总监令「M3 M4 一起推进，看到报表显示」；M3-08 提为关键路径 |
 | 2026-10-14 | v0.2：**M4-06 闭合**（HTTP 联调） | `fetchSnapshot(files)` 走 `POST /api/render`；静态快照管道退役；工作流 §6 更新；记录 vite 代理剥前缀 + IPv6 绑定两坑（§7）；浏览器实测中文报表全链路 |
 | 2026-10-15 | v0.5：**M4-04/M4-05 闭合（M4 全验收达成）** | §4.6 多 sheet 翻页契约（每页一 sheet、sheetOrder 即页序、坐标平移、区带副本重现、跨页合并裁剪=声明近似）+ §4.7 参数表单（动态行、值推断同 `form.rs`）；`snapshot/paged.rs` 切片实现 + 真实夹具单测；App.tsx 渲染按钮 + Token 化配色 + SVG 图标；浏览器实测 4 页 tab 切换（截图 2 张）；418 测试全绿 + G1–G8 全绿；RUNLOG §31 |
+| 2026-10-15 | v0.6：**§4.6 跨页合并升级为产品拆分语义** | 带账清偿轮：`SimplePager.java:1624-1638/:2316-2335` 源码实锤（深克隆锚点独立成块）→ `paged.rs` 页矩形求交 + 延续页克隆锚点注入 + 专项测试 `paged_snapshot_splits_cross_page_merge_with_cloned_anchor`（engine_merge 真网格 + 自造分页） |
 | 2026-10-14 | v0.3：**M4-05 输入就绪**——快照加 `pagination` 块（§4.5，M3-06） | workbook 顶层 rpx 扩展键：真值口径页尺寸 + 逐页 `row_range`/`col_range`（0 起）；换行回填静态守卫不可行的核对结论（`pager/guard.rs` 尾注）；M4-05 从「依赖 M3-06」变为「可直接接线」 |

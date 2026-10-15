@@ -188,11 +188,12 @@ fn paged_snapshot_engine_pager_has_four_sheets_with_translated_rows() {
     for sid in ["rpx-sheet-1", "rpx-sheet-2", "rpx-sheet-3", "rpx-sheet-4"] {
         let cd = &wb["sheets"][sid]["cellData"];
         assert!(cd.get("0").is_some(), "{sid} 页内应含 0 行（区带副本）");
-        // merged 在多页夹具下为空（MergedCell 文档：多页夹具 merged.cells 全空）。
+        // engine_pager 计算网格本身无合并槽 ⇒ 各页 mergeData 为空（不是缺口，
+        // 跨页拆分语义由 engine_merge 自造分页的专项测试覆盖）。
         assert_eq!(
             wb["sheets"][sid]["mergeData"].as_array().unwrap().len(),
             0,
-            "{sid} 的 merged 应为空（已声明缺口）"
+            "{sid} 的 merged 应为空（网格无合并槽）"
         );
     }
     // 页 4 row_range（0 起 0..41）⇒ 页内行键**全部 ≤ 41**（末页不满页也不越界）。
@@ -203,4 +204,78 @@ fn paged_snapshot_engine_pager_has_four_sheets_with_translated_rows() {
     {
         assert!(k.parse::<u32>().unwrap() <= 41, "页 4 行键越页界：{k}");
     }
+}
+
+/// 跨页合并拆分（产品语义，`SimplePager.java:1624-1638` 行向 / `:2316-2335` 列向）：
+/// 用真实夹具 `engine_merge` 的计算网格 + **自造分页**（页界切在 North 块
+/// 0 起 (1,0)-(2,0) 的行 1/2 之间）驱动 `build_paged`。断言：
+/// ① 上页块裁到页末；② 延续页有独立块 + **克隆锚点**（值 = 原锚点值）；
+/// ③ 锚点所在页之外的其他块照常按交叠平移。
+#[test]
+fn paged_snapshot_splits_cross_page_merge_with_cloned_anchor() {
+    let dir = fixture_dir();
+    let file = File::open(dir.join("engine_merge.rpx")).expect("夹具存在");
+    let rd = rpx_core::open(file).expect("解析 .rpx");
+    let ds = rpx_engine::dataset::load_datasets(&dir, &rd).expect("载入数据集");
+    let grid = rpx_engine::calculate(&rd, &ds).expect("计算");
+    let total_rows = grid.row_heights.len() as i32;
+    let total_cols = grid.col_widths.len() as i32;
+    let pg = rpx_engine::pager::Pagination {
+        pages: vec![
+            rpx_engine::pager::PageInfo {
+                page: 1,
+                rows: 2,
+                col1_values: vec![],
+                row_range: (1, 2),
+                col_range: (1, total_cols),
+            },
+            rpx_engine::pager::PageInfo {
+                page: 2,
+                rows: total_rows - 2,
+                col1_values: vec![],
+                row_range: (3, total_rows),
+                col_range: (1, total_cols),
+            },
+        ],
+        ..Default::default()
+    };
+    let json = super::paged::build_paged(&rd, &grid, &pg, "engine_merge").expect("多页快照");
+    let wb: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+    // 页 1（全局 0 起行 0..1）：North 块（0 起行 1..2）交叠裁到 (1,0)-(1,0)；
+    // 横 2 块（0 起行 1）交叠 (1,2)-(1,3)；East/South 块（行 3..6）不在此页。
+    let p1 = wb["sheets"]["rpx-sheet-1"]["mergeData"].clone();
+    assert_eq!(
+        p1,
+        serde_json::json!([
+            {"startRow": 1, "startColumn": 0, "endRow": 1, "endColumn": 0},
+            {"startRow": 1, "startColumn": 2, "endRow": 1, "endColumn": 3},
+        ]),
+        "页 1 合并块：{p1:?}"
+    );
+
+    // 页 2（全局 0 起行 2 起）：North 延续块 (0,0)-(0,0)；East/South 纵块与两个
+    // 横向 span 块按交叠平移。
+    let p2 = wb["sheets"]["rpx-sheet-2"]["mergeData"].clone();
+    assert_eq!(
+        p2,
+        serde_json::json!([
+            {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0},
+            {"startRow": 1, "startColumn": 0, "endRow": 2, "endColumn": 0},
+            {"startRow": 1, "startColumn": 2, "endRow": 1, "endColumn": 3},
+            {"startRow": 3, "startColumn": 0, "endRow": 4, "endColumn": 0},
+            {"startRow": 3, "startColumn": 2, "endRow": 3, "endColumn": 3},
+        ]),
+        "页 2 合并块：{p2:?}"
+    );
+
+    // 克隆锚点：页 2 的 (0,0) 值 = 页 1 North 锚点 (1,0) 的值（deepClone 快照等价）。
+    let anchor_v = &wb["sheets"]["rpx-sheet-1"]["cellData"]["1"]["0"]["v"];
+    let clone_v = &wb["sheets"]["rpx-sheet-2"]["cellData"]["0"]["0"]["v"];
+    assert_eq!(anchor_v, clone_v, "延续页克隆锚点值必须等于原锚点值");
+    assert!(!clone_v.is_null(), "North 锚点应有非空值：{clone_v}");
+
+    // 页 1 不该有克隆注入之外的意外行：North 块延续槽无值（未 emit），
+    // 但 (1,0) 是锚点行自身，必有值。
+    assert!(anchor_v.is_string(), "锚点值形态：{anchor_v}");
 }
