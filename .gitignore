@@ -24,6 +24,13 @@
 *.class
 /out/
 
+# ⛔ 数据源注册表（`serve --datasources <path.json>`）含真实连接串——金仓那件的
+#   口令是明文的。曾经只有这条 `/out/`（指向一个并不存在的根目录），真正的产物
+#   在 `tests/fixtures/out/`，等于**一次 `git add -A` 就把口令推上 GitHub**。
+#   ⚠ tests/fixtures/out/ 是混合目录，39 个历史文件（讲座 HTML / 验证脚本 /
+#   截图）是有意入库的 ⇒ ⛔ 不能整体忽略，只禁数据源注册表这一文件族。
+/tests/fixtures/out/ds_*.json
+
 # 操作系统 / 编辑器
 .DS_Store
 Thumbs.db
