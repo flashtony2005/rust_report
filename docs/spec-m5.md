@@ -1,11 +1,15 @@
-# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.3
+# Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.4
 
-> 状态：**M5-01 / M5-02 / M5-06 已闭合**（2026-10-15）。
+> 状态：**M5-01 / M5-02 / M5-03 / M5-06 已闭合**（2026-10-15）。
 > M5-01：`ds.select` 全参数矩阵 + 双态求值（`expr/dsselect/` 三文件，单测全绿）；
 > M5-02：跨数据集过滤求值 + 合并区双视图（`calc/merged_view.rs`）+
-> 跨页合并拆分，`cross_dataset_compare` 8 夹具逐格逐页零差异；
+> 跨页合并拆分，`cross_dataset_compare` 10 夹具逐格逐页零差异；
+> M5-03：显式 leftHead/topHead 槽位（slot 30/31）—— 机制在 M2 头图工作里
+> 已实装（`heads/find.rs` 分支 A + `ext_algo/envelope.rs` 左子格递归 +
+> `ext_algo/row.rs` `extend_row` 复制循环），本里程碑以 T4/T5 嵌套主子表
+> 夹具逐格对拍正式验收，变异测试证明显式 head 分支承重；
 > M5-06 的 Root 态裸列语义（`ds.col` = 首行值）随 M5-01 同批闭合。
-> M5-03/04/05/07 未启动。
+> M5-04/05/07 未启动（M5-04 为夹具闭环，是 M5-05/07 的前置）。
 > 上游：M2/M3/M4 已收官（`spec-m2.md` / `spec-m3.md` / `spec-m4.md`），HEAD `9aa6caf`。
 > 立项依据：数据蒋堂讲座行动序 #2「多数据集关联语义立项（三分类 + 维度对齐）——
 > 报表工具的核心差异化，大（先探针）」（`docs/lecture-notes.md` 行动表）。
@@ -35,7 +39,9 @@
   （`DSSelect.calculate:27-209` 逐行移植，13 单测含 T3 六变体复现）；
 - ~~带过滤/限量/去重的 4 参矩阵~~ → **M5-01 已闭合**；
   ~~跨数据集过滤~~ → **M5-02 已闭合**（电流语义 + 双视图对拍）；
-  **嵌套主子表（显式左主格）均未实现**（落到 `UnsupportedExpr` catch-all）；
+  ~~嵌套主子表（显式左主格）~~ → **M5-03 已闭合**：slot 30/31 解析 +
+  `heads/find.rs` 分支 A 显式 head 优先 + `ext_algo/envelope.rs` 跨度递归纳入左子格
+  + `ext_algo/row.rs` `extend_row` 复制循环，T4/T5 逐格对拍（14 行嵌套网格）；
 - ~~Root 态裸列 `ds.col` 现报 `UnsupportedExpr`~~ → **M5-01 同批闭合**
   （`dsfn::root_current_data`：产品 `DataSet.getCurrentData:395-410` 的
   currentRow 光标语义，本仓 Root 态恒 ≡1 ⇒ 首行值；空表 ⇒ null）。
@@ -238,7 +244,7 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 | 蒋堂分类 | ReportLite 形态 | 产品机制 | 本 spec 处置 |
 | --- | --- | --- | --- |
 | 外键关联（多对一，事实→维表） | `维表.select(维列, 事实键==主格)` | select 带过滤（Row/Root 双态） | **M5-01/02 实现** |
-| 主子表（一对多，主→从） | 显式左主格 + `从表.select(从列, 主键==主格)` | slot 30 + 跨度 + 复制循环 | **M5-03/04 实现** |
+| 主子表（一对多，主→从） | 显式左主格 + `从表.select(从列, 主键==主格)` | slot 30 + 跨度 + 复制循环 | **M5-03 已闭合**（机制 M2 实装，T4/T5 验收）；M5-04 补产品夹具闭环 |
 | 同维表（一对一） | `ds.filterone(...)`（IDE 有、运行时不认） | 未登记 | **带账**（§6.3）；等价写法 = num=1 的 select |
 | 多对多 | `ds.filtercross(条件)` | `DSFilterCross` | **M5-05 实现**（先探针） |
 | 维度对齐（交叉表） | 同数据集行×列双扩展 | `cross()` 归并/位图 | **M5-07 带账→后续里程碑** |
@@ -249,13 +255,13 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 | --- | --- | --- | --- |
 | M5-01 | `ds.select` 参数矩阵：`,` 四段（过滤/限量/去重）+ `:` 次序 + `;` 多排序 | `rpx-engine`（`expr/call.rs` 参数树 + `expr/dsselect/` 双态求值） | ✅ **已闭合**（2026-10-15）：单测覆盖四形态 + 6 种产品报错；T3 六变体复现；门禁全绿 |
 | M5-02 | 跨数据集过滤求值：过滤式里的 CSVariable/DSVariable 解析与 current 管理 | `rpx-engine`（`calc/ds_current.rs` 扩展） | ✅ **已闭合**（2026-10-15）：T1/T2/T3 八夹具逐格逐页零差异；电流语义与页内投影双变异实测；`calc/merged_view.rs` 双视图落地（跨页合并拆分同批闭合） |
-| M5-03 | 显式 leftHead/topHead 槽位：reader 解析 + 头图 + 跨度计算 + 嵌套复制 | `rpx-core`（slot 30/31）+ `rpx-engine`（`heads/` + `ext_algo/`） | T4/T5 网格逐格对拍 |
+| M5-03 | 显式 leftHead/topHead 槽位：reader 解析 + 头图 + 跨度计算 + 嵌套复制 | `rpx-core`（slot 30/31）+ `rpx-engine`（`heads/` + `ext_algo/`） | ✅ **已闭合**（2026-10-15）：机制在 M2 头图工作实装，本里程碑以 T4/T5 嵌套主子表夹具固化验收（`cross_dataset_compare` 现 10 夹具）；变异测试摘除 `heads/find.rs` 分支 A ⇒ T4/T5 均从 14 行塌陷为 9 行（证明显式 head 承重，非默认近邻误判）；`merge_data` 跨页克隆/服务面双视图不变式不受影响 |
 | M5-04 | 产品夹具 `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点） | `tests/fixtures`（`EngineModelsM5.java` + `GenEngineFixtures`） | 进 19+ 夹具主对拍全绿；Java 侧 round-trip |
 | M5-05 | `filtercross` 多对多 | `rpx-engine` | 先探针（多对多真机模板）后实现；对拍 |
 | M5-06 | Root 态裸列 `ds.col` = 首行值（修 `UnsupportedExpr`） | `rpx-engine`（`expr/dsfn.rs` `root_current_data`） | ✅ **已闭合**（随 M5-01）：`dsfn::root_current_data` 实现产品 currentRow 语义；`select(item:item)` → paramTypeError 单测 + 裸列首行值单测双钉 |
 | M5-07 | `cross()` 维度对齐（交叉表同数据集双方向） | `rpx-engine` | **带账**：无夹具不实现；复现路径见 §6.4 |
 
-依赖序：M5-01 → M5-02 → M5-03 → M5-04（夹具闭环）→ M5-05/M5-06 并行 → M5-07 后置。
+依赖序：M5-01 → M5-02 → M5-03（机制 M2 实装，本里程碑验收）→ M5-04（夹具闭环）→ M5-05/M5-06 并行 → M5-07 后置。
 
 ## 6. 边界与带账
 
@@ -344,3 +350,18 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
     + 端到端 `extra=1 mismatch=8`。
   - 带账新增 ⑦（§6.3：分组头行合并区伸长）；`m2-engine-design.md` §15.5
     「跨页合并格拆分」由 ❌ 改 ✅。
+- **v0.4（2026-10-15）**：**M5-03 闭合**。
+  - 机制已在 M2 头图工作实装（`heads/find.rs` 分支 A 读 `declared_left_head`/
+    `declared_top_head` 字符串、`ext_algo/envelope.rs` `expand_left_head` 跨度递归
+    纳入左子格、`ext_algo/row.rs` `extend_row` 复制循环）。本里程碑只做**验收固化**：
+    把 T4（`cross_nest` 多匹配展开 14 行）+ T5（`cross_nest_vals` 无匹配仍 1 行）
+    并入 `cross_dataset_compare` 主对拍载体（现 10 夹具）。
+  - **变异测试证明显式 head 承重**：临时摘除 `heads/find.rs` 分支 A（模拟
+    slot 30/31 未实现）⇒ T4 从 14 行塌成 9 行（missing=33 / extra=25 / mismatch=11）、
+    T5 同塌（missing=49 / mismatch=59）；还原后全绿。证明 T4/T5 走的是**显式**
+    左主格路径，不是默认近邻规则误判（`engine_head_left/top` 只覆盖 fallback
+    到 cell00 的默认路径，不承重）。
+  - 测试：`cross_dataset_compare` 10 夹具逐格零差异；`memory_replica_matches_
+    spec_facts` 同绿；workspace 全绿；G1–G8 全绿（无新代码，仅固化夹具 + 文档）。
+  - 说明：M5-03 无独立实现提交（机制来自 M2），随本里程碑的夹具固化 + spec 升级
+    一并进 `spec-m5.md` v0.4；若需要可补一枚 `test` 型提交锚定 T4/T5 入网。

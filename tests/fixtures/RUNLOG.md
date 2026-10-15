@@ -3533,3 +3533,77 @@ T2 ×1 + T3 Root 变体 ×6）与探针真值逐格逐页零差异。**
   双视图与跨页拆分`）；含 M4 §36 演示产物三件套补提（`out/kb_demo.cjs`、
   `out/m4-kingbase-demo.png`、`out/report_demo_product.json`——RUNLOG §36.2
   引用但漏提交的遗留）。
+
+## §40 M5-03 闭合：显式 leftHead/topHead 槽位（2026-10-15 深夜）
+
+**总监令「推进m5 m6」第三步。M5-02 提交 `6a7e18a` 后，按 spec-m5 §5 依赖序推进
+M5-03。反逆向结论：**机制已在 M2 头图工作实装**，本里程碑只对既有机制做**验收固化**
+——把 T4/T5 嵌套主子表夹具并入主对拍载体，并用变异测试证明显式 head 路径承重。
+**无独立实现提交**（机制来自 M2），随 spec 升级 v0.3→v0.4 一并进账。**
+
+### §40.1 反逆向结论（slot 30/31 链路全通）
+
+| 环节 | 现状 | 产品对应 |
+|---|---|---|
+| reader 解析 | `rpx-core` `cell.rs` 已有 `left_head`/`top_head` 字段（slot 30/31 = `_$56/_$55` 单元格 ID 字符串） | `NormalCell._$56/_$55` |
+| 头图装配 | `stage_b.rs` 读 `declared_left_head`/`declared_top_head` → `heads/find.rs` 分支 A 显式优先 | `ExtCellSet._$2/_$3:753-810` |
+| 跨度递归 | `ext_algo/envelope.rs` `expand_left_head` 把左主格跨度递归纳入左子格 | `ExtCellSet._$4/_$3:944-970` |
+| 复制循环 | `ext_algo/row.rs` `extend_row` 按主格实例数克隆从格带 | `extendRow:997-1050` |
+
+→ M5-03 的「reader 解析 + 头图 + 跨度 + 嵌套复制」四件事在 M2 已闭环，无新增代码。
+
+### §40.2 验收夹具固化（T4/T5 并入主对拍）
+
+`cross_dataset_compare.rs` 的 `names` 数组新增两条（现 **10 夹具**：T1×1 + T2×1 +
+T3 Root 六变体×6 + T4×1 + T5×1）：
+
+- **T4 `cross_nest`**：多匹配展开 —— 主格 5 人 × 各自奖金行 ⇒ **14 行嵌套网格**；
+  从格双列（item/amount）同步扩展；主格列空单元格合并段。
+- **T5 `cross_nest_vals`**：无匹配仍产 **1 行**（从格带构成决定无匹配也留壳）；
+  与 T4 同为 14 行网格但末段空行语义不同。
+
+结果：`cross_datasets_match_product_truth_cell_by_cell` 与
+`memory_replica_matches_spec_facts` 均 **ok**（2 passed）；逐格零差异含 merged 段。
+
+### §40.3 变异测试：证明显式 head 路径承重（防假绿）
+
+**判据**：T4/T5 可能「恰好」被默认近邻规则误判通过（产品默认头规则会就近找同列
+主格），必须证明它们走的是**显式** slot 30/31 路径。
+
+**操作**：临时摘除 `heads/find.rs` 分支 A（`if let Some(id) = non_blank(g.declared_*)`
+改为 `non_blank(None)`），模拟「slot 30/31 未实现」：
+
+| 夹具 | 正常 | 变异后 | 差异 |
+|---|---|---|---|
+| T4 `cross_nest` | 14 行 | 9 行 | missing=33 / extra=25 / mismatch=11 |
+| T5 `cross_nest_vals` | 14 行 | 9 行 | missing=49 / mismatch=59 |
+
+**结论**：摘除显式 head 后 T4/T5 均塌成 9 行（退化为默认近邻单例），证明它们
+确实承重于 slot 30/31 显式左主格路径，不是默认规则的巧合。**还原后全绿。**
+
+对照：`engine_head_left`/`engine_head_top` 只覆盖默认近邻（全 fallback 到 cell00），
+引擎级显式 head 的唯一承载就是 T4/T5 —— 这也正是 M5-03 选 T4/T5 作验收夹具的理由。
+
+### §40.4 验证与门禁
+
+| 证据 | 结果 |
+|---|---|
+| `cross_dataset_compare` | 10 夹具逐格零差异（含 T4/T5 16 条 merged） |
+| workspace 全量 | 453 passed（与 M5-02 持平；M5-03 无新代码，仅固化夹具） |
+| 门禁 | G1–G8 全绿（`cargo fmt --all` 已跑；无新 .rs 文件故 G4 不触发） |
+| 变异 | 摘除分支 A ⇒ T4/T5 14→9 行（已还原） |
+
+### §40.5 新带账 / 开放项
+
+- 无新增带账（M5-03 机制复用 M2，M5-02 的带账⑦仍唯一未复刻项：分组头行合并区
+  伸长 `SimplePager.java:1550-1596`）。
+- 开放决策：M5-03 未单独成提交（机制来自 M2，仅夹具+文档增量）。若需审计锚点，
+  可补一枚 `test` 型提交把 T4/T5 入网钉死；当前已随 spec v0.4 进账，留待 M5-04
+  夹具闭环时一并提交更省 commits。
+
+### §40.6 下一步
+
+- **M5-04**：产品夹具闭环 —— 用 `EngineModelsM5.java` + `GenEngineFixtures` 生成
+  `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点），
+  进 19+ 夹具主对拍全绿 + Java 侧 round-trip。这是 M5-05（filtercross）/
+  M5-07（cross()）的前置。

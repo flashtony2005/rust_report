@@ -177,7 +177,7 @@ fn engine_text(name: &str) -> String {
 // 对拍
 // ─────────────────────────────────────────────────────────────
 
-/// 7 个 cross 夹具逐一与探针真值逐格比。
+/// 10 个 cross 夹具逐一与探针真值逐格比（T1/T2 + T3 六变体 + T4/T5 嵌套主子表）。
 ///
 /// 覆盖（spec-m5 §3）：T1 非嵌套从格带（过滤引用主格 A3）、T2 去重主格 +
 /// 同数据集从格、T3 六变体（过滤/限量/去重/降序/裸列/计数）。
@@ -193,6 +193,8 @@ fn cross_datasets_match_product_truth_cell_by_cell() {
         "cross_root_desc",     // T3 降序
         "cross_root_bare",     // T3 裸列
         "cross_root_count",    // T3 计数
+        "cross_nest",          // T4（M5-03 嵌套主子表，显式左主格）
+        "cross_nest_vals",     // T5（M5-03 嵌套主子表，无匹配仍 1 行）
     ];
     for name in names {
         let report = compare_actual_with_raw(&engine_text(name), &truth_raw(name), name);
