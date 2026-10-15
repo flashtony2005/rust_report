@@ -1,0 +1,205 @@
+[2026-10-14 16:03:09] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_sum.rpx (9413 bytes)
+wrote engine_sum.csv + engine_sum.expected.json (calc grid 8x9)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_ext.rpx (2494 bytes)
+wrote engine_ext.csv + engine_ext.expected.json (calc grid 8x7)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_expr.rpx (5363 bytes)
+wrote engine_expr.csv + engine_expr.expected.json (calc grid 8x5)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_pager.rpx (2483 bytes)
+wrote engine_pager.csv + engine_pager.expected.json (calc grid 43x3)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_merge.rpx (3142 bytes)
+wrote engine_merge.csv + engine_merge.expected.json (calc grid 8x4)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+wrote .\engine_cycle.rpx (1930 bytes)
+wrote engine_cycle.csv + engine_cycle.expected.json (expected failure: ReportError)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_samemerge.rpx (1969 bytes)
+wrote engine_samemerge.csv + engine_samemerge.expected.json (calc grid 7x3)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_disp.rpx (3115 bytes)
+wrote engine_disp.csv + engine_disp.expected.json (calc grid 6x4)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_types.rpx (3020 bytes)
+wrote engine_types.csv + engine_types.expected.json (calc grid 4x4)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_rowheight.rpx (3510 bytes)
+wrote engine_rowheight.csv + engine_rowheight.expected.json (calc grid 17x3)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_head_top.rpx (4452 bytes)
+wrote engine_head_top.csv + engine_head_top.expected.json (calc grid 6x6)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_head_left.rpx (5548 bytes)
+wrote engine_head_left.csv + engine_head_left.expected.json (calc grid 11x6)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_avgrange.rpx (5229 bytes)
+wrote engine_avgrange.csv + engine_avgrange.expected.json (calc grid 5x6)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_collate.rpx (8560 bytes)
+wrote engine_collate.csv + engine_collate.expected.json (calc grid 8x6)
+[2026-10-14 16:03:10] 
+INFO: 开始运算报表，首先取数......
+
+[2026-10-14 16:03:10] 
+INFO: 取数结束,开始运算
+
+[2026-10-14 16:03:10] 
+INFO: 报表图片处理......
+
+[2026-10-14 16:03:10] 
+INFO: 计算结束！
+
+wrote .\engine_listrange.rpx (5518 bytes)
+wrote engine_listrange.csv + engine_listrange.expected.json (calc grid 5x6)
+OK: 15 engine fixtures generated

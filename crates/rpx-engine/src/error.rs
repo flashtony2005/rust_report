@@ -30,6 +30,16 @@ pub enum EngineError {
     },
     /// 报表声明了数据集但运行时没注入。
     MissingDataset { name: String },
+    /// 模板声明了 **SQL 数据集**（`SQLDataSetConfig`），但调用方没有提供
+    /// 该 `data_source_name` 的取数通道（连接注册表缺失，产品对应
+    /// `ctx.getConnectionFactory(dsn)` 为 null 走 `createDataSetM` 的
+    /// "数据源不存在" 报错路径）。凭据与模板分离是产品架构
+    /// （`NormalConnectionFactory` 由调用方注册，见 `rpx-core::dataset`
+    /// 的 `SqlDataSetConfig` 模块文档），本错误即"通道未注册"的显式失败。
+    SqlDatasetNoConnection { name: String, dsn: String },
+    /// SQL 数据集取数失败——调用方通道（`SqlFetcher`）返回的错误文本
+    /// **原样点名**上抛（连接失败/SQL 语法/权限不足都不吞、不归一）。
+    SqlFetch { detail: String },
     /// `@名` 引用了**未登记**的参数（产品 `Expression.unknownParam`，
     /// `Expression.java:189-191`：`isParamName` 不通过即抛
     /// `ReportError("...未知的参数：@" + id)`）。
@@ -106,6 +116,16 @@ impl fmt::Display for EngineError {
             }
             EngineError::MissingDataset { name } => {
                 write!(f, "missing dataset: {name}")
+            }
+            EngineError::SqlDatasetNoConnection { name, dsn } => {
+                write!(
+                    f,
+                    "SQL dataset \"{name}\" has no connection registered for \
+                     data source \"{dsn}\" (register one via the caller)"
+                )
+            }
+            EngineError::SqlFetch { detail } => {
+                write!(f, "SQL dataset fetch failed: {detail}")
             }
             EngineError::UnknownParam { name } => {
                 write!(f, "unknown parameter: @{name}")

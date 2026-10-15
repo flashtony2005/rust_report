@@ -206,8 +206,14 @@ public class GenEngineFixtures {
 		if ("engine_param".equals(name)) {
 			o.put("params", EngineModelsM3.paramsJson(name));
 		}
-		o.put("dataset", CalcJson.renderDataSet(new String[] { "region", "qty" },
-				EngineModels.rows(name)));
+		// dataset 段的列头必须与该夹具 CSV 的真实列一致（writeCsv 的分派同款）：
+		// engine_gbk 两列中文、engine_emp 五列中文、其余 region/qty 两列。
+		String[] dsHeader = "engine_gbk.csv".equals(EngineModels.csvName(name))
+				? new String[] { "区域", "数量" }
+				: "engine_emp.csv".equals(EngineModels.csvName(name))
+						? new String[] { "编号", "部门", "姓名", "性别", "工资" }
+						: new String[] { "region", "qty" };
+		o.put("dataset", CalcJson.renderDataSet(dsHeader, EngineModels.rows(name)));
 		o.put("template_rows", rd.getRowCount());
 		o.put("template_cols", rd.getColCount());
 		o.put("formulas", formulas);

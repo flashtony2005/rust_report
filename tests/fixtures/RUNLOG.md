@@ -3134,3 +3134,61 @@ App.tsx：渲染改**显式按钮**；参数动态行（名称/值 + 内联 SVG 
 | expr_state_tripwire | 102 条全 state 4 |
 | workspace | 全绿（无 FAILED） |
 | 浏览器 | 快照内容断言 + 截图 m4-emp-demo.png |
+
+## §34 SQL 数据集链路闭环：模板自带 SQL 直连金仓（2026-10-15 晨）
+
+**M3-03 的最后一块：`.rpx` 里声明 `SQLDataSetConfig` → rpx-ds 真连数据库 →
+引擎计算 → 与产品真机逐格对拍。全程金仓 KingbaseES V8R6（PG 驱动直连）。**
+
+### §34.1 反逆向定案（re_work/usermodel）
+
+- `SQLDataSetConfig`（version=5）`.rpx` 记录体（**serialize()/fillRecord 通道**，
+  与 FileDataSetConfig 同构）：基类 6 槽 blob + sql + beginRow + endRow（表达式
+  行窗口）+ schema + params(i16 × [exp,type]) + isGuarded + threshold。
+- ⛔ **凭据与模板分离**：连接三要素在 `NormalConnectionFactory`（调用方注册
+  `ctx.setConnectionFactory(dsn, factory)`），配置文件 `raqsoftConfig.xml`
+  `<DBList>`；模板只存 `data_source_name` 引用。rpx-server 照抄此架构。
+- `SQLDataSetFactory.createDataSetM`：宏 `${...}` 替换 → `?` 占位参数求值
+  （List 展开）→ `isGuarded` 先 `count(*)` 过阈值守护 → `noDataPrompt`
+  空结果显式抛 `NoDataException`。
+- GitHub 调研（总监令）：无 rpx 开源实现；官方开源 **esProc SPL**
+  （SPLWare/esProc）同源可对照（SQLTool/Sentence/RQException 干净源码）。
+
+### §34.2 探针 ProbeSql.java → 第 19 份夹具 engine_sql
+
+- PG JDBC 驱动（postgresql-42.7.4，Maven Central）连金仓——线协议兼容直连。
+- 探针自建 `rpx_sql_smoke` 表（5 员工，英文列名——第一探针降不确定度）；
+  模板 2 行 4 列：表头 + `ds1.select(id)` / `ds1.dept` / `ds1.salary` /
+  `sum(ds1.salary)`（SQL 数据集上的裸引用跟随与聚合退化同轮实证）。
+- 产品真机：**`VERIFY OK: engine_sql round-trip`**；计算态 r=1..6；
+  `sum(ds1.salary)` 逐行退化（8500/9200/12000/11000/7800）——与
+  engine_sum 的 current-row 语义一致。
+
+### §34.3 Rust 侧
+
+- `rpx-core::dataset`：`SqlDataSetConfig` 解析（真实探针 .rpx 单测钉死；
+  `params` size==0 **保持 null**——产品 readExternal 不建列表，Some([]) 是错的）
+  + `factory_class_for` 加 SQL 映射。
+- `rpx-engine::dataset`：`load_datasets_full(rd, read, sql_fetch)`——**SQL 执行
+  由调用方闭包注入**（G8：引擎不依赖 rpx-ds；cli/server 用 SqlSource 实现）；
+  数据集名来自配置（`ds.name = name`，SQL 结果不携带名字）；新错误
+  `SqlDatasetNoConnection`（通道未注册）/`SqlFetch`（取数失败文本原样上抛）。
+- `rpx-server::tests/sql_fixture.rs`（env 门控 `RPX_KB_URL`）：金仓真机
+  逐格对拍（值+类型）**全绿**；async 取数桥进同步委托闭包 =
+  多线程 runtime + `block_in_place(block_on)`。
+
+### §34.4 带账与坑
+
+- 带账：SQL 数据集的 `?` 占位参数 / begin_row/end_row 行窗口 / 宏替换
+  未建模（探针未覆盖，解析槽已保留）；MySQL 真连（无服务器）。
+- 坑：javac `--release 8` 无 `FileWriter(String,Charset)`；bash 通配符
+  `*.java` 依赖 cwd（连续漏 cd 三连——写成 run_kb_tests.sh 脚本终结）；
+  `cargo` 输出 grep "error" 会抓到 incremental lock 噪音（过滤 "lock file"）。
+
+| 证据 | 结果 |
+|---|---|
+| 探针（产品真机连金仓） | VERIFY OK: engine_sql round-trip |
+| rpx-core 解析单测（真实 .rpx） | 全绿（含凭据不入模板断言） |
+| engine 委托管线单测 | 全绿 |
+| 金仓真机逐格对拍 sql_fixture | 全绿（env 门控） |
+| 三 crate 全量 | core 19 / engine 263 / server 全绿 |

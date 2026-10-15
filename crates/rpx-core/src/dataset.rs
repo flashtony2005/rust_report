@@ -15,11 +15,14 @@
 use crate::error::{Result, RpxError};
 use crate::reader::RecordReader;
 
-/// FileDataSetConfig.getFactoryClass() 的常量返回值（类名 → 工厂类名映射）。
+/// `*DataSetConfig.getFactoryClass()` 的常量返回值（类名 → 工厂类名映射）。
 pub fn factory_class_for(class_name: &str) -> Option<&'static str> {
     match class_name {
         "com.raqsoft.reportl.usermodel.FileDataSetConfig" => {
             Some("com.raqsoft.reportl.dataset.FileDataSetFactory")
+        }
+        "com.raqsoft.reportl.usermodel.SQLDataSetConfig" => {
+            Some("com.raqsoft.reportl.dataset.SQLDataSetFactory")
         }
         _ => None,
     }
@@ -50,7 +53,7 @@ fn read_i32_list(r: &mut RecordReader) -> Result<Option<Vec<i32>>> {
 }
 
 /// DataSetConfig 基类 6 槽（DataSetConfig.java:108-117 写 / :120-128 读）。
-struct BaseConfig {
+pub(crate) struct BaseConfig {
     name: Option<String>,
     data_source_name: Option<String>,
     release_mode: i8,
@@ -59,7 +62,7 @@ struct BaseConfig {
     no_data_prompt: bool,
 }
 
-fn parse_base(blob: Option<&[u8]>) -> Result<BaseConfig> {
+pub(crate) fn parse_base(blob: Option<&[u8]>) -> Result<BaseConfig> {
     let Some(slice) = blob else {
         return Ok(BaseConfig {
             name: None,
@@ -186,6 +189,84 @@ impl FileDataSetConfig {
     }
 }
 
+/// `SQLDataSetConfig`（version=5；`SQLDataSetConfig.java:155-179` 写 / `:181-203` 读）。
+///
+/// 记录体 = `writeBytes(super.serialize())`（基类 6 槽 blob）+ 平铺 8 槽：
+/// `sql` / `beginRow` / `endRow`（**表达式**行窗口，探针版原样保留不求值）/
+/// `schema` / `params`（i16 条数 × [exp, type]） / `isGuarded` / `threshold`。
+/// ⛔ **连接三要素（driver/url/user/pwd）不在模板里**——模板只存
+/// `data_source_name` 引用，连接由运行时按名注入（产品：
+/// `ctx.setConnectionFactory(dsn, NormalConnectionFactory)`；配置文件
+/// `raqsoftConfig.xml` 的 `<DBList>`）。凭据与模板分离，rpx-server 同构。
+#[derive(Debug, Clone, PartialEq)]
+pub struct SqlDataSetConfig {
+    // DataSetConfig 基类 6 槽
+    pub name: Option<String>,
+    pub data_source_name: Option<String>,
+    pub release_mode: i8,
+    pub cache_data: bool,
+    pub col_titles: Option<Vec<Option<String>>>,
+    pub no_data_prompt: bool,
+    // SQLDataSetConfig 专属槽
+    pub sql: Option<String>,
+    pub begin_row: Option<String>,
+    pub end_row: Option<String>,
+    pub schema: Option<String>,
+    /// `?` 占位参数（表达式 + 类型字节；求值/展开待夹具覆盖）。
+    pub params: Option<Vec<(Option<String>, i8)>>,
+    pub is_guarded: bool,
+    pub threshold: i32,
+}
+
+impl SqlDataSetConfig {
+    fn read(slice: &[u8]) -> Result<Self> {
+        let mut r = RecordReader::new(slice);
+        let p = |slot: u16, what: &'static str| RpxError::prop(slot, what);
+        let base_blob = r.read_blob().map_err(|_| p(0, "base blob"))?;
+        let base = parse_base(base_blob.as_deref())?;
+        Ok(Self {
+            name: base.name,
+            data_source_name: base.data_source_name,
+            release_mode: base.release_mode,
+            cache_data: base.cache_data,
+            col_titles: base.col_titles,
+            no_data_prompt: base.no_data_prompt,
+            sql: r.read_string().map_err(|_| p(7, "sql"))?,
+            begin_row: r.read_string().map_err(|_| p(8, "beginRow"))?,
+            end_row: r.read_string().map_err(|_| p(9, "endRow"))?,
+            schema: r.read_string().map_err(|_| p(10, "schema"))?,
+            params: if r.remaining() > 0 {
+                let n = r.read_i16().map_err(|_| p(11, "params size"))?;
+                // 产品口径：size==0 时 readExternal 不建列表 ⇒ 字段保持 null
+                // （SQLDataSetConfig.java:189-200），Some([]) 是错的形态。
+                if n > 0 {
+                    let mut v = Vec::new();
+                    for i in 0..n {
+                        let exp = r.read_string().map_err(|_| p(11 + i as u16, "param exp"))?;
+                        let ty = r.read_i8().map_err(|_| p(11 + i as u16, "param type"))?;
+                        v.push((exp, ty));
+                    }
+                    Some(v)
+                } else {
+                    None
+                }
+            } else {
+                None
+            },
+            is_guarded: if r.remaining() > 0 {
+                r.read_bool().map_err(|_| p(12, "isGuarded"))?
+            } else {
+                false
+            },
+            threshold: if r.remaining() > 0 {
+                r.read_i32().map_err(|_| p(13, "threshold"))?
+            } else {
+                0
+            },
+        })
+    }
+}
+
 /// DataSetMetaData 条目：M1 解析 FileDataSetConfig 全字段，
 /// 其他配置类保留类名 + 原始字节（记录存在性，格式待 M2）。
 #[derive(Debug, Clone, PartialEq)]
@@ -194,6 +275,7 @@ pub struct DataSetEntry {
     /// getFactoryClass() 常量映射（不在二进制流里）
     pub factory_class: Option<&'static str>,
     pub file: Option<FileDataSetConfig>,
+    pub sql: Option<SqlDataSetConfig>,
     pub raw: Vec<u8>,
 }
 
@@ -226,13 +308,64 @@ pub fn read_data_set_meta(slice: &[u8]) -> Result<Vec<DataSetEntry>> {
             } else {
                 None
             };
+            let sql = if class_name == "com.raqsoft.reportl.usermodel.SQLDataSetConfig" {
+                Some(SqlDataSetConfig::read(&raw)?)
+            } else {
+                None
+            };
             out.push(DataSetEntry {
                 factory_class: factory_class_for(&class_name),
                 class_name,
                 file,
+                sql,
                 raw,
             });
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+    use std::path::Path;
+
+    /// 第 19 号夹具 `engine_sql`（探针 `ProbeSql.java` 连金仓真机产出）：
+    /// `.rpx` 里 SQL 数据集记录体的解析（`SqlDataSetConfig` version=5 全槽）。
+    /// ⛔ 探针连接三要素不在模板里（`data_source_name` 只是指针）——本断言
+    /// 同时钉住「凭据不进模板」这一架构契约。
+    #[test]
+    fn parses_a_real_sql_dataset_config_from_the_probe_fixture() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+        let rd = crate::open(File::open(dir.join("engine_sql.rpx")).unwrap()).unwrap();
+        assert_eq!(rd.datasets.len(), 1, "探针模板只声明一个 SQL 数据集");
+        let e = &rd.datasets[0];
+        assert_eq!(
+            e.class_name,
+            "com.raqsoft.reportl.usermodel.SQLDataSetConfig"
+        );
+        assert_eq!(
+            e.factory_class,
+            Some("com.raqsoft.reportl.dataset.SQLDataSetFactory")
+        );
+        let sql = e.sql.as_ref().expect("SQL 配置应被解析");
+        assert_eq!(sql.name.as_deref(), Some("ds1"));
+        assert_eq!(sql.data_source_name.as_deref(), Some("kingbase"));
+        assert_eq!(
+            sql.sql.as_deref(),
+            Some("SELECT id, dept, salary FROM rpx_sql_smoke ORDER BY id")
+        );
+        assert_eq!(sql.begin_row, None);
+        assert_eq!(sql.end_row, None);
+        assert_eq!(sql.params, None, "探针 SQL 无 ? 占位参数");
+        assert!(!sql.is_guarded);
+        assert_eq!(sql.threshold, 0);
+        // 连接要素不在任何槽里（模板里连 url 字段都没有——把 e.sql 调试
+        // 打印也扫一遍等于扫整个记录体：raw 里不该出现 jdbc 字样）。
+        let raw_text = String::from_utf8_lossy(&e.raw);
+        assert!(
+            !raw_text.contains("jdbc"),
+            "记录体不得包含连接串（凭据与模板分离）：{raw_text}"
+        );
+    }
 }

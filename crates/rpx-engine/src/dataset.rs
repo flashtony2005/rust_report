@@ -27,11 +27,10 @@
 
 use std::path::Path;
 
-use rpx_core::ReportDefine;
-
 use crate::error::{EngineError, Result};
 use crate::expr::ds::DataSet;
 use crate::value::Value;
+use rpx_core::ReportDefine;
 
 /// 载入 `rd` 声明的全部文件数据集；`dir` 是 `.rpx`/`.csv` 所在目录。
 ///
@@ -54,21 +53,67 @@ pub fn load_datasets_with<F>(rd: &ReportDefine, read: F) -> Result<Vec<DataSet>>
 where
     F: Fn(&str) -> Option<Vec<u8>>,
 {
+    load_datasets_full(rd, &read, None)
+}
+
+/// 全量载入：文件数据集走 `read` 闭包，**SQL 数据集走 `sql_fetch` 委托**。
+///
+/// **分层纪律（G8）**：引擎 crate 不依赖 `rpx-ds`（供数方不依赖消费方的镜像
+/// 约束同样成立），所以 SQL 执行由调用方以 [`SqlFetcher`] 闭包注入——
+/// cli/server 层用 `rpx-ds::SqlSource` 实现，测试可用内存伪实现。
+/// 产品同构：引擎也只认 `ctx.getConnectionFactory(dsn)`，连接由 Context 注册。
+///
+/// `sql_fetch(dsn, sql)` 返回物化 [`RowSet`]（core 类型，供数契约与 M3-03
+/// 一致）；返回 Err 则原样上抛（连接失败/SQL 错误都如实点名）。未提供
+/// `sql_fetch` 而模板含 SQL 数据集 ⇒ 显式
+/// [`EngineError::SqlDatasetNoConnection`]（不静默跳过——数据集缺失会被
+/// 表达式求值期报错掩盖成更难定位的形态）。
+pub type SqlFetcher<'a> =
+    dyn Fn(&str, &str) -> std::result::Result<rpx_core::rowset::RowSet, EngineError> + 'a;
+
+pub fn load_datasets_full(
+    rd: &ReportDefine,
+    read: &dyn Fn(&str) -> Option<Vec<u8>>,
+    sql_fetch: Option<&SqlFetcher>,
+) -> Result<Vec<DataSet>> {
     let mut out = Vec::new();
     for entry in &rd.datasets {
-        let Some(file) = entry.file.as_ref() else {
+        if let Some(file) = entry.file.as_ref() {
+            let Some(file_name) = file.file_name.as_deref() else {
+                continue;
+            };
+            let name = file.name.as_deref().unwrap_or(file_name);
+            let Some(bytes) = read(file_name) else {
+                return Err(EngineError::MissingDataset {
+                    name: name.to_string(),
+                });
+            };
+            out.push(load_one(&bytes, name, file.encoding.as_deref())?);
             continue;
-        };
-        let Some(file_name) = file.file_name.as_deref() else {
-            continue;
-        };
-        let name = file.name.as_deref().unwrap_or(file_name);
-        let Some(bytes) = read(file_name) else {
-            return Err(EngineError::MissingDataset {
-                name: name.to_string(),
-            });
-        };
-        out.push(load_one(&bytes, name, file.encoding.as_deref())?);
+        }
+        if let Some(sql) = entry.sql.as_ref() {
+            let name = sql
+                .name
+                .clone()
+                .unwrap_or_else(|| "<unnamed-sql>".to_string());
+            let Some(fetch) = sql_fetch else {
+                return Err(EngineError::SqlDatasetNoConnection {
+                    name,
+                    dsn: sql
+                        .data_source_name
+                        .clone()
+                        .unwrap_or_else(|| "<no-dsn>".to_string()),
+                });
+            };
+            let dsn = sql.data_source_name.as_deref().unwrap_or("");
+            let sql_text = sql.sql.as_deref().unwrap_or("");
+            let rs = fetch(dsn, sql_text)?;
+            let mut ds = DataSet::from_rowset(rs);
+            // 数据集名来自**配置**（产品同构：`ds.getDataSetName()` 读模板
+            // 声明，SQL 结果集不携带名字——`sql_source.rs` 的职责边界注释）。
+            ds.name = name;
+            out.push(ds);
+        }
     }
     Ok(out)
 }
@@ -219,6 +264,53 @@ mod tests {
         assert!(
             matches!(missing, Err(EngineError::MissingDataset { .. })),
             "缺文件必须显式报错，实得：{missing:?}"
+        );
+    }
+
+    /// SQL 数据集走委托闭包取数（探针夹具 `engine_sql`，金仓真机模板）。
+    /// 伪 fetch 返回内存 RowSet——真实金仓对拍在 rpx-server 的
+    /// `tests/sql_fixture.rs`（env 门控），此处只钉「委托 + 物化」管线。
+    #[test]
+    fn sql_entries_delegate_to_the_fetcher_and_materialize() {
+        let dir = fixtures_dir();
+        let rd = rpx_core::open(File::open(dir.join("engine_sql.rpx")).unwrap()).unwrap();
+        let out = load_datasets_full(
+            &rd,
+            &|_| None,
+            Some(&|dsn, sql| {
+                assert_eq!(dsn, "kingbase");
+                assert!(sql.contains("rpx_sql_smoke"), "模板 SQL 原样透传：{sql}");
+                let cols = vec!["id".to_string(), "dept".to_string(), "salary".to_string()];
+                let rows = vec![
+                    vec![Value::Int(1), Value::Text("HR".into()), Value::Int(8500)],
+                    vec![Value::Int(2), Value::Text("FIN".into()), Value::Int(9200)],
+                ];
+                Ok(rpx_core::rowset::RowSet {
+                    name: String::new(),
+                    cols,
+                    rows,
+                })
+            }),
+        )
+        .unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "ds1");
+        assert_eq!(out[0].cols, vec!["id", "dept", "salary"]);
+        assert_eq!(out[0].rows.len(), 2);
+    }
+
+    /// 未提供取数通道 ⇒ 显式 `SqlDatasetNoConnection`（不静默跳过）。
+    #[test]
+    fn sql_entries_without_a_fetcher_fail_loudly() {
+        let dir = fixtures_dir();
+        let rd = rpx_core::open(File::open(dir.join("engine_sql.rpx")).unwrap()).unwrap();
+        let err = load_datasets_full(&rd, &|_| None, None).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EngineError::SqlDatasetNoConnection { ref dsn, .. } if dsn == "kingbase"
+            ),
+            "实得：{err:?}"
         );
     }
 }

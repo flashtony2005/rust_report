@@ -1,0 +1,1413 @@
+﻿<!DOCTYPE html>
+<html lang="zh-cmn-Hans">
+<head>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-TKD6LC2');</script>
+<!-- End Google Tag Manager -->
+<meta charset="utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" /><title>解决关联查询（JOIN 简化和提速系列 5） - 乾学院</title>    <meta name="keywords"
+          content="数据蒋堂"/>
+    <meta name="description" content="五. 解决关联查询 我们重新审视和定义了等值 JOIN 运算，并简化了语法。一个直接的效果显然是让语句书写和理解更容易。外键属性化、同维表等同化和子表集合化方案直接消除了 JOIN 关键字，也 .."/>
+<link rel="preconnect" href="https://c.raqsoft.com.cn"><meta name="copyright" content="B3log" /><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta http-equiv="Window-target" content="_top" /><link rel="stylesheet" href="https://c.raqsoft.com.cn/skins/classic/css/base.css?15267416061583" /><link rel="icon" type="image/png" href="https://c.raqsoft.com.cn/images/favicon.png" /><link rel="apple-touch-icon" href="https://c.raqsoft.com.cn/images/faviconH.png"><link rel="search" type="application/opensearchdescription+xml" title="HacPai" href="/opensearch.xml">    <style>
+.button {
+    -moz-border-bottom-colors: none;
+    -moz-border-left-colors: none;
+    -moz-border-right-colors: none;
+    -moz-border-top-colors: none;
+    background: rgba(0, 0, 0, 0) linear-gradient(to bottom, #f6d656 0%, #e8b147 100%) repeat scroll 0 0;
+    border-color: -moz-use-text-color -moz-use-text-color #a44b21;
+    border-image: none;
+    border-radius: 5px;
+    border-style: none none solid;
+    border-width: medium medium 4px;
+    box-shadow: 0 3px 0 0 rgba(0, 0, 0, 0.2);
+    color: #3e2c0a;
+    cursor: pointer;
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    height: 40px;
+    line-height: 40px;
+    margin: 10px 0 10px;
+    position: relative;
+    text-align: left;
+    text-decoration: none;
+    text-indent: 20px;
+    text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.4);
+    width: 170px;
+}
+.button:active {
+    box-shadow: 0 2px 0 0 rgba(0, 0, 0, 0.2);
+    top: 1px;
+}
+.mobileCenter20{
+	margin:0 55px 0 0;
+}
+.mobileCenter25{
+	margin:0 47px;
+}
+.mobileCenter30{
+	margin:0 55px;
+}
+
+.article-content img{height:auto!important}
+.noPreview {
+	margin:0 0 20px 0;
+	display:none;
+}
+
+
+.copyButton{background: #3276e1 url(https://c.raqsoft.com.cn/images/copy.png) no-repeat 8px center; background-size: 16px auto; border: 1px solid #386bc8; color: #FFF; border-radius: 4px; padding: 0 15px;line-height: 30px; font-size: 14px; display:inline-block;  font-weight: normal;  height: auto; padding-left: 30px; cursor: pointer;margin:10px 0;}
+.copyButton:hover{background: #296ad0 url(https://c.raqsoft.com.cn/images/copy.png) no-repeat 8px center;  background-size: 16px auto; }
+
+.tableScrollbar{margin-bottom:15px;width:100%; overflow-x:auto; overflow-y:hidden ;padding: 10px 0 ;white-space: nowrap!important;}
+.tableScrollbar::-webkit-scrollbar{width: 8px;  height: 8px; background-color: #F5F5F5;}
+.tableScrollbar::-webkit-scrollbar-track{ -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3); border-radius: 10px; background-color: #F5F5F5;}
+.tableScrollbar::-webkit-scrollbar-thumb{ border-radius: 10px; -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,.3); background-color: #F90;  background-image: -webkit-linear-gradient(45deg, rgba(255, 255, 255, .2) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .2) 50%, rgba(255, 255, 255, .2) 75%, transparent 75%, transparent);}
+
+.hihidede{display:none;}
+.enlink{display:none;}
+.cnlink{display:none;}
+
+.aa-dropdown-menu__footer{display:none;}
+</style>
+    
+    <link rel="stylesheet" href="https://c.raqsoft.com.cn/skins/classic/css/index.css?1526741606158"/>
+    <link rel="canonical"
+          href="https://c.raqsoft.com.cn/article/1713489406417?p=1&m=0">
+    <link rel="prev" title="润乾报表 dayname 函数使用"
+          href="https://c.raqsoft.com.cn/article/1713429114977">
+    <link rel="next" title="Excel 如何将结构不定的多个长行划分并重组成新格式" href="https://c.raqsoft.com.cn/article/1713496187883">
+    <!-- Open Graph -->
+    <meta property="og:locale" content="zh_CN"/>
+    <meta property="og:type" content="article"/>
+    <meta property="og:title" content="解决关联查询（JOIN 简化和提速系列 5） - 乾学院"/>
+    <meta property="og:description" content="五. 解决关联查询 我们重新审视和定义了等值 JOIN 运算，并简化了语法。一个直接的效果显然是让语句书写和理解更容易。外键属性化、同维表等同化和子表集合化方案直接消除了 JOIN 关键字，也 .."/>
+    <meta property="og:image" content="https://img.raqsoft.com.cn/avatar/1533042906563"/>
+    <meta property="og:url" content="https://c.raqsoft.com.cn/article/1713489406417"/>
+    <meta property="og:site_name" content="HacPai"/>
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary"/>
+    <meta name="twitter:description" content="五. 解决关联查询 我们重新审视和定义了等值 JOIN 运算，并简化了语法。一个直接的效果显然是让语句书写和理解更容易。外键属性化、同维表等同化和子表集合化方案直接消除了 JOIN 关键字，也 .."/>
+    <meta name="twitter:title" content="解决关联查询（JOIN 简化和提速系列 5） - 乾学院"/>
+    <meta name="twitter:image" content="https://img.raqsoft.com.cn/avatar/1533042906563"/>
+    <meta name="twitter:url" content="https://c.raqsoft.com.cn/article/1713489406417"/>
+    <meta name="twitter:site" content="@B3logOS"/>
+    <meta name="twitter:creator" content="@B3logOS"/>
+<!--百度统计代码-->
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?89a01a273e75d1cdfb9b751b46850562";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+<script>
+var contextPath = 'https://c.raqsoft.com.cn';
+</script>
+
+</head>
+<body itemscope itemtype="http://schema.org/Product" class="article article--fixed">
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TKD6LC2"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+<img itemprop="image" class="fn-none" src="https://img.raqsoft.com.cn/avatar/1533042906563"/>
+<p itemprop="description" class="fn-none">"五. 解决关联查询 我们重新审视和定义了等值 JOIN 运算，并简化了语法。一个直接的效果显然是让语句书写和理解更容易。外键属性化、同维表等同化和子表集合化方案直接消除了 JOIN 关键字，也 .."</p>
+<style type="text/css" rel="stylesheet">
+ 
+
+/*官网下拉菜单*/
+ 
+
+.options{-webkit-border-radius: 3px;-moz-border-radius: 3px;border-radius: 3px;-webkit-box-shadow: 2px 2px 8px rgba(0,0,0,0.2);-moz-box-shadow: 2px 2px 8px rgba(0,0,0,0.2);box-shadow: 2px 2px 8px rgba(0,0,0,0.2); background: #253a63  ;  padding: 5px; text-align: center;position: absolute;  z-index: 1; transition: margin 0.5s ease; margin: 45px 0 0 -60px; display: none; }
+.options li {list-style: none;line-height: 2em; }
+.options li a{color: #fff; text-decoration: none; display:inline-block; padding: 0 10px;}
+.options li a:hover{color: #fff; background: #2f7fd5; text-decoration: none;}
+.officialSiteLabel{  color: rgba(255,255,255,0.93); }
+.officialSiteLabel span{font-size: x-small ; margin-left: 3px;  }
+.officialSiteLabel:hover{ color: rgba(255,255,255,1);text-decoration: none;}
+.officialSite:hover .options{  display: inline-block;  }
+
+
+
+</style>
+
+
+<div class="nav">
+    <h1 aria-label="乾学院" class="tooltipped tooltipped__s">
+        <a href="https://c.raqsoft.com.cn">
+        	<img src="https://c.raqsoft.com.cn/images/hacpai.png" style="height:32px;margin-top:4px;">
+            <svg style="display:none;">
+                <use xlink:href="#iconLogo"></use>
+            </svg>
+        </a>
+    </h1>
+    <div class="nav-tabs">
+	<!--
+        <a pjax-title="知道 - 版区 - 乾学院"
+           href="https://c.raqsoft.com.cn/domain/Forum"> 知道</a>
+        <a pjax-title="问答 - 版区 - 乾学院"
+           href="https://c.raqsoft.com.cn/domain/Support"> 问答</a>
+        <a pjax-title="博客 - 版区 - 乾学院"
+           href="https://c.raqsoft.com.cn/domain/Blog"> 博客</a>
+        <a pjax-title="乾包 - 版区 - 乾学院"
+           href="https://c.raqsoft.com.cn/domain/QianBao"> 乾包</a>
+    -->
+    <a style="padding:15px 5px;" pjax-title="首页 - 乾学院" href="https://c.raqsoft.com.cn">首页</a>
+	        <a style="padding:15px 5px;" pjax-title="问答 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/domain/Support">问答</a>
+	        <a style="padding:15px 5px;" pjax-title="知道 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/domain/Forum">知道</a>
+			<!--
+	        <a pjax-title="科普 - 知道 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/Sciences">科普</a>
+	        <a pjax-title="灌水 - 知道 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/Watering">灌水</a>
+	        <a pjax-title="悬赏 - 知道 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/Reward">悬赏</a>
+	        -->
+	        <a style="padding:15px 5px;" pjax-title="报表＆BI - 博客 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/Report">报表＆BI</a>
+	        <a style="padding:15px 5px;" pjax-title="计算＆AI - 博客 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/esProc">计算＆AI</a>
+	        <a style="padding:15px 5px;" pjax-title="量化交易 - 博客 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/QuantitativeTrading">量化交易</a>
+	        <a style="padding:15px 5px;" pjax-title="图书 - 博客 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/CookBook">图书</a>
+	        <a style="padding:15px 5px;" pjax-title="数据蒋堂 - 博客 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/Lecture">数据蒋堂</a>
+	        <a style="padding:15px 5px;display:none;" pjax-title="乾包 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/domain/QianBao">乾包</a>
+			<!--
+	        <a pjax-title="乾包投稿 - 乾包 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/Contribute">乾包投稿</a>
+	        <a pjax-title="乾包问答 - 乾包 - 版区 - 乾学院"
+	           href="https://c.raqsoft.com.cn/tag/QianbaoQA">乾包问答</a>
+    		-->
+    <!--
+    -->
+
+<!--
+        <a style="padding:15px 5px;" pjax-title="资讯 - 乾学院"
+           href="https://c.raqsoft.com.cn/tag/News">资讯</a>
+-->
+        <a style="padding:15px 5px;" pjax-title="下载 - 乾学院"
+           href="https://c.raqsoft.com.cn/tag/Download">下载</a>	
+	    <a style="padding:15px 5px;" pjax-title="润乾" target="_blank"
+	       href="http://www.raqsoft.com.cn">官网</a>
+
+		<span class="officialSite" style="display:none;">
+	    	<a style="padding:15px 5px;" pjax-title="官网" href="#" class="officialSiteLabel">官网<span><img src="https://c.raqsoft.com.cn/images/down.svg" style="width: 8px;margin:0 0 2px 0 ;"></span></a>
+			<span class="options">
+				<li><a href="http://www.scudata.com.cn" title="数速软件官网" target="_blank">数速软件</a></li>
+				<li><a href="http://www.raqsoft.com.cn" title="润乾软件官网" target="_blank">润乾软件</a></li>
+				<li><a href="http://www.qdbase.com/" title="乾数科技官网" target="_blank">乾数科技</a></li>
+			</span>
+		</span>
+
+
+    <a style="padding:15px 5px;" pjax-title="文档" target="_blank"
+       href="https://d.raqsoft.com.cn:6443">文档</a>
+    
+    	<!--
+	    <a pjax-title="最新 - 乾学院"
+	       href="https://c.raqsoft.com.cn/recent">
+	        <svg>
+	            <use xlink:href="#refresh"></use>
+	        </svg> 最新</a>
+	    -->
+    <!--
+    <a href="https://c.raqsoft.com.cn/perfect">
+        <svg>
+            <use xlink:href="#iconPerfect"></use>
+        </svg> 优选</a>
+    -->
+    <a style="display:none;padding:15px 5px;" href="https://c.raqsoft.com.cn/download">下载</a>
+    </div>
+    <form id="searchForm" class="responsive-hide fn-left" target="_blank" action="https://c.raqsoft.com.cn/search">
+        <input style="width:80px;" class="search" placeholder="Search" type="text" name="key" id="algoliaSearch1"
+               value="">
+        <input type="submit" class="fn-none" value=""/>
+    </form>
+    <div class="user-nav">
+        <a id="navLogin" href="javascript: void(0)" class="unlogin">登录</a>
+        <a id="navRegister" href="javascript:void(0)" class="unlogin">注册</a>
+    </div>
+</div>
+<script src="https://c.raqsoft.com.cn/js/raqsoft/jquery-1.9.1.js"></script>
+<script>
+var contextPath = 'https://c.raqsoft.com.cn';
+var appnum = 1; //1c.raqsoft.com.cn; 2c.raqsoft.com; 3c.scudata.com 
+</script>
+<script type="text/javascript" src="https://c.raqsoft.com.cn/js/jquery-powerFloat/js/mini/jquery-powerFloat-min.js"></script>	
+<script type="text/javascript" src="https://c.raqsoft.com.cn/js/artDialog/dist/dialog.js?v=9" charset="UTF-8"></script>
+<script src="https://c.raqsoft.com.cn/js/raqsoft/artDialog/jquery.artDialog.source.js?skin=twitter"></script>
+<script src="https://c.raqsoft.com.cn/js/raqsoft/raqsym.js?v=11"></script>
+<script>
+	$(document).ready(function(){
+	  $('#algoliaSearch1').keyup(function(event){
+			if (event.keyCode == 13) { //enter
+				//var co = $($('#searchDialogDiv').children()[selectPos]);
+				//console.log(co.attr('href'));
+				//window.open(co.attr('href'));//co.click();
+				if ($(this).val() != '') $('#searchForm').submit();
+			} else {
+				refreshSearch();
+			}
+	  });
+	});
+	$.ajax({
+		type: 'POST',
+		async : true,
+		url: "https://c.raqsoft.com.cn/rq?d="+new Date().getTime(),
+		data: {oper:'addPageViewRecord',url:window.location.href.substring(contextPath.length)},
+		success: function(data){
+		}
+	});
+
+	var searchDialog = null;
+	function refreshSearch() {
+		var key = $.trim($('#algoliaSearch1').val());
+
+		if (key == '') {
+			if (searchDialog != null) searchDialog.close();
+			return;
+		}
+		
+		keyBak = key;
+		setTimeout(function(){
+			var key2 = $.trim($('#algoliaSearch1').val());
+			
+			if (key2 != key) return;
+			
+			$.ajax({
+				type: 'POST',
+				async : true,
+				url: "https://c.raqsoft.com.cn/rq?d="+new Date().getTime(),
+				data: {oper:'search',key:key},
+				success: function(data){
+					if (key2 != keyBak) return;
+					if (data.indexOf('error:')==0) {
+						//alert(data.substring(6));
+						return;
+					}
+					var result = eval(data);
+
+					var s = '';
+					for (var i=0; i<result.length; i++) {
+						s += "<a target='_blank' href='https://c.raqsoft.com.cn/article/"+result[i].oId+"' style='display:block;margin:5px;'>"+result[i].articleTitle+"</a>";
+					}
+
+					searchDialog = dialog({
+						content: "<div id='searchDialogDiv' style='width:100%;height:100%;overflow-y:auto;overflow-x:hidden;'>"+s+"</div>",
+						quickClose: true//点击空白处快速关闭
+						,width:400
+						,height:500
+						,padding:3
+						,autofocus:false
+					});
+					
+					searchDialog.show($('#algoliaSearch1')[0]);
+				}
+			});
+		},500);
+		
+	}
+
+</script>
+
+
+
+<div class="article-body">
+    <div class="wrapper">
+        <div class="article-info fn-flex">
+        <a rel="author" href="https://c.raqsoft.com.cn/member/279400248">
+            <div
+            aria-name="279400248"
+            class="avatar-mid tooltipped__user"
+            data-src="https://img.raqsoft.com.cn/avatar/1533042906563"></div></a>
+            <div class="fn-flex-1 fn-ellipsis ft-smaller">
+                        <span class="ft-gray">
+                        <a rel="author" href="https://c.raqsoft.com.cn/member/279400248"
+                           aria-name="279400248"
+                           class="ft-a-title tooltipped__user">279400248</a></span>
+
+                <span id="articltVia" class="ft-fade articleVia" data-ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.289 Safari/537.36"></span>
+
+                <br/>
+                <span class="ft-gray">乾学院 50 号会员</span>
+                <br/>
+                <span class="ft-gray">
+                                    <a rel="nofollow" class="ft-gray" href="#comments">
+                                    <span class="article-level0">2</span> 回帖</a>
+                                &nbsp;•&nbsp;
+	                                <span class="article-level4">
+	                                	875
+	                                </span>
+	                                浏览
+	                                &nbsp;•&nbsp;
+                                <time class="tooltipped tooltipped__n"
+                                      aria-label="2024-04-19 09:16:46">2 年前</time>
+                            </span>
+            </div>
+            <div>
+            &nbsp;&nbsp;&nbsp;&nbsp;
+                <span id="articleMoreBtn" aria-label="更多"
+                      class="btn small tooltipped tooltipped__e green">...</span>
+            </div>
+        </div>
+
+        <h1 class="article-title" itemprop="name">
+                    解决关联查询（JOIN 简化和提速系列 5）
+        </h1>
+
+
+            <div class="fn-flex" style="border-bottom:1px solid lightgray;">
+                <div class="fn-flex-1">
+                    <a rel="tag" class="tag" href="https://c.raqsoft.com.cn/tag/Lecture">数据蒋堂</a>&nbsp;
+                </div>
+                <div class="fn-flex">
+                </div>
+            </div>
+
+        <div class="ft-gray" style="display:block;">
+        </div>
+        <div class="content-reset article-content"
+             data-link="https://c.raqsoft.com.cn/article/1713489406417"
+             data-author="279400248">
+        <p><strong>五. 解决关联查询</strong></p> 
+<p>我们重新审视和定义了等值 JOIN 运算，并简化了语法。一个直接的效果显然是让语句<strong>书写和理解更容易</strong>。外键属性化、同维表等同化和子表集合化方案直接消除了 JOIN 关键字，也更符合自然思维；维度对齐则可让程序员不再关心表间关系，降低语句的复杂度。</p> 
+<p>简化 JOIN 语法的好处不仅在于此，还能够<strong>降低出错率</strong>。<br>我们知道，SQL 允许用 WHERE 来写 JOIN 运算的过滤条件（回顾原始的笛卡尔积式的定义），很多程序员也习惯于这么写。当 JOIN 表只有两三个的时候，那问题还不大，但如果 JOIN 表有七八个甚至十几个的时候，漏写一个 JOIN 条件是很有可能的。而漏写了 JOIN 条件意味着将发生多对多的完全叉乘，而这个 SQL 却可以正常执行，一方面计算结果会出错（回忆一下以前说过的，发生多对多 JOIN 时，大概率是语句写错了），另一方面，如果漏写条件的表很大，笛卡尔积的规模将是平方级的，这极有可能把数据库直接“跑死”！<br>采用简化后的 JOIN 语法，就不可能发生漏写 JOIN 条件的情况了。因为对 JOIN 的理解不再是以笛卡尔积为基础，而且设计这些语法时已经假定了多对多关联没有业务意义，这个规则下写不出完全叉乘的运算。</p> 
+<p>对于多个子表分组后与主表对齐的运算，在 SQL 中要写成多个子查询的形式。但如果只有一个子表时，可以先 JOIN 再 GROUP，这时不需要子查询。有些程序员没有仔细分析，会把这种写法推广到多个子表的情况，也先 JOIN 再 GROUP，可以避免使用子查询，但计算结果是错误的。<br>使用维度对齐的写法就不容易发生这种错误了，无论多少个子表，都不需要子查询，一个子表和多个子表的写法完全相同。</p> 
+<p>重新看待 JOIN 运算，最关键的作用在于<strong>实现关联查询</strong>。<br>当前 BI 是个热门，各家产品都宣称能够让业务人员拖拖拽拽就完成想要的查询报表。但实际应用效果却远不如人意，业务人员仍然要经常求助于 IT 部门。造成这个现象的主要原因在于大多数业务查询都是有过程的计算，本来也不可能拖拽完成。但是，也有一部分查询并不涉及多步过程，而业务人员仍然难以完成。<br>这就是关联查询，也是大多数 BI 产品的软肋。在之前的文章中已经讲过为什么关联查询很难做，其根本原因就在于 SQL 对 JOIN 的定义过于简单。<br>结果，BI 产品的工作模式就变成先由技术人员建模，再由业务人员基于建好的模做查询。而所谓建模，就是生成一个逻辑上或物理上的宽表。也就是说，建模要针对不同的关联需求分别实现，我们称之为<strong>按需建模</strong>，这时候的 BI 也就失去敏捷性了。</p> 
+<p>如果我们改变了对 JOIN 运算的看法，关联查询可以从根本上得到解决。回忆前面讲过的三种 JOIN 及其简化手段，我们事实上把这几种情况的多表关联都转化成了单表查询，而业务用户对于单表查询并没有理解障碍。无非就是表的属性（字段）稍复杂了一些：可能有子属性（外键字段指向维表并引用其字段），子属性可能还有子属性（多层的维表），有些字段取值是集合而非单值（子表看作为主表的字段）。发生互相关联甚至自我关联也不会影响理解（前面的中国经理的美国员工例子就是互关联），同表有相同维度当然更不碍事（各自有各自的子属性）。<br>在这种关联机制下，技术人员只要一次性把数据结构（元数据）定义好，在合适的界面下（把表的字段列成有层次的树状而不是常规的线状），就可以由业务人员自己实现 JOIN 运算，不再需要技术人员的参与。数据建模只要在数据结构发生改变的时刻实施，而不需要为新的关联需求建模，这也就是<strong>非按需建模</strong>，在这种机制支持下的 BI 才能拥有足够的敏捷性。</p> 
+<p><img alt="clipboardpng" data-src="https://img.raqsoft.com.cn/file/2024/04/70381656f46c478eb0eb68d5e451256b_clipboard.png"></p>
+        </div>
+        
+        <div class="ft-gray" style="display:block;">
+        </div>
+
+
+        <div class="article-tail">
+			&nbsp;
+        </div>
+
+    </div>
+</div>
+<div class="main">
+    <div class="wrapper" id="articleCommentsPanel">
+
+        <div class="module comments" id="comments">
+            
+            <div class="comments-header module-header">
+                <span class="article-cmt-cnt">2 回帖</span>
+                <span class="fn-right">
+                            <a class="tooltipped tooltipped__nw ft-a-title"
+                               id="articleCommentChangeSort"
+                               href="javascript:Comment.exchangeCmtSort(0)"
+                               aria-label="切换到实时回帖浏览模式"><svg><use
+                                    xlink:href="#sortasc"></use></svg></a> &nbsp; &nbsp;
+                            <span class="tooltipped tooltipped__nw ft-a-title"
+                                  id="articleCommentGoBottom"
+                                  aria-label="跳转到底部回帖"><svg><use
+                                    xlink:href="#iconChevronDown"></use></svg></span>
+                        </span>
+            </div>
+            <div class="list">
+                <div class="pagination pagination--top">
+                </div>
+                <div class="comment__reply fn-flex">
+                    <span class="reply__text fn-flex-1 commentToggle">请输入回帖内容
+                        ...</span>
+                </div>
+                <ul>
+<li id="1713490458048"
+    class="">
+    <div class="fn-flex">
+        <div>
+            <a rel="nofollow" href="https://c.raqsoft.com.cn/member/Mars">
+            <div class="avatar tooltipped__user"
+                 aria-name="Mars"
+                 data-src="https://img.raqsoft.com.cn/avatar/1530509651455_1533211414760."></div>
+            </a>
+        </div>
+        <div class="fn-flex-1">
+            <div class="comment-get-comment list"></div>
+            <div class="fn-clear comment-info">
+                <span class="fn-left ft-smaller">
+                            <a rel="nofollow"
+                               aria-name="Mars"
+                               href="https://c.raqsoft.com.cn/member/Mars"
+                               class="ft-a-title tooltipped__user">Mars</a>
+                                            <span class="ft-fade">•
+                            <time aria-label="2024-04-19 09:34:18"
+                                  class="tooltipped tooltipped__n">2 年前</time>
+                        </span>
+                        <span class="articleCommentThankCnt">
+                        </span>
+                    <span class="cmt-via ft-fade hover-show fn-hidden"
+                                                                   data-ua="Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"></span>
+                </span>
+
+                <span class="fn-right">
+                </span>
+            </div>
+            <div class="content-reset comment" data-author="Mars"
+                 data-link="https://c.raqsoft.com.cn/article/1713489406417#1713490458048">
+            <p><a href="http://c.raqsoft.com/article/1713490260730" target="_blank" rel="nofollow">英文版</a></p>
+            </div>
+            <div class="comment-action">
+                <div class="ft-fade fn-clear">
+
+                    <span class="fn-right action-btns">
+                        <span class="tooltipped tooltipped__n fn-hidden hover-show articleCommentGoodBtn"
+                              aria-label="0 赞同"
+                              data-cnt="0"
+                              data-grant="false"
+                              data-vote="false"
+                        ><svg class="icon-thumbs-up"><use xlink:href="#iconChevronUp"></use></svg></span> &nbsp;&nbsp;
+
+                        <span class="tooltipped tooltipped__n fn-hidden hover-show articleCommentBadBtn"
+                              aria-label="0 反对"
+                              data-cnt="0"
+                              data-grant="false"
+                              data-vote="false"
+                        ><svg class="icon-thumbs-down"><use xlink:href="#iconChevronDown"></use></svg></span>
+
+
+                    </span>
+                </div>
+                <div class="comment-replies list"></div>
+            </div>
+        </div>
+    </div>
+</li>                </ul>
+            </div>
+            <div class="pagination">
+            </div>
+        
+        </div>
+    </div>
+</div>
+<div class="wrapper article-footer">
+
+
+</div>
+
+<div id="heatBar">
+    <i class="heat tooltipped tooltipped__w" style="width:0px" aria-label="帖子活跃度"></i>
+</div>
+
+<div class="share" style="text-align: left;display: block;">
+    <!--
+	-->
+    <span id="thankArticle"
+          aria-label="感谢"
+          class="tooltipped tooltipped__e article__thank icon-link"
+          data-oid="1713489406417"
+          data-grant="false"
+          data-cnt="0"><svg><use
+            xlink:href="#iconHeart"></use></svg><span
+            class="ft-13">&nbsp;</span></span>
+    <div id="qrCode" style="top:20px;" class="fn-none"
+         data-avatar="https://img.raqsoft.com.cn/avatar/1533042906563"
+         data-shareurl="https://c.raqsoft.com.cn/article/1713489406417"></div>
+    <span class="tooltipped tooltipped__e" aria-label="share to wechat" data-type="wechat"><svg class="icon-wechat"><use
+            xlink:href="#iconWechat"></use></svg></span>
+    <!--
+    <span class="tooltipped tooltipped__e" aria-label="share to weibo" data-type="weibo"><svg class="icon-weibo"><use
+            xlink:href="#iconWeibo"></use></svg></span>
+    <span class="tooltipped tooltipped__e" aria-label="share to twitter" data-type="twitter"><svg class="icon-twitter"><use
+            xlink:href="#iconTwitter"></use></svg></span>
+    <span class="tooltipped tooltipped__e" aria-label="share to google" data-type="google"><svg class="icon-google"><use
+            xlink:href="#iconGoogle"></use></svg></span>
+
+	-->
+    <span class="tooltipped tooltipped__e" data-type="copy"
+          aria-label="复制"
+          id="shareClipboard"><svg class="icon-link"><use xlink:href="#iconLink"></use></svg></span>
+    <input type="text" class="article-clipboard"
+           value="https://c.raqsoft.com.cn/article/1713489406417"/>
+	<!--
+	-->
+
+	<script>
+	function getQueryString(name) {  
+        var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");  
+        var r = window.location.search.substr(1).match(reg);  
+        if (r != null) return unescape(r[2]);  
+        return null;  
+    }  
+	$(document).ready(function(){
+    	$('#QianBaoCode').css('display','none');
+    	var img = getQueryString("img");
+    	if (img != null) {
+			$('#QianBaoCode').css('display','block').attr('src','http://img.raqsoft.com.cn/'+img);
+    	} else {
+			$('#QianBaoCode').css('display','block').attr('src','http://img.raqsoft.com.cn/temp/qianbao.png');
+    	}
+	});
+	</script>
+</div>
+
+<div style="text-align: left;color: #616161;font-size: 22px;right: 21%;
+    margin-top: 0;
+    position: fixed;
+    text-align: center;
+    top: 80%;
+    width: 30px;
+    z-index: 42;">
+	<img style="margin-bottom:30px;width:23px;height:23px;cursor:pointer;" title="回顶部" onclick="javascript:document.documentElement.scrollTop=0;" src="https://c.raqsoft.com.cn/images/toTop.png">
+</div>
+
+
+<div class="article__bottom" style="z-index:400;">
+    <div class="fn-clear">
+        <span class="ft-13">
+            <span id="articleCollectCnt">0</span> 收藏  &nbsp;•&nbsp;
+            <span id="articleFollowCnt">1</span> 关注 &nbsp;•&nbsp;
+            <span id="articleGoodCnt">0</span> 赞同 &nbsp;•&nbsp;
+            <span id="articleBadCnt">0</span> 反对
+        </span>
+        <div class="fn-right" id="articleActions">
+
+            <span class="tooltipped tooltipped__n"
+                  id="articleCollectBtn"
+                  data-cnt="0"
+                  aria-label="收藏"
+                  data-grant="false"
+                  data-type="follow"><svg class="icon-star"><use xlink:href="#iconStar"></use></svg></span> &nbsp;
+            &nbsp;
+
+            <span class="tooltipped tooltipped__n"
+                  data-cnt="1"
+                  aria-label="关注"
+                  id="articleFollowBtn"
+                  data-grant="false"
+                  data-type="follow"
+            ><svg class="icon-view"><use xlink:href="#iconView"></use></svg></span> &nbsp; &nbsp;
+
+            <span class="tooltipped tooltipped__n"
+                  id="articleGoodBtn"
+                  data-voted="false"
+                  data-cnt="0"
+                  data-grant="false"
+                  aria-label="赞同"
+            ><svg class="icon-thumbs-up"><use xlink:href="#iconChevronUp"></use></svg></span> &nbsp; &nbsp;
+
+            <span class="tooltipped tooltipped__n"
+                  id="articleBadBtn"
+                  data-voted="false"
+                  data-cnt="0"
+                  data-grant="false"
+                  aria-label="反对"
+            ><svg class="icon-thumbs-down"><use xlink:href="#iconChevronDown"></use></svg></span> &nbsp; &nbsp;
+
+            <a rel="prev" class="tooltipped tooltipped__n"
+               aria-label="刷贴: 润乾报表 dayname 函数使用"
+               href="https://c.raqsoft.com.cn/article/1713429114977">
+                <svg>
+                    <use xlink:href="#refresh"></use>
+                </svg>
+            </a>
+        </div>
+    </div>
+</div>
+
+<style type="text/css" rel="stylesheet">
+.wx2wm{position: fixed; bottom: 200px;font-size: 14px; margin: 0;}
+.wx2wm .text{background:#253a63;line-height: 1.2em;display:block;width:20px;padding: 10px;position: absolute;  z-index: 2;color: white;text-decoration: none;text-align: center;}
+.wx2wm .text, .qrcode{-webkit-border-radius: 3px;-moz-border-radius: 3px;border-radius: 3px;-webkit-box-shadow: 2px 2px 8px rgba(0,0,0,0.2);-moz-box-shadow: 2px 2px 8px rgba(0,0,0,0.2);box-shadow: 2px 2px 8px rgba(0,0,0,0.2);}
+.wx2wm .qrcode{background: #f8f8f8 ; display: block; height: 120px; width: 120px;padding: 15px; margin: 0 0 0 -120px; text-align: center;position: absolute;   z-index: 1; transition: margin 0.5s ease;}
+.wx2wm:hover .qrcode{margin: 0px 0 0 40px;}
+.wx2wm .text:hover{color: #fff;background: #2f7fd5;text-decoration: none;}	
+</style>
+<div class="footer" >
+    <div class="wrapper">
+
+        <div class="footer-nav fn-clear">
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="http://www.raqsoft.com.cn/"  title="润乾官网" target="_blank">润乾官网</a>  
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="http://www.scudata.com.cn/"  title="数速官网" target="_blank">数速官网</a>  
+            <a style="font-size:13px;margin-right:10px;padding-right:0;" rel="help" href="http://www.raqsoft.com.cn/about">关于润乾</a>
+            <!--
+            <a href="http://www.raqsoft.com.cn/p">集算器</a>
+            <a href="http://www.raqsoft.com.cn/r">润乾报表</a>
+            <a href="https://c.raqsoft.com.cn/domains">版区</a>
+            <a href="https://c.raqsoft.com.cn/tags">版块</a>
+            <a href="https://c.raqsoft.com.cn/statistic">数据统计</a>
+            -->
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="http://www.raqsoft.com.cn/r" title="报表工具" target="_blank">报表工具</a> 
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="https://c.raqsoft.com.cn/article/1600319412768" title="报表工具" target="_blank">报表工具对比</a>   
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="http://www.scudata.com.cn/"  title="SPL" target="_blank">SPL</a> 
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="http://www.scudata.com.cn/"  title="开源SPL" target="_blank">开源SPL</a>  
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="http://www.raqsoft.com.cn/r/os-bi"  title="开源BI" target="_blank">开源BI</a> 
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="http://www.raqsoft.com.cn/r/os-bi"  title="免费BI" target="_blank">免费BI</a> 
+			<a style="font-size:13px;margin-right:10px;padding-right:0;" href="http://www.raqsoft.com.cn/r/os-bi"  title="自助报表" target="_blank">自助报表</a>           
+
+            <div class="fn-right">&COPY; 2026
+                <a rel="copyright" href="http://www.raqsoft.com.cn" target="_blank">北京润乾信息系统技术有限公司</a>
+            &nbsp;联系电话：010-51295366</div>
+        </div>
+    </div>
+</div>
+
+<div class="wx2wm">
+	<a href="#" class="text">关注乾学院公众号</a>
+	<div class="qrcode"><img src="https://c.raqsoft.com.cn/images/qrcode-wx.jpg" style="width:120px;height:120px;"></div>
+</div>
+
+<script>
+
+
+	$(document).ready(function(){
+		if ($('#addArticleBtn').length==1) $('.wx2wm').css('display','none');
+	});
+
+    var Label = {
+        nextStepLabel: '下一步',
+        invalidUserNameLabel: '用户名格式有误（数字/字母，长度 1-20）',
+        finshLabel: '完成',
+        invalidEmailLabel: '邮箱地址格式有误',
+        confirmPwdErrorLabel: '密码输入不一致',
+        captchaErrorLabel: '验证码错误',
+        imgMaxSize: 1048576,
+        fileMaxSize: 104857600,
+        miniPostfix: '',
+        messageLabel: '消息',
+        desktopNotificationTemplateLabel: '你有 ${count} 条未读消息',
+        invalidPasswordLabel: '密码格式有误（数字及字母组合，长度 6-16）',
+        loginNameErrorLabel: '登录名称长度 1-256',
+        followLabel: '关注',
+        unfollowLabel: '取消关注',
+        symphonyLabel: '乾学院',
+        visionLabel: '数据计算与展现',
+        cmtLabel: '回帖',
+        collectLabel: '收藏',
+        uncollectLabel: '取消收藏',
+        copyLabel: '复制',
+        copiedLabel: '已复制',
+        servePath: 'https://c.raqsoft.com.cn',
+        staticServePath: 'https://c.raqsoft.com.cn',
+        isLoggedIn: false,
+        funNeedLoginLabel: '登录后才能使用该功能',
+        notificationCommentedLabel: '收到的回帖',
+        notificationReplyLabel: '收到的回复',
+        notificationAtLabel: '提及我的',
+        notificationFollowingLabel: '我关注的',
+        pointLabel: '积分',
+        sameCityLabel: '同城',
+        systemLabel: '系统',
+        walletLabel: '钱包',
+        newFollowerLabel: '新关注者',
+        makeAsReadLabel: '标记为已读',
+        commaLabel: '，',
+        canDragLabel: '可拖拽',
+        staticResourceVersion: '1526741606158',
+        setEmotionLabel: '设置常用表情',
+        year: '2026',
+        mouseEffects: false,
+        killBrowserLabel: '<div class="fn__clear content-reset">为了让浏览器更好的发展，人类更加的进步，拥有更好的体验，让我们放弃使用那些过时、不安全的浏览器。<p>你可以下载：</p><ul class="fn__left"><li><a href="http://www.google.com/chrome" target="_blank" rel="noopener">谷歌浏览器</a></li><li><a href="http://www.mozilla.com/" target="_blank" rel="noopener">火狐</a></li><li><a href="http://se.360.cn/" target="_blank" rel="noopener">360</a> 或者 <a href="https://www.baidu.com/s?wd=%E6%B5%8F%E8%A7%88%E5%99%A8" target="_blank" rel="noopener">其它浏览器</a></li></ul><img class="fn__right" alt="Kill IE6" title="Kill IE6" src="/images/kill-browser.png"></div>',
+        killBrowserTitleLabel: '让我们放弃使用那些过时、不安全的浏览器吧！',
+        activityStartEatingSnakeTipLabel: '玩一局需要 【{point}】积分，确定开始么？',
+        activityStartGobangTipLabel: '玩一局需要 【{point}】积分，确定开始么？',
+        activityAskForDrawLabel: '对方请求和棋，是否同意？',
+        newVersionAvailableLabel: '新版本可用',
+        colonLabel: '：',
+        upToDateLabel: '已是最新版',
+        amountNotEmpty: '数额不能为空',
+        updateFailLabel: '更新失败',
+        updateSuccLabel: '更新成功',
+        transferSuccLabel: '转账成功',
+        invalidUserURLLabel: '链接需要符合 URL（协议://地址），最大长度 100',
+        tagsErrorLabel: '最多包含 4 个版块，每个版块长度 1-9，请勿包含特殊符号',
+        invalidUserQQLabel: 'QQ 号必须为数字，最大长度 12',
+        invalidUserIntroLabel: '个性签名最大长度 255',
+        invalidUserB3KeyLabel: 'B3 Key 最大长度 20',
+        invalidUserB3ClientURLLabel: 'B3 客户端接口最大长度 150',
+        invalidUserNicknameLabel: '昵称最大长度 20',
+        previewLabel: '预览',
+        unPreviewLabel: '取消预览',
+        invalidPhoneLabel: '手机号有误',
+        forgeUploadSuccLabel: '大约需要 1 分钟进行熔化和锻造，请稍候....',
+        uploadLabel: '上传',
+        addBoldLabel: '添加粗体',
+        addItalicLabel: '添加斜体',
+        insertQuoteLabel: '插入引用',
+        addBulletedLabel: '添加无序列表',
+        addNumberedListLabel: '添加有序列表',
+        addLinkLabel: '添加链接',
+        undoLabel: '撤销',
+        redoLabel: '恢复',
+        helpLabel: '帮助',
+        fullscreenLabel: '全屏',
+        uploadFileLabel: '上传文件',
+        insertEmojiLabel: '插入表情',
+        articleTitleErrorLabel: '帖子标题长度 1-255',
+        articleContentErrorLabel: '帖子内容长度 4-{maxArticleContentLength}',
+        recordDeniedLabel: '授权后才可以使用音频',
+        recordDeviceNotFoundLabel: '录音设备加载失败',
+        audioRecordingLabel: '[录音中]',
+        uploadingLabel: '[上传中请稍候]',
+        articleRewardPointErrorLabel: '打赏区积分必须为正整数',
+        discussionLabel: '小黑屋',
+        commonAtUser: 'false',
+        commentErrorLabel: '回帖内容长度 1-2000',
+        thankSentLabel: '谢意已传达~',
+        notAllowCmtLabel: '该帖子不允许回帖',
+        upLabel: '赞同',
+        downLabel: '反对',
+        removedLabel: '相关数据已被删除',
+        stickConfirmLabel: '确定要消费 100 积分来置顶该帖子吗？',
+        noRevisionLabel: '内容没有发生过任何改变',
+        thankedLabel: '已感谢',
+        thankLabel: '感谢',
+        isAdminLoggedIn: false,
+        adminLabel: '管理',
+        thankSelfLabel: '老王，你家的瓜熟了~',
+        replyLabel: '回复',
+        referenceLabel: '引用',
+        goCommentLabel: '跳转到回帖',
+        commonUpdateCommentPermissionLabel: '更新回帖',
+        noPermissionLabel: '你目前是<span class="ft-green">访客</span>，还不能使用该功能 <img align="absmiddle" alt=":flushed:" class="emoji" src="https://c.raqsoft.com.cn/emoji/graphics/flushed.png" title=":flushed:"><br><span class="ft-smaller">了解<a href="https://hacpai.com/article/1482057214675" target="_blank">社区信任体系</a></span>',
+        rewardLabel: '打赏',
+        closeLabel: '关闭',
+        invalidAppRoleLabel: '角色有误',
+        cancelLabel: '取消',
+        notificationCmtIds: '1713490458048',
+        articleAuthorName: '279400248',
+        userCommentViewMode: 0,
+        thankArticleConfirmLabel: '确定赠送 20 积分给该帖作者以表谢意？',
+        rewardConfirmLabel: '确定要打赏 0 积分给该帖子作者？',
+        articleTitle: '解决关联查询（JOIN 简化和提速系列 5）',
+        articleChannel: 'ws://c.raqsoft.com.cn:80/article-channel?articleId=1713489406417&articleType=0',
+        articleType: 0,
+        csrfToken: '',
+        articleOId: '1713489406417',
+        confirmRemoveLabel: '确定删除么？',
+        qiniuUploadToken: 'XrCXg_CeOWWQcK0uvqRYnYrGlacjoIAduWOH6h1E:nGxK6tRns3PrN1_PSxMv8pc6z34=:eyJzY29wZSI6InJhcXNvZnQtY24iLCJkZWFkbGluZSI6MTc5MjAyOTI4Nn0=',
+        qiniuDomain: 'https://img.raqsoft.com.cn',
+        algoliaAppId: 'O792L3ALON',
+        algoliaSearchKey: 'fe3f0d43dd6f94937ebe28af5aa87b81',
+        algoliaIndex: 'u_raqsoft',
+    	isEn:'zh-cmn-Hans'=='en'
+    }
+</script>
+<script src="https://c.raqsoft.com.cn/skins/classic/js/article.min.js?15267416061581"></script>
+<script src="https://c.raqsoft.com.cn/js/lib/algolia/algolia.min.js"></script>
+
+	<script>
+		var raqsoftMulu = '';
+		raqsoftMulu.selected = Label.staticServePath+"/article/1713489406417";
+	</script>
+<script src="https://c.raqsoft.com.cn/js/raqsoft/jquery-1.9.1.js?v=3"></script>
+<script src="https://c.raqsoft.com.cn/js/raqsoft/showdown.min.js?v=3"></script>
+<script src="https://c.raqsoft.com.cn/js/raqsoft/mulu.js?v=3"></script>
+<style>
+	.muluSplit{font-size:2px;width:100%;border-bottom:1px solid gray;}
+	.muluLevel1{font-weight:700;font-size:14px;padding:10px 15px;}
+	.muluLevel1 a,.muluLevel1 span{color:#000000;}
+	.muluLevel2{font-weight:700;font-size:13px;padding:10px 30px;}
+	.muluLevel2 a,.muluLevel2 span{color:#000000;}
+	.muluLevel3{font-weight:normal;font-size:11px;padding:10px 45px;}
+	.muluLevel3 a,.muluLevel3 span{color:#666666;}
+	.muluSelected{color:#999999 !important;font-weight:700;}
+</style>
+<script src="https://c.raqsoft.com.cn/js/raqsoft/clipboard.min.js?v=4"></script>
+<link  href="https://c.raqsoft.com.cn/js/viewer/viewer.css?v=4" rel="stylesheet">
+<script src="https://c.raqsoft.com.cn/js/viewer/viewer.min.js?v=4"></script>
+	<script>
+	String.prototype.replaceAll=function(s1, s2) {return this.split(s1).join(s2)}
+	function playSound(src){
+		var hd = $('#hiddenDiv');
+		if (hd.length == 0) {
+			hd = $("<div id='hiddenDiv' style='display:none;'></div>");
+			$("body").append(hd);
+		}
+		hd.html('<audio id="player" controls="controls" src="'+src+'">...</audio>');
+		$('#player')[0].play();		
+		$('#player')[0].onended = function() {
+		    //console.log("播放完毕");
+		    //if (viewerShow) viewer.next();
+		};
+	}
+	var viewer = null;
+	var playing = true;
+	var currImg = null;
+	var viewerTimeout = null;
+	var viewerShow = false;
+	//var useViewer = false;
+	var contentTags = [];
+	var currArticleId='1713489406417';
+			contentTags.push('数据蒋堂');
+	$(document).ready(function(){
+		
+		$.ajax({
+			type: 'POST',
+			async : true,
+			url: contextPath + "/rq?d="+new Date().getTime(),
+			data: {oper:'addViewCount',articleId:'1713489406417',from:''},
+			success: function(data){
+			}
+		});
+		
+
+		$('.article-content').find('code,td').each(function(){
+			//$(this).html($(this).html().replaceAll('&nbsp;',''));
+		});
+		$('.article-content').find('table').each(function(){
+			if (!$(this).parent().hasClass('article-content')) {
+				$(this).parent().css('overflow','auto');
+				return;
+			}
+			var divi = $('<div style="overflow:auto;"></div>');
+			$(this).after(divi);
+			divi.html("<table>"+$(this).html()+"</table>");
+			$(this).remove();
+		});
+	
+		$('a').each(function(){
+			var h = $(this).attr('href');
+			if (h && h.indexOf("forward?")>0) $(this).attr('href',h.replace('forward?',"forward2?"));
+		});
+	
+		//console.log($(".wrapper"));
+		var tobj1 = $('#articleToC');
+		var tobj2 = $('.article-toc');
+		var tobj3 = $('.footer');
+		setInterval(function(){
+			//var h = tobj1.height();
+			//tobj2.css('height',h-98+'px');
+			//tobj3.css('z-index',400);
+		},1000);
+	
+		//$("img[src='http://c.raqsoft.com.cn/images/banner/hdq.gif']").parent().css('display','none');
+		
+		
+		$('span[html]').each(function(){
+			$(this).html($(this).attr('html'));
+		});
+		
+			var avr = function(s){ 
+				$.ajax({
+					type: 'POST',
+					async : true,
+					url: contextPath + "/rq?d="+new Date().getTime(),
+					data: {oper:'addViewRecord',articleId:'1713489406417',seconds:s,from:''},
+					success: function(data){
+					}
+				});
+			}
+			avr(2);
+			setInterval(function(){if (document.hasFocus()) avr(20);},20000);
+			
+			
+
+		var imgs = $(".wrapper");
+		
+		var vds = $('video');
+		vds.attr('autoplay','autoplay').attr('controlslist','nodownload').bind('contextmenu',function(){ return false; });
+		if (vds.length>0) $(vds[0]).trigger('play');
+		
+		function viewerPlay() {
+			playing = !playing;
+			var curr = $('.viewer-play');
+			if (curr.length == 0) curr = $('.viewer-stop');
+			curr.removeClass("viewer-play").removeClass("viewer-stop").addClass(playing?"viewer-play":"viewer-stop");
+			if (playing) {
+				if (viewerShow) {
+					var n = $(currImg).parent().next().attr("data-url");
+					if (n!=null && n.indexOf("mp3")>=0) playSound(n);
+					else {
+						clearTimeout(viewerTimeout);
+						//viewerTimeout = setTimeout(function(){if (viewerShow && playing) viewer.next();},1000);
+					}
+				}
+			} else {
+				$('#player').remove();
+				clearTimeout(viewerTimeout);
+			}
+		}
+		
+		$("body").keyup(function(event){
+			//console.log(viewerShow);
+			if (event.which == 32) {
+				//console.log(32);
+				viewerPlay();
+			}
+			//event.cancelBubble = true;
+		})
+		
+		$('.content-audio').css({"display":"none"});
+		var iv2 = function(){
+			$('img').each(function(){
+				try {
+					$(this).attr('src',$(this).attr('src').replace('imageView2','imageView88'));
+				} catch(e){}
+			});
+		}
+		setTimeout(function(){iv2();},500);
+		setTimeout(function(){iv2();},1000);
+		setTimeout(function(){iv2();},3000);
+		
+		var imgss = imgs.find("img:not(.noPreview,.noPreview1)");
+		imgss.css("box-shadow","0px 0px 5px #eee");
+		if ($(".content-audio").length>0) imgss.css("cursor",'url("https://c.raqsoft.com.cn/images/play.png"),auto');
+		imgs[0].addEventListener('hidden', function () {
+			imgs.css({ opacity: 1.0 });
+			$('#player').remove();
+			clearTimeout(viewerTimeout);
+			viewerShow = false;
+		});
+		imgs[0].addEventListener('shown', function () {
+			imgs.css({ opacity: 0.1 });
+			playing = true;
+			$('.viewer-stop').removeClass("viewer-stop").addClass("viewer-play");
+			viewerShow = true;
+		});
+		imgs[0].addEventListener('viewed', function (event) {
+			currImg = event.detail.originalImage;
+			clearTimeout(viewerTimeout);
+			if (playing) {
+				var n = $(currImg).parent().next().attr("data-url");
+				//console.log(n);
+				if (n!=null && n.indexOf("mp3")>=0) playSound(n);
+				else {
+					clearTimeout(viewerTimeout);
+					//viewerTimeout = setTimeout(function(){if (viewerShow && playing) viewer.next();},5000);
+				}
+			}
+		});
+		viewer = new Viewer(imgs[0],{
+			loop:false
+			,filter : function(image) {
+				//return true;
+				//console.log(image);
+				return !($(image).hasClass("noPreview") || $(image).hasClass("noPreview1"));
+			}
+  			,toolbar : {
+			    zoomIn: true,
+			    zoomOut: true,
+				play : {
+					click : viewerPlay
+				},
+			    prev: true,
+			    next: true
+			}	
+		});
+
+		var topGGSpan = $('#topGGSpan');
+		if (topGGSpan.length > 0 && '1713489406417' != '1658799562261' && '1713489406417' != '1641249707028') {
+			topGGSpan.after('<div id="topSJGG" style="margin-bottom:2px;"></div>');
+			initSwiperFunc("http://img.raqsoft.com.cn/temp/"+new Date().getTime()+".png",$('#topSJGG'));
+			hitGGimg($('#topSJGG'));
+			$('#topSJGG').append('<div style="background-color:#FFF;font-size:20px;">&nbsp;</div>');
+		}
+	
+		var mobileCenter25 = $('.mobileCenter25');
+		if (mobileCenter25.length>0) {
+			var mp = mobileCenter25.parent();
+			mp.html('');//.html("<img src='https://c.raqsoft.com.cn/images/ad-article-pc.png'>");
+			var ruid = '';
+			var now = new Date().getTime();
+			$.ajax({
+				type: 'POST',
+				async : true,
+				url: contextPath + "/rq?d="+now,
+				data: {oper:'genQRCode',serverPath:'images/temp/'+now+'.png',qiniuPath:'temp/'+now+'.png',content:'http://survey.raqsoft.com.cn/huodong/yqy.jsp?uid=',w:200,h:200,waterMark:'images/qian.png',ww:55,wh:55,wAlpha:1.0,wScale:0.25},
+				success: function(data){
+						//mp.html('<img style="margin:0 0 10px 0;max-width:600px" class="noPreview1" src="https://c.raqsoft.com.cn/images/youqianying.png"><br>友乾营是专注数据技术的知识分享平台，这里，会不定期地发布独家技术专题视频、文档，便于独立思考学习；这里，鼓励对技术问题畅所欲言，在思维碰撞中相互学习、进行优势互补；另外，还会组织系列技术活动为技术人员创造更多的深层交流机会。<br><br>欢迎IT从业者或对数据相关技术感兴趣的人员入群交流、分享。共同打造“有热度话题、有深度思想、有先进技术、有高度评论”的高品质社群。<br><br>识别下面二维码，在页面上加友乾营小助手为好友<br><img style="margin:10px 0 0;" class="noPreview1" src="http://img.raqsoft.com.cn/temp/'+now+'.png">');
+						if ('1713489406417' != '1658799562261' && '1713489406417' != '1641249707028') {
+							mp.html('<div id="swiperParent"></div>');
+							initSwiperFunc("http://img.raqsoft.com.cn/temp/"+now+".png");
+						}
+						//hitGGimg($('#swiperParent'));
+
+					//console.log("genQRCode : " + data);
+				}
+			});
+		}
+
+		var cb = $("<br><div class='copyButton'>复制摘要</div>");
+		$('#articleAbstract').after(cb).parent().css('background-color',"#F1F1F1");
+		var clipboard = new ClipboardJS('.copyButton', {
+		    text: function(trigger) {
+		        return $('#articleAbstract').html();
+		    }
+		});
+	    clipboard.on('success', function(e) {
+	        $('.copyButton').html("复制摘要成功");
+	    });
+		
+		var enl = $('.enlink');
+		if (enl.length>0) {
+			var aid = enl.html();
+			enl.html('<a href="http://c.raqsoft.com/article/'+$.trim(aid)+'">英文版</a>');
+			enl.css('display','block');
+		}
+		var cnl = $('.cnlink');
+		if (cnl.length>0) {
+			var aid = cnl.html();
+			cnl.html('<a href="http://c.raqsoft.com.cn/article/'+$.trim(aid)+'">Chinese Version</a>');
+			cnl.css('display','block');
+		}
+		
+		$('table').each(function() {
+			var trs = $(this).find('tr');
+			
+			for (var i=1; i<trs.length; i++) {
+				var trsitd = $(trs[i]).find('td');
+				var first = 1;
+				for (var j=1; j<trsitd.length; j++) {
+					if ($.trim($(trsitd[j]).text()).length == 0 && $(trsitd[j]).html().indexOf("<img") == -1) {
+					} else {
+						first = j;
+						break;
+					}
+				}
+				var count = 0;
+				for (var j=trsitd.length-1; j>=first; j--) {
+					if ($.trim($(trsitd[j]).text()).length == 0 && $(trsitd[j]).html().indexOf("<img") == -1) {
+						$(trsitd[j]).remove();
+						count++;
+					} else {
+						if (count>0) {
+							$(trsitd[j]).attr('colspan',count+1);
+						} 
+						count = 0;
+					}
+				}
+				
+			}
+		});
+
+		$('table').each(function() {
+			var tds = $(this).find('th,td');
+			$("#iiiddd").find('th,td')[1]
+			tds.css('font-family','mononoki,Consolas,"Liberation Mono",Menlo,Courier,monospace').css('vertical-align','top').each(function(){
+				var cd = $(this).children();
+				var cdh = $(this).html();
+				//console.log(cdh);
+				if (cdh.startsWith("<") && cd.length == 1 && (cd[0].tagName == 'p' || cd[0].tagName == 'P' || cd[0].tagName == 'span' || cd[0].tagName == 'SPAN')) {
+					var cd2 = $(cd[0]).html();
+					//console.log(cd2);
+					$(this).append(cd2);
+					cd.remove();
+				}
+				cd = $(this).children();
+				cdh = $(this).html();
+				//console.log(cd);
+				if (cdh.startsWith("<") && cd.length == 1 && (cd[0].tagName == 'p' || cd[0].tagName == 'P' || cd[0].tagName == 'span' || cd[0].tagName == 'SPAN')) {
+					var cd2 = $(cd[0]).html();
+					//console.log(cd2);
+					$(this).append(cd2);
+					cd.remove();
+				}
+				
+			});
+
+			var trs = $(this).find('tr');
+			if (tds.length>=2 && trs.length>=2) {
+				var tds1txt = $.trim($(tds[1]).text());
+				if (tds1txt.length == 1 && "ABCDEFGHIJKLMNOPQRST".indexOf(tds1txt)>=0) {
+					var tds1 = $(trs[1]).find("td,th");
+					$(tds[0]).css('width','20px');
+					tds.attr('width','');
+					$(this).css('table-layout','fixed');
+					//if (tds1.length>0&&$.trim($(tds1[0]).text())=='1') {
+						tds.css('background-color','#FFFFFF').css('border','1px solid #D4D4D4');
+						$(trs[0]).find('td,th').css('text-align','center').css('font-size','16px').css('background-color','#E6E6E6');
+						trs.each(function(){
+							$($(this).find('td,th')[0]).css('text-align','center').css('font-size','16px').css('background-color','#E6E6E6');
+						});
+						
+						
+						setTimeout(function(){
+							var imgi = $(`<img style="cursor:pointer;height:20px !important;width:16px !important;" class="noPreview1" src="https://c.raqsoft.com.cn/images/copy2.png"/>`);
+							$(tds[0]).html(imgi);
+							imgi.click(function(){
+								//var ti = $(this).parent().parent().parent();
+								var ss = ""
+								for (var ii=1; ii<trs.length; ii++) {
+									var tdii = $(trs[ii]).find('td');
+									if ($.trim($(tdii[1]).text())=="…" && ss=="") continue;
+									for (var iii=1; iii<tdii.length; iii++) {
+										var ssi = $.trim($(tdii[iii]).html().replaceAll("\r\n"," ")
+											.replaceAll("\n\r"," ")
+											.replaceAll("\n"," ")
+											.replaceAll("“","\"")
+											.replaceAll("”","\"")
+											.replaceAll("＂","\"")
+											.replaceAll("&nbsp;"," ")
+											.replaceAll("&lt;","<")
+											.replaceAll("&gt;",">")
+											.replaceAll("&amp;","&")
+											.replaceAll("\\","\\\\")
+											
+											.replaceAll("<br>","\\n")
+											//.replace(/<[^>]*>/g, '')
+											);
+										if (ssi == '\\n') ssi = '';
+										ss += ssi +"\t";
+										var colspan = $(tdii[iii]).attr('colspan');
+										if (colspan) for (var ci=1; ci<parseInt(colspan); ci++) ss += "\t";
+										//ss += $.trim($(tdii[iii]).html());
+									}
+									ss += "\n";
+									
+								}
+								ss += "//SPL code from https://c.raqsoft.com.cn/article/1713489406417"
+								var ct =new copy_txt($(tds[0]));
+								ct.copy(ss);
+							});
+						},500);
+						
+					//}
+				}
+			}
+		});
+
+		
+		setTimeout(function(){
+			//initSwiperFunc4AR();
+		},1000);
+		
+		
+	});
+	
+
+	
+	function hitGGimg(parentDom) {
+		parentDom.find('a').click(function(){
+			$.ajax({
+				type: 'POST',
+				async : false,
+				url: contextPath + "/rq?d="+new Date().getTime(),
+				data: {oper:'addGGHit',u:'',a:'1713489406417'},
+				success: function(data){
+					if (data.indexOf('error:')==0) {
+						//alert(data.substring(6));
+						return;
+					}
+					console.log('addGGHit');
+				}
+			});
+		});
+	}
+	
+	function hitTag(url,type,tag,section) {
+		tag = tag.toLowerCase();
+		console.log("tag : " + tag);
+		$.ajax({
+			type: 'POST',
+			async : false,
+			url: contextPath + "/rq?d="+new Date().getTime(),
+			data: {oper:'hitTag',type:type,tag:tag,section:section},
+			success: function(data){
+			}
+		});
+		window.open(url+"?t="+encodeURIComponent(tag));
+	}
+	
+	var copy_txt=function(p){//无组件复制
+	    var _this =this;
+	    this.copy=function(txt){
+	        
+	        $("#input_copy_txt_to_board").val(txt);//赋值
+	        $("#input_copy_txt_to_board").removeClass("hihidede");//显示
+	        $("#input_copy_txt_to_board").focus();//取得焦点
+	        $("#input_copy_txt_to_board").select();//选择
+	        document.execCommand("Copy");
+	        $("#input_copy_txt_to_board").addClass("hihidede");//隐藏
+			alert('已复制');
+	    }
+	    
+	    //-----------
+	    var html = $('#input_copy_txt_to_board');
+	    html.remove();
+	    var html ='<textarea class="hihidede" id="input_copy_txt_to_board"></textarea>';//添加一个隐藏的元素
+	    p.append(html);    
+	}
+	</script>
+</body>
+</html>
+ 
+<link rel="stylesheet" href="https://c.raqsoft.com.cn/js/swiper.min.css">
+<script src="https://c.raqsoft.com.cn/js/swiper.min.js"></script>
+<style>
+.swiper-container{ height: auto; }
+.swiper-wrapper{ width: 100%;}
+.swiper-slide{text-align: center; height: auto; }
+.swiper-slide img{margin: auto; }
+.swiper-pagination-bullet {display: none; }
+.swiper-button-next, .swiper-button-prev { top: 0%;  width: 20px; background-color: rgba(0,0,0,0.3); height: 100%; margin-top: -0%; -moz-background-size: 10px auto; -webkit-background-size:10px auto; background-size: 10px auto;}
+.swiper-button-prev, .swiper-container-rtl .swiper-button-next {  left: 0px;}
+.swiper-button-next, .swiper-container-rtl .swiper-button-prev { right: 0px; }
+.swiper-button-next.swiper-button-disabled, .swiper-button-prev.swiper-button-disabled {display:none;}
+.swiper-slide.item1{background: #3476bc;}
+.swiper-slide.item2{background: #36afc1;}
+.swiper-slide.item3{background: #36afc1;}	
+.swiper-slide.item4{background: #36afc1;}	
+</style>	
+	
+<script>
+
+$(document).ready(function(){
+	try {
+		if ("1636692488087,1636678123623,1636610744758,1636594575834,1636530625179,1636448634767,1636371801840,1636341117070,1636074247102,1636009982920,1636008779242,1635987957058,1635830658192,1635728390311,1635487525290,1635478635741".indexOf(currArticleId)>=0) {
+			$('.article-tail').after(`
+				    <div style="background: #fff; width: 400px; margin: 10px auto 20px auto; box-shadow: 0 0 5px rgba(56, 50, 50, 0.2); display: table;; padding:0px; border-left:5px solid #41ba7e;">
+					  <DIV style="float:left; padding: 10px;">
+						  <div style="  padding:0px 5px 5px 5px ; line-height: 25px;">对<strong>开源SPL</strong>感兴趣的朋友，<br>请扫码添加小助手进群参与讨论</div><div  style="padding:0px 5px 5px 5px;"><strong >微信号：SPL-helper</strong></div>
+					  </DIV>
+					  <DIV style="float:right; background:#41ba7e; padding:   10px; "><img src="http://www.raqsoft.com.cn/wx/images/wxq.png"style="width: 80px; margin: 0;"></DIV>
+					</div>
+			`);
+		}
+	} catch(e){}
+});
+
+
+var initSwiperFunc = function(url,parentDiv){
+	//<div id="swiperParent"></div>
+	if (!parentDiv) parentDiv = $('#swiperParent');
+	if (parentDiv.attr('id') == 'topSJGG') {
+	
+		var urls = ("https://c.raqsoft.com.cn/article/1642998448134,质冠商用价怼开源的报表软件来了"
+					+";https://c.raqsoft.com.cn/article/1662685741528,经济下行，降本增效从报表工具开始"
+					+";https://c.raqsoft.com.cn/article/1657594267917,应用系统中的报表开发成本知多少？"
+					+";https://c.raqsoft.com.cn/article/1676462538423,报表 BI 项目建设中工具平台该花多少钱？"
+					+";https://c.raqsoft.com.cn/article/1677045666377,数据可视化建设的成本该花在哪？ "
+					+";https://c.raqsoft.com.cn/article/1677468191110,不起眼的报表才是项目的成本无底洞"
+					+";https://c.raqsoft.com.cn/article/1677831208476,报表工具是应用软件开发商的基础件"
+					+";https://c.raqsoft.com.cn/article/1658641148326,还在纠结报表工具选型吗？"
+					+";https://c.raqsoft.com.cn/article/1646876352711,报表工具选型应该重点考察哪些指标"
+					+";https://c.raqsoft.com.cn/article/1645754638419,怎样考察报表工具的开发效率？"
+					+";https://c.raqsoft.com.cn/article/1644930428935,怎样评测对比报表工具的性能？"
+					+";https://c.raqsoft.com.cn/article/1666746169650,啥都有开源， 报表工具呢？"
+					+";https://c.raqsoft.com.cn/article/1647481180103,零编码制作报表真地可能吗？"
+					+";https://c.raqsoft.com.cn/article/1643181441924,为什么用了大牌工具后报表开发依然头痛"
+					+";https://c.raqsoft.com.cn/article/1653447077130,报表工具的二次革命"
+					+";https://c.raqsoft.com.cn/article/1666921518027,报表中总是得写 java 程序怎么办"
+					+";https://c.raqsoft.com.cn/article/1667276835933,多样性数据源报表如何做？"
+					+";https://c.raqsoft.com.cn/article/1667456509607,怎样减少报表开发中的存储过程？"
+					+";https://c.raqsoft.com.cn/article/1667886846883,怎样实现 T+0 的实时报表？"
+					+";https://c.raqsoft.com.cn/article/1667989949404,怎样减少报表后台的中间表？"
+					+";https://c.raqsoft.com.cn/article/1668149815187,如何使报表模块与其他解耦？"
+					+";https://c.raqsoft.com.cn/article/1679534242509,怎样让报表能够适应各种数据库"
+					+";https://c.raqsoft.com.cn/article/1660872345131,“凌波五步”解决报表没完没了"
+					+";https://c.raqsoft.com.cn/article/1646222185262,怎样提高报表呈现的性能"
+					+";https://c.raqsoft.com.cn/article/1535506545563,秒级展现的百万级大清单报表怎么做"
+					+";https://c.raqsoft.com.cn/article/1536328795758,百万级分组大报表开发与呈现"
+					+";https://c.raqsoft.com.cn/article/1648610185598,怎样在应用中实现自助报表功能"
+					+";https://c.raqsoft.com.cn/article/1636507640649,怎样在应用中实现通用查询功能"
+					+";https://c.raqsoft.com.cn/article/1637150487547,如何解决报表的 SQL 植入风险"
+					+";https://c.raqsoft.com.cn/article/1647568805413,自助报表和 BI 能解决多少事？"
+					+";https://c.raqsoft.com.cn/article/1652404139220,现在啥软件都有开源，BI 呢？"
+					+";https://c.raqsoft.com.cn/article/1652230486771,国内市场上的 BI 软件到底有啥区别？"
+					+";https://c.raqsoft.com.cn/article/1612925790144,怎样评价 国产报表工具和BI软件"
+					+";https://c.raqsoft.com.cn/article/1678672016497,BI 建设效果和工具平台的关系有多大？"
+					+";https://c.raqsoft.com.cn/article/1679105266217,上了 BI，B 就 I 了吗？"
+					+";https://c.raqsoft.com.cn/article/1680052834368,多维分析的跨行组运算需要两个汇总层"
+					+";https://c.raqsoft.com.cn/article/1534232078598,把 Excel 透视表搬到 WEB 上"
+					+";https://c.raqsoft.com.cn/article/1534823034618,给一句 SQL 就能做多维分析"
+					+";https://c.raqsoft.com.cn/article/1653901344139,告别宽表，用 DQL 成就新一代 BI"
+					+";https://c.raqsoft.com.cn/article/1643439535399,为什么 BI 软件都搞不定关联分析"
+					+";https://c.raqsoft.com.cn/article/1629073703287,润乾报表中的 DQL 有什么过人之处？"
+					).split(";");
+
+		var rdm = parseInt(Math.random()*urls.length);
+		var rdmurl = (urls[rdm].split(","))[0];
+		var imgs = ["1642998448134","1662685741528","1657594267917","1676462538423","1677045666377","1677468191110","1677831208476","1658641148326","1646876352711","1645754638419","1644930428935","1666746169650","1647481180103","1643181441924","1653447077130","1666921518027","1667276835933","1667456509607","1667886846883","1667989949404","1668149815187","1679534242509","1660872345131","1646222185262","1535506545563","1536328795758","1648610185598","1636507640649","1637150487547","1647568805413","1652404139220","1652230486771","1612925790144","1678672016497","1679105266217","1680052834368","1534232078598","1534823034618","1653901344139","1643439535399","1629073703287"];
+/*
+		parentDiv.append('<div class="div1">'
+				+'<a href="'+rdmurl+'" target="_blank">'
+					+'<img src="https://c.raqsoft.com.cn/images/articleTopGG/'+imgs[rdm]+'.png?v=2">'
+				+'</a>'
+			+'</div>');
+*/
+		parentDiv.append('<div class="div1">'
+				+'<a href="https://www.raqsoft.com.cn/langding-page-rqreport?from=c-ad" target="_blank">'
+					+'<img src="https://c.raqsoft.com.cn/images/articleTopGG/jiage.png?v=2">'
+				+'</a>'
+			+'</div>');
+	} else if (url) {
+		parentDiv.append(`
+			<div class="div1" style="display:none;">
+				<a href="http://www.raqsoft.com.cn/wx/course-data-mining.html" target="_blank">
+					<img src="https://c.raqsoft.com.cn/images/ad-course-sjwj.png">
+				</a>
+			</div>	
+			<div class="div2" style="display:none;">
+				<a href="http://www.raqsoft.com.cn/wx/course-Business-Intelligence.html" target="_blank">
+					<img src="https://c.raqsoft.com.cn/images/ad-course-syzn.png">
+				</a>
+			</div>	
+		`);
+		var rdm = parseInt(Math.random()*2)+1;
+		parentDiv.find(".div"+rdm).css('display','block');
+	} else {
+		parentDiv.append(`
+			<div class="swiper-container">
+				<div class="swiper-wrapper">
+
+					<!--
+					<div class="swiper-slide item5">
+						<a href="https://www.raqsoft.com.cn/nlq-course" target="_blank">
+							 <img src="https://c.raqsoft.com.cn/images/ad-peixun-251218.png">
+						 </a>
+					</div>
+					-->
+					
+					<div class="swiper-slide item1">
+						 <img src="https://c.raqsoft.com.cn/images/ad-xzs.png">
+					</div>
+					<div class="swiper-slide item4">
+						<a href="http://www.raqsoft.com.cn/wx/course-performance-optimizing.html" target="_blank"><img src="https://c.raqsoft.com.cn/images/ad-course-xnyh.png"></a>
+					</div>
+					<div class="swiper-slide item2">
+						<a href="http://www.raqsoft.com.cn/wx/course-data-mining.html" target="_blank">
+							<img src="https://c.raqsoft.com.cn/images/ad-course-sjwj.png">
+						</a>
+					</div>
+					<div class="swiper-slide item3">
+						<a href="http://www.raqsoft.com.cn/wx/course-Business-Intelligence.html" target="_blank"><img src="https://c.raqsoft.com.cn/images/ad-course-syzn.png"></a>
+					</div>
+					
+	
+				</div>
+				<div class="swiper-pagination"></div>
+				<div class="swiper-button-next swiper-button-white"></div>
+				<div class="swiper-button-prev swiper-button-white"></div>
+			</div>	
+		`);
+	
+		var swiper = new Swiper('.swiper-container', {
+			pagination: '.swiper-pagination',
+			nextButton: '.swiper-button-next',
+			prevButton: '.swiper-button-prev',
+			paginationClickable: true,
+			spaceBetween: 30,
+			centeredSlides: true,
+			autoplay: 5000,
+			autoplayDisableOnInteraction: false,
+		}) 
+		// 鼠标悬停停止轮转
+		$(".swiper-container").mouseenter(function() {
+		swiper.stopAutoplay();
+		}).mouseleave(function() {
+		swiper.startAutoplay();
+		});
+	}
+}
+</script>
+		
+ 
+ 
+
+<!-- Generated by Latke (https://github.com/b3log/latke) in 624ms, 2026/10/15 08:54:46 -->

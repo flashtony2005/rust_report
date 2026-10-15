@@ -14,8 +14,8 @@ mod common;
 
 use common::{all_names, load, parse_fixture};
 
-/// 十六个"能算出网格"的夹具（`engine_cycle` 是错误型，见下）。
-const GRID_FIXTURES: [&str; 16] = [
+/// 十七个"能算出网格"的夹具（`engine_cycle` 是错误型，见下）。
+const GRID_FIXTURES: [&str; 17] = [
     "engine_sum",
     "engine_ext",
     "engine_expr",
@@ -32,6 +32,7 @@ const GRID_FIXTURES: [&str; 16] = [
     "engine_listrange",
     "engine_param",
     "engine_gbk",
+    "engine_emp",
 ];
 
 /// 一行尺寸真值：(夹具名, 模板行, 模板列, 计算行, 计算列, 非空格数, 带 source, 不带 source)。
@@ -40,7 +41,7 @@ type ShapeRow = (&'static str, i32, i32, i32, i32, usize, usize, usize);
 
 /// 全部尺寸真值。合并成一张表是为了守住"单文件 ≤300 行"门禁，
 /// 同时让尺寸与计数不会各说各话。
-const SHAPE: [ShapeRow; 16] = [
+const SHAPE: [ShapeRow; 17] = [
     ("engine_sum", 6, 9, 8, 9, 36, 36, 0),
     ("engine_ext", 4, 3, 8, 7, 42, 12, 30),
     ("engine_expr", 6, 5, 8, 5, 20, 20, 0),
@@ -66,11 +67,15 @@ const SHAPE: [ShapeRow; 16] = [
     // （行 1 全部 + 行 2 全部），4 格是扩展铺开的新行（无 source）。
     // CSV 是 GBK 编码（中文列名/数据）——引擎按 encoding 缺省 GBK 解码。
     ("engine_gbk", 3, 3, 5, 3, 13, 9, 4),
+    // 员工信息查询夹具：模板 3x5；`ds1.select(id)` 扩 5 行带 + 同行四条裸
+    // `ds1.列` 跟随 ⇒ 计算态 7x5。非空格 31 = 1 标题 + 5 表头 + 25 数据格；
+    // 带/无 source 11/20 为产品产物实测数（python 复核：source ⟺ 模板尺寸内）。
+    ("engine_emp", 3, 5, 7, 5, 31, 11, 20),
 ];
 
 #[test]
 fn all_fixtures_load_and_self_identify() {
-    assert_eq!(all_names().len(), 17);
+    assert_eq!(all_names().len(), 18);
     for name in all_names() {
         // load 内部会校验 JSON 的 name 字段与请求名一致
         let fx = load(name);
