@@ -301,33 +301,167 @@ export default function App() {
   /** W3-5：右侧属性面板整体显隐（「视图」菜单；折叠是纯 UI，无判据含义）。 */
   const [sideVisible, setSideVisible] = useState(true)
 
+  /** W2-5：调整网格（面板输入的值）。 */
+  const onGridResize = async () => {
+    const rows = Number(gridDraft.rows)
+    const cols = Number(gridDraft.cols)
+    await resizeGridAndRender(rows, cols)
+  }
+
+  /** W3-7：新建报表（产品「文件→新建报表 Ctrl+N」）——最小 3×3 定义 JSON
+   * 直接进编辑面（不经磁盘文件），A1 放一个字面量当锚点。 */
+  const newReport = async () => {
+    const fresh: ReportDef = {
+      version: 1,
+      grid: { rows: 3, cols: 3 },
+      cells: [{ row: 1, col: 1, text: '新报表' }],
+    }
+    setDefBoth(fresh)
+    setReportName('new-report.json')
+    setStatus('正在装载新建报表…')
+    try {
+      const snapshot = await fetchSnapshotWithDef(
+        JSON.stringify(fresh),
+        'new-report.json',
+        Array.from(files ?? []),
+        params,
+      )
+      attachSnapshot(snapshot, fresh, 'json')
+      setStatus('已新建 3×3 报表；可直接编辑单元格，或「另存为」入库')
+    } catch (e) {
+      setStatus(`新建失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  /** W3-7：打开报表（产品「文件→打开报表 Ctrl+O」）——触发顶栏文件选择。
+   * 顶栏 input 是既有的唯一文件入口（E2E 也用它），不另造。 */
+  const openReport = () => {
+    const input = document.querySelector('input[type=file]') as HTMLInputElement | null
+    if (input) input.click()
+    else setStatus('未找到文件选择控件')
+  }
+
+  /** W3-7：编辑菜单的插入/删除（产品「插入(I)→/删除(D)→」的 Web 子集）。
+   * v1 只做**追加行/列**与**删末行/列**——中间行列的插入/删除需要 cells/
+   * row_props 内容平移（产品会平移），未实现前不开放（无平移 = 静默错位）。 */
+  const insertRow = () => {
+    const held = defRef.current
+    if (held) void resizeGridAndRender(held.grid.rows + 1, held.grid.cols)
+  }
+  const insertCol = () => {
+    const held = defRef.current
+    if (held) void resizeGridAndRender(held.grid.rows, held.grid.cols + 1)
+  }
+  const deleteLastRow = () => {
+    const held = defRef.current
+    if (held) void resizeGridAndRender(held.grid.rows - 1, held.grid.cols)
+  }
+  const deleteLastCol = () => {
+    const held = defRef.current
+    if (held) void resizeGridAndRender(held.grid.rows, held.grid.cols - 1)
+  }
+
+  /** W3-7：产品快捷键（文件/报表两组里 Web 有真实出口的）。
+   * Ctrl+N 新建 / Ctrl+O 打开 / Ctrl+S 保存（导出 JSON）/ F9 预览（渲染）/
+   * Ctrl+B 报表属性面板 / F11 数据集面板。⛔ Ctrl+Z/Y/X/C/V/F：Univer 画布
+   * 自带（`docs/spec-m7-web.md` §W3-7 的对照表），再挂一层会双触发。 */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        void newReport()
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault()
+        openReport()
+      } else if (e.ctrlKey && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        exportJson()
+      } else if (e.key === 'F9') {
+        e.preventDefault()
+        void render()
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'b') {
+        if (typing) return
+        e.preventDefault()
+        setSideVisible(true)
+        setStatus('已定位右侧「报表设置」分区（报表属性 Ctrl+B）')
+      } else if (e.key === 'F11') {
+        if (typing) return
+        e.preventDefault()
+        setSideVisible(true)
+        setStatus('已定位右侧「数据集」分区（数据集 F11）')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   /** W3-4：菜单全集。禁用的判据与顶栏按钮一致（无文件/无 def 时置灰）。 */
   const menuGroups: MenuGroup[] = [
     {
+      // 产品「文件(F)」对齐：新建/打开/保存/另存为/预览/导出→。
+      // ⛔ 未做（单文档 SPA 或浏览器沙箱边界，spec-m7-web §W3-7 对照表）：
+      // 新建报表组（多报表连续页码）、快速打开（=打开）、关闭/关闭全部、
+      // 最近文件/最近连接、退出。
       label: '文件',
       items: [
-        { label: '渲染', onPick: () => void render(), disabled: !files, hint: 'POST /api/render 装载快照（持有 def 时优先用它）' },
-        { label: '另存为（入库）', onPick: () => void save(), disabled: !files, hint: 'POST /reports 拿 id，并按 /meta 刷新参数表单' },
+        { label: '新建报表(N)\tCtrl+N', onPick: () => void newReport(), hint: '建最小 3×3 定义 JSON 直接进编辑面' },
+        { label: '打开报表(O)\tCtrl+O', onPick: openReport, hint: '选择 .rpx / .json（可同选 CSV）' },
+        { label: '打开数据集(D)', onPick: () => { setSideVisible(true); setStatus('右侧「数据集」分区：管理 datasets[] 引用') }, hint: '产品 F11 同款；Web 落在右侧面板' },
         { sep: true },
-        { label: '导出 JSON（定义）', onPick: exportJson, disabled: !def, hint: '把打过补丁的定义 JSON 下载回本地' },
-        { label: '导出 Excel（.xlsx）', onPick: () => void exportFile('xlsx'), disabled: !files && !def, hint: 'POST /api/export?fmt=xlsx（M6-03）' },
-        { label: '导出 CSV（.csv）', onPick: () => void exportFile('csv'), disabled: !files && !def, hint: 'POST /api/export?fmt=csv（M6-03）' },
+        { label: '保存(S)\tCtrl+S', onPick: exportJson, disabled: !def, hint: '把打过补丁的定义 JSON 下载回本地' },
+        { label: '另存为(A)', onPick: () => void save(), disabled: !files, hint: 'POST /reports 入库拿 id' },
+        { label: '预览(F9)', onPick: () => void render(), disabled: !files, hint: '按当前持有 def 重渲染（分页/纸张设置生效）' },
+        {
+          label: '导出(E)',
+          onPick: () => {},
+          children: [
+            { label: 'Excel（.xlsx）', onPick: () => void exportFile('xlsx'), disabled: !files && !def, hint: 'POST /api/export?fmt=xlsx' },
+            { label: 'CSV（.csv）', onPick: () => void exportFile('csv'), disabled: !files && !def, hint: 'POST /api/export?fmt=csv' },
+            { label: '定义 JSON（.json）', onPick: exportJson, disabled: !def, hint: '导出打过补丁的定义 JSON' },
+          ],
+        },
       ],
     },
     {
-      label: '格式',
+      // 产品「编辑(E)」对齐：⛔ 撤销/重做/剪贴板/搜索 = Univer 画布自带
+      // （再挂一层菜单会双触发，spec §W3-7）；⛔ 生成报表/向导新建 = 产品从
+      // 数据集反向生成模板，Web 设计器是正向（先模板后绑数据）。
+      label: '编辑',
       items: [
-        { label: '样式面板', onPick: () => setSideVisible(true), hint: '右侧「样式」分区（W2-2 七字段）' },
-        { label: '属性面板（边框/格式/旋转）', onPick: () => setSideVisible(true), hint: '右侧「属性」分区（W2-3）' },
+        {
+          label: '插入(I)',
+          onPick: () => {},
+          disabled: !def,
+          children: [
+            { label: '追加行', onPick: insertRow, hint: '网格行数 +1（内容不动）' },
+            { label: '追加列', onPick: insertCol, hint: '网格列数 +1（内容不动）' },
+          ],
+        },
+        {
+          label: '删除(D)',
+          onPick: () => {},
+          disabled: !def,
+          children: [
+            { label: '删末行', onPick: deleteLastRow, hint: '行数 -1；末行有内容时显式报错（不静默错位）' },
+            { label: '删末列', onPick: deleteLastCol, hint: '列数 -1；末列有内容时显式报错' },
+          ],
+        },
       ],
     },
     {
+      // 产品「报表(R)」对齐：参数/数据集/报表属性/行属性/列属性/边框设置。
+      // ⛔ 未做（定义 JSON 无槽或产品独有）：统计图、条形码、常用计算列、
+      // 表达式对话框、子报表、数据类型、图片、数据图层、设置密码。
       label: '报表',
       items: [
-        { label: '报表设置（纸张/边距/分页）', onPick: () => setSideVisible(true), hint: '右侧「报表设置」分区（W3-1，print_setup）' },
-        { label: '行属性（行高/断页/网格）', onPick: () => setSideVisible(true), hint: '右侧「行列」分区（W2-5）' },
-        { label: '数据集', onPick: () => setSideVisible(true), hint: '右侧「数据集」分区（W2-5）' },
-        { label: '报表参数', onPick: () => setSideVisible(true), hint: '右侧「报表参数」分区（W1-2）' },
+        { label: '参数(A)', onPick: () => setSideVisible(true), hint: '右侧「报表参数」分区（/meta 声明）' },
+        { label: '数据集\tF11', onPick: () => { setSideVisible(true); setStatus('右侧「数据集」分区') }, hint: '产品 F11 同款' },
+        { label: '报表属性(B)\tCtrl+B', onPick: () => { setSideVisible(true); setStatus('右侧「报表设置」分区（纸张/边距/分页）') }, hint: '产品 Ctrl+B 同款' },
+        { label: '行属性(R)', onPick: () => setSideVisible(true), hint: '右侧「行列」分区（行高/断页）' },
+        { label: '列属性(C)', onPick: () => setSideVisible(true), hint: '右侧「行列」分区（列宽）' },
+        { label: '边框设置(K)', onPick: () => setSideVisible(true), hint: '右侧「属性」分区（四边边框/线型/色）' },
       ],
     },
     {
@@ -347,7 +481,7 @@ export default function App() {
           label: '关于',
           onPick: () =>
             setStatus(
-              'rpx Web 设计器 · 定义 JSON 通道（M7-W W1）+ 编辑面（W2-1~W2-5）+ 报表设置（W3-1）；链路：/render → Univer 快照，/export → 文件字节',
+              'rpx Web 设计器 · 定义 JSON 通道（M7-W W1）+ 编辑面（W2-1~W2-5）+ 报表设置（W3-1）+ 产品菜单布局（W3-4/W3-7）；链路：/render → Univer 快照，/export → 文件字节',
             ),
         },
       ],
@@ -603,15 +737,14 @@ export default function App() {
     if (def) setGridDraft({ rows: def.grid.rows, cols: def.grid.cols })
   }, [def?.grid.rows, def?.grid.cols])
 
-  /** W2-5：调整网格 —— 校验 + 改 JSON + **用持有 def 重渲染**（画布按新尺寸装载）。 */
-  const onGridResize = async () => {
+  /** W3-7：网格调整 + 重渲染的公共通路（面板「调整网格」与编辑菜单
+   * 「插入→/删除→」共用；越界校验 + 失败上屏同规）。 */
+  const resizeGridAndRender = async (rows: number, cols: number) => {
     const held = defRef.current
     if (!held) {
       setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
       return
     }
-    const rows = Number(gridDraft.rows)
-    const cols = Number(gridDraft.cols)
     const r = applyGridResize(held, rows, cols)
     if (r.error || !r.def) {
       setStatus(`编辑失败：${r.error ?? '值不合法'}`)

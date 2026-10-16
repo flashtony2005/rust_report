@@ -16,6 +16,9 @@
  * | W27 | **菜单导出 CSV**：文件菜单 → `/export` 字节链路，状态栏确认 |
  * | W28 | **视图菜单**：隐藏/显示右侧属性面板（W3-5 停靠布局） |
  * | W29 | **帮助菜单**：关于上屏 |
+ * | W30 | **新建报表**（产品 Ctrl+N）：3×3 网格 + A1 锚点直接进编辑面 |
+ * | W31 | **快捷键 Ctrl+S**：保存 = 导出 JSON |
+ * | W32 | **编辑→插入→追加行**：3×3 → 4×3 重渲染 |
  *
  * 本脚本是证据生成器；机器判据在 `web/src/reportsetup.test.ts`（G9 覆盖）。
  */
@@ -147,7 +150,8 @@ try {
 
   // ---- W27 菜单：导出 CSV（/export 链路过网）----
   await page.getByRole('menuitem', { name: '文件', exact: true }).click()
-  await page.getByRole('menuitem', { name: '导出 CSV（.csv）' }).click()
+  await page.getByRole('menuitem', { name: '导出(E)' }).click()
+  await page.getByRole('menuitem', { name: 'CSV（.csv）' }).click()
   const s27 = await waitText(page, '已导出')
   rec('W27 菜单导出 CSV：状态栏确认（/export 字节链路）', s27, `状态栏=${s27}`)
 
@@ -166,6 +170,44 @@ try {
   const s29 = await waitText(page, '定义 JSON 通道')
   rec('W29 帮助菜单：关于上屏', s29, `状态栏=${s29}`)
 
+  // ---- W30 文件菜单：新建报表（产品「新建报表 Ctrl+N」）----
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click()
+  await page.getByRole('menuitem', { name: '新建报表(N)' }).click()
+  const s30 = await waitText(page, '已新建 3×3')
+  const dNew = JSON.parse(await grabExport(page))
+  rec(
+    'W30 新建报表：3×3 网格 + A1 锚点',
+    s30 && dNew.grid?.rows === 3 && dNew.grid?.cols === 3 &&
+      (dNew.cells ?? []).some((c) => c.row === 1 && c.col === 1 && c.text === '新报表'),
+    `状态栏=${s30}，grid=${JSON.stringify(dNew.grid)}`,
+  )
+
+  // ---- W31 快捷键 Ctrl+S（保存 = 导出 JSON）----
+  await page.evaluate(() => {
+    window.__w2export = null
+    const orig = URL.createObjectURL.bind(URL)
+    URL.createObjectURL = (blob) => {
+      blob.text().then((t) => { window.__w2export = t }).catch(() => {})
+      return orig(blob)
+    }
+  })
+  await page.keyboard.press('Control+s')
+  await page.waitForFunction(() => typeof window.__w2export === 'string')
+  const s31 = await page.evaluate(() => window.__w2export.includes('"grid"'))
+  rec('W31 快捷键 Ctrl+S：导出 JSON', s31, `含 grid 段=${s31}`)
+
+  // ---- W32 编辑菜单：插入 → 追加行（3×3 → 4×3）----
+  await page.getByRole('menuitem', { name: '编辑', exact: true }).click()
+  await page.getByRole('menuitem', { name: '插入(I)' }).click()
+  await page.getByRole('menuitem', { name: '追加行', exact: true }).click()
+  const s32 = await waitText(page, '网格已调整并重渲染')
+  const d32 = JSON.parse(await grabExport(page))
+  rec(
+    'W32 插入追加行：3×3 → 4×3',
+    s32 && d32.grid?.rows === 4 && d32.grid?.cols === 3,
+    `状态栏=${s32}，grid=${JSON.stringify(d32.grid)}`,
+  )
+
   writeFileSync(join(HERE, 'w2_setup_exported.json'), JSON.stringify(d3))
   await page.screenshot({ path: join(HERE, 'w2-setup-e2e.png') })
 } finally {
@@ -176,5 +218,5 @@ if (FAILED.length > 0) {
   console.log(`[w2e2e] FAIL: ${FAILED.join(', ')}`)
   process.exitCode = 1
 } else {
-  console.log('[w2e2e] ALL GREEN（W21–W29 全过）')
+  console.log('[w2e2e] ALL GREEN（W21–W32 全过）')
 }

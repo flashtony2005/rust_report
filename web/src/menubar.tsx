@@ -21,7 +21,14 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 /** 单个菜单项（分隔线用 `sep: true`；禁用态由调用方按持有状态算）。 */
 export type MenuItem =
   | { sep: true }
-  | { label: string; onPick: () => void; disabled?: boolean; hint?: string }
+  | {
+      label: string
+      onPick: () => void
+      disabled?: boolean
+      hint?: string
+      /** 二级子菜单（产品「导出(E)→」「插入(I)→」同款；有 children 的项点击只展开）。 */
+      children?: MenuItem[]
+    }
 
 /** 一个下拉菜单（标签 + 项表）。 */
 export type MenuGroup = { label: string; items: MenuItem[] }
@@ -64,16 +71,23 @@ const itemStyle: CSSProperties = {
 /** 菜单栏：点击标签开下拉；点项执行并关闭；点别处/ESC 关闭。 */
 export default function MenuBar({ groups }: { groups: MenuGroup[] }) {
   const [open, setOpen] = useState<number | null>(null)
+  const [sub, setSub] = useState<number | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
 
   // 点菜单外区域或按 ESC ⇒ 收起（产品同款交互；不挂全局 blur 会漏掉画布点击）
   useEffect(() => {
     if (open === null) return
     const close = (e: MouseEvent) => {
-      if (!barRef.current?.contains(e.target as Node)) setOpen(null)
+      if (!barRef.current?.contains(e.target as Node)) {
+        setOpen(null)
+        setSub(null)
+      }
     }
     const esc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(null)
+      if (e.key === 'Escape') {
+        setOpen(null)
+        setSub(null)
+      }
     }
     document.addEventListener('mousedown', close)
     document.addEventListener('keydown', esc)
@@ -103,7 +117,10 @@ export default function MenuBar({ groups }: { groups: MenuGroup[] }) {
             role="menuitem"
             aria-haspopup="menu"
             aria-expanded={open === gi}
-            onClick={() => setOpen(open === gi ? null : gi)}
+            onClick={() => {
+              setSub(null)
+              setOpen(open === gi ? null : gi)
+            }}
             style={{
               ...menuBtnStyle,
               ...(open === gi ? { background: '#fff', border: '1px solid var(--rpx-border)' } : {}),
@@ -120,29 +137,85 @@ export default function MenuBar({ groups }: { groups: MenuGroup[] }) {
                     style={{ height: 1, background: 'var(--rpx-border)', margin: '4px 0' }}
                   />
                 ) : (
-                  <button
-                    key={ii}
-                    role="menuitem"
-                    disabled={it.disabled}
-                    title={it.hint}
-                    onClick={() => {
-                      setOpen(null)
-                      it.onPick()
-                    }}
-                    style={{
-                      ...itemStyle,
-                      cursor: it.disabled ? 'not-allowed' : 'pointer',
-                      color: it.disabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!it.disabled) e.currentTarget.style.background = 'var(--rpx-bg-muted)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent'
-                    }}
-                  >
-                    {it.label}
-                  </button>
+                  <div key={ii} style={{ position: 'relative' }}>
+                    <button
+                      role="menuitem"
+                      disabled={it.disabled}
+                      title={it.hint}
+                      aria-haspopup={it.children ? 'menu' : undefined}
+                      onClick={() => {
+                        if (it.children) {
+                          setSub(sub === ii ? null : ii)
+                          return
+                        }
+                        setOpen(null)
+                        it.onPick()
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!it.disabled) e.currentTarget.style.background = 'var(--rpx-bg-muted)'
+                        if (it.children) setSub(ii)
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent'
+                      }}
+                      style={{
+                        ...itemStyle,
+                        cursor: it.disabled ? 'not-allowed' : 'pointer',
+                        color: it.disabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
+                      }}
+                    >
+                      {it.label}
+                      {it.children ? (
+                        <span style={{ float: 'right', color: 'var(--rpx-fg-muted)' }}>▸</span>
+                      ) : null}
+                    </button>
+                    {it.children && sub === ii ? (
+                      <div
+                        role="menu"
+                        style={{ ...dropdownStyle, top: 0, left: '100%', marginLeft: 1 }}
+                      >
+                        {it.children.map((c, ci) =>
+                          'sep' in c ? (
+                            <div
+                              key={ci}
+                              style={{
+                                height: 1,
+                                background: 'var(--rpx-border)',
+                                margin: '4px 0',
+                              }}
+                            />
+                          ) : (
+                            <button
+                              key={ci}
+                              role="menuitem"
+                              disabled={c.disabled}
+                              title={c.hint}
+                              onClick={() => {
+                                setOpen(null)
+                                setSub(null)
+                                c.onPick()
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!c.disabled)
+                                  e.currentTarget.style.background = 'var(--rpx-bg-muted)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent'
+                              }}
+                              style={{
+                                ...itemStyle,
+                                whiteSpace: 'nowrap',
+                                cursor: c.disabled ? 'not-allowed' : 'pointer',
+                                color: c.disabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
+                              }}
+                            >
+                              {c.label}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
                 ),
               )}
             </div>
