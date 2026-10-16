@@ -194,8 +194,56 @@ export async function fetchSnapshotWithDef(
   return resp.json()
 }
 
-/** `POST /reports`（W1-3「另存为」）：报表源入库，拿到服务端 id。
+/**
+ * `POST /export?fmt=csv|xlsx`（M6-03）：与 `/render` 共享主链路（同一次
+ * parse→calc→paginate），出口是**文件字节**（`Content-Disposition` 带文件名）。
  *
+ * W3-4 菜单「导出 Excel/CSV」的唯一通道：优先导出**打过补丁的 def**
+ * （`defText` 非空时当 `report` 上传体，与 `fetchSnapshotWithDef` 同口径），
+ * 否则回落磁盘报表源。返回 Blob 供下载；服务端错误原样上抛（不吞）。
+ */
+export async function exportReportFile(
+  defText: string | null,
+  files: File[],
+  params: ParamRow[],
+  fmt: 'csv' | 'xlsx',
+): Promise<{ blob: Blob; filename: string }> {
+  const report = defText
+    ? new File([defText], 'report-definition.json', { type: 'application/json' })
+    : pickReportFile(files)
+  if (!report) {
+    throw new Error('未选择报表源文件（.rpx 或 .json；可同时选中模板引用的 CSV，一起上传）')
+  }
+  const form = new FormData()
+  form.append('report', report, report.name)
+  for (const f of files) {
+    if (!isReportSource(f.name)) form.append('dataset', f, f.name)
+  }
+  const obj = paramsToObject(params)
+  if (Object.keys(obj).length > 0) {
+    form.append('params', JSON.stringify(obj))
+  }
+  const resp = await fetch(`/api/export?fmt=${fmt}`, { method: 'POST', body: form })
+  if (!resp.ok) {
+    throw new Error(`导出失败：${await errorMessage(resp)}`)
+  }
+  const cd = resp.headers.get('Content-Disposition') ?? ''
+  const m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/.exec(cd)
+  const filename = decodeURIComponent(m?.[1] ?? m?.[2] ?? `report.${fmt}`)
+  return { blob: await resp.blob(), filename }
+}
+
+/** 浏览器下载 Blob（菜单导出的出口；与 `downloadDefJson` 同款 revoke 纪律）。 */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** `POST /reports`（W1-3「另存为」）：报表源入库，拿到服务端 id。
  * ⚠ 字段名是 **`file`**，不是 `/render` 的 `report` —— 服务端
  * `src/http.rs::read_upload` 按 `file` 取（两者不同名，别照抄）。
  * 报表名 = 文件名去扩展名（服务端口径）。

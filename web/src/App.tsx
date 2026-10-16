@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FUniver } from '@univerjs/presets'
 
 import {
@@ -10,17 +10,15 @@ import {
   type ReportDef,
 } from './designer'
 import {
-  BORDER_SIDES,
   CELL_PROPS_DEFAULTS,
   applyCellPropToRange,
   applyCellPropsToRange,
-  borderStyleOptions,
   cellPropsFromDef,
-  formatOptions,
-  type BorderSideName,
   type CellPropsEdit,
 } from './cellprops'
 import {
+  downloadBlob,
+  exportReportFile,
   fetchMeta,
   fetchSnapshot,
   fetchSnapshotWithDef,
@@ -30,31 +28,31 @@ import {
   saveReport,
   type ParamRow,
 } from './report'
+import MenuBar, { type MenuGroup } from './menubar'
+import SidePanes from './panes'
 import {
-  DEFAULT_COL_MM,
-  DEFAULT_ROW_MM,
   applyColWidths,
   applyGridResize,
   applyRowBreakPages,
   applyRowHeights,
-  colWidthMm,
   mmToPx,
-  rowBreakPage,
-  rowHeightMm,
 } from './rowcol'
 import {
   applyDatasetAdd,
   applyDatasetRemove,
-  datasetSummary,
-  datasetsOf,
   type DatasetInput,
 } from './datasets'
+import {
+  PRINT_SETUP_DEFAULTS,
+  applyPrintSetup,
+  printSetupOf,
+  swapPaperOrientation,
+} from './reportsetup'
 import {
   PANEL_DEFAULTS,
   applyFieldToRange,
   applyPanelToRange,
   clearPanelRange,
-  fontOptions,
   panelFromUniverStyle,
   resetRangeToDefaults,
   type PanelField,
@@ -66,55 +64,12 @@ import {
  * 否则会退化成灰色提示 —— 那是**静默降级**，用户看不出失败了。 */
 const ERROR_PREFIXES = ['装载失败', '入库失败', '请先', '未找到', '编辑失败', '编辑面']
 
-/** W2-2 面板的输入控件通用样式（设计 token 与其它控件一致）。 */
-const panelInputStyle: CSSProperties = {
-  fontSize: 13,
-  padding: '3px 6px',
-  border: '1px solid var(--rpx-border)',
-  borderRadius: 4,
-  background: '#fff',
-  color: 'var(--rpx-fg)',
-}
-
-/** W2-2 颜色输入（`<input type="color">`）的盒子样式。 */
-const panelColorStyle: CSSProperties = {
-  width: 28,
-  height: 24,
-  padding: 0,
-  border: '1px solid var(--rpx-border)',
-  borderRadius: 4,
-  background: '#fff',
-}
-
-/** W2-2 的三个位样式开关：字段 / 标签 / 标签附加样式（B 粗 I 斜 U 下划线）。 */
-const PANEL_TOGGLES = [
-  ['bold', 'B', { fontWeight: 'bold' }],
-  ['italic', 'I', { fontStyle: 'italic' }],
-  ['underline', 'U', { textDecoration: 'underline' }],
-] as const satisfies readonly (readonly [PanelField, string, CSSProperties])[]
-
-/** W2-3：边框四边的中文标签（开关按钮 + 状态栏文案共用）。 */
-const BORDER_SIDE_LABELS: Record<BorderSideName, string> = {
-  top: '上',
-  right: '右',
-  bottom: '下',
-  left: '左',
-}
-
-/** W2-3：线型码表的中文标签（下拉显示用；契约值见 `report-def-json.md` §4.7）。 */
-const LINE_STYLE_LABELS: Record<string, string> = {
-  none: '无',
-  dotted: '点线',
-  dashed: '虚线',
-  solid: '实线',
-  double: '双线',
-}
-
-/** W2-3：属性编辑的状态栏标签。 */
+/** W2-3：属性编辑的状态栏标签（边标签随之搬迁 panes.tsx，这里本地小 map）。 */
+const SIDE_LABEL: Record<string, string> = { top: '上', right: '右', bottom: '下', left: '左' }
 function propsEditLabel(edit: CellPropsEdit): string {
   switch (edit.kind) {
     case 'borderSide':
-      return `边框·${BORDER_SIDE_LABELS[edit.side]}`
+      return `边框·${SIDE_LABEL[edit.side] ?? edit.side}`
     case 'borderStyle':
       return '边框线型'
     case 'borderColor':
@@ -315,6 +270,89 @@ export default function App() {
     downloadDefJson(cur, 'report-definition.json')
     setStatus(`已导出定义 JSON（${exportDefJson(cur).length} 字符）`)
   }
+
+  /** W3-4：导出 Excel/CSV（`POST /export`，M6-03 服务端已就绪）——优先导出
+   * **打过补丁的 def**（与「渲染」持有 def 优先同口径），否则回落磁盘源。 */
+  const exportFile = async (fmt: 'csv' | 'xlsx') => {
+    const cur = defRef.current
+    if (!files && !cur) {
+      setStatus('请先选择报表源文件')
+      return
+    }
+    setStatus(`正在导出 ${fmt.toUpperCase()}…`)
+    try {
+      const { blob, filename } = await exportReportFile(
+        cur ? exportDefJson(cur) : null,
+        Array.from(files ?? []),
+        params,
+        fmt,
+      )
+      downloadBlob(blob, filename)
+      setStatus(`已导出 ${filename}（${blob.size} 字节）`)
+    } catch (e) {
+      setStatus(`导出失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // W3-4 菜单栏（产品式 IDE 菜单；与顶栏按钮并存不重复）
+  // -------------------------------------------------------------------------
+
+  /** W3-5：右侧属性面板整体显隐（「视图」菜单；折叠是纯 UI，无判据含义）。 */
+  const [sideVisible, setSideVisible] = useState(true)
+
+  /** W3-4：菜单全集。禁用的判据与顶栏按钮一致（无文件/无 def 时置灰）。 */
+  const menuGroups: MenuGroup[] = [
+    {
+      label: '文件',
+      items: [
+        { label: '渲染', onPick: () => void render(), disabled: !files, hint: 'POST /api/render 装载快照（持有 def 时优先用它）' },
+        { label: '另存为（入库）', onPick: () => void save(), disabled: !files, hint: 'POST /reports 拿 id，并按 /meta 刷新参数表单' },
+        { sep: true },
+        { label: '导出 JSON（定义）', onPick: exportJson, disabled: !def, hint: '把打过补丁的定义 JSON 下载回本地' },
+        { label: '导出 Excel（.xlsx）', onPick: () => void exportFile('xlsx'), disabled: !files && !def, hint: 'POST /api/export?fmt=xlsx（M6-03）' },
+        { label: '导出 CSV（.csv）', onPick: () => void exportFile('csv'), disabled: !files && !def, hint: 'POST /api/export?fmt=csv（M6-03）' },
+      ],
+    },
+    {
+      label: '格式',
+      items: [
+        { label: '样式面板', onPick: () => setSideVisible(true), hint: '右侧「样式」分区（W2-2 七字段）' },
+        { label: '属性面板（边框/格式/旋转）', onPick: () => setSideVisible(true), hint: '右侧「属性」分区（W2-3）' },
+      ],
+    },
+    {
+      label: '报表',
+      items: [
+        { label: '报表设置（纸张/边距/分页）', onPick: () => setSideVisible(true), hint: '右侧「报表设置」分区（W3-1，print_setup）' },
+        { label: '行属性（行高/断页/网格）', onPick: () => setSideVisible(true), hint: '右侧「行列」分区（W2-5）' },
+        { label: '数据集', onPick: () => setSideVisible(true), hint: '右侧「数据集」分区（W2-5）' },
+        { label: '报表参数', onPick: () => setSideVisible(true), hint: '右侧「报表参数」分区（W1-2）' },
+      ],
+    },
+    {
+      label: '视图',
+      items: [
+        {
+          label: sideVisible ? '隐藏右侧属性面板' : '显示右侧属性面板',
+          onPick: () => setSideVisible(!sideVisible),
+          hint: '画布空间紧张时收起（产品 IDE 同款停靠区）',
+        },
+      ],
+    },
+    {
+      label: '帮助',
+      items: [
+        {
+          label: '关于',
+          onPick: () =>
+            setStatus(
+              'rpx Web 设计器 · 定义 JSON 通道（M7-W W1）+ 编辑面（W2-1~W2-5）+ 报表设置（W3-1）；链路：/render → Univer 快照，/export → 文件字节',
+            ),
+        },
+      ],
+    },
+  ]
 
   // -------------------------------------------------------------------------
   // W2-2 样式面板（7 字段；逐字段补丁进定义 JSON，见 `stylepanel.ts` 文件头）
@@ -630,6 +668,50 @@ export default function App() {
     setStatus('已删除数据集；点「导出 JSON」拿回文件')
   }
 
+  // -------------------------------------------------------------------------
+  // W3-1 报表设置（print_setup；PDF 课程 1.4/9.4 的「报表设置」产品形态里
+  // 定义 JSON 有槽的那部分。读 JSON 派生、逐键补丁、**重渲染生效**）
+  // -------------------------------------------------------------------------
+
+  /** W3-1：面板显示态（派生自持有 def；未声明字段显示契约缺省）。 */
+  const setupPanel = useMemo(
+    () => (def ? printSetupOf(def) : { ...PRINT_SETUP_DEFAULTS }),
+    [def],
+  )
+
+  /** W3-1：单字段改动 —— 纯 JSON 补丁（Univer 无落地腿：纸张/分页只在服务端
+   * 出快照时兑现，与 W2-5 断页同模式；顶部「渲染」已持有 def 优先）。 */
+  const onSetupChange = (field: keyof typeof PRINT_SETUP_DEFAULTS, value: number | boolean) => {
+    const held = defRef.current
+    if (!held) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return
+    }
+    const r = applyPrintSetup(held, { [field]: value })
+    if (r.error || !r.def) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    setDefBoth(r.def)
+    setStatus(`已更新报表设置 ${field}；点「渲染」生效，或「导出 JSON」拿回文件`)
+  }
+
+  /** W3-1：横竖互换（纸张宽高对调）。 */
+  const onSwapPaper = () => {
+    const held = defRef.current
+    if (!held) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return
+    }
+    const r = swapPaperOrientation(held)
+    if (r.error || !r.def) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    setDefBoth(r.def)
+    setStatus('已互换纸张方向；点「渲染」生效')
+  }
+
   /** 「另存为」（W1-3 + W1-2）：入库拿 id → 按 `/meta` 刷新参数表单。 */
   const save = async () => {
     if (!files) {
@@ -771,653 +853,11 @@ export default function App() {
           </span>
         ) : null}
       </header>
-      {/* W2-2 样式面板：7 字段（M7-3）。改哪个字段只补哪个键进定义 JSON
-          （逐字段补丁，理由见 `stylepanel.ts` 文件头）；只有渲染过 `.json` 源
-          （`def` 非空）才可用，否则整体置灰并在尾部提示原因（能力边界可见，
-          而不是点了才报错）。 */}
-      <section
-        style={{
-          padding: '6px 14px',
-          borderBottom: '1px solid var(--rpx-border)',
-          background: 'var(--rpx-bg-muted)',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 13,
-          color: 'var(--rpx-fg)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexWrap: 'wrap',
-        }}
-      >
-        <span style={{ color: 'var(--rpx-fg-muted)' }}>样式</span>
-        <select
-          value={pv.fontName}
-          disabled={panelDisabled}
-          title="字体族（定义 JSON 的 font_name；改回「宋体」= 删该键）"
-          onChange={(e) => onPanelChange('fontName', e.target.value)}
-          style={panelInputStyle}
-        >
-          {fontOptions(pv.fontName).map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
-        <input
-          type="number"
-          min={1}
-          max={32767}
-          value={pv.fontSize}
-          disabled={panelDisabled}
-          title="字号（1..=32767 的整数；改回 12 = 删该键）"
-          onChange={(e) => onPanelChange('fontSize', e.target.value)}
-          style={{ ...panelInputStyle, width: 64 }}
-        />
-        {PANEL_TOGGLES.map(([field, label, labelStyle]) => (
-          <button
-            key={field}
-            aria-pressed={pv[field]}
-            disabled={panelDisabled}
-            title={`${label}（定义 JSON 的 ${field}）`}
-            onClick={() => onPanelChange(field, !pv[field])}
-            style={{
-              width: 26,
-              height: 24,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid var(--rpx-border)',
-              borderRadius: 4,
-              cursor: panelDisabled ? 'not-allowed' : 'pointer',
-              ...(pv[field] && !panelDisabled
-                ? { background: 'var(--rpx-accent)', color: '#fff' }
-                : { background: '#fff', color: 'var(--rpx-fg)' }),
-              ...labelStyle,
-            }}
-          >
-            {label}
-          </button>
-        ))}
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          字色
-          <input
-            type="color"
-            value={pv.foreColor}
-            disabled={panelDisabled}
-            title="字体颜色（定义 JSON 的 fore_color；改回 #000000 = 删该键）"
-            onChange={(e) => onPanelChange('foreColor', e.target.value)}
-            style={panelColorStyle}
-          />
-        </label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          底色
-          <input
-            type="color"
-            value={pv.backColor}
-            disabled={panelDisabled}
-            title="背景色（定义 JSON 的 back_color；改回 #FFFFFF = 删该键）"
-            onChange={(e) => onPanelChange('backColor', e.target.value)}
-            style={panelColorStyle}
-          />
-        </label>
-        <button
-          onClick={onPanelReset}
-          disabled={panelDisabled}
-          title="把 7 个样式字段全部打回缺省（= 从定义 JSON 里删掉这 7 个键）"
-          style={{
-            fontSize: 13,
-            padding: '3px 10px',
-            border: '1px solid var(--rpx-border)',
-            borderRadius: 4,
-            background: '#fff',
-            color: panelDisabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
-            cursor: panelDisabled ? 'not-allowed' : 'pointer',
-          }}
-        >
-          恢复缺省
-        </button>
-        {panelDisabled ? (
-          <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
-            仅定义 JSON（.json）报表源可改样式
-          </span>
-        ) : null}
-      </section>
-      {/* W2-3 属性条：边框 / 数字格式 / 旋转。
-          ⚠ 读方向是**定义 JSON**（选区起点格）—— 这三项不在服务端快照里
-          （`report-def-json.md` §4.7），画布读不回来；Univer 侧只做即时视觉反馈。 */}
-      <section
-        style={{
-          padding: '6px 14px',
-          borderBottom: '1px solid var(--rpx-border)',
-          background: 'var(--rpx-bg-muted)',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 13,
-          color: 'var(--rpx-fg)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexWrap: 'wrap',
-        }}
-      >
-        <span style={{ color: 'var(--rpx-fg-muted)' }}>属性</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          边框
-          {BORDER_SIDES.map((s) => (
-            <button
-              key={s}
-              aria-pressed={propsPanel.sides[s]}
-              disabled={panelDisabled}
-              title={`${BORDER_SIDE_LABELS[s]}边框（勾选 = 定义 JSON 里该边存在；取消 = 删该边）`}
-              onClick={() =>
-                onPropsChange({
-                  kind: 'borderSide',
-                  side: s,
-                  on: !propsPanel.sides[s],
-                  style: propsPanel.borderStyle,
-                  color: propsPanel.borderColor,
-                })
-              }
-              style={{
-                width: 26,
-                height: 24,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-                cursor: panelDisabled ? 'not-allowed' : 'pointer',
-                ...(propsPanel.sides[s] && !panelDisabled
-                  ? { background: 'var(--rpx-accent)', color: '#fff' }
-                  : { background: '#fff', color: 'var(--rpx-fg)' }),
-              }}
-            >
-              {BORDER_SIDE_LABELS[s]}
-            </button>
-          ))}
-        </span>
-        <select
-          value={propsPanel.borderStyle}
-          disabled={panelDisabled}
-          title="边框线型（改它只作用于已勾选的边，不凭空给没边框的边加边框）"
-          onChange={(e) => onPropsChange({ kind: 'borderStyle', style: e.target.value })}
-          style={panelInputStyle}
-        >
-          {borderStyleOptions(propsPanel.borderStyle).map((s) => (
-            <option key={s} value={s}>
-              {LINE_STYLE_LABELS[s] ?? s}
-            </option>
-          ))}
-        </select>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          边框色
-          <input
-            type="color"
-            value={propsPanel.borderColor}
-            disabled={panelDisabled}
-            title="边框颜色（定义 JSON 的 border.*.color；#000000 = 删该键）"
-            onChange={(e) => onPropsChange({ kind: 'borderColor', color: e.target.value })}
-            style={panelColorStyle}
-          />
-        </label>
-        <span style={{ color: 'var(--rpx-border)' }}>|</span>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          格式
-          <select
-            value={propsPanel.format}
-            disabled={panelDisabled}
-            title="数字格式（定义 JSON 的 format；「（无格式）」= 删该键）"
-            onChange={(e) => onPropsChange({ kind: 'format', value: e.target.value })}
-            style={panelInputStyle}
-          >
-            {formatOptions(propsPanel.format).map((f) => (
-              <option key={f} value={f}>
-                {f === '' ? '（无格式）' : f}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          旋转
-          <input
-            type="number"
-            min={0}
-            max={360}
-            value={propsPanel.rotation}
-            disabled={panelDisabled}
-            title="文字旋转角（定义 JSON 的 rotation；面板开放 0..360 整数，0 = 删该键）"
-            onChange={(e) => onPropsChange({ kind: 'rotation', value: e.target.value })}
-            style={{ ...panelInputStyle, width: 60 }}
-          />
-          <span style={{ color: 'var(--rpx-fg-muted)' }}>°</span>
-        </label>
-      </section>
-      {/* W2-5 行列条：行高/列宽（mm，作用于选区覆盖的行/列）+ 断页 + 网格尺寸。
-          读方向是**定义 JSON**（声明过什么只有 JSON 知道；快照 px 是换算值，
-          反算 mm 会漂）；行高列宽即时落 Univer 画布（视觉反馈），断页与网格
-          尺寸重渲染生效。单位与出处见 `rowcol.ts` 文件头。 */}
-      <section
-        style={{
-          padding: '6px 14px',
-          borderBottom: '1px solid var(--rpx-border)',
-          background: 'var(--rpx-bg-muted)',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 13,
-          color: 'var(--rpx-fg)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexWrap: 'wrap',
-        }}
-      >
-        <span style={{ color: 'var(--rpx-fg-muted)' }}>行列</span>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          行高
-          <input
-            type="number"
-            min={0.1}
-            step={0.5}
-            value={
-              selection && def
-                ? (rowHeightMm(def, selection.row0 + 1) ?? '')
-                : DEFAULT_ROW_MM
-            }
-            disabled={panelDisabled}
-            title="行高（mm，定义 JSON 的 row_props[].height；清空 = 删声明回到缺省 8mm）"
-            onChange={(e) =>
-              onRowHeightChange(e.target.value === '' ? null : Number(e.target.value))
-            }
-            style={{ ...panelInputStyle, width: 64 }}
-          />
-          <span style={{ color: 'var(--rpx-fg-muted)' }}>mm</span>
-        </label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          列宽
-          <input
-            type="number"
-            min={0.1}
-            step={0.5}
-            value={
-              selection && def
-                ? (colWidthMm(def, selection.col0 + 1) ?? '')
-                : DEFAULT_COL_MM
-            }
-            disabled={panelDisabled}
-            title="列宽（mm，定义 JSON 的 col_props[].width；清空 = 删声明回到缺省 25mm）"
-            onChange={(e) =>
-              onColWidthChange(e.target.value === '' ? null : Number(e.target.value))
-            }
-            style={{ ...panelInputStyle, width: 64 }}
-          />
-          <span style={{ color: 'var(--rpx-fg-muted)' }}>mm</span>
-        </label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          断页
-          <select
-            value={
-              selection && def
-                ? rowBreakPage(def, selection.row0 + 1) === true
-                  ? 'on'
-                  : rowBreakPage(def, selection.row0 + 1) === false
-                    ? 'off'
-                    : ''
-                : ''
-            }
-            disabled={panelDisabled}
-            title="行断页（定义 JSON 的 row_props[].break_page；画布无此概念，重渲染生效）"
-            onChange={(e) =>
-              onBreakPageChange(
-                e.target.value === '' ? null : e.target.value === 'on',
-              )
-            }
-            style={panelInputStyle}
-          >
-            <option value="">（未声明）</option>
-            <option value="on">此行前断页</option>
-            <option value="off">不断页</option>
-          </select>
-        </label>
-        <span style={{ color: 'var(--rpx-border)' }}>|</span>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          网格
-          <input
-            type="number"
-            min={1}
-            value={gridDraft.rows}
-            disabled={panelDisabled}
-            title="网格行数（定义 JSON 的 grid.rows；缩小前会校验既有声明越界）"
-            onChange={(e) => setGridDraft((g) => ({ ...g, rows: Number(e.target.value) }))}
-            style={{ ...panelInputStyle, width: 56 }}
-          />
-          ×
-          <input
-            type="number"
-            min={1}
-            value={gridDraft.cols}
-            disabled={panelDisabled}
-            title="网格列数（定义 JSON 的 grid.cols）"
-            onChange={(e) => setGridDraft((g) => ({ ...g, cols: Number(e.target.value) }))}
-            style={{ ...panelInputStyle, width: 56 }}
-          />
-        </label>
-        <button
-          onClick={onGridResize}
-          disabled={panelDisabled}
-          title="按上面输入的行列数调整网格，并自动按新尺寸重渲染"
-          style={{
-            fontSize: 13,
-            padding: '3px 10px',
-            border: '1px solid var(--rpx-border)',
-            borderRadius: 4,
-            background: '#fff',
-            color: panelDisabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
-            cursor: panelDisabled ? 'not-allowed' : 'pointer',
-          }}
-        >
-          调整网格
-        </button>
-        {panelDisabled ? (
-          <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
-            仅定义 JSON（.json）报表源可改
-          </span>
-        ) : null}
-      </section>
-      {/* W1-2 参数表单：`另存为` 后按 `GET /reports/{id}/meta` 自动带出，
-          非静态（`is_static=false`）的行标「动态」；仍可手工增删行。 */}
-      <section
-        style={{
-          padding: '6px 14px',
-          borderBottom: '1px solid var(--rpx-border)',
-          background: 'var(--rpx-bg-muted)',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 13,
-          color: 'var(--rpx-fg)',
-        }}
-      >
-        <span style={{ color: 'var(--rpx-fg-muted)', marginRight: 8 }}>
-          报表参数（未登记的参数服务端会显式报错）
-        </span>
-        {params.map((row, i) => (
-          <span
-            key={i}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 10 }}
-          >
-            <input
-              placeholder="参数名"
-              value={row.name}
-              onChange={(e) => setRow(i, { name: e.target.value })}
-              style={{
-                width: 110,
-                fontSize: 13,
-                padding: '3px 6px',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-              }}
-            />
-            <input
-              placeholder="值"
-              value={row.value}
-              onChange={(e) => setRow(i, { value: e.target.value })}
-              style={{
-                width: 130,
-                fontSize: 13,
-                padding: '3px 6px',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-              }}
-            />
-            {/* 动态/属性参数标注（W1-2）：值须渲染时由用户或上游提供。 */}
-            {row.dynamic ? (
-              <span
-                title="动态参数：is_static=false，渲染时须提供值"
-                style={{
-                  fontSize: 11,
-                  padding: '1px 6px',
-                  borderRadius: 8,
-                  border: '1px solid var(--rpx-accent)',
-                  color: 'var(--rpx-accent)',
-                }}
-              >
-                动态
-              </span>
-            ) : null}
-            <button
-              aria-label="删除参数"
-              title="删除参数"
-              onClick={() => setParams((rows) => rows.filter((_, j) => j !== i))}
-              style={{
-                width: 22,
-                height: 22,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-                background: '#fff',
-                cursor: 'pointer',
-              }}
-            >
-              {/* 删除图标：内联 SVG（16px，统一描边） */}
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M4 4l8 8M12 4l-8 8"
-                  stroke="var(--rpx-danger)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </span>
-        ))}
-        <button
-          onClick={() => setParams((rows) => [...rows, { name: '', value: '' }])}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            fontSize: 13,
-            padding: '3px 10px',
-            border: '1px solid var(--rpx-border)',
-            borderRadius: 4,
-            background: '#fff',
-            color: 'var(--rpx-fg)',
-            cursor: 'pointer',
-          }}
-        >
-          {/* 添加图标：内联 SVG（16px，统一描边） */}
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M8 3v10M3 8h10"
-              stroke="var(--rpx-accent)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-          添加参数
-        </button>
-      </section>
-      {/* W2-5 数据集条：datasets[] 的清单（名称 + 摘要 + 删除）与添加行。
-          Univer 画布没有数据集概念 ⇒ 纯 JSON 编辑；`file.file_name` 须与渲染时
-          上传的 CSV 文件名逐字一致（`spec-m3.md` §3.2），面板只存声明。
-          修改已有条目 v1 不做 UI：删了重加，或导出 JSON 手改。 */}
-      <section
-        style={{
-          padding: '6px 14px',
-          borderBottom: '1px solid var(--rpx-border)',
-          background: 'var(--rpx-bg-muted)',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 13,
-          color: 'var(--rpx-fg)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexWrap: 'wrap',
-        }}
-      >
-        <span style={{ color: 'var(--rpx-fg-muted)' }}>数据集</span>
-        {(def ? datasetsOf(def) : []).map((d, i) => (
-          <span
-            key={i}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 4 }}
-          >
-            <span
-              title={datasetSummary(d)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '2px 8px',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-                background: '#fff',
-              }}
-            >
-              <b style={{ fontWeight: 600 }}>{d.name ?? '（无名）'}</b>
-              <span style={{ color: 'var(--rpx-fg-muted)' }}>{datasetSummary(d)}</span>
-            </span>
-            <button
-              aria-label={`删除数据集 ${d.name ?? i + 1}`}
-              title="删除该数据集"
-              onClick={() => onDatasetRemove(i)}
-              style={{
-                width: 20,
-                height: 20,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-                background: '#fff',
-                cursor: panelDisabled ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M4 4l8 8M12 4l-8 8"
-                  stroke="var(--rpx-danger)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </span>
-        ))}
-        {/* 添加行：name + 类型（文件/SQL）+ 按类型的字段。 */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <input
-            placeholder="数据集名（可空）"
-            value={dsDraft.name ?? ''}
-            disabled={panelDisabled}
-            onChange={(e) => setDsDraft((d) => ({ ...d, name: e.target.value }))}
-            style={{ ...panelInputStyle, width: 110 }}
-          />
-          <select
-            value={dsDraft.file !== undefined ? 'file' : 'sql'}
-            disabled={panelDisabled}
-            title="数据集类型：文件（CSV）或 SQL"
-            onChange={(e) =>
-              setDsDraft((d) =>
-                e.target.value === 'file'
-                  ? { name: d.name, file: { file_name: '', encoding: 'GBK' } }
-                  : { name: d.name, sql: { dsn: '', sql: '' } },
-              )
-            }
-            style={panelInputStyle}
-          >
-            <option value="file">文件</option>
-            <option value="sql">SQL</option>
-          </select>
-          {dsDraft.file !== undefined ? (
-            <>
-              <input
-                placeholder="CSV 文件名（须与上传一致）"
-                value={dsDraft.file.file_name}
-                disabled={panelDisabled}
-                onChange={(e) =>
-                  setDsDraft((d) => ({
-                    ...d,
-                    file: { ...d.file!, file_name: e.target.value },
-                  }))
-                }
-                style={{ ...panelInputStyle, width: 170 }}
-              />
-              <select
-                value={dsDraft.file.encoding ?? 'GBK'}
-                disabled={panelDisabled}
-                title="CSV 编码（缺省 GBK）"
-                onChange={(e) =>
-                  setDsDraft((d) => ({
-                    ...d,
-                    file: { file_name: d.file!.file_name, encoding: e.target.value },
-                  }))
-                }
-                style={panelInputStyle}
-              >
-                <option value="GBK">GBK</option>
-                <option value="UTF-8">UTF-8</option>
-              </select>
-            </>
-          ) : (
-            <>
-              <input
-                placeholder="数据源名 dsn"
-                value={dsDraft.sql?.dsn ?? ''}
-                disabled={panelDisabled}
-                onChange={(e) =>
-                  setDsDraft((d) => ({
-                    ...d,
-                    sql: { dsn: e.target.value, sql: d.sql?.sql ?? '' },
-                  }))
-                }
-                style={{ ...panelInputStyle, width: 110 }}
-              />
-              <input
-                placeholder="SQL 语句"
-                value={dsDraft.sql?.sql ?? ''}
-                disabled={panelDisabled}
-                onChange={(e) =>
-                  setDsDraft((d) => ({
-                    ...d,
-                    sql: { dsn: d.sql?.dsn ?? '', sql: e.target.value },
-                  }))
-                }
-                style={{ ...panelInputStyle, width: 190 }}
-              />
-            </>
-          )}
-          <button
-            onClick={onDatasetAdd}
-            disabled={panelDisabled}
-            title="把草稿追加进定义 JSON 的 datasets[]"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 13,
-              padding: '3px 10px',
-              border: '1px solid var(--rpx-border)',
-              borderRadius: 4,
-              background: '#fff',
-              color: panelDisabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
-              cursor: panelDisabled ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M8 3v10M3 8h10"
-                stroke="var(--rpx-accent)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            添加
-          </button>
-        </span>
-        {panelDisabled ? (
-          <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
-            仅定义 JSON（.json）报表源可改
-          </span>
-        ) : null}
-      </section>
+      {/* W3-4 菜单栏：产品式 IDE 菜单（文件/格式/报表/视图/帮助）。
+          与顶栏按钮**并存不重复**：按钮服务高频操作，菜单服务全量入口 +
+          面板显隐（右侧属性面板的开关只挂在菜单上）。 */}
+      <MenuBar groups={menuGroups} />
+      
       {status ? (
         <div
           style={{
@@ -1432,7 +872,41 @@ export default function App() {
           {status}
         </div>
       ) : null}
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
+      {/* W3-5 主体：Univer 画布（flex 撑满）+ 右侧停靠属性面板（产品
+          `RPX.java` 的 desk + 属性栏布局）。侧栏整体显隐由「视图」菜单控制。 */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        <div ref={containerRef} style={{ flex: 1, minWidth: 0, minHeight: 0 }} />
+        {sideVisible ? (
+          <SidePanes
+            api={{
+              def,
+              selection,
+              panelDisabled,
+              pv,
+              onPanelChange,
+              onPanelReset,
+              propsPanel,
+              onPropsChange,
+              onRowHeightChange,
+              onColWidthChange,
+              onBreakPageChange,
+              gridDraft,
+              setGridDraft,
+              onGridResize,
+              params,
+              setParams,
+              setRow,
+              dsDraft,
+              setDsDraft,
+              onDatasetAdd,
+              onDatasetRemove,
+              setupPanel,
+              onSetupChange,
+              onSwapPaper,
+            }}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }

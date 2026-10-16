@@ -447,6 +447,13 @@ fn row_mode_applies_only_filter() {
     // 过滤条件非布尔 ⇒ 产品抛 `error.Row.test`（`Row.java:91`）
     let e = parse("ds2.select(item, amount)").unwrap();
     assert!(evaluate(&e, &mut f).is_err());
+    // 消息文本对齐产品（带账⑥ 2026-10-16 核对：探针 `ProbeRowTest` P1–P3
+    // 实证 Row/Root 两态同文本「记录过滤条件应该返回布尔值」）
+    let err = evaluate(&parse("ds2.select(item, amount)").unwrap(), &mut f).unwrap_err();
+    assert!(
+        err.to_string().contains("记录过滤条件应该返回布尔值"),
+        "消息应点名产品文本，实得：{err}"
+    );
 }
 
 #[test]

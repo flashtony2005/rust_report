@@ -1,6 +1,7 @@
 # Spec — ReportLite Rust 重实现 · M7-W（Univer 前端设计器）v0.8
 
-> 状态：**v0.9（2026-10-16）—— W2 全部收口：W0、W1、W2-1~W2-5（含降级的 W2-3'/W2-4）全绿**。
+> 状态：**v1.1（2026-10-16）—— W2 全部收口 + W3-1 报表设置 + W3-4/W3-5
+> 菜单栏与右侧停靠属性面板（产品 IDE 布局对齐）收口**。
 > 上游决策：`docs/report-def-json.md` §7.2 明写「在线设计器（`web/` 侧）—— Univer
 > 目前仍是**纯渲染终端**，在它上面做『定格式』是**新阶段**，须另立 spec」——
 > 本文件就是那份 spec。
@@ -180,7 +181,7 @@ FI-B 是在**完整 `gate.sh`** 上跑的（不是只跑 vitest），证明红�
 | W2-2 | **样式面板**：字体/字号/颜色/粗斜下划线（M7-3 的 7 字段；**已收口 2026-10-16**）。 | ✅ 面板设的值**只补该字段**进 JSON（其余键逐个原样保留）；产物经 `POST /render` 后快照样式与面板值逐项一致（E2E E8/E9）；见下方小节 |
 | W2-3 | **边框 / 数字格式 / 旋转面板**（M7-5 的 16 槽里可做的那部分；**已收口 2026-10-16**） | ✅ 面板设的值**只补该键**进 JSON（边内 `width` 保留、条目删空整条移除）；产物 `POST /render` 200 + `POST /reports` 入库成功（`.json → .rpx` 写侧）；见下方小节 |
 | W2-3' | 缩进 —— **降级为 JSON 声明**（API 不存在，§7 坑位 4） | ✅ 无面板即验收：`indent` 的「声明 → 往返成立」由服务端 `definition_roundtrip.rs::cell_props_survive_the_rpx_round_trip`（夹具含 `indent: 2.5`）承担；`.json` 与 `.rpx` 两条入口共用同一 parse（M7-5）⇒ 前端不需要也不产生该字段。⚠ `/render` 腿未单列用例（与其它字段同一 parse 入口），如实标注 |
-| W2-4 | 打印设置（M7-6 的 17 字段）—— **整项降级** | ✅ 同上：`print_setup_survives_the_rpx_round_trip` + `print_setup_lands_on_the_expected_slots` 承担「声明 → 往返」；前端不产生该字段 |
+| W2-4 | 打印设置（M7-6 的 17 字段） | ✅ **已收口（2026-10-16，W3-1）**：面板逐键补丁（`reportsetup.ts`，17 测试）；E2E W21–W26；见 §4 W3-1 |
 | W2-5 | **网格尺寸 / 行列属性 / 数据集绑定**（**已收口 2026-10-16**） | ✅ 面板产物经「导出 JSON」逐键断言（`row_props`/`col_props`/`break_page`/`grid`/`datasets`）；浏览器 E2E E14–E20 全绿（`tests/fixtures/out/e2e_w2_rowcol.mjs`）；见下方小节 |
 
 W2 的判据形态是 **M7-5 已立下的模型往返**：面板写出的 JSON 经
@@ -440,7 +441,73 @@ mmToPx 与 `geom.rs` 同公式/纯函数性）+ `datasets.test.ts`（互斥恰�
 的导出逐键；网格 3→4 重渲染、4→2 越界保护；数据集添加与 SQL 空字段报错；
 服务端双腿）。
 
-### W3 越界项（本 spec **不承诺**）
+### W3 报表设置 Web 化（PDF 课程 + 产品 IDE 对齐，**W3-1 已收口 2026-10-16**）
+
+#### W3-1 分析：PDF 课程与产品对话框的字段全景
+
+参考 `docs/_ref_ReportLite-course.pdf`（润乾官方课程，302 页幻灯片）+ 产品 IDE
+反编译源码。课程的「报表设置」内容分布在三处：
+
+| 课程位置 | 内容 | 产品对话框 |
+| --- | --- | --- |
+| 1.4 报表区域 | 行类型（Table/Page Header·Footer/Group Header/Data/…）+ 行属性（Height/Page Break/Group Header Level/Auto Fill/Visible） | `DialogRowProperty` |
+| 9.4 连续分页码 | 页眉页脚行 + 页码函数 `pno()/pcount()` + 报表组连续计算 | 行类型（Page Header/Footer）+ 单元格表达式 |
+| 第 2 章外观与格式 | 边框字体颜色/显示格式/条件格式 | W2-2/W2-3 已覆盖 |
+
+产品「设报表」的本体是 **`DialogReportProperty`**（报表属性，`ide/dialog/`），
+其 OK 落点（`DialogReportProperty.java:749-830`）设置的 `PrintSetup` 字段全景：
+
+| 产品字段 | Web 面板（W3-1） | 说明 |
+| --- | --- | --- |
+| paperWidth/paperHeight + paper（纸张码表） | ✅ 宽高输入 + 横↔竖互换 | 纸张码表（`Maps.paperCode()`）本质是宽高查表，Web 直接给宽高 |
+| left/right/top/bottomMargin | ✅ 四个边距输入 | |
+| rowNumPerPage / tableColumnNum / layoutRowNum / layoutColNum | ✅ 每页行数/分栏/版面行列 | |
+| copyCount（含**表达式**形态 copyCountExp） | ✅ 份数（仅整数） | 表达式形态（`Integer.parseInt` 失败即当表达式）契约未开放 |
+| zoomScale | ✅ 缩放 | |
+| backGraphPrinted / fullScreenPreview / groupHeaderColumnRepeated | ✅ 三个布尔 | |
+| blankLineFilled | ✅ 空行填充 | |
+| **orientation**（横 0/竖 1，`:817-821`） | ⛔ 不开放 | 引擎**不消费** `orient`（`rpx-core/src/print_setup.rs` 只有 is_default 检查）⇒ 设了不生效；Web 用「宽高互换」作有实效的近似 |
+| layout/hAlign/vAlign/pagerStyle/zoomMode + 7 个 `*_mode` | ⛔ 不开放（原 KNOWN_UNEXPOSED） | 引擎未消费或语义未探针（`pager_style` 只实证过 2；其余无夹具） |
+| zoomPageWidth/zoomPageHeight | ⛔ 不开放 | 缩放页尺寸，引擎未消费 |
+| virtualPrinter | ⛔ 不开放 | 打印链路概念，Web 设计器设它无意义（服务端不可见用户打印机） |
+| **BackGraphConfig**（背景图：图片/文本水印，dispMode/mode/type/value/font/size/color/gap/transparency） | ❌ **契约缺口** | 定义 JSON 无槽；产品有完整子对话框。需新立契约（M7-8?） |
+| 报表类型/tips/notes/ExportConfig/显示比例 | ❌ 契约缺口或无需 Web 化 | tips/notes 是元数据；导出配置走 `/export` 的既有参数 |
+
+#### W3-1 落地（已收口）
+
+`web/src/reportsetup.ts`（17 测试）+ App「报表设置」条 + E2E
+`tests/fixtures/out/e2e_w2_setup.mjs`（W21–W26 全绿）：
+
+* **读方向** JSON 派生（W2-3 模式）：未声明字段显示**契约缺省**（用户看到
+  「不显式设也会生效的值」）；
+* **写方向逐键补丁 + 缺省即删键**（`stylepanel` 同语义）；校验三档镜像
+  服务端 `printsetup.rs`（i16 0..=32767 / i32 0..=i32MAX / f32 ≥0）；
+* **生效靠重渲染**：纸张/边距/分页只在服务端出快照时兑现 ⇒ Univer 无落地腿
+  （与 W2-5 断页同模式；顶部「渲染」已持有 def 优先）；
+* E2E 强判据：每页行数 20→3、横竖互换 297×210、缩放/份数/边距只含改过的键、
+  越界 -1 显式报错不污染 JSON、产物 `POST /render` 200。
+
+#### W3-4/W3-5 菜单栏 + 右侧停靠属性面板（**已收口 2026-10-16**）
+
+用户对照产品 IDE（`reportLite.exe`）指出 Web 版缺「菜单 + 属性面板」布局 ⇒
+按产品 `RPX.java:387`（`setJMenuBar` + `:424` 的 `jSPPropertyBar`/`tabRight`
+停靠区）重构：
+
+* **`menubar.tsx`**：五个菜单（文件/格式/报表/视图/帮助）。文件 = 渲染/另存为/
+  导出 JSON/导出 Excel/导出 CSV（后两者接 `POST /export?fmt=`，M6-03 服务端
+  既有链路，前端 `exportReportFile` 优先导出**打过补丁的 def**）；格式/报表 =
+  右侧对应分区的显隐；视图 = 侧栏整体收起；帮助 = 关于。点菜单外/ESC 收起。
+  编辑类菜单（撤销/剪贴板）**不做**——Univer 画布自带，再包一层是重复 UI。
+* **`panes.tsx`**：右侧停靠面板（340px，可折叠六分区：样式/属性/行列/报表参数/
+  数据集/报表设置）——原顶栏横条**逐字搬迁**（`title` 属性是 E2E 选择器），
+  handler 经 `PaneApi` 由 App 注入，组件自身无状态（折叠态除外）。
+* **布局**：顶栏按钮（高频）+ 菜单栏（全量入口）**并存不重复**；主体 flex row =
+  Univer 画布 + 侧栏。三套既有 E2E（E1–E13/E14–E20/W21–W26）零修改全绿
+  （选择器与几何自校准不依赖布局）；新增 W27–W29 钉住菜单三条链路。
+
+#### W3 剩余越界项（本 spec **不承诺**）
+
+Univer 是**表格**模型，而 rpx 有它没有的概念：`extend_mode` 的扩展语义
 
 Univer 是**表格**模型，而 rpx 有它没有的概念：`extend_mode` 的扩展语义
 （横向扩展会把**列结构本身放大 N 倍**，`format-contract.md` 的扩展矩阵）、

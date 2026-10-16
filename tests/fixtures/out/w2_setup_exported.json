@@ -1,0 +1,1 @@
+{"version":1,"grid":{"rows":3,"cols":2},"cells":[{"row":1,"col":1,"text":"样式演示","bold":true,"fore_color":"#FF0000","font_size":18},{"row":1,"col":2,"text":"普通格"},{"row":2,"col":1,"text":"斜体格","italic":true},{"row":3,"col":1,"text":"末行"}],"print_setup":{"row_num_per_page":3,"paper_width":297,"paper_height":210,"zoom_scale":80,"copy_count":2,"top_margin":30}}

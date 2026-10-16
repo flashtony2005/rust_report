@@ -193,7 +193,11 @@ pub(crate) fn as_bool(v: &Value) -> Result<bool> {
     match v {
         Value::Bool(b) => Ok(*b),
         other => Err(EngineError::UnsupportedExpr {
-            expr: format!("非布尔: {other:?}"),
+            // 消息文本对齐产品（带账⑥，2026-10-16 核对）：探针 `ProbeRowTest`
+            // P1–P3 实证 Row/Root 两态同文本「记录过滤条件应该返回布尔值」
+            // （产品 `Row.java:91` 的 `error.Row.test`）。`as_bool` 的两处调用
+            // 都在 `ds.select` 的过滤路径（`dsselect/mod.rs`），故措辞准确。
+            expr: format!("记录过滤条件应该返回布尔值（产品 error.Row.test），实得 {other:?}"),
         }),
     }
 }
