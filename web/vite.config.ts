@@ -20,4 +20,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      // 多页入口：`index.html`（产品页）+ `probe.html`（W2 准入探针，见
+      // `src/probe.tsx`）。⚠ 加上 probe 入口是为了让 G9 的 `tsc --noEmit &&
+      // vite build` **也覆盖探针页** —— 否则探针页的类型错误不会被门禁拦住，
+      // 而它恰恰是 W2 分期决策的依据。
+      input: {
+        index: 'index.html',
+        probe: 'probe.html',
+      },
+    },
+  },
 })

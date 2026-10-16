@@ -1,10 +1,13 @@
 # Spec — ReportLite Rust 重实现 · M7-W（Univer 前端设计器）v0.1
 
-> 状态：**v0.3（2026-10-16）—— W0、W1 已收口，W2 可开工**。上游决策：
-> `docs/report-def-json.md` §7.2 明写「在线设计器（`web/` 侧）—— Univer 目前仍是
-> **纯渲染终端**，在它上面做『定格式』是**新阶段**，须另立 spec」—— 本文件就是那份 spec。
+> 状态：**v0.4（2026-10-16）—— W0、W1 已收口；W2 的准入探针已做完、分期已按实测
+> 调整，代码未开工**。上游决策：`docs/report-def-json.md` §7.2 明写「在线设计器
+> （`web/` 侧）—— Univer 目前仍是**纯渲染终端**，在它上面做『定格式』是**新阶段**，
+> 须另立 spec」—— 本文件就是那份 spec。
 > v0.2：G9 挂进 `scripts/gate.sh`（W0 收口）。v0.3：定义 JSON 通道接上（W1 收口）。
-> 变更史见 §8。蓝图（L1 层）：`docs/reportlite-rust全链路设计.html` §九（Univer 前端设计）；
+> v0.4：Univer 编辑 API 运行时探针（§7 坑位 4 由「待验证」变实测 13/15），
+> **缩进与打印设置两项因 API 不存在而降级**。变更史见 §8。
+> 蓝图（L1 层）：`docs/reportlite-rust全链路设计.html` §九（Univer 前端设计）；
 > **冲突时以证据（夹具 > 源码 > 契约文档）为准**。
 
 ## 0. 本文件的可信度声明
@@ -144,13 +147,18 @@ FI-B 是在**完整 `gate.sh`** 上跑的（不是只跑 vitest），证明红�
 
 ### W2 编辑面（真正的「设计器」）
 
+> ⚠ **分期已按 §7 坑位 4 的实测结论调整**（2026-10-16）：探针 15 项里
+> **缩进与打印设置的 API 不存在** ⇒ 这两项从「做面板」降级为「JSON 声明 + 预览」，
+> 与 §W3 的 `extend_mode` 同规格。下表「验收」列已按此改写。
+
 | 项 | 内容 | 验收 |
 | --- | --- | --- |
-| W2-1 | Univer 开编辑（`readonly: false`），单元格内容/合并可改 | 改完导出定义 JSON，`open_bytes(to_bytes(build(json))) == build(json)` 往返成立 |
-| W2-2 | 样式面板：字体/字号/颜色/粗斜下划线（M7-3 的 7 字段） | 面板设的值原样进 JSON |
-| W2-3 | 边框 / 格式 / 缩进 / 旋转面板（M7-5 的 16 槽） | 同上；**往返判据**（快照不暴露，见 §2 表） |
-| W2-4 | 打印设置面板（M7-6 的 17 字段） | 同上 |
-| W2-5 | 网格尺寸 / 行列属性 / 数据集绑定 | 与 `report-def-json.md` §3 字段一一对应 |
+| W2-1 | Univer 开编辑（**默认即可编辑**，无需 `readonly:false` 开关 —— 见坑位 4），单元格内容/合并可改 | 改完导出定义 JSON，`open_bytes(to_bytes(build(json))) == build(json)` 往返成立 |
+| W2-2 | 样式面板：字体/字号/颜色/粗斜下划线（M7-3 的 7 字段） | 面板设的值原样进 JSON（⚠ 需过 `ul` 布尔↔对象、颜色 `#RRGGBB`↔`{rgb}` 两层映射） |
+| W2-3 | 边框 / 数字格式 / 旋转面板（M7-5 的 16 槽里**可做的那部分**） | 同上；**往返判据**（快照不暴露，见 §2 表） |
+| W2-3' | 缩进 —— **降级**：API 不存在，只能 JSON 声明 | 声明 → 渲染 → 往返成立（不要求面板） |
+| W2-4 | 打印设置（M7-6 的 17 字段）—— **整项降级**：sheets 无页面设置模型与 facade | 声明 → 渲染 → 往返成立（不要求面板） |
+| W2-5 | 网格尺寸 / 行列属性 / 数据集绑定 | 与 `report-def-json.md` §3 字段一一对应；尺寸用 `setRowHeight`/`setColumnWidth`（**不是** `setRowCustom`） |
 
 W2 的判据形态是 **M7-5 已立下的模型往返**：面板写出的 JSON 经
 `parse → to_bytes → open_bytes` 必须逐字段相等（`tests/definition_roundtrip.rs`
@@ -244,10 +252,58 @@ cargo test -p rpx-server --test definition_channel_http
 3. ✅ **`web/` 不在 Rust gate 覆盖范围内** —— **已解除**：G1–G8 全是 cargo，
    前端改动原本**完全无机器判据**；G9 就是为补这个缺口而加。
 
-4. **待验证**：Univer 1.0.4 的 `readonly: false` 是否支持本 spec W2 所需的全部
-   编辑面（合并单元格的 API、`IStyleData` 的写入口径）。**依赖已装齐，W2 开工前
-   先做一次 API 可用性探针**，再决定 W2 的分期是否要调整 —— 不要先写代码再发现
-   API 不支持。
+4. ✅ **Univer 1.0.4 编辑 API 可用性——已实测，不再是「待验证」**（2026-10-16，
+   `web/src/probe.tsx` + `web/probe.html`，浏览器实测 15 项，**13 过 2 不过**）。
+   探针页是**开发期工具**、不进 `index.html`；入口 `http://127.0.0.1:5288/probe.html`，
+   结果同时落在 DOM 与 `window.__probeResults`（agent-browser 可抓）。
+   ⚠ 探针已被挂进 vite 多页入口（`vite.config.ts` 的 `build.rollupOptions.input`），
+   所以 **G9 的 `tsc --noEmit && vite build` 也覆盖探针页** —— 否则探针页的类型错误
+   不会被门禁拦住，而它恰恰是 W2 分期决策的依据。
+
+   **实测通过（API 存在且运行时真能用）：**
+
+   | 能力 | API | 实测值 |
+   | --- | --- | --- |
+   | 单元格内容 | `setValue` / `getValue` | 读回相等 |
+   | 合并 | `merge` / `isMerged` / `breakApart` | `{merged:true, afterBreak:false}` |
+   | 字体族/字号/字色 | `setFontFamily` / `setFontSize` / `setFontColor` | `{ff:"Times New Roman", fs:18, cl:{rgb:"#ff0000"}}` |
+   | 粗/斜/下划线 | `setFontWeight` / `setFontStyle` / `setFontLine` | `{bl:1, it:1, ul:{s:1,cl:{rgb:"#ff0000"}}}` |
+   | 背景色 | `setBackgroundColor` | `{bg:{rgb:"#ffff00"}}` |
+   | 边框 | `setBorder(BorderType.ALL, BorderStyleTypes.THIN, color)` | 四边 `bd:{t,r,b,l}` 全落 |
+   | 数字格式 | `setNumberFormat` / `getNumberFormat` | 读回 `"#,##0.00"`（**numfmt facade 确实挂上了**） |
+   | 旋转 | `setTextRotation` | `{tr:{a:45}}` |
+   | 水平对齐 | `setHorizontalAlignment` | `center=2`、`normal=3` |
+   | 行高列宽 | `setRowHeight` / `setColumnWidth` | `{rowHeight:40, columnWidth:120}` |
+   | 值变更事件 | `addEvent(Event.SheetValueChanged)` | 回调 `fired:1` |
+   | 只读 | `getWorkbookPermission().setReadOnly()` / `setEditable()` | 只读下写入**被静默丢弃**（值 null，不抛错）；`setEditable()` 后恢复可写 |
+   | 撤销 | `univerAPI.undo()` | `"撤销后"` → `"撤销前"`，**真回退** |
+
+   **实测不通过（API 不存在 —— 这是真实能力缺口，不是探针 bug）：**
+
+   | 能力 | 判据 | 实测 |
+   | --- | --- | --- |
+   | 行列自定义属性 | `setRowCustom({0:{h:30}})` / `setColumnCustom({0:{w:20}})` | 行高 `24→24`、列宽 `88` 不变 ⇒ **它不是几何 API**。几何请用 `setRowHeight`/`setColumnWidth`（上一行已实测通过） |
+   | 打印设置（W2-4） | facade 原型上 `/page\|print\|paper\|margin\|orient/` 匹配方法数 | **0 个**。sheets 包既无页面设置数据模型（`IWorksheetData`/`IWorkbookData` 里没有），也无 facade；`orientation`/`page-setup` 只存在于 **docs** 模型。sheets 里唯一的 print 相关物是**权限点**（`WorkbookPrintPermission`） |
+
+   **⇒ 对 W2 分期的直接影响（本探针的全部意义）：**
+
+   * **缩进与打印设置必须降级**：与 `extend_mode` 同规格 —— 「在 JSON 里声明、
+     在预览里看效果」，**不能**在 Univer 编辑态表达。W2-3 因此只剩「边框/数字格式/
+     旋转」三项可做面板；W2-4 整个降级为 JSON 声明。
+   * 其余 W2-1 / W2-2 / W2-5 **可做**，API 面齐备。
+
+   **四条必须记住的映射陷阱**（写 W2 面板时逐一踩得到）：
+
+   1. ⚠ **`FHorizontalAlignment` 类型里没有 `'right'`，`'normal'` 才是右对齐**
+      （实测 `center=2`、`normal=3`）。我们的 JSON `h_align` 有 `right` ⇒ 需要映射层，
+      直接传 `'right'` 连类型都过不了。
+   2. ⚠ **`ul`（下划线）是 `ITextDecoration` 对象 `{s,c,cl,t}`，不是布尔**；
+      而我们 JSON 的 `underline` 是布尔、快照也按布尔暴露 ⇒ 布尔 ↔ 对象要双向映射。
+   3. ⚠ **颜色是 `IColorStyle` 对象 `{rgb}` / `{th}`，不是字符串**；
+      我们 JSON 用 `#RRGGBB` ⇒ 同样要映射（`snapshot::style::argb_hex` 那条严格互逆
+      在编辑侧也要重做一遍）。
+   4. ⚠ **`setReadOnly()` 是「静默忽略写入」，不抛错** —— 想靠 try/catch 探测只读
+      态会得到假阴性（实测 `blocked:false` 而值确实是 null）。
 
 5. **待验证**：Univer 的撤销栈与「导出定义 JSON」如何对齐（用户在 Univer 里的
    撤销，要不要反映到 JSON 草稿）。
@@ -285,3 +341,11 @@ cargo test -p rpx-server --test definition_channel_http
 `/reports` 列表可见。3 组故障注入（FI-A/B/C）。新增 §7 坑位 6（`@参数` 未给值 ⇒ 400，
 声明≠给值）与坑位 7（`br#""#` 不许非 ASCII）。
 **G1–G9 全绿（Rust 584 + 前端 25），W2 可开工。** |
+| 2026-10-16 | v0.4 **W2 准入探针** | 新增 `web/src/probe.tsx` + `web/probe.html`（开发期
+探针页，**不进 `index.html`**）+ vite 多页入口（让 G9 的 tsc/build 覆盖它）。
+浏览器实测 15 项编辑 API，**13 过 2 不过**：通过的是内容/合并/样式 7 字段/边框四边/
+数字格式/旋转/对齐/行高列宽/`SheetValueChanged` 事件/只读/撤销；**不过的是
+「行列自定义属性」与「打印设置」**（后者 facade 上一个页面设置方法都没有）。
+⇒ §7 坑位 4 由「待验证」变实测结论 + 四条映射陷阱（`normal`=右对齐、`ul` 是对象、
+颜色是 `{rgb}`、`setReadOnly` 静默丢弃不抛错）；**W2-3 缩进与 W2-4 打印设置降级为
+JSON 声明**，与 `extend_mode` 同规格。W2 代码**未开工**。 |
