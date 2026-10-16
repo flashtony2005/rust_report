@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite --port 5288 --strictPort",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --port 5288 --strictPort"
+    "preview": "vite preview --port 5288 --strictPort",
+    "test": "vitest run"
   },
   "dependencies": {
     "@univerjs/preset-sheets-core": "^1.0.4",
@@ -20,6 +21,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   }
 }

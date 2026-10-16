@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Tier-0 机器闸：G1–G7。任一 FAIL ⇒ 不许开 PR（见 docs/code-review.md §3）。
+# Tier-0 机器闸：G1–G9。任一 FAIL ⇒ 不许开 PR（见 docs/code-review.md §3）。
 #
 # 设计约束：
-#   * 不 `set -e` —— 必须跑完全部 7 个 gate，让作者一次看全红在哪。
+#   * 不 `set -e` —— 必须跑完全部 gate，让作者一次看全红在哪。
 #   * 每个 gate 的原始输出都打印，不许只打 PASS/FAIL（"只报通过"等于没报）。
 #   * 从任何目录调用都能工作。
+#
+# G1–G8 = Rust 侧；**G9 = 前端侧**（M7-W W0-3，docs/spec-m7-web.md §4）：
+# `web/` 的 `npm run build` + `vitest run`。它**缺 node_modules 就红**，不静默跳过。
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -220,6 +223,10 @@ else
   FAILED=1
 fi
 printf '\n'
+
+# ---- G9 前端可验证性地基（M7-W W0-3）------------------------------------
+# 逻辑在 scripts/gate_web.sh：npm run build + vitest run，缺 node_modules 即红。
+run_gate G9 "前端 build + vitest（M7-W W0-3）" bash scripts/gate_web.sh
 
 # ---- 汇总 ----------------------------------------------------------------
 hr

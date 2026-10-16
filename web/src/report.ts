@@ -21,12 +21,51 @@ import '@univerjs/preset-sheets-core/lib/index.css'
  * 其余 → 字符串（不猜类型；数组/对象 v1 不支持，表单只出标量行）。 */
 export type ParamRow = { name: string; value: string }
 
+/** 从选中文件里挑出 `.rpx` 模板（大小写不敏感；挑不到返回 undefined）。
+ *
+ * 纯函数，与 [`fetchSnapshot`] 分开放是为了可单测（W0-2：本仓要求前端改动
+ * 也有机器判据，`docs/spec-m7-web.md` §4 W0）。 */
+export function pickReportFile(files: File[]): File | undefined {
+  return files.find((f) => f.name.toLowerCase().endsWith('.rpx'))
+}
+
+/** 参数行 → `params` 表单段的对象。
+ *
+ * 口径（**与改前逐字节等价**，勿轻改）：
+ * - 空名（trim 后）**跳过**——服务端按未登记参数显式报错；
+ * - 整数字面量（`/^-?\d+$/`，trim 后判）→ `Number`；
+ * - 小数（`/^-?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$/`，trim 后判）→ `Number`
+ *   —— ⚠ **该正则要求有小数点**，故**无小数点的科学计数（`1e3`）不是数字**，
+ *   走字符串分支。`src/report.test.ts` 钉住了这个口径；
+ * - 其余 → **原样 `value`（未 trim）**。
+ *
+ * ⚠ 最后一条是既有行为、也是刻意保留的：数字必须 trim 才解析得了，
+ * 而字符串保留用户原样输入（含首尾空格）是「用户就是想传这个串」。
+ * 这个不对称在 M7-W 之前没有判据钉住，现在有了 —— 见
+ * `src/report.test.ts::string_values_are_not_trimmed`。
+ * 若将来要改成统一 trim，**先改测试再改实现**（本仓纪律：判据先行）。
+ */
+export function paramsToObject(rows: ParamRow[]): Record<string, string | number> {
+  const obj: Record<string, string | number> = {}
+  for (const { name, value } of rows) {
+    const n = name.trim()
+    if (!n) continue
+    const v = value.trim()
+    obj[n] = /^-?\d+$/.test(v)
+      ? Number(v)
+      : /^-?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$/.test(v)
+        ? Number(v)
+        : value
+  }
+  return obj
+}
+
 /** 取服务端快照 JSON（`IWorkbookData`，契约见 `docs/spec-m4.md` §4）。 */
 export async function fetchSnapshot(
   files: File[],
   params: ParamRow[],
 ): Promise<unknown> {
-  const report = files.find((f) => f.name.toLowerCase().endsWith('.rpx'))
+  const report = pickReportFile(files)
   if (!report) {
     throw new Error('未选择 .rpx 模板文件（可同时选中模板引用的 CSV，一起上传）')
   }
@@ -38,16 +77,7 @@ export async function fetchSnapshot(
     if (f !== report) form.append('dataset', f, f.name)
   }
   // 参数（M4-04）：非空行才提交；空名跳过（服务端按未登记参数显式报错）。
-  const obj: Record<string, string | number> = {}
-  for (const { name, value } of params) {
-    const n = name.trim()
-    if (!n) continue
-    obj[n] = /^-?\d+$/.test(value.trim())
-      ? Number(value.trim())
-      : /^-?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$/.test(value.trim())
-        ? Number(value.trim())
-        : value
-  }
+  const obj = paramsToObject(params)
   if (Object.keys(obj).length > 0) {
     form.append('params', JSON.stringify(obj))
   }
