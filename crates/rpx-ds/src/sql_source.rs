@@ -78,6 +78,19 @@ impl SqlSource {
         Ok(SqlSource { pool })
     }
 
+    /// 执行非查询语句（DDL/DML），返回受影响行数。
+    ///
+    /// 测试基建用（`sqlite_fixture.rs` 内存库建表；SQLite 文件库的
+    /// Windows URL 形态坑见下）——也是未来 CLI 初始化数据库的出口。（`sqlite_fixture.rs` 自建表，不依赖外部服务器）；也是
+    /// 未来 CLI 初始化数据库的出口。SQL 安全性与 [`fetch_sql] 同规（模板侧
+    /// 由服务端把关，此处不二次过滤）。
+    pub async fn execute(&self, sql: &str) -> Result<u64, DsError> {
+        let r = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()))
+            .execute(&self.pool)
+            .await?;
+        Ok(r.rows_affected())
+    }
+
     /// 执行模板 SQL 并物化。列名取结果集表头（SQL 数据集的列 = 查询产物，
     /// 与产品 SQL 数据集语义一致），行值经 [`any_cell`] 收敛到 `Value`。
     pub async fn fetch_sql(&self, sql: &str) -> Result<RowSet, DsError> {

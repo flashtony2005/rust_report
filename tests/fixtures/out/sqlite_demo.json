@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 3,
+    "cols": 2
+  },
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "text": "姓名"
+    },
+    {
+      "row": 1,
+      "col": 2,
+      "text": "工资"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "expr": "ds1.select(name)"
+    },
+    {
+      "row": 2,
+      "col": 2,
+      "expr": "ds1.select(salary)"
+    }
+  ],
+  "datasets": [
+    {
+      "name": "ds1",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT name, salary FROM emp ORDER BY id"
+      }
+    }
+  ]
+}
