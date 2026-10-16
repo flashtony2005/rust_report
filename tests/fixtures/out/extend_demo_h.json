@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "grid": { "rows": 2, "cols": 8 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "员工名单（横向扩展）", "bold": true },
+    { "row": 2, "col": 1, "expr": "ds1.select(name)", "extend_mode": "horizontal" }
+  ],
+  "datasets": [
+    {
+      "name": "ds1",
+      "sql": { "dsn": "demo", "sql": "SELECT name FROM emp ORDER BY id" }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "grid": { "rows": 4, "cols": 2 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "员工工资表", "bold": true, "font_size": 16 },
+    { "row": 2, "col": 1, "text": "姓名" },
+    { "row": 2, "col": 2, "text": "工资" },
+    { "row": 3, "col": 1, "expr": "ds1.select(name)",    "extend_mode": "vertical" },
+    { "row": 3, "col": 2, "expr": "ds1.select(salary)",  "extend_mode": "vertical" },
+    { "row": 4, "col": 1, "text": "合计" },
+    { "row": 4, "col": 2, "expr": "ds1.sum(salary)" }
+  ],
+  "datasets": [
+    {
+      "name": "ds1",
+      "sql": { "dsn": "demo", "sql": "SELECT name, salary FROM emp ORDER BY id" }
+    }
+  ]
+}
