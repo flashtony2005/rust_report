@@ -338,6 +338,12 @@ export function borderStyleFromCode(code: unknown): BorderStyleName | null {
   }
 }
 
+/** rpx 线型名 → Univer `BorderStyleTypes` 码（`JSON_STYLE_TO_UB` 的公开形态，
+ * W2-3 面板落 `setBorder` 用）。 */
+export function borderStyleToUniverCode(name: BorderStyleName): number {
+  return JSON_STYLE_TO_UB[name]
+}
+
 /** Univer 线型码 → 可读名字（只用于 warning 文案，让用户知道丢的是什么）。 */
 function borderStyleLabel(code: unknown): string {
   const hit = Object.entries(U_BORDER_STYLE).find(([, v]) => v === code)

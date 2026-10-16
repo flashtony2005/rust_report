@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { FUniver } from '@univerjs/presets'
 
 import {
@@ -9,6 +9,17 @@ import {
   type CellValue,
   type ReportDef,
 } from './designer'
+import {
+  BORDER_SIDES,
+  CELL_PROPS_DEFAULTS,
+  applyCellPropToRange,
+  applyCellPropsToRange,
+  borderStyleOptions,
+  cellPropsFromDef,
+  formatOptions,
+  type BorderSideName,
+  type CellPropsEdit,
+} from './cellprops'
 import {
   fetchMeta,
   fetchSnapshot,
@@ -27,6 +38,7 @@ import {
   panelFromUniverStyle,
   resetRangeToDefaults,
   type PanelField,
+  type PanelRange,
   type PanelStyle,
 } from './stylepanel'
 
@@ -60,6 +72,39 @@ const PANEL_TOGGLES = [
   ['italic', 'I', { fontStyle: 'italic' }],
   ['underline', 'U', { textDecoration: 'underline' }],
 ] as const satisfies readonly (readonly [PanelField, string, CSSProperties])[]
+
+/** W2-3：边框四边的中文标签（开关按钮 + 状态栏文案共用）。 */
+const BORDER_SIDE_LABELS: Record<BorderSideName, string> = {
+  top: '上',
+  right: '右',
+  bottom: '下',
+  left: '左',
+}
+
+/** W2-3：线型码表的中文标签（下拉显示用；契约值见 `report-def-json.md` §4.7）。 */
+const LINE_STYLE_LABELS: Record<string, string> = {
+  none: '无',
+  dotted: '点线',
+  dashed: '虚线',
+  solid: '实线',
+  double: '双线',
+}
+
+/** W2-3：属性编辑的状态栏标签。 */
+function propsEditLabel(edit: CellPropsEdit): string {
+  switch (edit.kind) {
+    case 'borderSide':
+      return `边框·${BORDER_SIDE_LABELS[edit.side]}`
+    case 'borderStyle':
+      return '边框线型'
+    case 'borderColor':
+      return '边框颜色'
+    case 'format':
+      return '数字格式'
+    case 'rotation':
+      return '旋转角'
+  }
+}
 
 /**
  * rpx 报表预览 + 定义 JSON 通道（M4 + M7-W W1）+ 编辑面（M7-W W2-1）。
@@ -95,6 +140,8 @@ export default function App() {
   /** W2-2：样式面板显示态。`null` = 当前没有选区可读（或未渲染）⇒ 面板显示
    * 缺省并整体置灰（`.rpx` 源没有定义 JSON 可打补丁，见 `assertEditable`）。 */
   const [panel, setPanel] = useState<PanelStyle | null>(null)
+  /** W2-3：当前选区的坐标快照（属性面板显示态的派生来源；`null` = 无选区）。 */
+  const [selection, setSelection] = useState<PanelRange | null>(null)
   const [files, setFiles] = useState<FileList | null>(null)
   const [params, setParams] = useState<ParamRow[]>([])
   /** 「另存为」拿到的服务端 id（W1-3）；换文件即失效（id 属于旧文件）。 */
@@ -235,15 +282,23 @@ export default function App() {
     return sheet && range ? { sheet, range } : null
   }
 
-  /** W2-2：把面板显示态刷新为当前选区的样式（选区没了 ⇒ 面板回 null 置灰）。 */
+  /** W2-2：把面板显示态刷新为当前选区的样式（选区没了 ⇒ 面板回 null 置灰）。
+   * W2-3：同时记录选区坐标快照（属性面板的显示态由它派生）。 */
   const syncPanel = () => {
     const cur = currentSelection()
     if (!cur) {
       setPanel(null)
+      setSelection(null)
       return
     }
     const cell = cur.sheet.getRange(cur.range.getRow(), cur.range.getColumn())
     setPanel(panelFromUniverStyle(cell.getCellStyleData()))
+    setSelection({
+      row0: cur.range.getRow(),
+      col0: cur.range.getColumn(),
+      height: cur.range.getHeight(),
+      width: cur.range.getWidth(),
+    })
   }
 
   /** W2-2：面板操作的公共前置（选区 + 定义 JSON 都就位）。不满足 ⇒ 上屏原因并返回 null。 */
@@ -313,6 +368,40 @@ export default function App() {
     setPanel({ ...PANEL_DEFAULTS })
     const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
     setStatus(`已恢复缺省样式${warn}；点「导出 JSON」拿回文件`)
+  }
+
+  // -------------------------------------------------------------------------
+  // W2-3 属性面板（边框 / 数字格式 / 旋转）
+  // -------------------------------------------------------------------------
+
+  /** W2-3 面板显示态：**派生**自（定义 JSON × 选区起点格）。
+   *
+   * 与 W2-2 相反，这三项不在服务端快照里 ⇒ 画布读不回来 ⇒ 显示态的唯一来源是
+   * 持有的定义 JSON（`cellprops.ts` 文件头）。派生而非独立 state：任何一次补丁
+   * 都会让 `def` 变化、自动重算，不会出现「面板值比 JSON 旧一格」的漂移。 */
+  const propsPanel = useMemo(
+    () => (def && selection ? cellPropsFromDef(def, selection) : CELL_PROPS_DEFAULTS),
+    [def, selection],
+  )
+
+  /** W2-3：属性编辑 —— 与 W2-2 同规：先落 Univer（视觉反馈），再补定义 JSON（只动一个键）。 */
+  const onPropsChange = (edit: CellPropsEdit) => {
+    const ctx = panelContext()
+    if (!ctx) return
+    const r = applyCellPropsToRange(ctx.held, ctx.range, edit)
+    if (r.error || !r.normalized) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    try {
+      applyCellPropToRange(ctx.cur.range, r.normalized, propsPanel)
+    } catch (e) {
+      setStatus(`编辑失败：Univer 侧落地失败（${e instanceof Error ? e.message : String(e)}）`)
+      return
+    }
+    if (r.def) setDefBoth(r.def)
+    const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
+    setStatus(`已更新${propsEditLabel(edit)}${warn}；点「导出 JSON」拿回文件`)
   }
 
   /** 「另存为」（W1-3 + W1-2）：入库拿 id → 按 `/meta` 刷新参数表单。 */
@@ -523,28 +612,24 @@ export default function App() {
             {label}
           </button>
         ))}
-        <label
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-          title="字体颜色（定义 JSON 的 fore_color；改回 #000000 = 删该键）"
-        >
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           字色
           <input
             type="color"
             value={pv.foreColor}
             disabled={panelDisabled}
+            title="字体颜色（定义 JSON 的 fore_color；改回 #000000 = 删该键）"
             onChange={(e) => onPanelChange('foreColor', e.target.value)}
             style={panelColorStyle}
           />
         </label>
-        <label
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-          title="背景色（定义 JSON 的 back_color；改回 #FFFFFF = 删该键）"
-        >
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           底色
           <input
             type="color"
             value={pv.backColor}
             disabled={panelDisabled}
+            title="背景色（定义 JSON 的 back_color；改回 #FFFFFF = 删该键）"
             onChange={(e) => onPanelChange('backColor', e.target.value)}
             style={panelColorStyle}
           />
@@ -570,6 +655,115 @@ export default function App() {
             仅定义 JSON（.json）报表源可改样式
           </span>
         ) : null}
+      </section>
+      {/* W2-3 属性条：边框 / 数字格式 / 旋转。
+          ⚠ 读方向是**定义 JSON**（选区起点格）—— 这三项不在服务端快照里
+          （`report-def-json.md` §4.7），画布读不回来；Univer 侧只做即时视觉反馈。 */}
+      <section
+        style={{
+          padding: '6px 14px',
+          borderBottom: '1px solid var(--rpx-border)',
+          background: 'var(--rpx-bg-muted)',
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: 13,
+          color: 'var(--rpx-fg)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ color: 'var(--rpx-fg-muted)' }}>属性</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          边框
+          {BORDER_SIDES.map((s) => (
+            <button
+              key={s}
+              aria-pressed={propsPanel.sides[s]}
+              disabled={panelDisabled}
+              title={`${BORDER_SIDE_LABELS[s]}边框（勾选 = 定义 JSON 里该边存在；取消 = 删该边）`}
+              onClick={() =>
+                onPropsChange({
+                  kind: 'borderSide',
+                  side: s,
+                  on: !propsPanel.sides[s],
+                  style: propsPanel.borderStyle,
+                  color: propsPanel.borderColor,
+                })
+              }
+              style={{
+                width: 26,
+                height: 24,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid var(--rpx-border)',
+                borderRadius: 4,
+                cursor: panelDisabled ? 'not-allowed' : 'pointer',
+                ...(propsPanel.sides[s] && !panelDisabled
+                  ? { background: 'var(--rpx-accent)', color: '#fff' }
+                  : { background: '#fff', color: 'var(--rpx-fg)' }),
+              }}
+            >
+              {BORDER_SIDE_LABELS[s]}
+            </button>
+          ))}
+        </span>
+        <select
+          value={propsPanel.borderStyle}
+          disabled={panelDisabled}
+          title="边框线型（改它只作用于已勾选的边，不凭空给没边框的边加边框）"
+          onChange={(e) => onPropsChange({ kind: 'borderStyle', style: e.target.value })}
+          style={panelInputStyle}
+        >
+          {borderStyleOptions(propsPanel.borderStyle).map((s) => (
+            <option key={s} value={s}>
+              {LINE_STYLE_LABELS[s] ?? s}
+            </option>
+          ))}
+        </select>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          边框色
+          <input
+            type="color"
+            value={propsPanel.borderColor}
+            disabled={panelDisabled}
+            title="边框颜色（定义 JSON 的 border.*.color；#000000 = 删该键）"
+            onChange={(e) => onPropsChange({ kind: 'borderColor', color: e.target.value })}
+            style={panelColorStyle}
+          />
+        </label>
+        <span style={{ color: 'var(--rpx-border)' }}>|</span>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          格式
+          <select
+            value={propsPanel.format}
+            disabled={panelDisabled}
+            title="数字格式（定义 JSON 的 format；「（无格式）」= 删该键）"
+            onChange={(e) => onPropsChange({ kind: 'format', value: e.target.value })}
+            style={panelInputStyle}
+          >
+            {formatOptions(propsPanel.format).map((f) => (
+              <option key={f} value={f}>
+                {f === '' ? '（无格式）' : f}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          旋转
+          <input
+            type="number"
+            min={0}
+            max={360}
+            value={propsPanel.rotation}
+            disabled={panelDisabled}
+            title="文字旋转角（定义 JSON 的 rotation；面板开放 0..360 整数，0 = 删该键）"
+            onChange={(e) => onPropsChange({ kind: 'rotation', value: e.target.value })}
+            style={{ ...panelInputStyle, width: 60 }}
+          />
+          <span style={{ color: 'var(--rpx-fg-muted)' }}>°</span>
+        </label>
       </section>
       {/* W1-2 参数表单：`另存为` 后按 `GET /reports/{id}/meta` 自动带出，
           非静态（`is_static=false`）的行标「动态」；仍可手工增删行。 */}

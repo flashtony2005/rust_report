@@ -220,7 +220,7 @@ export function normalizePanelValue(field: PanelField, raw: unknown): PanelValue
 }
 
 // ---------------------------------------------------------------------------
-// 写方向：定义 JSON 补丁（唯一入口）
+// 选区脚手架（W2-2 样式补丁与 W2-3 属性补丁共用；`cellprops.ts` 也走这一条）
 // ---------------------------------------------------------------------------
 
 /** 选区（Univer 0 起坐标；`height`/`width` 是**格数**，即 `FRange.getHeight()`
@@ -235,6 +235,123 @@ export type PanelPatchResult = {
   warnings: string[]
   error?: string
 }
+
+/** [`patchRangeSlots] 的原始结果（未组成 warnings/error 文案）。 */
+export type RangeSlotsResult = {
+  /** 有改动时的**新** `cells` 数组；零改动为 `undefined`（保持原引用）。 */
+  cells?: CellDef[]
+  /** 裁剪后为空 / 超上限（工具层错误，先于逐槽判断）。 */
+  error?: string
+  /** 实际改动的槽数。 */
+  changed: number
+  /** 被合并矩形覆盖而跳过的槽数。 */
+  skipped: number
+  /** 裁剪后的槽总数（= changed + skipped + 未改动槽）。 */
+  total: number
+  /** 有重复 `(row,col)` 条目的槽（只改第一条，另行告警）。 */
+  dup: string[]
+}
+
+/** 选区脚手架：裁剪到网格 → 槽数上限 → 合并区跳过 → 逐槽回调。
+ *
+ * W2-2 的样式补丁与 W2-3 的属性补丁**共用这一份**裁剪/上限/合并跳过/重复检测
+ * —— 两处各写一套，判定就会静默错位（与 `slotKey` 同一条纪律）。
+ *
+ * @param fn 逐槽回调（逻辑坐标）：入参是该槽**当前**的条目（可能 `undefined`）
+ *   与坐标；返回 `undefined` = 该槽不改变，`null` = **删除**该槽的条目
+ *   （空壳清理：条目删到只剩 `row`/`col` 时不该留在 `cells[]` 里），
+ *   返回新条目 = 写入（整条目替换）。回调**不**负责边界与合并判定（脚手架已做）。 */
+export function patchRangeSlots(
+  def: ReportDef,
+  range: PanelRange,
+  fn: (cell: CellDef | undefined, slot: { row: number; col: number }) => CellDef | null | undefined,
+): RangeSlotsResult {
+  const empty: RangeSlotsResult = { changed: 0, skipped: 0, total: 0, dup: [] }
+  // ---- 裁剪到网格（服务端越界 400；画布比网格大，见文件头事实 1）----
+  const r1 = Math.max(1, range.row0 + 1)
+  const c1 = Math.max(1, range.col0 + 1)
+  const r2 = Math.min(def.grid.rows, range.row0 + range.height)
+  const c2 = Math.min(def.grid.cols, range.col0 + range.width)
+  if (r1 > r2 || c1 > c2) {
+    return {
+      ...empty,
+      error: `选区不覆盖网格内的任何单元格（grid 是 ${def.grid.rows} 行 × ${def.grid.cols} 列，逻辑坐标 1 起）`,
+    }
+  }
+  const total = (r2 - r1 + 1) * (c2 - c1 + 1)
+  if (total > MAX_PANEL_SLOTS) {
+    return {
+      ...empty,
+      error: `选区过大：${total} 个槽超过上限 ${MAX_PANEL_SLOTS} —— 一次改这么多格会让定义 JSON 不可读，请缩小选区`,
+    }
+  }
+
+  const covered = coveredSlots(def)
+  const cells = def.cells ? [...def.cells] : []
+  let changed = 0
+  let skipped = 0
+  const dup: string[] = []
+
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      if (covered.has(slotKey(r, c))) {
+        skipped++
+        continue
+      }
+      const idx = cells.findIndex((x) => x.row === r && x.col === c)
+      if (idx >= 0 && cells.filter((x) => x.row === r && x.col === c).length > 1) {
+        dup.push(`(${r},${c})`)
+      }
+      const next = fn(idx >= 0 ? cells[idx] : undefined, { row: r, col: c })
+      if (next === undefined) continue
+      if (next === null) {
+        if (idx >= 0) {
+          cells.splice(idx, 1)
+          changed++
+        }
+        continue
+      }
+      if (idx >= 0) cells[idx] = next
+      else cells.push(next)
+      changed++
+    }
+  }
+  return { cells: changed > 0 ? cells : undefined, changed, skipped, total, dup }
+}
+
+/** 把脚手架结果收束成补丁结果（两模块共用的收尾口径）：
+ * 工具层错误原样上抛；**全落合并区** ⇒ 报错指路锚点；重复条目 ⇒ 告警；
+ * 零改动 ⇒ 由调用方给「无需改动」文案（缺省值 / 该值 / 没有可改对象，口径不同）。 */
+export function finishRangePatch(
+  def: ReportDef,
+  sc: RangeSlotsResult,
+  noChangeWarning: string,
+): { def?: ReportDef; error?: string; warnings: string[] } {
+  const warnings: string[] = []
+  if (sc.error) return { error: sc.error, warnings }
+  if (sc.changed === 0 && sc.skipped === sc.total) {
+    return {
+      error:
+        '选区全部落在合并矩形内部（非锚点槽）——服务端对合并区只认锚点，请选中合并区左上角那一格再改样式',
+      warnings,
+    }
+  }
+  if (sc.dup.length > 0) {
+    const head = sc.dup.slice(0, 5).join(' ')
+    warnings.push(
+      `${sc.dup.length} 个槽在 cells[] 里有重复条目，只改了第一条：${head}${sc.dup.length > 5 ? ' …' : ''}`,
+    )
+  }
+  if (sc.changed === 0) {
+    warnings.push(noChangeWarning)
+    return { def, warnings }
+  }
+  return { def: { ...def, cells: sc.cells ?? def.cells ?? [] }, warnings }
+}
+
+// ---------------------------------------------------------------------------
+// 写方向：定义 JSON 补丁（W2-2 唯一入口）
+// ---------------------------------------------------------------------------
 
 /** 把一个字段的值补丁进定义 JSON 的**选区**，返回**新**对象（纯函数）。
  *
@@ -265,79 +382,22 @@ export function applyPanelToRange(
   const spec = FIELD_SPEC[field]
   const elide = value === spec.default
 
-  // ---- 裁剪到网格（服务端越界 400；画布比网格大，见文件头事实 1）----
-  const r1 = Math.max(1, range.row0 + 1)
-  const c1 = Math.max(1, range.col0 + 1)
-  const r2 = Math.min(def.grid.rows, range.row0 + range.height)
-  const c2 = Math.min(def.grid.cols, range.col0 + range.width)
-  if (r1 > r2 || c1 > c2) {
-    return {
-      error: `选区不覆盖网格内的任何单元格（grid 是 ${def.grid.rows} 行 × ${def.grid.cols} 列，逻辑坐标 1 起）`,
-      warnings,
+  const sc = patchRangeSlots(def, range, (cell, slot) => {
+    if (cell === undefined) {
+      // 没有条目：非缺省才追加（缺省 ⇒ 不凭空造空壳）。
+      return elide ? undefined : ({ row: slot.row, col: slot.col, [spec.key]: value } as CellDef)
     }
-  }
-  const total = (r2 - r1 + 1) * (c2 - c1 + 1)
-  if (total > MAX_PANEL_SLOTS) {
-    return {
-      error: `选区过大：${total} 个槽超过上限 ${MAX_PANEL_SLOTS} —— 一次改这么多格会让定义 JSON 不可读，请缩小选区`,
-      warnings,
+    if (elide) {
+      if (cell[spec.key] === undefined) return undefined
+      const rest = { ...cell }
+      delete rest[spec.key]
+      return rest as CellDef
     }
-  }
-
-  const covered = coveredSlots(def)
-  const cells = def.cells ? [...def.cells] : []
-  let changed = 0
-  let skipped = 0
-  const dup: string[] = []
-
-  for (let r = r1; r <= r2; r++) {
-    for (let c = c1; c <= c2; c++) {
-      if (covered.has(slotKey(r, c))) {
-        skipped++
-        continue
-      }
-      const idx = cells.findIndex((x) => x.row === r && x.col === c)
-      if (idx >= 0 && cells.filter((x) => x.row === r && x.col === c).length > 1) {
-        dup.push(`(${r},${c})`)
-      }
-      if (idx >= 0) {
-        const cur = cells[idx]
-        if (elide) {
-          if (cur[spec.key] !== undefined) {
-            const rest = { ...cur }
-            delete rest[spec.key]
-            cells[idx] = rest as CellDef
-            changed++
-          }
-        } else if (cur[spec.key] !== value) {
-          cells[idx] = { ...cur, [spec.key]: value } as CellDef
-          changed++
-        }
-      } else if (!elide) {
-        cells.push({ row: r, col: c, [spec.key]: value } as CellDef)
-        changed++
-      }
-    }
-  }
-
-  if (changed === 0 && skipped === total) {
-    return {
-      error:
-        '选区全部落在合并矩形内部（非锚点槽）——服务端对合并区只认锚点，请选中合并区左上角那一格再改样式',
-      warnings,
-    }
-  }
-  if (dup.length > 0) {
-    const head = dup.slice(0, 5).join(' ')
-    warnings.push(
-      `${dup.length} 个槽在 cells[] 里有重复条目，只改了第一条：${head}${dup.length > 5 ? ' …' : ''}`,
-    )
-  }
-  if (changed === 0) {
-    warnings.push(elide ? '所选范围已是缺省值（无需改动）' : '所选范围已经是该值（无需改动）')
-    return { def, normalized: value, warnings }
-  }
-  return { def: { ...def, cells }, normalized: value, warnings }
+    if (cell[spec.key] === value) return undefined
+    return { ...cell, [spec.key]: value } as CellDef
+  })
+  const fin = finishRangePatch(def, sc, elide ? '所选范围已是缺省值（无需改动）' : '所选范围已经是该值（无需改动）')
+  return { ...fin, normalized: value }
 }
 
 /** 「恢复缺省」：把 7 个字段全部打回缺省（= 删掉这 7 个键）。

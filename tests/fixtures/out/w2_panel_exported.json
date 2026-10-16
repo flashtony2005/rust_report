@@ -29,7 +29,19 @@
     {
       "row": 3,
       "col": 1,
-      "text": "末行"
+      "text": "末行",
+      "border": {
+        "top": {
+          "style": "dashed",
+          "color": "#FF0000"
+        },
+        "bottom": {
+          "style": "dashed",
+          "color": "#FF0000"
+        }
+      },
+      "format": "#,##0.00",
+      "rotation": 45
     }
   ]
 }
