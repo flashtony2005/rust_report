@@ -11,7 +11,14 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { paramsToObject, pickReportFile, type ParamRow } from './report'
+import {
+  isReportSource,
+  metaToRows,
+  paramsToObject,
+  pickReportFile,
+  type ParamMetaItem,
+  type ParamRow,
+} from './report'
 
 /** 造一个 `File`（jsdom/node 下 `new File([], name)` 就够，只看 `.name`）。 */
 function file(name: string): File {
@@ -25,9 +32,30 @@ describe('pickReportFile', () => {
     expect(pickReportFile([file('t.Rpx')])?.name).toBe('t.Rpx')
   })
 
-  it('挑不到返回 undefined（调用方据此抛「未选择 .rpx 模板文件」）', () => {
+  /**
+   * ⚠ **本测试 2026-10-16（W1-1）刻意反转**：M4 时期这里断言
+   * `pickReportFile([a.csv, b.json])` 为 `undefined`（「.json 不是模板」）。
+   * W1-1 把定义 JSON 接进 `/render` 后，`.json` **就是**报表源 —— 旧断言
+   * 描述的是 M4 的口径，现在它是错的。
+   *
+   * 按本仓纪律（口径修正加日期注，不改写历史结论）：旧断言原样留在这条注释里，
+   * 实测断言翻转。**若 W1-1 被回退，这条必须改回去** —— 它不是可有可无的
+   * 措辞，是「.json 通道开着」的判据。
+   */
+  it('挑出 .json 定义（W1-1：反转了 M4 的「.json 不是模板」断言）', () => {
+    expect(pickReportFile([file('a.csv'), file('b.json')])?.name).toBe('b.json')
+    expect(pickReportFile([file('d.JSON')])?.name).toBe('d.JSON')
+  })
+
+  it('.rpx 与 .json 同时选中时 .rpx 优先（M4 行为逐字不变）', () => {
+    expect(pickReportFile([file('b.json'), file('a.rpx')])?.name).toBe('a.rpx')
+    // 顺序无关：哪怕 .json 排在前，也仍然先给 .rpx。
+    expect(pickReportFile([file('a.rpx'), file('b.json')])?.name).toBe('a.rpx')
+  })
+
+  it('挑不到返回 undefined（调用方据此抛「未选择报表源文件」）', () => {
     expect(pickReportFile([])).toBeUndefined()
-    expect(pickReportFile([file('a.csv'), file('b.json')])).toBeUndefined()
+    expect(pickReportFile([file('a.csv'), file('b.txt')])).toBeUndefined()
   })
 
   it('多个 .rpx 时取第一个（与改前的 `Array.find` 同口径）', () => {
@@ -36,6 +64,17 @@ describe('pickReportFile', () => {
 
   it('不把 .rpx.csv 之类的后缀当模板', () => {
     expect(pickReportFile([file('a.rpx.csv')])).toBeUndefined()
+    // W1-1 加宽后同理：`x.json.csv` 也不是报表源（判据是「以该后缀结尾」）。
+    expect(pickReportFile([file('a.json.csv')])).toBeUndefined()
+  })
+})
+
+describe('isReportSource', () => {
+  it('.rpx 与 .json 都是报表源（大小写不敏感）', () => {
+    expect(isReportSource('t.rpx')).toBe(true)
+    expect(isReportSource('t.JSON')).toBe(true)
+    expect(isReportSource('t.csv')).toBe(false)
+    expect(isReportSource('t.rpx.csv')).toBe(false)
   })
 })
 
@@ -129,5 +168,76 @@ describe('paramsToObject', () => {
         ]),
       ),
     ).toEqual(['b', 'a'])
+  })
+
+  /**
+   * W1-2 的隔离判据：`dynamic` 只是表单标注（`is_static` 派生），
+   * **不得泄漏进提交给服务端的 params 对象** —— 服务端 `form.rs::parse_params`
+   * 会把不认识的值按「未登记参数」显式报错，泄漏即 400。
+   */
+  it('dynamic 标记不会泄漏进 params', () => {
+    expect(
+      paramsToObject([
+        { name: 'region', value: 'A', dynamic: true },
+        { name: 'topN', value: '10' },
+      ]),
+    ).toEqual({ region: 'A', topN: 10 })
+  })
+})
+
+describe('metaToRows', () => {
+  /** 造一条 `/meta` 条目（只覆盖 `metaToRows` 真正消费的字段）。 */
+  const meta = (over: Partial<ParamMetaItem>): ParamMetaItem => ({
+    name: 'p',
+    param_type: 0,
+    is_static: true,
+    data_type: 11,
+    default_val: null,
+    description: null,
+    ...over,
+  })
+
+  it('空清单 → 空表单（该报表未声明参数）', () => {
+    expect(metaToRows([])).toEqual([])
+  })
+
+  it('静态参数：默认值预填进 value，dynamic=false', () => {
+    expect(metaToRows([meta({ name: 'startDate', default_val: '2024-01-01' })])).toEqual([
+      { name: 'startDate', value: '2024-01-01', dynamic: false },
+    ])
+  })
+
+  it('动态参数：is_static=false ⇒ dynamic=true，无默认值则留空等人填', () => {
+    // param_type=1（PARAM_DYNAMIC）与 2（PARAM_ATTRIBUTE）都派生 is_static=false，
+    // 见 `rpx-ds/src/asset.rs::asset.rs` 的 `is_static = param_type == 0`。
+    expect(metaToRows([meta({ name: 'region', param_type: 1, is_static: false })])).toEqual([
+      { name: 'region', value: '', dynamic: true },
+    ])
+    expect(metaToRows([meta({ name: 'dept', param_type: 2, is_static: false })])).toEqual([
+      { name: 'dept', value: '', dynamic: true },
+    ])
+  })
+
+  it('default_val 为 null 时 value 是空串（不是 "null"、不是 undefined）', () => {
+    expect(metaToRows([meta({ default_val: null })])).toEqual([
+      { name: 'p', value: '', dynamic: false },
+    ])
+  })
+
+  it('顺序 = 清单顺序（服务端按 rowid 排序，即声明序）', () => {
+    expect(metaToRows([meta({ name: 'b' }), meta({ name: 'a' })])).toEqual([
+      { name: 'b', value: '', dynamic: false },
+      { name: 'a', value: '', dynamic: false },
+    ])
+  })
+
+  /** W1-2 判据的闭环：metaToRows 的产物**能直接进** paramsToObject 提交。 */
+  it('产物可直连 paramsToObject（不靠手工再拼一次）', () => {
+    const rows: ParamRow[] = metaToRows([
+      meta({ name: 'startDate', default_val: '2024-01-01' }),
+      meta({ name: 'topN', data_type: 1, default_val: '10' }),
+      meta({ name: 'region', param_type: 1, is_static: false }),
+    ])
+    expect(paramsToObject(rows)).toEqual({ startDate: '2024-01-01', topN: 10, region: '' })
   })
 })

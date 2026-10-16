@@ -1,11 +1,10 @@
 # Spec — ReportLite Rust 重实现 · M7-W（Univer 前端设计器）v0.1
 
-> 状态：**v0.2（2026-10-16）—— W0 已收口，W1 可开工**。上游决策：
+> 状态：**v0.3（2026-10-16）—— W0、W1 已收口，W2 可开工**。上游决策：
 > `docs/report-def-json.md` §7.2 明写「在线设计器（`web/` 侧）—— Univer 目前仍是
 > **纯渲染终端**，在它上面做『定格式』是**新阶段**，须另立 spec」—— 本文件就是那份 spec。
-> v0.2 的变更：G9 已挂进 `scripts/gate.sh` 且用 3 组故障注入证明有牙齿（§4 W0-3），
-> 原 §3 阻塞项（无 node_modules / 无测试运行器）解除。变更史见 §8。
-> 蓝图（L1 层）：`docs/reportlite-rust全链路设计.html` §九（Univer 前端设计）；
+> v0.2：G9 挂进 `scripts/gate.sh`（W0 收口）。v0.3：定义 JSON 通道接上（W1 收口）。
+> 变更史见 §8。蓝图（L1 层）：`docs/reportlite-rust全链路设计.html` §九（Univer 前端设计）；
 > **冲突时以证据（夹具 > 源码 > 契约文档）为准**。
 
 ## 0. 本文件的可信度声明
@@ -26,14 +25,15 @@ M7-W = 在浏览器里**定义报表格式**（而非只看），产出 `docs/re
 
 M7-W **不承担**计算、分页、导出（那些留在服务端，`rpx-engine` / `rpx-export`）。
 
-## 2. 当前状态（2026-10-16 实盘）
+## 2. 当前状态（2026-10-16 晚，W1 收口后）
 
-`web/` 共 **306 行** TypeScript，4 个源文件：
+`web/` 共 **788 行** TypeScript，4 个源文件 + 1 个测试：
 
 | 文件 | 行数 | 职责 |
 | --- | --- | --- |
-| `App.tsx` | 222 | 顶栏（选文件 + 渲染按钮）+ 参数表单 + 状态栏 + Univer 容器 |
-| `report.ts` | 73 | `fetchSnapshot`：文件 → multipart → `POST /api/render` → 快照 JSON |
+| `App.tsx` | 306 | 顶栏（选文件 + 渲染 + **另存为**）+ 参数表单（**W1-2 起按 `/meta` 自动带出**）+ 状态栏 + Univer 容器 |
+| `report.ts` | 228 | `fetchSnapshot`（`.rpx`/`.json` 双入口）+ `saveReport` + `fetchMeta` + 三个纯函数 |
+| `report.test.ts` | 243 | **25 条**纯逻辑单测（`pickReportFile` 6 + `isReportSource` 1 + `paramsToObject` 12 + `metaToRows` 6） |
 | `main.tsx` | 10 | 挂载入口 |
 | `vite-env.d.ts` | 1 | 类型声明 |
 
@@ -44,15 +44,14 @@ M7-W **不承担**计算、分页、导出（那些留在服务端，`rpx-engine
 
 | 服务端能力 | 落地 | 前端现状 |
 | --- | --- | --- |
-| 定义 JSON 是 `/render` 的一等输入 | M7-1 | ❌ 只发 `.rpx`（`report.ts` 只找 `.rpx` 后缀） |
-| 定义 JSON 可归一化为 `.rpx` 入库 | M7-2（`POST /reports`） | ❌ 前端不调 `/reports` |
-| 参数清单可由 `/reports/{id}/meta` 读回 | M7-4 | ❌ 参数表单仍是**手工填名值行**（M4-04） |
-| 单元格样式 7 字段 ↔ 快照严格互逆 | M7-3 | ✅ 只读展示，无编辑 |
-| 边框 / 格式 / 缩进 / 旋转 / `extend_mode` | M7-5 | ❌ **快照不暴露**（`spec-m4.md` §4.3 后置） |
-| 打印设置覆盖（17 字段） | M7-6 | ❌ 快照不暴露 |
+| 定义 JSON 是 `/render` 的一等输入 | M7-1 | ✅ **W1-1**：`report` 字段收 `.json`（`pickReportFile`） |
+| 定义 JSON 可归一化为 `.rpx` 入库 | M7-2（`POST /reports`） | ✅ **W1-3**：「另存为」→ `saveReport` 拿 id |
+| 参数清单可由 `/reports/{id}/meta` 读回 | M7-4 | ✅ **W1-2**：入库后按 `/meta` 刷新表单（`metaToRows`） |
+| 单元格样式 7 字段 ↔ 快照严格互逆 | M7-3 | ⬜ 只读展示，无编辑（W2-2） |
+| 边框 / 格式 / 缩进 / 旋转 / `extend_mode` | M7-5 | ⬜ **快照不暴露**（`spec-m4.md` §4.3 后置；W2-3 靠模型往返） |
+| 打印设置覆盖（17 字段） | M7-6 | ⬜ 快照不暴露（W2-4） |
 
-⇒ **前端的缺口不是「服务端还不支持」，而是「服务端已支持、前端没接」**。
-M7-W 的第一阶段因此不是「做设计器」，而是**把已有通道接上**（§4 的 W1）。
+⇒ W1 之后，「服务端已支持、前端没接」这条已清空 —— **剩下的缺口全在编辑面（W2）**。
 
 ## 3. 阻塞项（**已于 2026-10-16 解除**）
 
@@ -102,15 +101,46 @@ G1–G8 仍 PASS ⇒ 证明红是 G9 自己报的，不是上游污染。
 
 **W0 未绿之前 M7-W 不进 W1** —— 现已绿，W1 开工。
 
-### W1 定义 JSON 通道（前端接入既有服务端能力）
+### W1 定义 JSON 通道（前端接入既有服务端能力，**已收口 2026-10-16**）
 
 | 项 | 内容 | 验收 |
 | --- | --- | --- |
-| W1-1 | `report.ts` 接受 `.json` 定义文件（与 `.rpx` 并列选一个） | 选中 `.json` ⇒ `POST /api/render` 200 且渲染出报表 |
-| W1-2 | 参数表单改读 `GET /reports/{id}/meta`（M7-4 的清单），不再手工填名 | 清单非空 ⇒ 自动出行；`is_static=false` 的行标注「动态」 |
-| W1-3 | 「另存为」：定义 JSON → `POST /api/reports` → 拿 id → 提示入库成功 | 响应 200 且 `/reports` 列表可见 |
+| W1-1 | `report.ts` 接受 `.json` 定义文件（与 `.rpx` 并列选一个） | ✅ 浏览器实测：选 `def_params_demo.json` → 渲染按钮 → Univer 出报表 |
+| W1-2 | 参数表单改读 `GET /reports/{id}/meta`（M7-4 的清单），不再手工填名 | ✅ 浏览器实测：点「另存为」后表单自动带出 2 行，动态行带「动态」标注 |
+| W1-3 | 「另存为」：定义 JSON → `POST /api/reports` → 拿 id → 提示入库成功 | ✅ 浏览器实测：`已入库 id=1`；`GET /reports` 列表可见该条 |
 
-W1 的全部判据是**端到端**（起真服务端 + 真 HTTP），与 `params_http.rs` 同口径。
+**判据分两层，两层都过**（本仓纪律：端到端判据也要有可故障注入的机器判据）：
+
+1. **服务端镜像**（`crates/rpx-server/tests/definition_channel_http.rs`，4 条，
+   真 socket + 真 HTTP + **磁盘上的同一个 `.json` 文件**）：
+   `json_definition_renders_with_param_values` / `missing_param_value_is_400_not_silently_null`
+   / `definition_uploads_and_yields_an_id` / `meta_reads_back_the_declared_params`。
+2. **前端纯逻辑**（`web/src/report.test.ts`，25 条里 W1 新增 10 条）。
+3. **浏览器实测**（`agent-browser`，见下）。
+
+**浏览器端到端实测记录**（2026-10-16，起真 `rpx-server serve` + 真 `vite dev`）：
+
+```text
+选文件 def_params_demo.json → 点「另存为」
+  → 状态栏：「已入库：def_params_demo（id=1）；参数表单已按服务端声明刷新（2 条）」
+  → 表单自动带出：topN=10（静态，默认值预填）/ region=（空，标「动态」）
+  → GET /reports       → [{id:1, name:"def_params_demo", version:1}]
+  → GET /reports/1/meta → topN(param_type=0,is_static=true,data_type=1,default="10")
+                          region(param_type=1,is_static=false,data_type=11,default=null)
+填 topN=5、region=华东 → 点「渲染」→ Univer 出报表：「Top N 5」「区域 华东」
+```
+
+⇒ 三条判据全部实测成立。截图留证于提交说明。
+
+**判据有效性已用故障注入证明**（与 G1–G9 同规，「改反实现 → 必须红 → 改回 → 必须绿」）：
+
+| # | 注入 | 结果 |
+| --- | --- | --- |
+| FI-A | `REPORT_SUFFIXES` 摘掉 `'.json'`（回退 W1-1） | **红**：`pickReportFile` 与 `isReportSource` 两条断言挂 |
+| FI-B | `metaToRows` 里 `dynamic: !p.is_static` 取反 | **红**：`metaToRows` 4 条挂；**完整 `gate.sh`** 汇总 `FAIL G9 (exit=1)`、G1–G8 仍 PASS |
+| FI-C | 夹具 `def_params_demo.json` 的 `topN` 默认值 `10` → `11` | **红**：`meta_reads_back_the_declared_params` 精确挂在 `default_val` 断言 |
+
+FI-B 是在**完整 `gate.sh`** 上跑的（不是只跑 vitest），证明红落在 G9、不是上游污染。
 
 ### W2 编辑面（真正的「设计器」）
 
@@ -137,19 +167,24 @@ Univer 是**表格**模型，而 rpx 有它没有的概念：`extend_mode` 的�
 ## 5. 验收标准（EARS）
 
 1. **当** 用户选中一个定义 JSON 并点渲染，**系统应**渲染出与同内容 `.rpx` 逐字节等价的快照
-   （W1-1；服务端已有判据 `reportdef_http.rs::json_definition_renders_snapshot_with_merge_anchors`）。
+   （W1-1；服务端判据 `reportdef_http.rs::json_definition_renders_snapshot_with_merge_anchors`）。
+   ✅ **已实测**：浏览器里选 `.json` → 渲染 → Univer 出报表，参数值进快照。
 2. **当** 报表在服务端声明了参数，**系统应**自动从 `/meta` 生成参数表单行，
    **而非**要求用户手填参数名（W1-2）。
-3. **当** 用户在编辑面改完点「另存为」，**系统应**产出可被 `POST /reports` 接受的
-   定义 JSON，且该 JSON 经 `.rpx` 往返后逐字段相等（W2-1）。
-4. **当** 前端纯逻辑被改坏，**系统应**在 `scripts/gate.sh` 的 G9 上报红
-   （W0-3；判据本身须用故障注入证明）。
+   ✅ **已实测**：`另存为` 后表单自动带出 2 行，`is_static=false` 的行带「动态」标注。
+3. **当** 用户点「另存为」，**系统应**把报表源经 `POST /reports` 入库并回报 id，
+   且该条目在 `GET /reports` 列表可见（W1-3）。
+   ✅ **已实测**：`已入库 id=1`，`/reports` 列表含 `{id:1,name:"def_params_demo"}`。
+4. **当** 用户在编辑面改完点「另存为」，**系统应**产出可被 `POST /reports` 接受的
+   定义 JSON，且该 JSON 经 `.rpx` 往返后逐字段相等（W2-1）。⬜ **待做**。
+5. **当** 前端纯逻辑被改坏，**系统应**在 `scripts/gate.sh` 的 G9 上报红
+   （W0-3；判据本身须用故障注入证明）。✅ **已证明**（§4 W0-3 的 FI-1~FI-3 + §4 W1 的 FI-A~FI-C）。
 
 ## 6. 本地开发工作流
 
 ```bash
 # 1) 起报表服务端（M3-05）：默认 127.0.0.1:8090
-cargo run -p rpx-server
+cargo run -p rpx-server -- serve
 
 # 2) 起前端（--host 127.0.0.1 必须，否则绑 IPv6 ::1）
 cd web && npm run dev          # vite --port 5288 --strictPort
@@ -158,6 +193,16 @@ cd web && npm run dev          # vite --port 5288 --strictPort
 ```
 
 （②的 `--host` 口径沿用 `spec-m4.md` §6，本机实测结论，勿改。）
+
+### W1 通道的端到端手工走查
+
+`tests/fixtures/def_params_demo.json` 就是为这一步准备的（**服务端测试与浏览器
+共用同一个文件**）：选中它 → 点「另存为」→ 参数表单自动带出 → 填值 → 点「渲染」。
+
+```bash
+# 服务端判据（真 socket + 真 HTTP，不用起浏览器）
+cargo test -p rpx-server --test definition_channel_http
+```
 
 ## 7. 已知坑与待验证项
 
@@ -207,6 +252,18 @@ cd web && npm run dev          # vite --port 5288 --strictPort
 5. **待验证**：Univer 的撤销栈与「导出定义 JSON」如何对齐（用户在 Univer 里的
    撤销，要不要反映到 JSON 草稿）。
 
+6. ⚠ **`@参数` 未在提交时给值 ⇒ 400，不是静默取 null**（W1 实测，`expr/atom.rs`）。
+   `@p` 要过 `isParamName`：登记（**含值为 null**）⇒ 取值；未登记 ⇒ `UnknownParam`。
+   而「登记」来自**提交的 `params` 段**，不是定义里的 `params[]` 声明 ——
+   ⚠ 这点极易搞反：**声明不等于给值**。动态参数（`kind: "dynamic"`）没有默认值，
+   渲染时不传就会 400，报错点名缺失的参数名。
+   ⇒ 前端 W1-2 的表单因此**必须**把动态行也列出来（哪怕值为空），否则用户看不到
+   「还有参数没填」。这正是「动态」标注存在的理由。
+
+7. ⚠ **Rust 字节串字面量（`br#"..."#`）不许含非 ASCII** —— 写 `definition_channel_http.rs`
+   时踩到：`br#"{"region":"华东"}"#` 直接编译错（`non-ASCII character in raw byte string
+   literal`）。含中文的测试数据走 `let s = r#"..."#; … s.as_bytes()`。
+
 ## 8. 变更记录
 
 | 日期 | 变更 | 原因 |
@@ -219,3 +276,12 @@ cd web && npm run dev          # vite --port 5288 --strictPort
 3 组故障注入（FI-1~FI-3）证明 G9 有牙齿。新增 §7 坑位 1（vite `emptyOutDir`
 撞沙箱 safe-delete ⇒ 改用临时 outDir，含「别改 fs.rmSync / 别用裸 rm」两条禁令）。
 **G1–G9 全绿（Rust 580 + 前端 15），W1 可开工。** |
+| 2026-10-16 | v0.3 **W1 收口** | 定义 JSON 通道接上：`report.ts` 的 `report` 字段收 `.json`
+（`pickReportFile`/`isReportSource`）、`saveReport`（`POST /reports`，字段名 **`file`**）、
+`fetchMeta` + `metaToRows`（参数表单改读 `/meta`，动态行标「动态」）、`App.tsx` 加
+「另存为」按钮。新增 `tests/fixtures/def_params_demo.json`（**浏览器与服务端测试
+共用同一个文件**）+ `crates/rpx-server/tests/definition_channel_http.rs`（4 条服务端
+镜像判据）。浏览器端到端实测：选 `.json` → 另存为 → 表单自动带出 → 填参渲染 →
+`/reports` 列表可见。3 组故障注入（FI-A/B/C）。新增 §7 坑位 6（`@参数` 未给值 ⇒ 400，
+声明≠给值）与坑位 7（`br#""#` 不许非 ASCII）。
+**G1–G9 全绿（Rust 584 + 前端 25），W2 可开工。** |
