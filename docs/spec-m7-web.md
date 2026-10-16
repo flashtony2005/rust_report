@@ -282,8 +282,8 @@ FI-4 宽度不再继承 → 2 红；FI-5 `justify`/`distribute` 塌成 null（�
 
 **地基决定：逐字段补丁，明确**不**走 `applyCellStyle`（12 槽整体覆盖）。**
 `applyCellStyle` 的语义是「把 Univer 活态整体读回来覆盖 12 个槽」——服务端快照
-**有损**（`style_json` 只发 9 个字段；全仓库 40 份 `*.snapshot.json` 实测样式键
-只有 `ff/fs/cl/bg/bl/it/ul/ht/vt`），`border` / `format` / `rotation` / `indent`
+**有损**（`snapshot/style.rs::style_json` —— `style.rs:15-45` —— 只发 9 个字段：
+`ff/fs/bl/it/ul/cl/bg/ht/vt`；录得快照 `engine_merge.snapshot.json` 逐格实测一致），`border` / `format` / `rotation` / `indent`
 在画布里**永远是空的** ⇒ 整体覆盖会在用户只点一下「加粗」时把 JSON 里原有的
 `border`/`format`/`rotation`/`indent`/`extend_mode` 一起抹掉。⇒ 面板只动
 **用户刚改的那一个字段**（7 字段 ↔ 7 个 JSON 槽的固定映射），其余键逐个原样保留

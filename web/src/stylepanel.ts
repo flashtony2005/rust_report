@@ -11,9 +11,10 @@
  * ## 为什么是「逐字段」而不是复用 `stylemap.ts::applyCellStyle`（12 槽整体覆盖）
  *
  * `applyCellStyle` 的语义是「把 Univer 活态**整体**读回来覆盖 12 个槽」。它对本
- * 面板**不能用**：服务端快照是有损的 —— `snapshot/style.rs::style_json` 只发
- * 9 个字段，`border` / `format` / `rotation` 不在其中（全仓库 40 份
- * `*.snapshot.json` 实测：样式键只出现 `ff/fs/cl/bg/bl/it/ul/ht/vt`）。而 Univer
+ * 面板**不能用**：服务端快照是有损的 —— `snapshot/style.rs::style_json`
+ * （`crates/rpx-server/src/snapshot/style.rs:15-45`）只发 9 个字段
+ * （`ff/fs/bl/it/ul/cl/bg/ht/vt`），`border` / `format` / `rotation` 不在其中
+ * （录得快照 `tests/fixtures/out/engine_merge.snapshot.json` 逐格实测一致）。而 Univer
  * 侧一切样式都来自这份快照 ⇒ 画布里这些槽**永远是空的**。若走整体覆盖，
  * 用户仅仅点一下「加粗」，JSON 里原有的 `border` / `format` / `rotation` /
  * `indent` / `extend_mode` 就被一起抹掉 —— 正是 `stylemap.ts` 文件头警告的
