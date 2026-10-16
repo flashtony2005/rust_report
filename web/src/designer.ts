@@ -67,8 +67,11 @@ export function toUniver(row: number, col: number): { row: number; col: number }
   return { row: row - 1, col: col - 1 }
 }
 
-/** 集合键：逻辑坐标 → 字符串（`Set` 需要可哈希键）。 */
-const slotKey = (row: number, col: number): string => `${row},${col}`
+/** 集合键：逻辑坐标 → 字符串（`Set` 需要可哈希键）。
+ *
+ * ⚠ 导出给 `stylepanel.ts` 共用：两处若各写各的键格式，`coveredSlots` 的命中
+ * 判定就会静默错位（同坐标系两套键 = 隐蔽 bug）。 */
+export const slotKey = (row: number, col: number): string => `${row},${col}`
 
 /**
  * 算出**被他人合并矩形覆盖的非锚点槽**（逻辑坐标集合）。

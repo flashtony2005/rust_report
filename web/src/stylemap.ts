@@ -223,7 +223,7 @@ export function normalizeColor(value: unknown): string | null {
 }
 
 /** 从 `IColorStyle` 里取 `#RRGGBB`；主题色 / 不认的形态返回 `null`。 */
-function colorOf(c: IColorStyle | null | undefined): string | null {
+export function colorOf(c: IColorStyle | null | undefined): string | null {
   if (!c) return null
   if (typeof c.rgb === 'string') return normalizeColor(c.rgb)
   return null

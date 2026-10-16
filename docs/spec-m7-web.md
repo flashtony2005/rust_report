@@ -1,6 +1,6 @@
-# Spec — ReportLite Rust 重实现 · M7-W（Univer 前端设计器）v0.6
+# Spec — ReportLite Rust 重实现 · M7-W（Univer 前端设计器）v0.7
 
-> 状态：**v0.6（2026-10-16）—— W0、W1、W2-2a、W2-1 已收口；编辑面板（W2-2/3/3'）与 W2-5 未开工**。
+> 状态：**v0.7（2026-10-16）—— W0、W1、W2-2a、W2-1、W2-2 已收口；编辑面板（W2-3/3'）与 W2-5 未开工**。
 > 上游决策：`docs/report-def-json.md` §7.2 明写「在线设计器（`web/` 侧）—— Univer
 > 目前仍是**纯渲染终端**，在它上面做『定格式』是**新阶段**，须另立 spec」——
 > 本文件就是那份 spec。
@@ -9,6 +9,9 @@
 > **缩进与打印设置两项因 API 不存在而降级**。
 > v0.5：**样式映射层 `stylemap.ts` 收口**（W2-2a），坑位 4→6 条且全部有源码出处，
 > 另有两条 W2 假设被实测修正（`ht`/`vt` 必须无条件发、读方向只出非缺省）。
+> v0.6：**W2-1 编辑面收口**（内容补丁 + 导出，只跟事件只补一格）。
+> v0.7：**W2-2 样式面板收口** —— 7 字段**逐字段补丁**（明确不走 `applyCellStyle`
+> 的 12 槽整体覆盖，理由见 §4 W2-2），浏览器端到端 E1–E9 + 4 组故障注入。
 > 变更史见 §8。
 > 蓝图（L1 层）：`docs/reportlite-rust全链路设计.html` §九（Univer 前端设计）；
 > **冲突时以证据（夹具 > 源码 > 契约文档）为准**。
@@ -33,16 +36,18 @@ M7-W **不承担**计算、分页、导出（那些留在服务端，`rpx-engine
 
 ## 2. 当前状态（2026-10-16 晚，W2-2a 收口后）
 
-`web/` 共 **3050 行** TypeScript，9 个源文件 + 3 个测试：
+`web/` 共 **4154 行** TypeScript（12 个文件：8 个源 + 4 个测试；行数 `wc -l` 实测）：
 
 | 文件 | 行数 | 职责 |
 | --- | --- | --- |
-| `designer.ts` | 232 | **编辑面（W2-1）：内容补丁 + 导出**。Univer 改动 → 定义 JSON 的**内容补丁**；守四条服务端契约（坐标系 / text↔expr 互斥 / 合并内非锚点禁内容 / 网格边界）；纯函数 |
+| `stylepanel.ts` | 416 | **样式面板（W2-2）：7 字段逐字段补丁**。读 Univer 活态（[`panelFromUniverStyle]）→ 显示；控件值经归一后**只补那一个键**进定义 JSON（[`applyPanelToRange]：选区裁剪 / 合并区跳过 / 槽数上限 / 缺省即删键）；Univer 侧落地（[`applyFieldToRange]，关闭位样式传 `'normal'|'none'`）；纯函数 |
+| `stylepanel.test.ts` | 413 | **34 条**纯逻辑单测（读方向 5 + 字体选项 3 + 值归一 4 + 逐字段补丁 10 + 边界 5 + 恢复缺省 3 + Univer 落地 4） |
+| `designer.ts` | 235 | **编辑面（W2-1）：内容补丁 + 导出**。Univer 改动 → 定义 JSON 的**内容补丁**；守四条服务端契约（坐标系 / text↔expr 互斥 / 合并内非锚点禁内容 / 网格边界）；纯函数（W2-2 复用其 `coveredSlots`/`findCellIndex`/`slotKey`） |
 | `designer.test.ts` | 345 | **30 条**纯逻辑单测（坐标系 11 + 边界/合并/expr 各 2 + 补丁语义 8 + 导出往返 + 可编辑性） |
 | `stylemap.ts` | 640 | **样式映射层**（W2-2a）：Univer `IStyleData` ↔ 定义 JSON 的 12 个槽；纯函数，码表本地字面量 |
 | `stylemap.test.ts` | 549 | **43 条**纯逻辑单测（枚举对齐 2 + 录得快照 3 + 六条坑位 22 + 补丁语义 12 + 写方向 4） |
 | `probe.tsx` | 369 | W2 准入探针页（开发期，不进 `index.html`） |
-| `App.tsx` | 433 | 顶栏（选文件 + 渲染 + **另存为** + **导出 JSON**）+ 参数表单 + 状态栏 + Univer 容器；W2-1 在 `render` 里订阅 `SheetValueChanged` 并把单格改动补丁进定义 JSON |
+| `App.tsx` | 705 | 顶栏（选文件 + 渲染 + **另存为** + **导出 JSON**）+ **样式面板**（W2-2：选区订阅 `CommandExecuted` 过滤 `sheet.operation.set-selections`，三入口 `onPanelChange`/`onPanelReset`）+ 参数表单 + 状态栏 + Univer 容器 |
 | `report.ts` | 228 | `fetchSnapshot`（`.rpx`/`.json` 双入口）+ `saveReport` + `fetchMeta` + 三个纯函数 |
 | `report.test.ts` | 243 | **25 条**纯逻辑单测（`pickReportFile` 6 + `isReportSource` 1 + `paramsToObject` 12 + `metaToRows` 6） |
 | `main.tsx` | 10 | 挂载入口 |
@@ -58,14 +63,15 @@ M7-W **不承担**计算、分页、导出（那些留在服务端，`rpx-engine
 | 定义 JSON 是 `/render` 的一等输入 | M7-1 | ✅ **W1-1**：`report` 字段收 `.json`（`pickReportFile`） |
 | 定义 JSON 可归一化为 `.rpx` 入库 | M7-2（`POST /reports`） | ✅ **W1-3**：「另存为」→ `saveReport` 拿 id |
 | 参数清单可由 `/reports/{id}/meta` 读回 | M7-4 | ✅ **W1-2**：入库后按 `/meta` 刷新表单（`metaToRows`） |
-| 单元格样式 7 字段 ↔ 快照严格互逆 | M7-3 | 🟡 **W2-2a**：映射层已立（`stylemap.ts`），**面板未做**（W2-2） |
-| 边框 / 格式 / 缩进 / 旋转 / `extend_mode` | M7-5 | 🟡 **W2-2a**：边框/格式/旋转映射已立，缩进与 `extend_mode` 仍无面板（W2-3'/W3） |
+| 单元格样式 7 字段 ↔ 快照严格互逆 | M7-3 | ✅ **W2-2**：面板收口（7 字段 → JSON 单键，E2E E1–E9 + 4 组故障注入） |
+| 边框 / 格式 / 缩进 / 旋转 / `extend_mode` | M7-5 | 🟡 边框/格式/旋转映射已立（W2-2a），**面板未做**（W2-3）；缩进与 `extend_mode` 仍只 JSON 声明 |
 | 打印设置覆盖（17 字段） | M7-6 | ⬜ 快照不暴露（W2-4，已降级为 JSON 声明） |
 
 ⇒ W1 清掉了「服务端已支持、前端没接」；W2-2a 把**样式这条路的映射地基**立住
 （含补丁语义：只动 12 槽、其余原样保留、幂等、改回缺省删键）；W2-1 把**内容这条路
-的补丁地基**立住（持有原始定义 JSON、只补用户真改过的那一格、四条契约前置成显式错误）。
-剩下的缺口是**样式/边框/数字格式/旋转面板**（W2-2/W2-3/W2-3'）与 W2-5。
+的补丁地基**立住（持有原始定义 JSON、只补用户真改过的那一格、四条契约前置成显式错误）；
+**W2-2 把 7 字段的面板接到用户手上**（逐字段补丁：只动用户改的那一个键）。
+剩下的缺口是**边框/数字格式/旋转面板**（W2-3/W2-3'）与 W2-5。
 
 ## 3. 阻塞项（**已于 2026-10-16 解除**）
 
@@ -166,7 +172,7 @@ FI-B 是在**完整 `gate.sh`** 上跑的（不是只跑 vitest），证明红�
 | --- | --- | --- |
 | W2-1 | **编辑面：内容补丁 + 导出**（W2-1，**已收口 2026-10-16**）。Univer 开编辑（默认即可编辑），`SheetValueChanged` 事件驱动、只把**用户真改过的那一格**补丁进持有的定义 JSON（不打整体回灌），四条服务端契约前置成显式错误；导出 JSON 经 `/render` 往返成立 | 改完点「导出 JSON」下载定义 JSON；`open_bytes(to_bytes(build(json))) == build(json)` 往返成立（契约判据在 `designer.test.ts`） |
 | W2-2a | **样式映射层**（纯函数，`stylemap.ts`） | ✅ **已收口 2026-10-16**，见下方小节 |
-| W2-2 | 样式面板：字体/字号/颜色/粗斜下划线（M7-3 的 7 字段） | 面板设的值原样进 JSON；映射层 W2-2a 已备好（含 `ul` 布尔↔对象、颜色 `#RRGGBB`↔`{rgb}` 两层） |
+| W2-2 | **样式面板**：字体/字号/颜色/粗斜下划线（M7-3 的 7 字段；**已收口 2026-10-16**）。 | ✅ 面板设的值**只补该字段**进 JSON（其余键逐个原样保留）；产物经 `POST /render` 后快照样式与面板值逐项一致（E2E E8/E9）；见下方小节 |
 | W2-3 | 边框 / 数字格式 / 旋转面板（M7-5 的 16 槽里**可做的那部分**） | 同上；**往返判据**（快照不暴露，见 §2 表） |
 | W2-3' | 缩进 —— **降级**：API 不存在，只能 JSON 声明 | 声明 → 渲染 → 往返成立（不要求面板） |
 | W2-4 | 打印设置（M7-6 的 17 字段）—— **整项降级**：sheets 无页面设置模型与 facade | 声明 → 渲染 → 往返成立（不要求面板） |
@@ -266,6 +272,88 @@ FI-2 `ht`/`vt` 改回条件发 → 2 红（含录得快照那条）；FI-3 补�
 FI-4 宽度不再继承 → 2 红；FI-5 `justify`/`distribute` 塌成 null（门面 getter 的病）
 → 2 红；FI-6 本地 `UA_V.MIDDLE` 2→3（模拟枚举漂移）→ **6 红**。
 
+#### W2-2 样式面板（**已收口 2026-10-16**）
+
+`web/src/stylepanel.ts` + `web/src/stylepanel.test.ts`（34 测试，G9 覆盖）。`App.tsx`
+顶栏下方新增样式条：字体（select，当前值不在常用表时补进选项——否则 select 静默
+错显第一项）、字号（number，`1..=32767`）、B/I/U 三个开关、字色/底色
+（`<input type=color>`）、「恢复缺省」。只有渲染过 `.json` 源（`def` 非空）才可用，
+否则整体置灰 + 尾部提示原因。
+
+**地基决定：逐字段补丁，明确**不**走 `applyCellStyle`（12 槽整体覆盖）。**
+`applyCellStyle` 的语义是「把 Univer 活态整体读回来覆盖 12 个槽」——服务端快照
+**有损**（`style_json` 只发 9 个字段；全仓库 40 份 `*.snapshot.json` 实测样式键
+只有 `ff/fs/cl/bg/bl/it/ul/ht/vt`），`border` / `format` / `rotation` / `indent`
+在画布里**永远是空的** ⇒ 整体覆盖会在用户只点一下「加粗」时把 JSON 里原有的
+`border`/`format`/`rotation`/`indent`/`extend_mode` 一起抹掉。⇒ 面板只动
+**用户刚改的那一个字段**（7 字段 ↔ 7 个 JSON 槽的固定映射），其余键逐个原样保留
+（判据：`stylepanel.test.ts::未登记字段（indent/extend_mode/border/format/手写字段）逐个原样保留`）。
+
+**两个方向的模型**：
+
+* **读（显示）**：面板显示态从 Univer **活态**读（`FRange.getCellStyleData()`，
+  选区起点那一格）——用户选一格，看到的是画布上那一格现在的样子（录得快照每格
+  恒带 4 个缺省值 ⇒ 面板必须显示为全缺省）。
+* **写（补丁）**：用户在面板上改哪个字段，就只把那**一个**字段写进 JSON
+  （缺省即删键，与 W2-2a 同一条语义），Univer 侧同步落地（`applyFieldToRange`）。
+  **先 Univer 后 JSON**：Univer 落地失败就不补 JSON（避免「JSON 说改了、画布没改」
+  的单边不一致；JSON 补丁是纯函数，不引入新失败面）。
+
+**选区的四个服务端事实**（全部有源码出处，决定了边界检查）：
+
+| # | 事实 | 出处 | 面板处置 |
+| --- | --- | --- | --- |
+| 1 | `cells[].row/col` 越界 400；而 Univer 画布比网格大 | `reportdef/parse.rs:186-197`；`snapshot.rs:64-65`（`rowCount=(rows+5).max(100)`） | 选区**裁剪**到 grid 内再落笔；完全不覆盖网格 ⇒ 显式报错 |
+| 2 | 合并矩形内的非锚点槽，**仅样式条目被静默跳过**（不报错） | `parse.rs:88-99`（`continue`） | 这些槽**跳过**（渲染随锚点，不是信息丢失）；整个选区全落在合并区内部 ⇒ 显式报错指路锚点 |
+| 3 | 多格选区在画布上每格都改 | Univer `set-style` 按范围落 | JSON 对选区内**每个**非锚点槽落笔（只补一格会与画布漂移） |
+| 4 | Ctrl+A 能撑到整个画布（100×26 = 2600 槽） | 同上 1 | 上限 `MAX_PANEL_SLOTS = 400`，超了**报错不截断**（截断 = 用户以为改全了） |
+
+**值归一**（`normalizePanelValue`，不合法显式报错、不猜）：颜色统一出**大写**
+`#RRGGBB`（服务端 `argb_hex` 出大写，混用会产生假差异——W2-2a 坑位 5c 的延伸，
+判据钉在导出产物的 `#FFFF00` 上）；字号必须是整数且 `1..=32767`；字体名非空；
+三个位标志必须是布尔。
+
+**Univer 侧落地的坑**：关闭位样式**不是传 `false`**，而是 `setFontWeight('normal')`
+/ `setFontStyle('normal')` / `setFontLine('none')`（`FontWeight`/`FontStyle`/`FontLine`
+都是字符串枚举，`f-range.d.ts:24-26`）。
+
+**「恢复缺省」** = 7 个键全删（逐字段复用同一条补丁路径，报错口径完全一致）。
+
+**判据（三层，全部实测）**：
+
+1. **纯逻辑**：`stylepanel.test.ts` 34 条（G9 覆盖）。
+2. **浏览器端到端**：`tests/fixtures/out/e2e_w2_panel.sh`（编排：起 rpx-server 8090
+   + vite 5288 → 驱动 → 收摊）+ `e2e_w2_panel.mjs`（playwright 直驱），夹具
+   `tests/fixtures/def_style_demo.json`。**E1–E9 全绿**：读方向（A1 bold+红+18）→
+   选区同步（点 B1 全缺省、点回 A1 样式回来）→ 写（B1 加粗 / 底色 `#ffff00` /
+   字号 20）→ elide（A2 关斜体）→ 导出 → **产物逐键断言**（A1 原样 / B1 三键 /
+   A2 删 `italic`）→ **服务端往返**（产物 `POST /render`，快照 `bl/fs/bg` 与面板值
+   逐项一致，坐标系一并验证）。产物与截图落
+   `tests/fixtures/out/w2_panel_exported.json` / `w2-panel-e2e.png`。
+3. **故障注入 4 组**（改反 → 必红 → 改回 → 必绿）：
+
+| # | 注入 | 结果 |
+| --- | --- | --- |
+| FI-1 | `applyFieldToRange` 关闭粗体传 `null`（而不是 `'normal'`） | **红**：2 条（`关闭位样式传 normal/none` + `恢复缺省 ⇒ 7 个 setter`） |
+| FI-2 | elide 改成「写显式 `false`/`12`」而不是删键 | **红**：3 条（`改回缺省 ⇒ 删键` + `clearPanelRange` 2 条） |
+| FI-3 | 颜色归一去掉大写化 | **红**：4 条（`颜色统一出大写` + `颜色进 JSON 是大写` + `clearPanelRange` 2 条 —— 后者暴露「elide 依赖规范化大小写」的耦合） |
+| FI-4 | 合并区跳过改回「照写」（`covered.has(...) && false`） | **红**：3 条（`合并矩形内非锚点槽被跳过` + `全落合并区报错` + `clearPanelRange 合并口径`）；**完整 `gate.sh`** 汇总 `FAIL G9`、G1–G8 仍 PASS |
+
+**E2E 的定位技术（首跑踩坑，写在这里免得重踩）**：面板输入框（尤其 `number`）
+会**夺走 DOM 焦点**，之后方向键既可能被 `number` 输入自己吃掉（ArrowDown 把 20
+旋成 19 并触发一次 `onChange`），也可能因 Univer 容器失焦而不被 Univer 处理
+⇒ **端到端定位一律用几何点击**（主画布左上 + 表头偏移 46/20 + 缺省列宽 88 /
+行高 24 —— 本机实测；点击后用面板回读**自证**，Univer 升级改了缺省度量即红），
+不用键盘导航。
+
+**已知行为（不是缺陷，如实登记）**：① 多格选区的面板显示取**起点格**（混合态
+显示留待后续）；② `number` 输入是**即时补丁**——逐字符触发，中间值会短暂落进
+JSON（最终值正确）；③ Univer 侧撤销（Ctrl+Z）与 JSON 草稿的对齐**仍未处理**
+（§7 坑位 5 的待验证项，W2-2 未改变其状态）；④ 粘贴带入的样式不在面板覆盖范围
+（与 W2-1 对多格粘贴同一边界）；⑤「另存为」仍按 W1 口径上传**原始文件**——
+面板编辑的成果走「导出 JSON」出口，「编辑产物直接入库」留待后续（两条出口的
+合成不在 W2-2 承诺内）。
+
 ### W3 越界项（本 spec **不承诺**）
 
 Univer 是**表格**模型，而 rpx 有它没有的概念：`extend_mode` 的扩展语义
@@ -291,6 +379,10 @@ Univer 是**表格**模型，而 rpx 有它没有的概念：`extend_mode` 的�
    显式错误；30 条单测钉住契约与坐标系（已实证组），G9 覆盖。
 5. **当** 前端纯逻辑被改坏，**系统应**在 `scripts/gate.sh` 的 G9 上报红
    （W0-3；判据本身须用故障注入证明）。✅ **已证明**（§4 W0-3 的 FI-1~FI-3 + §4 W1 的 FI-A~FI-C）。
+6. **当** 用户在样式面板改一个字段（或点「恢复缺省」），**系统应**只把那**一个**
+   字段补丁进定义 JSON（其余键逐个原样保留），且产出的 JSON 经 `POST /render` 后
+   快照样式与面板值逐项一致（W2-2）。✅ **已收口 2026-10-16**：`stylepanel.ts`
+   逐字段补丁 + 浏览器 E2E E1–E9（含服务端往返）+ 4 组故障注入（§4 W2-2）。
 
 ## 6. 本地开发工作流
 
@@ -444,6 +536,18 @@ cargo test -p rpx-server --test definition_channel_http
    时踩到：`br#"{"region":"华东"}"#` 直接编译错（`non-ASCII character in raw byte string
    literal`）。含中文的测试数据走 `let s = r#"..."#; … s.as_bytes()`。
 
+8. ⚠ **E2E 定位用几何点击，不要用方向键**（W2-2 首跑踩到，2026-10-16）。
+   症状：`page.keyboard.press('ArrowDown')` 之后 Univer 的选区**没动** ——
+   ① `number` 输入框若持有 DOM 焦点，方向键被它自己吃掉（ArrowDown 把 20 旋成 19
+   并触发一次 `onChange`，JSON 里多出一个 `font_size:19`）；② 即使 `blur()`
+   把焦点还给 `body`，Univer 容器**失焦后也不认方向键**（只有它自动聚焦的那个
+   容器 DIV 持焦时才认）。⇒ 端到端一律用**主画布几何点击**（左上 + 表头偏移
+   46/20 + 缺省列宽 88 / 行高 24，本机实测；点击后一律用面板回读**自证**，
+   Univer 升级改了缺省度量即红）。**别再用键盘导航写 E2E**。
+   附带纪律：面板读样式走**单格** `sheet.getRange(row, col).getCellStyleData()`
+   （显式取选区起点格），**不**依赖「多格 range 的样式读回」语义 —— 后者在
+   本里程碑没有探针证据，按「无证据不依赖」处理。
+
 ## 8. 变更记录
 
 | 日期 | 变更 | 原因 |
@@ -498,3 +602,17 @@ JSON 声明**，与 `extend_mode` 同规格。W2 代码**未开工**。 |
 可持 ⇒ `assertEditable` 给「请改用 .json」文案而非静默退化。§4 加「W2-1」小节、§5
 EARS 第 4 条由 ⬜ 改 ✅、§2 状态表补两文件（web 共 3050 行）。
 **G1–G9 全绿（Rust 584 + 前端 98）。** |
+| 2026-10-16 | v0.7 **W2-2 样式面板收口** | 新增 `web/src/stylepanel.ts`（7 字段逐字段补丁：
+读 Univer 活态 → 显示；控件值 → **只补那一个键**进 JSON；选区裁剪 / 合并区跳过 /
+槽数上限 / 缺省即删键）+ `web/src/stylepanel.test.ts`（**34 条**）。§4 新增「W2-2」小节，
+**地基决定 = 明确不走 `applyCellStyle` 的 12 槽整体覆盖**（快照有损 ⇒ 整体覆盖会在
+用户点一下加粗时抹掉 `border`/`format`/`rotation`/`indent`/`extend_mode`）。`App.tsx`
+加样式条（字体/字号/B/I/U/字色/底色/恢复缺省）+ 选区订阅
+（`CommandExecuted` 过滤 `sheet.operation.set-selections`）。三层判据：纯逻辑 34 条、
+**浏览器端到端 E1–E9**（新增 `tests/fixtures/def_style_demo.json` +
+`tests/fixtures/out/e2e_w2_panel.{sh,mjs}`；产物经 `POST /render` 快照回读逐项一致）、
+**4 组故障注入**（FI-1 `'normal'` 字符串枚举 / FI-2 elide 只写不删 / FI-3 颜色大写 /
+FI-4 合并区跳过；FI-4 在**完整 `gate.sh`** 上验证红落 G9、G1–G8 仍 PASS）。
+新增 §7 坑位 8（E2E 定位必须几何点击：`number` 输入夺焦 + Univer 容器失焦后
+方向键不生效——首跑实录）。§5 EARS 加第 6 条、§2 状态表补两文件（web 共 4154 行）。
+**G1–G9 全绿（Rust 584 + 前端 132）。** |

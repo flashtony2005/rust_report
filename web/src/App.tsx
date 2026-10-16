@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { FUniver } from '@univerjs/presets'
 
 import {
@@ -18,10 +18,48 @@ import {
   saveReport,
   type ParamRow,
 } from './report'
+import {
+  PANEL_DEFAULTS,
+  applyFieldToRange,
+  applyPanelToRange,
+  clearPanelRange,
+  fontOptions,
+  panelFromUniverStyle,
+  resetRangeToDefaults,
+  type PanelField,
+  type PanelStyle,
+} from './stylepanel'
 
 /** 状态栏里算「出错」的前缀（红色上屏）。新加出错文案必须登记进来，
  * 否则会退化成灰色提示 —— 那是**静默降级**，用户看不出失败了。 */
 const ERROR_PREFIXES = ['装载失败', '入库失败', '请先', '未找到', '编辑失败', '编辑面']
+
+/** W2-2 面板的输入控件通用样式（设计 token 与其它控件一致）。 */
+const panelInputStyle: CSSProperties = {
+  fontSize: 13,
+  padding: '3px 6px',
+  border: '1px solid var(--rpx-border)',
+  borderRadius: 4,
+  background: '#fff',
+  color: 'var(--rpx-fg)',
+}
+
+/** W2-2 颜色输入（`<input type="color">`）的盒子样式。 */
+const panelColorStyle: CSSProperties = {
+  width: 28,
+  height: 24,
+  padding: 0,
+  border: '1px solid var(--rpx-border)',
+  borderRadius: 4,
+  background: '#fff',
+}
+
+/** W2-2 的三个位样式开关：字段 / 标签 / 标签附加样式（B 粗 I 斜 U 下划线）。 */
+const PANEL_TOGGLES = [
+  ['bold', 'B', { fontWeight: 'bold' }],
+  ['italic', 'I', { fontStyle: 'italic' }],
+  ['underline', 'U', { textDecoration: 'underline' }],
+] as const satisfies readonly (readonly [PanelField, string, CSSProperties])[]
 
 /**
  * rpx 报表预览 + 定义 JSON 通道（M4 + M7-W W1）+ 编辑面（M7-W W2-1）。
@@ -51,6 +89,12 @@ export default function App() {
   /** W2-1：单元格改动事件的订阅句柄（`addEvent` 返回的 `IDisposable`）。
    * 重渲染会二次 `createWorkbook`，必须先把旧监听 dispose 掉，否则叠两份。 */
   const eventDisposableRef = useRef<{ dispose: () => void } | null>(null)
+  /** W2-2：选区变化（`CommandExecuted` 过滤 `sheet.operation.set-selections`）
+   * 的订阅句柄；同 `eventDisposableRef` 的 dispose 纪律。 */
+  const selectionDisposableRef = useRef<{ dispose: () => void } | null>(null)
+  /** W2-2：样式面板显示态。`null` = 当前没有选区可读（或未渲染）⇒ 面板显示
+   * 缺省并整体置灰（`.rpx` 源没有定义 JSON 可打补丁，见 `assertEditable`）。 */
+  const [panel, setPanel] = useState<PanelStyle | null>(null)
   const [files, setFiles] = useState<FileList | null>(null)
   const [params, setParams] = useState<ParamRow[]>([])
   /** 「另存为」拿到的服务端 id（W1-3）；换文件即失效（id 属于旧文件）。 */
@@ -127,6 +171,19 @@ export default function App() {
           onCellEdited(range.getRow(), range.getColumn(), range.getValue())
         },
       )
+      // W2-2：订阅选区变化 —— 面板显示态跟着用户选中的格子走。facade 的
+      // sheets 事件表里**没有**选区专用事件（`f-event.d.ts` 的 getter 清单里
+      // 无 Selection*）⇒ 用命令级事件 `CommandExecuted` 按 id 过滤：
+      // `sheet.operation.set-selections` 是选区落定的命令
+      // （`@univerjs/sheets/lib/es/index.js:5081` 实测）。
+      selectionDisposableRef.current?.dispose()
+      selectionDisposableRef.current = apiRef.current.addEvent(
+        apiRef.current.Event.CommandExecuted,
+        (e) => {
+          if (e.id === 'sheet.operation.set-selections') syncPanel()
+        },
+      )
+      syncPanel()
     } catch (e) {
       setDefBoth(null)
       setSourceKind(null)
@@ -164,6 +221,100 @@ export default function App() {
     setStatus(`已导出定义 JSON（${exportDefJson(cur).length} 字符）`)
   }
 
+  // -------------------------------------------------------------------------
+  // W2-2 样式面板（7 字段；逐字段补丁进定义 JSON，见 `stylepanel.ts` 文件头）
+  // -------------------------------------------------------------------------
+
+  /** W2-2：当前选区（活动工作簿 → 活动表 → 选区 → 活动范围）。
+   *
+   * 面板显示态取选区**起点**那一格的样式（多格混合态显示留待后续），
+   * 而改值作用于**整个选区**——与 Univer 画布的行为一致（画布会把选区每格都改）。 */
+  const currentSelection = () => {
+    const sheet = apiRef.current?.getActiveWorkbook()?.getActiveSheet() ?? null
+    const range = sheet?.getSelection()?.getActiveRange() ?? null
+    return sheet && range ? { sheet, range } : null
+  }
+
+  /** W2-2：把面板显示态刷新为当前选区的样式（选区没了 ⇒ 面板回 null 置灰）。 */
+  const syncPanel = () => {
+    const cur = currentSelection()
+    if (!cur) {
+      setPanel(null)
+      return
+    }
+    const cell = cur.sheet.getRange(cur.range.getRow(), cur.range.getColumn())
+    setPanel(panelFromUniverStyle(cell.getCellStyleData()))
+  }
+
+  /** W2-2：面板操作的公共前置（选区 + 定义 JSON 都就位）。不满足 ⇒ 上屏原因并返回 null。 */
+  const panelContext = () => {
+    const cur = currentSelection()
+    if (!cur) {
+      setStatus('编辑失败：请先在表格里选中单元格，再改样式')
+      return null
+    }
+    const held = defRef.current
+    if (!held) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return null
+    }
+    return {
+      cur,
+      held,
+      range: {
+        row0: cur.range.getRow(),
+        col0: cur.range.getColumn(),
+        height: cur.range.getHeight(),
+        width: cur.range.getWidth(),
+      },
+    }
+  }
+
+  /** W2-2：面板字段改动 —— 先落 Univer（画布立即反馈），再补定义 JSON（只动一个键）。
+   *
+   * ⚠ 顺序刻意：Univer 落地失败就**不**补 JSON —— 否则「JSON 说改了、画布没改」
+   * 是单边不一致；JSON 补丁是纯函数，不引入新失败面。 */
+  const onPanelChange = (field: PanelField, raw: string | number | boolean) => {
+    const ctx = panelContext()
+    if (!ctx) return
+    const r = applyPanelToRange(ctx.held, ctx.range, field, raw)
+    if (r.error || r.normalized === undefined) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    try {
+      applyFieldToRange(ctx.cur.range, field, r.normalized)
+    } catch (e) {
+      setStatus(`编辑失败：Univer 侧落地失败（${e instanceof Error ? e.message : String(e)}）`)
+      return
+    }
+    if (r.def) setDefBoth(r.def)
+    setPanel((p) => (p ? ({ ...p, [field]: r.normalized } as PanelStyle) : p))
+    const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
+    setStatus(`已更新样式 ${field}${warn}；点「导出 JSON」拿回文件`)
+  }
+
+  /** W2-2：「恢复缺省」—— 7 个样式字段全删（Univer 侧同步落回缺省）。 */
+  const onPanelReset = () => {
+    const ctx = panelContext()
+    if (!ctx) return
+    const r = clearPanelRange(ctx.held, ctx.range)
+    if (r.error) {
+      setStatus(`编辑失败：${r.error}`)
+      return
+    }
+    try {
+      resetRangeToDefaults(ctx.cur.range)
+    } catch (e) {
+      setStatus(`编辑失败：Univer 侧落地失败（${e instanceof Error ? e.message : String(e)}）`)
+      return
+    }
+    if (r.def) setDefBoth(r.def)
+    setPanel({ ...PANEL_DEFAULTS })
+    const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
+    setStatus(`已恢复缺省样式${warn}；点「导出 JSON」拿回文件`)
+  }
+
   /** 「另存为」（W1-3 + W1-2）：入库拿 id → 按 `/meta` 刷新参数表单。 */
   const save = async () => {
     if (!files) {
@@ -190,10 +341,11 @@ export default function App() {
     }
   }
 
-  // 卸载时收掉单元格监听 + Univer 实例（canvas + 监听）。
+  // 卸载时收掉单元格监听 + 选区监听 + Univer 实例（canvas + 监听）。
   useEffect(
     () => () => {
       eventDisposableRef.current?.dispose()
+      selectionDisposableRef.current?.dispose()
       apiRef.current?.dispose()
     },
     [],
@@ -201,6 +353,11 @@ export default function App() {
 
   const setRow = (i: number, patch: Partial<ParamRow>) =>
     setParams((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+
+  /** W2-2：面板可用性 = 持有定义 JSON（`.rpx` 源没有可打补丁的 JSON）。 */
+  const panelDisabled = !def
+  /** W2-2：面板显示值（没有选区时显示缺省，与置灰状态一致）。 */
+  const pv: PanelStyle = panel ?? PANEL_DEFAULTS
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -299,6 +456,121 @@ export default function App() {
           </span>
         ) : null}
       </header>
+      {/* W2-2 样式面板：7 字段（M7-3）。改哪个字段只补哪个键进定义 JSON
+          （逐字段补丁，理由见 `stylepanel.ts` 文件头）；只有渲染过 `.json` 源
+          （`def` 非空）才可用，否则整体置灰并在尾部提示原因（能力边界可见，
+          而不是点了才报错）。 */}
+      <section
+        style={{
+          padding: '6px 14px',
+          borderBottom: '1px solid var(--rpx-border)',
+          background: 'var(--rpx-bg-muted)',
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: 13,
+          color: 'var(--rpx-fg)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ color: 'var(--rpx-fg-muted)' }}>样式</span>
+        <select
+          value={pv.fontName}
+          disabled={panelDisabled}
+          title="字体族（定义 JSON 的 font_name；改回「宋体」= 删该键）"
+          onChange={(e) => onPanelChange('fontName', e.target.value)}
+          style={panelInputStyle}
+        >
+          {fontOptions(pv.fontName).map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+        <input
+          type="number"
+          min={1}
+          max={32767}
+          value={pv.fontSize}
+          disabled={panelDisabled}
+          title="字号（1..=32767 的整数；改回 12 = 删该键）"
+          onChange={(e) => onPanelChange('fontSize', e.target.value)}
+          style={{ ...panelInputStyle, width: 64 }}
+        />
+        {PANEL_TOGGLES.map(([field, label, labelStyle]) => (
+          <button
+            key={field}
+            aria-pressed={pv[field]}
+            disabled={panelDisabled}
+            title={`${label}（定义 JSON 的 ${field}）`}
+            onClick={() => onPanelChange(field, !pv[field])}
+            style={{
+              width: 26,
+              height: 24,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid var(--rpx-border)',
+              borderRadius: 4,
+              cursor: panelDisabled ? 'not-allowed' : 'pointer',
+              ...(pv[field] && !panelDisabled
+                ? { background: 'var(--rpx-accent)', color: '#fff' }
+                : { background: '#fff', color: 'var(--rpx-fg)' }),
+              ...labelStyle,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+        <label
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          title="字体颜色（定义 JSON 的 fore_color；改回 #000000 = 删该键）"
+        >
+          字色
+          <input
+            type="color"
+            value={pv.foreColor}
+            disabled={panelDisabled}
+            onChange={(e) => onPanelChange('foreColor', e.target.value)}
+            style={panelColorStyle}
+          />
+        </label>
+        <label
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          title="背景色（定义 JSON 的 back_color；改回 #FFFFFF = 删该键）"
+        >
+          底色
+          <input
+            type="color"
+            value={pv.backColor}
+            disabled={panelDisabled}
+            onChange={(e) => onPanelChange('backColor', e.target.value)}
+            style={panelColorStyle}
+          />
+        </label>
+        <button
+          onClick={onPanelReset}
+          disabled={panelDisabled}
+          title="把 7 个样式字段全部打回缺省（= 从定义 JSON 里删掉这 7 个键）"
+          style={{
+            fontSize: 13,
+            padding: '3px 10px',
+            border: '1px solid var(--rpx-border)',
+            borderRadius: 4,
+            background: '#fff',
+            color: panelDisabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
+            cursor: panelDisabled ? 'not-allowed' : 'pointer',
+          }}
+        >
+          恢复缺省
+        </button>
+        {panelDisabled ? (
+          <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
+            仅定义 JSON（.json）报表源可改样式
+          </span>
+        ) : null}
+      </section>
       {/* W1-2 参数表单：`另存为` 后按 `GET /reports/{id}/meta` 自动带出，
           非静态（`is_static=false`）的行标「动态」；仍可手工增删行。 */}
       <section
