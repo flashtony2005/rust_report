@@ -23,12 +23,32 @@ import {
 import {
   fetchMeta,
   fetchSnapshot,
+  fetchSnapshotWithDef,
   metaToRows,
   mountUniver,
   pickReportFile,
   saveReport,
   type ParamRow,
 } from './report'
+import {
+  DEFAULT_COL_MM,
+  DEFAULT_ROW_MM,
+  applyColWidths,
+  applyGridResize,
+  applyRowBreakPages,
+  applyRowHeights,
+  colWidthMm,
+  mmToPx,
+  rowBreakPage,
+  rowHeightMm,
+} from './rowcol'
+import {
+  applyDatasetAdd,
+  applyDatasetRemove,
+  datasetSummary,
+  datasetsOf,
+  type DatasetInput,
+} from './datasets'
 import {
   PANEL_DEFAULTS,
   applyFieldToRange,
@@ -164,6 +184,62 @@ export default function App() {
     '请选择 .rpx 或 .json 报表源（可一起选中其同目录 CSV），点渲染；点「另存为」后可自动带出参数清单',
   )
 
+  /** W2-5：报表源文件名（重渲染时 def 上传体沿用这个名字）。 */
+  const [reportName, setReportName] = useState('report-definition.json')
+
+  /**
+   * 装载快照 + 订阅事件（W2-5 抽取：`render` 与 `renderFromDef` 共用的后半程）。
+   *
+   * 原逻辑逐字搬入（dispose 旧实例 → mount → createWorkbook → 两事件订阅），
+   * 只把「held / kind 的来源」参数化 —— 从文件渲染时 held 来自文件文本，
+   * 补丁后重渲染时 held 就是**当前持有的 def**（补丁不丢的唯一保证）。
+   */
+  const attachSnapshot = (snapshot: unknown, held: ReportDef | null, kind: 'json' | 'rpx') => {
+    apiRef.current?.dispose()
+    if (!containerRef.current) return
+    apiRef.current = mountUniver(containerRef.current)
+    apiRef.current.createWorkbook(snapshot as Parameters<typeof apiRef.current.createWorkbook>[0])
+    setDefBoth(held)
+    setSourceKind(kind)
+    setStatus(
+      held
+        ? '已装载定义 JSON，可直接编辑单元格内容；改完点「导出 JSON」拿回定义文件'
+        : '已装载（.rpx 模板只读预览）',
+    )
+    // W2-1：订阅单元格改动事件。**只补用户真改过的那一格**（理由见
+    // `designer.ts` 文件头：整体回灌会把 `"0123"` 这类值按数值归一化，
+    // 没碰过的格子也被改坏）。旧监听先 dispose，避免二次挂载叠两份。
+    eventDisposableRef.current?.dispose()
+    eventDisposableRef.current = apiRef.current.addEvent(
+      apiRef.current.Event.SheetValueChanged,
+      (params) => {
+        const ranges = params.effectedRanges
+        // 批量/多区域编辑（粘贴、填充）暂不做内容补丁 —— 超出 W2-1 单格口径；
+        // 多区域只补第一格是**静默半截**，故直接跳过，不假装成功。
+        if (!ranges || ranges.length !== 1) return
+        // 只处理「值改动」（`SET_RANGE_VALUES`）。合并/结构类改动（如
+        // 合并矩形增减）不进**内容**补丁，否则把结构动作误当成内容写坏。
+        const id = (params.payload as { id: string }).id
+        if (id !== 'sheet.mutation.set-range-values') return
+        const range = ranges[0]
+        onCellEdited(range.getRow(), range.getColumn(), range.getValue())
+      },
+    )
+    // W2-2：订阅选区变化 —— 面板显示态跟着用户选中的格子走。facade 的
+    // sheets 事件表里**没有**选区专用事件（`f-event.d.ts` 的 getter 清单里
+    // 无 Selection*）⇒ 用命令级事件 `CommandExecuted` 按 id 过滤：
+    // `sheet.operation.set-selections` 是选区落定的命令
+    // （`@univerjs/sheets/lib/es/index.js:5081` 实测）。
+    selectionDisposableRef.current?.dispose()
+    selectionDisposableRef.current = apiRef.current.addEvent(
+      apiRef.current.Event.CommandExecuted,
+      (e) => {
+        if (e.id === 'sheet.operation.set-selections') syncPanel()
+      },
+    )
+    syncPanel()
+  }
+
   const render = async () => {
     if (!files) {
       setStatus('请先选择报表源文件')
@@ -176,61 +252,33 @@ export default function App() {
     }
     setStatus('正在渲染…')
     try {
+      // W2-5：**持有 def 时优先用它**——点「渲染」是刷新画布，不是丢弃补丁
+      // 重新读盘（那会把用户的全部编辑静默回滚，比报错恶劣得多）。
+      const held = defRef.current
+      if (held) {
+        const snapshot = await fetchSnapshotWithDef(
+          JSON.stringify(held),
+          reportName,
+          Array.from(files),
+          params,
+        )
+        attachSnapshot(snapshot, held, 'json')
+        return
+      }
       const snapshot = await fetchSnapshot(Array.from(files), params)
       // W2-1：**先读定义 JSON 文本再挂 Univer** —— 编辑面要持原始 JSON 打补丁。
       // 只有 `.json` 才有；`.rpx` 是二进制，持不住 ⇒ 编辑面不可用（显式告知）。
       const isJson = report.name.toLowerCase().endsWith('.json')
-      let held: ReportDef | null = null
+      let fromFile: ReportDef | null = null
       if (isJson) {
         const text = await report.text()
-        held = JSON.parse(text) as ReportDef
-        if (!held || typeof held !== 'object' || !held.grid) {
+        fromFile = JSON.parse(text) as ReportDef
+        if (!fromFile || typeof fromFile !== 'object' || !fromFile.grid) {
           throw new Error('定义 JSON 缺 grid 字段，无法进入编辑面')
         }
       }
-      apiRef.current?.dispose()
-      if (!containerRef.current) return
-      apiRef.current = mountUniver(containerRef.current)
-      apiRef.current.createWorkbook(snapshot as Parameters<typeof apiRef.current.createWorkbook>[0])
-      setDefBoth(held)
-      setSourceKind(isJson ? 'json' : 'rpx')
-      setStatus(
-        held
-          ? '已装载定义 JSON，可直接编辑单元格内容；改完点「导出 JSON」拿回定义文件'
-          : '已装载（.rpx 模板只读预览）',
-      )
-      // W2-1：订阅单元格改动事件。**只补用户真改过的那一格**（理由见
-      // `designer.ts` 文件头：整体回灌会把 `"0123"` 这类值按数值归一化，
-      // 没碰过的格子也被改坏）。旧监听先 dispose，避免二次挂载叠两份。
-      eventDisposableRef.current?.dispose()
-      eventDisposableRef.current = apiRef.current.addEvent(
-        apiRef.current.Event.SheetValueChanged,
-        (params) => {
-          const ranges = params.effectedRanges
-          // 批量/多区域编辑（粘贴、填充）暂不做内容补丁 —— 超出 W2-1 单格口径；
-          // 多区域只补第一格是**静默半截**，故直接跳过，不假装成功。
-          if (!ranges || ranges.length !== 1) return
-          // 只处理「值改动」（`SET_RANGE_VALUES`）。合并/结构类改动（如
-          // 合并矩形增减）不进**内容**补丁，否则把结构动作误当成内容写坏。
-          const id = (params.payload as { id: string }).id
-          if (id !== 'sheet.mutation.set-range-values') return
-          const range = ranges[0]
-          onCellEdited(range.getRow(), range.getColumn(), range.getValue())
-        },
-      )
-      // W2-2：订阅选区变化 —— 面板显示态跟着用户选中的格子走。facade 的
-      // sheets 事件表里**没有**选区专用事件（`f-event.d.ts` 的 getter 清单里
-      // 无 Selection*）⇒ 用命令级事件 `CommandExecuted` 按 id 过滤：
-      // `sheet.operation.set-selections` 是选区落定的命令
-      // （`@univerjs/sheets/lib/es/index.js:5081` 实测）。
-      selectionDisposableRef.current?.dispose()
-      selectionDisposableRef.current = apiRef.current.addEvent(
-        apiRef.current.Event.CommandExecuted,
-        (e) => {
-          if (e.id === 'sheet.operation.set-selections') syncPanel()
-        },
-      )
-      syncPanel()
+      setReportName(report.name)
+      attachSnapshot(snapshot, fromFile, isJson ? 'json' : 'rpx')
     } catch (e) {
       setDefBoth(null)
       setSourceKind(null)
@@ -402,6 +450,184 @@ export default function App() {
     if (r.def) setDefBoth(r.def)
     const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
     setStatus(`已更新${propsEditLabel(edit)}${warn}；点「导出 JSON」拿回文件`)
+  }
+
+  // -------------------------------------------------------------------------
+  // W2-5 行列面板（行高/列宽/断页）+ 网格尺寸 + 数据集绑定
+  // -------------------------------------------------------------------------
+
+  /** W2-5：选区覆盖的**逻辑行号**清单（Univer 0 起 → JSON 1 起，`designer.ts` §4.1）。
+   * 行高/列宽/断页都是**整行属性**，作用于选区覆盖的每一行 —— 与画布上
+   * 「选中多行改行高」的直觉一致。 */
+  const selectedRows = (): number[] => {
+    if (!selection) return []
+    return Array.from({ length: selection.height }, (_, i) => selection.row0 + i + 1)
+  }
+  /** 选区覆盖的逻辑列号清单。 */
+  const selectedCols = (): number[] => {
+    if (!selection) return []
+    return Array.from({ length: selection.width }, (_, i) => selection.col0 + i + 1)
+  }
+
+  /** W2-5：改行高（mm）—— 补 `row_props[].height` + Univer `setRowHeight`（px）。
+   * `null` = 恢复缺省（删声明；画布上先落回快照缺省值，重渲染彻底归位）。 */
+  const onRowHeightChange = (mm: number | null) => {
+    const held = defRef.current
+    if (!held) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return
+    }
+    const rows = selectedRows()
+    if (rows.length === 0) {
+      setStatus('编辑失败：请先在表格里选中单元格，再改行高')
+      return
+    }
+    const r = applyRowHeights(held, rows, mm)
+    if (r.error || !r.def) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    try {
+      const sheet = apiRef.current?.getActiveWorkbook()?.getActiveSheet()
+      const px = mm === null ? undefined : mmToPx(mm)
+      for (const row of rows) {
+        // Univer 吃 0 起行号；恢复缺省时按契约缺省换算落回（快照几何的 mm→px 同式）。
+        sheet?.setRowHeight(row - 1, px ?? mmToPx(8))
+      }
+    } catch (e) {
+      setStatus(`编辑失败：Univer 侧落地失败（${e instanceof Error ? e.message : String(e)}）`)
+      return
+    }
+    setDefBoth(r.def)
+    const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
+    setStatus(`已更新行高${warn}；点「导出 JSON」拿回文件`)
+  }
+
+  /** W2-5：改列宽（mm），口径同 [`onRowHeightChange]。 */
+  const onColWidthChange = (mm: number | null) => {
+    const held = defRef.current
+    if (!held) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return
+    }
+    const cols = selectedCols()
+    if (cols.length === 0) {
+      setStatus('编辑失败：请先在表格里选中单元格，再改列宽')
+      return
+    }
+    const r = applyColWidths(held, cols, mm)
+    if (r.error || !r.def) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    try {
+      const sheet = apiRef.current?.getActiveWorkbook()?.getActiveSheet()
+      const px = mm === null ? undefined : mmToPx(mm)
+      for (const col of cols) {
+        sheet?.setColumnWidth(col - 1, px ?? mmToPx(25))
+      }
+    } catch (e) {
+      setStatus(`编辑失败：Univer 侧落地失败（${e instanceof Error ? e.message : String(e)}）`)
+      return
+    }
+    setDefBoth(r.def)
+    const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
+    setStatus(`已更新列宽${warn}；点「导出 JSON」拿回文件`)
+  }
+
+  /** W2-5：改断页 —— 纯 JSON 补丁（Univer 画布无断页概念），重渲染生效。 */
+  const onBreakPageChange = (on: boolean | null) => {
+    const held = defRef.current
+    if (!held) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return
+    }
+    const rows = selectedRows()
+    if (rows.length === 0) {
+      setStatus('编辑失败：请先在表格里选中单元格，再改断页')
+      return
+    }
+    const r = applyRowBreakPages(held, rows, on)
+    if (r.error || !r.def) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    setDefBoth(r.def)
+    const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
+    setStatus(`已更新断页${warn}；点「导出 JSON」拿回文件`)
+  }
+
+  /** W2-5：网格尺寸草稿（数字输入 + 「调整网格」按钮确认——不即时应用，
+   * 避免「先输 1 再输 12」的中途值把网格真缩成 1 行）。 */
+  const [gridDraft, setGridDraft] = useState({ rows: 0, cols: 0 })
+  // def 的网格变化（含重渲染装载）时把草稿同步成当前值。
+  useEffect(() => {
+    if (def) setGridDraft({ rows: def.grid.rows, cols: def.grid.cols })
+  }, [def?.grid.rows, def?.grid.cols])
+
+  /** W2-5：调整网格 —— 校验 + 改 JSON + **用持有 def 重渲染**（画布按新尺寸装载）。 */
+  const onGridResize = async () => {
+    const held = defRef.current
+    if (!held) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return
+    }
+    const rows = Number(gridDraft.rows)
+    const cols = Number(gridDraft.cols)
+    const r = applyGridResize(held, rows, cols)
+    if (r.error || !r.def) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    setDefBoth(r.def)
+    setStatus('网格已调整，正在按新尺寸重渲染…')
+    try {
+      const snapshot = await fetchSnapshotWithDef(
+        JSON.stringify(r.def),
+        reportName,
+        Array.from(files ?? []),
+        params,
+      )
+      attachSnapshot(snapshot, r.def, 'json')
+      setStatus('网格已调整并重渲染；点「导出 JSON」拿回文件')
+    } catch (e) {
+      setStatus(`重渲染失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  /** W2-5：数据集草稿（添加行）。修改已有条目 v1 不做 UI —— 删了重加，
+   * 或导出 JSON 手改（`datasets.ts::applyDatasetUpdate` 语义已有单测钉住）。 */
+  const [dsDraft, setDsDraft] = useState<DatasetInput>({ name: '', file: { file_name: '', encoding: 'GBK' } })
+
+  /** W2-5：添加数据集（校验失败上屏，成功后清空草稿）。 */
+  const onDatasetAdd = () => {
+    const held = defRef.current
+    if (!held) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return
+    }
+    const r = applyDatasetAdd(held, dsDraft)
+    if (r.error || !r.def) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    setDefBoth(r.def)
+    setDsDraft({ name: '', file: { file_name: '', encoding: 'GBK' } })
+    const warn = r.warnings.length > 1 ? `（${r.warnings[0]}）` : ''
+    setStatus(`已添加数据集${warn}；点「导出 JSON」拿回文件`)
+  }
+
+  /** W2-5：删除第 i 条数据集。 */
+  const onDatasetRemove = (i: number) => {
+    const held = defRef.current
+    if (!held) return
+    const r = applyDatasetRemove(held, i)
+    if (r.error || !r.def) {
+      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
+      return
+    }
+    setDefBoth(r.def)
+    setStatus('已删除数据集；点「导出 JSON」拿回文件')
   }
 
   /** 「另存为」（W1-3 + W1-2）：入库拿 id → 按 `/meta` 刷新参数表单。 */
@@ -765,6 +991,136 @@ export default function App() {
           <span style={{ color: 'var(--rpx-fg-muted)' }}>°</span>
         </label>
       </section>
+      {/* W2-5 行列条：行高/列宽（mm，作用于选区覆盖的行/列）+ 断页 + 网格尺寸。
+          读方向是**定义 JSON**（声明过什么只有 JSON 知道；快照 px 是换算值，
+          反算 mm 会漂）；行高列宽即时落 Univer 画布（视觉反馈），断页与网格
+          尺寸重渲染生效。单位与出处见 `rowcol.ts` 文件头。 */}
+      <section
+        style={{
+          padding: '6px 14px',
+          borderBottom: '1px solid var(--rpx-border)',
+          background: 'var(--rpx-bg-muted)',
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: 13,
+          color: 'var(--rpx-fg)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ color: 'var(--rpx-fg-muted)' }}>行列</span>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          行高
+          <input
+            type="number"
+            min={0.1}
+            step={0.5}
+            value={
+              selection && def
+                ? (rowHeightMm(def, selection.row0 + 1) ?? '')
+                : DEFAULT_ROW_MM
+            }
+            disabled={panelDisabled}
+            title="行高（mm，定义 JSON 的 row_props[].height；清空 = 删声明回到缺省 8mm）"
+            onChange={(e) =>
+              onRowHeightChange(e.target.value === '' ? null : Number(e.target.value))
+            }
+            style={{ ...panelInputStyle, width: 64 }}
+          />
+          <span style={{ color: 'var(--rpx-fg-muted)' }}>mm</span>
+        </label>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          列宽
+          <input
+            type="number"
+            min={0.1}
+            step={0.5}
+            value={
+              selection && def
+                ? (colWidthMm(def, selection.col0 + 1) ?? '')
+                : DEFAULT_COL_MM
+            }
+            disabled={panelDisabled}
+            title="列宽（mm，定义 JSON 的 col_props[].width；清空 = 删声明回到缺省 25mm）"
+            onChange={(e) =>
+              onColWidthChange(e.target.value === '' ? null : Number(e.target.value))
+            }
+            style={{ ...panelInputStyle, width: 64 }}
+          />
+          <span style={{ color: 'var(--rpx-fg-muted)' }}>mm</span>
+        </label>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          断页
+          <select
+            value={
+              selection && def
+                ? rowBreakPage(def, selection.row0 + 1) === true
+                  ? 'on'
+                  : rowBreakPage(def, selection.row0 + 1) === false
+                    ? 'off'
+                    : ''
+                : ''
+            }
+            disabled={panelDisabled}
+            title="行断页（定义 JSON 的 row_props[].break_page；画布无此概念，重渲染生效）"
+            onChange={(e) =>
+              onBreakPageChange(
+                e.target.value === '' ? null : e.target.value === 'on',
+              )
+            }
+            style={panelInputStyle}
+          >
+            <option value="">（未声明）</option>
+            <option value="on">此行前断页</option>
+            <option value="off">不断页</option>
+          </select>
+        </label>
+        <span style={{ color: 'var(--rpx-border)' }}>|</span>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          网格
+          <input
+            type="number"
+            min={1}
+            value={gridDraft.rows}
+            disabled={panelDisabled}
+            title="网格行数（定义 JSON 的 grid.rows；缩小前会校验既有声明越界）"
+            onChange={(e) => setGridDraft((g) => ({ ...g, rows: Number(e.target.value) }))}
+            style={{ ...panelInputStyle, width: 56 }}
+          />
+          ×
+          <input
+            type="number"
+            min={1}
+            value={gridDraft.cols}
+            disabled={panelDisabled}
+            title="网格列数（定义 JSON 的 grid.cols）"
+            onChange={(e) => setGridDraft((g) => ({ ...g, cols: Number(e.target.value) }))}
+            style={{ ...panelInputStyle, width: 56 }}
+          />
+        </label>
+        <button
+          onClick={onGridResize}
+          disabled={panelDisabled}
+          title="按上面输入的行列数调整网格，并自动按新尺寸重渲染"
+          style={{
+            fontSize: 13,
+            padding: '3px 10px',
+            border: '1px solid var(--rpx-border)',
+            borderRadius: 4,
+            background: '#fff',
+            color: panelDisabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
+            cursor: panelDisabled ? 'not-allowed' : 'pointer',
+          }}
+        >
+          调整网格
+        </button>
+        {panelDisabled ? (
+          <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
+            仅定义 JSON（.json）报表源可改
+          </span>
+        ) : null}
+      </section>
       {/* W1-2 参数表单：`另存为` 后按 `GET /reports/{id}/meta` 自动带出，
           非静态（`is_static=false`）的行标「动态」；仍可手工增删行。 */}
       <section
@@ -878,6 +1234,189 @@ export default function App() {
           </svg>
           添加参数
         </button>
+      </section>
+      {/* W2-5 数据集条：datasets[] 的清单（名称 + 摘要 + 删除）与添加行。
+          Univer 画布没有数据集概念 ⇒ 纯 JSON 编辑；`file.file_name` 须与渲染时
+          上传的 CSV 文件名逐字一致（`spec-m3.md` §3.2），面板只存声明。
+          修改已有条目 v1 不做 UI：删了重加，或导出 JSON 手改。 */}
+      <section
+        style={{
+          padding: '6px 14px',
+          borderBottom: '1px solid var(--rpx-border)',
+          background: 'var(--rpx-bg-muted)',
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: 13,
+          color: 'var(--rpx-fg)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ color: 'var(--rpx-fg-muted)' }}>数据集</span>
+        {(def ? datasetsOf(def) : []).map((d, i) => (
+          <span
+            key={i}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 4 }}
+          >
+            <span
+              title={datasetSummary(d)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 8px',
+                border: '1px solid var(--rpx-border)',
+                borderRadius: 4,
+                background: '#fff',
+              }}
+            >
+              <b style={{ fontWeight: 600 }}>{d.name ?? '（无名）'}</b>
+              <span style={{ color: 'var(--rpx-fg-muted)' }}>{datasetSummary(d)}</span>
+            </span>
+            <button
+              aria-label={`删除数据集 ${d.name ?? i + 1}`}
+              title="删除该数据集"
+              onClick={() => onDatasetRemove(i)}
+              style={{
+                width: 20,
+                height: 20,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid var(--rpx-border)',
+                borderRadius: 4,
+                background: '#fff',
+                cursor: panelDisabled ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M4 4l8 8M12 4l-8 8"
+                  stroke="var(--rpx-danger)"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </span>
+        ))}
+        {/* 添加行：name + 类型（文件/SQL）+ 按类型的字段。 */}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <input
+            placeholder="数据集名（可空）"
+            value={dsDraft.name ?? ''}
+            disabled={panelDisabled}
+            onChange={(e) => setDsDraft((d) => ({ ...d, name: e.target.value }))}
+            style={{ ...panelInputStyle, width: 110 }}
+          />
+          <select
+            value={dsDraft.file !== undefined ? 'file' : 'sql'}
+            disabled={panelDisabled}
+            title="数据集类型：文件（CSV）或 SQL"
+            onChange={(e) =>
+              setDsDraft((d) =>
+                e.target.value === 'file'
+                  ? { name: d.name, file: { file_name: '', encoding: 'GBK' } }
+                  : { name: d.name, sql: { dsn: '', sql: '' } },
+              )
+            }
+            style={panelInputStyle}
+          >
+            <option value="file">文件</option>
+            <option value="sql">SQL</option>
+          </select>
+          {dsDraft.file !== undefined ? (
+            <>
+              <input
+                placeholder="CSV 文件名（须与上传一致）"
+                value={dsDraft.file.file_name}
+                disabled={panelDisabled}
+                onChange={(e) =>
+                  setDsDraft((d) => ({
+                    ...d,
+                    file: { ...d.file!, file_name: e.target.value },
+                  }))
+                }
+                style={{ ...panelInputStyle, width: 170 }}
+              />
+              <select
+                value={dsDraft.file.encoding ?? 'GBK'}
+                disabled={panelDisabled}
+                title="CSV 编码（缺省 GBK）"
+                onChange={(e) =>
+                  setDsDraft((d) => ({
+                    ...d,
+                    file: { file_name: d.file!.file_name, encoding: e.target.value },
+                  }))
+                }
+                style={panelInputStyle}
+              >
+                <option value="GBK">GBK</option>
+                <option value="UTF-8">UTF-8</option>
+              </select>
+            </>
+          ) : (
+            <>
+              <input
+                placeholder="数据源名 dsn"
+                value={dsDraft.sql?.dsn ?? ''}
+                disabled={panelDisabled}
+                onChange={(e) =>
+                  setDsDraft((d) => ({
+                    ...d,
+                    sql: { dsn: e.target.value, sql: d.sql?.sql ?? '' },
+                  }))
+                }
+                style={{ ...panelInputStyle, width: 110 }}
+              />
+              <input
+                placeholder="SQL 语句"
+                value={dsDraft.sql?.sql ?? ''}
+                disabled={panelDisabled}
+                onChange={(e) =>
+                  setDsDraft((d) => ({
+                    ...d,
+                    sql: { dsn: d.sql?.dsn ?? '', sql: e.target.value },
+                  }))
+                }
+                style={{ ...panelInputStyle, width: 190 }}
+              />
+            </>
+          )}
+          <button
+            onClick={onDatasetAdd}
+            disabled={panelDisabled}
+            title="把草稿追加进定义 JSON 的 datasets[]"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 13,
+              padding: '3px 10px',
+              border: '1px solid var(--rpx-border)',
+              borderRadius: 4,
+              background: '#fff',
+              color: panelDisabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
+              cursor: panelDisabled ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M8 3v10M3 8h10"
+                stroke="var(--rpx-accent)"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+            添加
+          </button>
+        </span>
+        {panelDisabled ? (
+          <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
+            仅定义 JSON（.json）报表源可改
+          </span>
+        ) : null}
       </section>
       {status ? (
         <div

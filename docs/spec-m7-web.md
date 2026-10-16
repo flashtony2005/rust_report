@@ -1,6 +1,6 @@
 # Spec — ReportLite Rust 重实现 · M7-W（Univer 前端设计器）v0.8
 
-> 状态：**v0.8（2026-10-16）—— W0、W1、W2-1~W2-4（含降级的 W2-3'/W2-4）已收口；只剩 W2-5 未开工**。
+> 状态：**v0.9（2026-10-16）—— W2 全部收口：W0、W1、W2-1~W2-5（含降级的 W2-3'/W2-4）全绿**。
 > 上游决策：`docs/report-def-json.md` §7.2 明写「在线设计器（`web/` 侧）—— Univer
 > 目前仍是**纯渲染终端**，在它上面做『定格式』是**新阶段**，须另立 spec」——
 > 本文件就是那份 spec。
@@ -75,8 +75,8 @@ M7-W **不承担**计算、分页、导出（那些留在服务端，`rpx-engine
 W2-1 把**内容这条路的补丁地基**立住；**W2-2 把 7 字段的面板接到用户手上**
 （逐字段补丁）；**W2-3 把边框/格式/旋转接上**（读方向改从定义 JSON —— 这三项
 不在快照里，见 §4 W2-3）；W2-3'/W2-4 按**降级口径**闭合（无面板，验收由服务端
-模型往返承担）。剩下的缺口是 **W2-5**（网格尺寸/行列属性/数据集绑定）与 W3 的
-`extend_mode` 声明（本 spec 不承诺）。
+模型往返承担）。W2-5（网格尺寸/行列属性/数据集绑定）也已收口（`rowcol.ts` + `datasets.ts`，
+见 §4 W2-5）。W2 无缺口；后继是 W3 的 `extend_mode` 声明（本 spec 不承诺）。
 
 ## 3. 阻塞项（**已于 2026-10-16 解除**）
 
@@ -181,7 +181,7 @@ FI-B 是在**完整 `gate.sh`** 上跑的（不是只跑 vitest），证明红�
 | W2-3 | **边框 / 数字格式 / 旋转面板**（M7-5 的 16 槽里可做的那部分；**已收口 2026-10-16**） | ✅ 面板设的值**只补该键**进 JSON（边内 `width` 保留、条目删空整条移除）；产物 `POST /render` 200 + `POST /reports` 入库成功（`.json → .rpx` 写侧）；见下方小节 |
 | W2-3' | 缩进 —— **降级为 JSON 声明**（API 不存在，§7 坑位 4） | ✅ 无面板即验收：`indent` 的「声明 → 往返成立」由服务端 `definition_roundtrip.rs::cell_props_survive_the_rpx_round_trip`（夹具含 `indent: 2.5`）承担；`.json` 与 `.rpx` 两条入口共用同一 parse（M7-5）⇒ 前端不需要也不产生该字段。⚠ `/render` 腿未单列用例（与其它字段同一 parse 入口），如实标注 |
 | W2-4 | 打印设置（M7-6 的 17 字段）—— **整项降级** | ✅ 同上：`print_setup_survives_the_rpx_round_trip` + `print_setup_lands_on_the_expected_slots` 承担「声明 → 往返」；前端不产生该字段 |
-| W2-5 | 网格尺寸 / 行列属性 / 数据集绑定 | 与 `report-def-json.md` §3 字段一一对应；尺寸用 `setRowHeight`/`setColumnWidth`（**不是** `setRowCustom`） |
+| W2-5 | **网格尺寸 / 行列属性 / 数据集绑定**（**已收口 2026-10-16**） | ✅ 面板产物经「导出 JSON」逐键断言（`row_props`/`col_props`/`break_page`/`grid`/`datasets`）；浏览器 E2E E14–E20 全绿（`tests/fixtures/out/e2e_w2_rowcol.mjs`）；见下方小节 |
 
 W2 的判据形态是 **M7-5 已立下的模型往返**：面板写出的 JSON 经
 `parse → to_bytes → open_bytes` 必须逐字段相等（`tests/definition_roundtrip.rs`
@@ -404,6 +404,41 @@ JSON（最终值正确）；③ Univer 侧撤销（Ctrl+Z）与 JSON 草稿的�
 | FI-8 | `stripShell` 恒返回（空壳不删） | **红**：2 条（`条目删空 ⇒ 整条移除` + `format/rotation 设/清`）；**完整 `gate.sh`** 汇总 `FAIL G9`、G1–G8 仍 PASS |
 
 **E2E 几何自校准（本轮新增，取代硬编码像素）**：见 §7 坑位 9。
+
+#### W2-5 行列面板 + 网格尺寸 + 数据集绑定（**已收口 2026-10-16**）
+
+`web/src/rowcol.ts`（43 测试中 27 条）+ `web/src/datasets.ts`（16 条）+ App 两条新面板
+（「行列」条、「数据集」条）。浏览器 E2E `tests/fixtures/out/e2e_w2_rowcol.mjs`
+（E14–E20，沿用 `e2e_w2_panel.sh` 的 `RPX_DRIVER` 切换）。
+
+**四个关键口径**（全部有出处，写进了 `rowcol.ts` 文件头）：
+
+1. **单位是 mm**：定义 JSON 的 `height`/`width` 与 `.rpx` 模板一致是 mm
+   （缺省 8/25，`props/def.rs`）；快照按 96dpi 换算成 px（`snapshot/geom.rs::px`，
+   8mm→30.24、25mm→94.49）。⇒ 面板输入/显示用 **mm**（= JSON 字面量，无换算
+   损耗），Univer 落地（`setRowHeight`/`setColumnWidth`，**不是** `setRowCustom`，
+   探针实测 13/15 的结论）才经 `mmToPx` 换算。
+2. **读方向是定义 JSON**（W2-3 同款理由）：「这一行声明过什么」只有 JSON 知道；
+   Univer 活态是 px 且混着快照换算值，px→mm 反算会漂出噪声。未声明的行显示
+   契约缺省 8/25；字符串形态（表达式透传）不猜数值，显示占位。
+3. **`grid` 缩小必须先校验越界**（约束 4 的网格版）：cells 锚点/合并矩形整体/
+   `row_props`/`col_props` 越界各自显式报错（不静默删声明——自动删 = 用户以为
+   数据还在）。调整网格成功后**自动用持有 def 重渲染**（画布尺寸是渲染时由
+   快照定的）；为此 `report.ts` 新增 `fetchSnapshotWithDef`（def 文本当 `report`
+   上传体，CSV 照旧），且顶栏「渲染」改为**持有 def 时优先用它**——否则点一次
+   「渲染」就把用户全部补丁静默回滚成磁盘文件，比报错恶劣得多。
+4. **`datasets[]` 校验镜像 `parse_dataset`**（`reportdef/parse.rs:277`）：
+   `sql`/`file` 互斥恰一、`dsn`/`sql`/`file_name` 必填；**重名告警不拦截**
+   （服务端无重名校验——前端拦就是「无出处的严」）。数据集是 Univer 模型里
+   没有的概念 ⇒ 纯 JSON 编辑；`file.file_name` 与 multipart `dataset` 文件名
+   **逐字一致**这条契约由 E20 双腿钉住：缺 CSV ⇒ 服务端显式报「缺少数据集文件」，
+   齐件 ⇒ 200。
+
+**判据**：`rowcol.test.ts`（读方向 mm 派生/逐键补丁/null=删键+删空条目/缩小校验/
+mmToPx 与 `geom.rs` 同公式/纯函数性）+ `datasets.test.ts`（互斥恰一/下标越界显式
+报错/Update 整条替换/重名告警/纯函数性）+ E2E E14–E20（行高 15/列宽 30/断页 on
+的导出逐键；网格 3→4 重渲染、4→2 越界保护；数据集添加与 SQL 空字段报错；
+服务端双腿）。
 
 ### W3 越界项（本 spec **不承诺**）
 

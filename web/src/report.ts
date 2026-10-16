@@ -165,6 +165,35 @@ export async function fetchSnapshot(
   return resp.json()
 }
 
+/** 用**持有的定义 JSON 文本**当报表源取快照（W2-5：补丁后重渲染的唯一通道）。
+ *
+ * 与 [`fetchSnapshot] 的唯一差别：`report` 字段不再从文件挑，而是把打过补丁的
+ * def 文本构造成上传体（文件名沿用原报表源名，服务端按内容分派不看扩展名）；
+ * 其余文件（CSV 数据集）照旧按 `dataset` 上传。**不提供它就没有重渲染**——
+ * 走 [`fetchSnapshot] 会重读磁盘文件，用户的全部补丁被静默丢弃。 */
+export async function fetchSnapshotWithDef(
+  defText: string,
+  reportName: string,
+  files: File[],
+  params: ParamRow[],
+): Promise<unknown> {
+  const report = new File([defText], reportName, { type: 'application/json' })
+  const form = new FormData()
+  form.append('report', report, report.name)
+  for (const f of files) {
+    if (!isReportSource(f.name)) form.append('dataset', f, f.name)
+  }
+  const obj = paramsToObject(params)
+  if (Object.keys(obj).length > 0) {
+    form.append('params', JSON.stringify(obj))
+  }
+  const resp = await fetch('/api/render', { method: 'POST', body: form })
+  if (!resp.ok) {
+    throw new Error(`渲染失败：${await errorMessage(resp)}`)
+  }
+  return resp.json()
+}
+
 /** `POST /reports`（W1-3「另存为」）：报表源入库，拿到服务端 id。
  *
  * ⚠ 字段名是 **`file`**，不是 `/render` 的 `report` —— 服务端
