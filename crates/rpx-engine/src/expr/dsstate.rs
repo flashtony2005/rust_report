@@ -56,10 +56,13 @@ impl Expr {
         match self {
             Expr::Const(_) | Expr::CellRef { .. } | Expr::CurrentCell => false,
             Expr::DsColumn { .. } => true,
+            // `ds[i].列` = DSOffset(SpecialFunction) 挂 DSMember：left 是 ds 名
+            // ⇒ 与 DsColumn 同族（探针 O1：extend=17 非扩展，但仍是 ds 函数形态）
+            Expr::DsOffsetColumn { .. } => true,
             Expr::Unknown(_) => true,
             Expr::ValueList { items, .. } => items.iter().any(Self::is_ds_function),
             Expr::Select { arg } => arg.is_ds_function(),
-            Expr::Index { target } => target.is_ds_function(),
+            Expr::Index { target, .. } => target.is_ds_function(),
             Expr::Call(c) => c.qualifier.is_some() || c.args.iter().any(Self::is_ds_function),
             Expr::Unary { rhs, .. } => rhs.is_ds_function(),
             Expr::Binary { lhs, rhs, .. } => lhs.is_ds_function() || rhs.is_ds_function(),
@@ -106,7 +109,9 @@ impl Expr {
             | Expr::Unknown(_) => 4,
             Expr::ValueList { items, .. } => max_of(items.iter()),
             Expr::Select { arg } => 4u8.max(arg.get_state()),
-            Expr::Index { target } => 4u8.max(target.get_state()),
+            Expr::Index { target, index } => 4u8.max(target.get_state()).max(index.get_state()),
+            // 下标是子表达式（探针 O9：`ds1[1+1]` 的 Binary 也是 4）⇒ max_of 口径
+            Expr::DsOffsetColumn { offset, .. } => 4u8.max(offset.get_state()),
             Expr::Call(c) => max_of(c.args.iter()),
             Expr::Unary { rhs, .. } => 4u8.max(rhs.get_state()),
             Expr::Binary { lhs, rhs, .. } => 4u8.max(lhs.get_state()).max(rhs.get_state()),

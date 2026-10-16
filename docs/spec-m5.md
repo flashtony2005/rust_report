@@ -1,6 +1,7 @@
 # Spec — ReportLite Rust 重实现 · M5（多数据集关联）v0.6
 
-> 状态：**M5-01 / M5-02 / M5-03 / M5-04 / M5-06 已闭合**（2026-10-15）。
+> 状态：**M5-01~M5-04 / M5-06 / M5-07 已闭合**（M5-07 与带账⑤的
+> `ds[i]` 偏移语法于 2026-10-16 闭合：探针实证 + 8 条单测）。
 > M5-01：`ds.select` 全参数矩阵 + 双态求值（`expr/dsselect/` 三文件，单测全绿）；
 > M5-02：跨数据集过滤求值 + 合并区双视图（`calc/merged_view.rs`）+
 > 跨页合并拆分，`cross_dataset_compare` 10 夹具逐格逐页零差异；
@@ -304,10 +305,18 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 4. **`;` 多键排序「全键相等」时的次序**：产品是手写归并（`SortDsValue.sort:384-401`
    的 run 切分），本仓用稳定多键比较等价——**全键相等时产品归并的产出次序**
    无夹具基准，未逐位复刻（`dsselect/rows.rs` 文档同）。
-5. **Root 态 currentRow 光标只建模了恒 1**：产品 `DSOffset.java:43`（`ds[i]`
-   偏移语法）会 `setCurrentRow` 改写光标，本仓未建模该语法 ⇒ Root 态
-   `getCurrentData` 恒读首行（`DataSet.java:362-364`：`setCurrent` 重置为 1，
-   与「进入格求值即 Root」的本仓流程一致；写了 `ds[i]` 的模板才会分叉）。
+5. ~~**Root 态 currentRow 光标只建模了恒 1**~~ ✅ **已闭合（2026-10-16）**：
+   探针 `ProbeDsOffset`（`re_work/tmp_probe/dsoffset/`）9 布局实证 `ds[i].列`
+   （`DSOffset.java:33-44` 改写光标 + `DataSet.java:395-411` 的 Group 分支
+   按 `_$5` 取行）：Root 态读第 i 行、越界（`<1`/`>rowCount`）⇒ `Null` **不报错**；
+   Row 态偏移被**忽略**（Row 分支不看 `_$5`，纵带实测每行 = 当前行值）；
+   非整下标报 paramTypeError（产品消息键）；`ds[1+1]` 非叶子运算接受；
+   裸 `ds[i]` 产品返回 DataSet 对象（无实用对拍形态）⇒ eval 显式报错不猜。
+   落地：`Expr::DsOffsetColumn`（parse_bp 后缀按 `.列` 形态分流）+ `dsfn::ds_offset_column`；
+   单测 `expr/tests_offset.rs` 8 条。⚠ 顺手修 `split_ds` 数字守卫：`1.5` 曾被
+   错切 `DsColumn{"1","5"}`（产品 `Expression.java:174` 是「存在才切」，
+   本仓取「点号前纯数字 ⇒ 不切」的形态近似）。⚠ 与产品**有意偏差**：产品按
+   left 求值结果分派，本仓按后缀形态分流（Value 无 DataSet 变体）。
 6. **Row 态过滤非布尔**：产品抛 `error.Row.test`（`Row.java:91`），本仓
    `as_bool` 显式报错（同构，非分歧）—— 登记以备夹具期核对消息文本。
 7. **合并段断在分组头行时的「上一页伸长」未复刻**（M5-02 实现期核出）：

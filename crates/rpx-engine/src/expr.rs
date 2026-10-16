@@ -62,6 +62,8 @@ mod tests_aggregate;
 #[cfg(test)]
 mod tests_eval;
 #[cfg(test)]
+mod tests_offset;
+#[cfg(test)]
 mod tests_select;
 
 pub use ast::{BinOp, Call, Expr, Param, ParamKind, UnOp};

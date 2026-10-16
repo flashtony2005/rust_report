@@ -71,6 +71,68 @@ fn root_current_data(set: &crate::expr::ds::DataSet, idx: usize) -> Value {
         .unwrap_or(Value::Null)
 }
 
+/// `ds[i].列`（[`Expr::DsOffsetColumn`]）：`DSOffset` 改写光标后 `DSMember` 读列。
+///
+/// 语义三态全部探针实证（`ProbeDsOffset`，2026-10-16）：
+/// * **下标求值**必须为整数（产品 `DSOffset.calculate` 判 `instanceof Integer`，
+///   非整 ⇒ ReportError `"[]"函数参数类型错误`；`ds1["a"]` O8 实测该消息）；
+/// * **Root 态**（Group）：读第 `i` 行（`getCurrentData` 的 Group 分支按
+///   `_$5` 取行），越界（`<1` / `>rowCount`）⇒ `Null`、**不报错**（O4/O5/O6）；
+/// * **Row 态**：偏移被**忽略**、读当前行（Row 分支不看 `_$5`；O6 纵带
+///   实测每行 = 当前行值，与源码 `DataSet.java:398-400` 的 Row 分支一致）。
+pub(crate) fn ds_offset_column(
+    ctx: &mut dyn EvalCtx,
+    ds: &str,
+    offset: &Expr,
+    col: &str,
+) -> Result<Value> {
+    use crate::expr::eval::evaluate;
+    // 下标：整数族直接取，其余（含 Double）报 paramTypeError —— 产品判
+    // `instanceof Integer` 而非 Number，比 select 的 as_param_int 更严
+    // （`DSOffset.java:22-26`）。
+    let raw = evaluate(offset, ctx)?;
+    let i = match crate::value::single_value(&raw) {
+        Some(Value::Int(v)) => *v as i64,
+        Some(Value::Long(v)) => *v,
+        other => {
+            return Err(EngineError::UnsupportedExpr {
+                expr: format!("[] paramTypeError: 下标期望整数，得到 {other:?}（ds[{ds}].{col}）"),
+            })
+        }
+    };
+    // 借用期收缩：`ctx.ds()` 的 &mut 不能跨 evaluate 存活
+    let idx = {
+        let set = ctx.ds(ds).ok_or_else(|| EngineError::MissingDataset {
+            name: ds.to_string(),
+        })?;
+        set.col_index(col).ok_or_else(|| EngineError::UnknownCell {
+            id: format!("{ds}.{col}"),
+        })?
+    };
+    let set = ctx.ds(ds).expect("上面刚取到");
+    Ok(match set.current {
+        // Row 态：偏移被忽略（产品 Row 分支不读 `_$5`）——与 `ds_column` 同路径
+        DsCur::Row(r) => set
+            .rows
+            .get(r)
+            .and_then(|row| row.get(idx))
+            .cloned()
+            .unwrap_or(Value::Null),
+        // Root 态：第 i 行（1 起），越界 ⇒ Null（不报错）
+        DsCur::Root => {
+            if i < 1 || i as usize > set.rows.len() {
+                Value::Null
+            } else {
+                set.rows
+                    .get(i as usize - 1)
+                    .and_then(|row| row.get(idx))
+                    .cloned()
+                    .unwrap_or(Value::Null)
+            }
+        }
+    })
+}
+
 /// `Sum.calculate` 的 List 聚合（`Sum.java:117-133`）：跳 null、`Variant2.add`
 /// 累加、全空 → `Double(0.0)`。
 ///

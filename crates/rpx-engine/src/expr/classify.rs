@@ -79,7 +79,17 @@ pub fn split_ds(w: &str) -> Option<(String, String)> {
     if i == 0 || i + 1 >= w.len() {
         return None;
     }
-    Some((w[..i].to_string(), w[i + 1..].to_string()))
+    let head = &w[..i];
+    // ⚠ 数字字面量守卫（2026-10-16 补，`ds[i]` 下标单测踩出）：`1.5` 的 head
+    // "1" 是纯数字 ⇒ 不是 ds 名。产品口径是「存在才切」——
+    // `ctx.getDataSet(dsName) != null`（`Expression.java:174-176`）；本仓 parse 期
+    // 无 ds 清单（与 CellRef provisional 同源的形态策略），取「点号前纯数字 ⇒
+    // 不切」的近似：合法 ds 名不会以纯数字作前缀，其余歧义由 eval 期
+    // `MissingDataset` 兜底。修前 `parse("1.5")` 会错切出 `DsColumn{"1","5"}`。
+    if !head.is_empty() && head.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    Some((head.to_string(), w[i + 1..].to_string()))
 }
 
 /// 字面量解析 —— 逐条对齐 `Variant2.parse`（`Variant2.java:748-797`）。

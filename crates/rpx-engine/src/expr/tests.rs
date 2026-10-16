@@ -194,7 +194,7 @@ fn binary_operators_are_left_associative() {
 #[test]
 fn postfix_index_on_unary_minus_wraps_the_whole_unary() {
     let e = parse("-B2[1]").unwrap();
-    let Expr::Index { target } = &e else {
+    let Expr::Index { target, .. } = &e else {
         panic!("顶层应为后缀 [...]");
     };
     assert!(

@@ -111,9 +111,36 @@ pub enum Expr {
     },
     /// 后缀 `(...)` / `[...]` 挂在某个表达式上。`Offset` / `Move` / `DSOffset`
     /// （都 `extends SpecialFunction`）。`is_extend()` 只看 `target`（= 产品的 `left`）。
+    ///
+    /// `index` 是 `[...]` 的内容（M5 带账⑤补建模：旧版**丢弃**，求值恒报
+    /// UnsupportedExpr；`ds[i].列` 路径在 parse_bp 后缀循环里被分流到
+    /// [`Expr::DsOffsetColumn`]，本变体只承载**无 `.列` 后缀**的 Move/Offset
+    /// 形态 —— eval 仍报 UnsupportedExpr，见 `eval.rs`）。
     Index {
         /// 被作用的表达式（Java 的 `SpecialFunction.left`）。
         target: Box<Expr>,
+        /// `[...]` 括号内的表达式（产品的 `DSOffset.param`）。
+        index: Box<Expr>,
+    },
+    /// `ds[i].列` —— `DSOffset`（`DSOffset.java`）改写光标后接 `DSMember` 读列的
+    /// **合并形态**（产品 AST 是 Index→DSMember 两层，本仓按探针实证语义合成一个节点）。
+    ///
+    /// 语义（探针 `ProbeDsOffset` O1–O9 实证，2026-10-16）：
+    /// * `i` 求值必须为整数（非整 ⇒ 报错，产品消息 `"[]"函数参数类型错误`）；
+    /// * **Root 态**（Group）：读第 `i` 行该列，越界（`<1` 或 `>rowCount`）⇒ `Null`
+    ///   （不报错；`DataSet.java:395-411` 的 Group 分支）；
+    /// * **Row 态**：偏移被**忽略**，读当前行（同文件的 Row 分支不看 `_$5`）；
+    /// * `is_extend` = false（O1 实测 extend=17：非扩展格有表达式）。
+    ///
+    /// ⚠ 裸 `ds[i]`（不接 `.列`）产品返回 DataSet 对象（O7），本仓无此值形态 ⇒
+    /// parser 直接拒（显式错误），不猜。
+    DsOffsetColumn {
+        /// 数据集名。
+        ds: String,
+        /// 下标表达式（产品 `DSOffset.param`；探针 O9 实证非叶子运算也接受）。
+        offset: Box<Expr>,
+        /// 列名。
+        col: String,
     },
     /// 函数调用。`Function`（`function/*`）或 `DSFunction`（`function/dsfunction/*`）。
     Call(Call),
@@ -329,7 +356,10 @@ impl Expr {
             //    会让产品判 true，本切片仍判 false。零夹具覆盖，§13.5 已登记。
             Expr::Select { .. } => false,
             // Move / DSOffset / Offset 的 `left` 就是本切片的 `target`（前一个表达式）
-            Expr::Index { target } => target.is_extend(),
+            Expr::Index { target, .. } => target.is_extend(),
+            // ds[i].列：DSVariable 未覆写 isExtended（`DSVariable.java` 继承 Node）
+            // ⇒ false（探针 O1 实测 extend=17，见变体文档）
+            Expr::DsOffsetColumn { .. } => false,
             // Function/DSFunction：不向参数透传（Function 未覆写 isExtended）→ 只看类别
             Expr::Call(c) => c.kind.is_extend(),
             // Operator.isExtended() = left || right（Operator.java:51-56）——前缀只挂 right

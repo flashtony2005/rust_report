@@ -40,6 +40,7 @@
 
 use crate::error::Result;
 use crate::params::ParamTable;
+use crate::value::Value;
 
 use super::ast::{Expr, UnOp};
 use super::atom::unary;
@@ -113,22 +114,55 @@ impl<'a> Parser<'a> {
     }
 
     /// Pratt 主循环。`min_bp` 是当前层要求的最小绑定力。
-    fn parse_bp(&mut self, min_bp: u8) -> Result<Expr> {
+    pub(super) fn parse_bp(&mut self, min_bp: u8) -> Result<Expr> {
         let mut lhs = self.parse_prefix()?;
         loop {
             match self.peek() {
                 Tok::LParen if POSTFIX_BP >= min_bp => {
                     self.bump();
                     self.take_group(Tok::RParen)?; // Offset：参数对 is_extend 无用，丢弃
+                                                   // 占位下标：`(...)` 形态内容未被 AST 建模（与旧版同口径）
                     lhs = Expr::Index {
                         target: Box::new(lhs),
+                        index: Box::new(Expr::Const(Value::Null)),
                     };
                 }
                 Tok::LBracket if POSTFIX_BP >= min_bp => {
                     self.bump();
-                    self.take_group(Tok::RBracket)?; // Move / DSOffset
+                    // 下标内容**建模**（M5 带账⑤：旧版 take_group 丢弃 ⇒
+                    // `ds[i].列` 无从实现）
+                    let index = self.parse_bp(0)?;
+                    self.expect(Tok::RBracket)?;
+                    // `.列` 后缀 ⇒ `ds[i].列`（DSOffset + DSMember 合成节点）。
+                    // `.` 不是分隔符 ⇒ 后缀粘在 word 上（lexer scanId）。
+                    // ⚠ 与产品**有意偏差**：产品按 left 求值结果分派
+                    // （`DSOffset.java:33-37`：非 DataSet ⇒ `DSMember.left` 错误），
+                    // 本仓按形态分流（Value 无 DataSet 变体，见 DsOffsetColumn 文档）。
+                    if let Tok::Word(c) = self.peek().clone() {
+                        if c.starts_with('.') && c.len() > 1 {
+                            self.bump();
+                            // ds 名从 target 取（CellRef 的暂定 id / Unknown 的词）
+                            let ds = match &lhs {
+                                Expr::CellRef { id, .. } => id.clone(),
+                                Expr::Unknown(w) => w.clone(),
+                                other => {
+                                    return Err(err(format!(
+                                        "`[..].列` 的左操作数须是数据集名，实得 {other:?}"
+                                    )))
+                                }
+                            };
+                            lhs = Expr::DsOffsetColumn {
+                                ds,
+                                offset: Box::new(index),
+                                col: c[1..].to_string(),
+                            };
+                            continue;
+                        }
+                    }
+                    // 无 `.列` 后缀 ⇒ Move/Offset 形态（eval 报 UnsupportedExpr）
                     lhs = Expr::Index {
                         target: Box::new(lhs),
+                        index: Box::new(index),
                     };
                 }
                 t => {

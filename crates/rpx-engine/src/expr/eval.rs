@@ -205,6 +205,10 @@ pub fn evaluate(expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
         Expr::Index { .. } => Err(EngineError::UnsupportedExpr {
             expr: "Move/Offset".into(),
         }),
+        // `ds[i].列`（DSOffset + DSMember；探针 ProbeDsOffset O1–O9 实证）
+        Expr::DsOffsetColumn { ds, offset, col } => {
+            super::dsfn::ds_offset_column(ctx, ds, offset, col)
+        }
         Expr::Call(c) => evaluate_call(c, ctx),
         Expr::Unary { op, rhs } => evaluate_unary(*op, rhs, ctx),
         Expr::Binary { op, lhs, rhs } => evaluate_binary(*op, lhs, rhs, ctx),
