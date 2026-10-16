@@ -66,7 +66,12 @@ use common::{all_names, load};
 /// 2026-10-15（M5-04）：`engine_cross` 6 条（`ds1.select(id/name/dept/salary)` ×4 +
 /// `ds2.select(item/amount, emp_id==A3)` ×2）+ `engine_cross_root` 2 条
 /// （`ds2.select(item/amount, amount>=2000)` ×2），均 state 4 ⇒ 102 → 110。
-const TOTAL_FORMULAS: usize = 110;
+/// 2026-10-16（M5-07）：`engine_crossalign` 3 条（19h/18v 的
+/// `ds1.select(region:1,,,region)` / `ds1.select(product:1,,,product)` +
+/// 交叉点 `B1+"/"+A2`——Binary(+, CellRef, Constant) 未覆写）+
+/// `engine_crossalign_lit` 2 条 + `engine_crossalign_ds2` 2 条，
+/// 均 state 4 ⇒ 110 → 117。
+const TOTAL_FORMULAS: usize = 117;
 
 #[test]
 fn every_fixture_formula_is_state_four() {

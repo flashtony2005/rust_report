@@ -50,7 +50,9 @@ public class GenEngineFixtures {
 			"engine_rowheight", "engine_head_top", "engine_head_left",
 			"engine_avgrange", "engine_collate", "engine_listrange",
 			"engine_param", "engine_gbk", "engine_emp",
-			"engine_cross", "engine_cross_root" };
+			"engine_cross", "engine_cross_root",
+			"engine_crossalign", "engine_crossalign_lit",
+			"engine_crossalign_ds2" };
 
 	public static void main(String[] args) throws Exception {
 		String dir = args.length > 0 ? args[0] : ".";
@@ -218,7 +220,16 @@ public class GenEngineFixtures {
 										EngineModels.csvName(name))
 												? new String[] { "id", "name",
 														"dept", "salary" }
-												: new String[] { "region", "qty" };
+												: "engine_crossalign.csv"
+														.equals(EngineModels
+																.csvName(name))
+																		? new String[] {
+																				"region",
+																				"product",
+																				"amount" }
+																		: new String[] {
+																				"region",
+																				"qty" };
 		o.put("dataset", CalcJson.renderDataSet(dsHeader, EngineModels.rows(name)));
 		o.put("template_rows", rd.getRowCount());
 		o.put("template_cols", rd.getColCount());
@@ -311,7 +322,11 @@ public class GenEngineFixtures {
 								|| "engine_cross_root.csv".equals(name)
 										? new String[] { "id", "name", "dept",
 												"salary" }
-										: new String[] { "region", "qty" };
+										: "engine_crossalign.csv".equals(name)
+												? new String[] { "region",
+														"product", "amount" }
+												: new String[] { "region",
+														"qty" };
 		CalcProbe.writeCsv(dir + File.separator + name, header, data);
 		// engine_sum carries a second dataset with identical content but no
 		// extending cells referencing it, so the two aggregate scopes can be
@@ -319,6 +334,13 @@ public class GenEngineFixtures {
 		if ("engine_sum.csv".equals(name)) {
 			CalcProbe.writeCsv(dir + File.separator + name + "2",
 					new String[] { "region", "qty" }, data);
+		}
+		// M5-07: the three crossalign variants share ds1; ds2 (维表 x=A/B/C)
+		// is carried alongside by the same pattern.
+		if ("engine_crossalign.csv".equals(name)) {
+			CalcProbe.writeCsv(dir + File.separator + "engine_crossalign2.csv",
+					new String[] { "x" },
+					new String[][] { { "A" }, { "B" }, { "C" } });
 		}
 	}
 

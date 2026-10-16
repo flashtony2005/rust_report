@@ -104,6 +104,45 @@ public final class EngineModelsM5 {
 		return rd;
 	}
 
+	// ------------------------------------------------------------------
+	// engine_crossalign{,_lit,_ds2}（M5-07 维度对齐，探针 ProbeCrossAlign 实证）：
+	// 同带 19（横向）× 18（纵向）交叉展开 —— 交叉点格被复制为
+	// （横实例数 × 纵实例数）矩阵，且相对引用**分别跟随两个方向的实例**
+	// （B1 横向跟列、A2 纵向跟行，产品实测 "华北/A"…"华东/C"）。
+	// 一模板一语义点：
+	//   engine_crossalign      交叉点 = B1+"/"+A2（相对引用双头 —— 核心语义）
+	//   engine_crossalign_lit  交叉点 = 字面量（纯拓扑对照）
+	//   engine_crossalign_ds2  横向换 ds2（跨数据集双扩展对照）
+	// 数据集：ds1 = engine_crossalign.csv（region 2 值 × product 3 值真交叉），
+	//         ds2 = engine_crossalign2.csv（x 列 A/B/C，静态检入，engine_sum.csv2 模式）。
+	// ------------------------------------------------------------------
+	public static ReportDefine2 crossAlignFixture(String name) {
+		ReportDefine2 rd = new ReportDefine2(3, 3);
+		EngineModels.lit(rd, 1, 1, "区域\\产品");
+		INormalCell head = rd.getCell(1, 2);
+		head.setExtendMode(INormalCell.EXTEND_HORIZONTAL);
+		if ("engine_crossalign_ds2".equals(name)) {
+			CalcProbe.setExp(head, "ds2.select(x:1,,,x)");
+		} else {
+			CalcProbe.setExp(head, "ds1.select(region:1,,,region)");
+		}
+		INormalCell side = rd.getCell(2, 1);
+		side.setExtendMode(INormalCell.EXTEND_VERTICAL);
+		if ("engine_crossalign_ds2".equals(name)) {
+			CalcProbe.setExp(side, "ds1.select(region:1,,,region)");
+		} else {
+			CalcProbe.setExp(side, "ds1.select(product:1,,,product)");
+		}
+		if ("engine_crossalign".equals(name)) {
+			CalcProbe.setExp(rd.getCell(2, 2), "B1+\"/\"+A2");
+		} else {
+			EngineModels.lit(rd, 2, 2, "·");
+		}
+		CalcProbe.attachFileDataSet(rd, "ds1", "engine_crossalign.csv");
+		CalcProbe.attachFileDataSet(rd, "ds2", "engine_crossalign2.csv");
+		return rd;
+	}
+
 	/** 两个 CSV 文件数据集：ds1=员工主表，ds2=奖金明细（均 FileDataSet）。 */
 	private static void attachDataSets(ReportDefine2 rd) {
 		CalcProbe.attachFileDataSet(rd, "ds1", "engine_cross.csv");

@@ -13,7 +13,7 @@ use super::model::*;
 
 /// 20 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致；末两位是 M5-04
 /// 新增的嵌套主子表夹具 `engine_cross` / Root 态跨数据集 `engine_cross_root`）。
-pub fn all_names() -> [&'static str; 20] {
+pub fn all_names() -> [&'static str; 23] {
     [
         "engine_sum",
         "engine_ext",
@@ -35,6 +35,9 @@ pub fn all_names() -> [&'static str; 20] {
         "engine_emp",
         "engine_cross",
         "engine_cross_root",
+        "engine_crossalign",
+        "engine_crossalign_lit",
+        "engine_crossalign_ds2",
     ]
 }
 

@@ -15,7 +15,7 @@
 > 的过滤语义在本版运行时不可驱动（详见 §2.6 末与 §6.3 ⑧），按「无夹具不实现」
 > 纪律不实现；
 > M5-06 的 Root 态裸列语义（`ds.col` = 首行值）随 M5-01 同批闭合。
-> M5-07 未启动（cross() 维度对齐，带账后置）。
+> M5-07：**已闭合（2026-10-16）**——探针实证 + 三夹具进主对拍（详见 §6.4）。
 > 上游：M2/M3/M4 已收官（`spec-m2.md` / `spec-m3.md` / `spec-m4.md`），HEAD `9aa6caf`。
 > 立项依据：数据蒋堂讲座行动序 #2「多数据集关联语义立项（三分类 + 维度对齐）——
 > 报表工具的核心差异化，大（先探针）」（`docs/lecture-notes.md` 行动表）。
@@ -262,7 +262,7 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 | 主子表（一对多，主→从） | 显式左主格 + `从表.select(从列, 主键==主格)` | slot 30 + 跨度 + 复制循环 | **M5-03 已闭合**（机制 M2 实装，T4/T5 验收）；M5-04 补产品夹具闭环 |
 | 同维表（一对一） | `ds.filterone(...)`（IDE 有、运行时不认） | 未登记 | **带账**（§6.3）；等价写法 = num=1 的 select |
 | 多对多 | `ds.filtercross(条件)` | `DSFilterCross` | **M5-05 实现**（先探针） |
-| 维度对齐（交叉表） | 同数据集行×列双扩展 | `cross()` 归并/位图 | **M5-07 带账→后续里程碑** |
+| 维度对齐（交叉表） | 同数据集行×列双扩展 | 19×18 交叉展开（**无 `cross()` 函数**——立项时的预估机制名，源码核实产品 `FunctionLib` 只有 `filtercross`） | **M5-07 已闭合**（2026-10-16）：M2 复制循环 + M5-03 heads 链天然覆盖，三夹具进主对拍 |
 
 ## 5. 任务表（M5）
 
@@ -274,7 +274,7 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
 | M5-04 | 产品夹具 `engine_cross`（嵌套主子表）+ `engine_cross_root`（Root 变体，一模板一语义点） | `tests/fixtures`（`EngineModelsM5.java` + `GenEngineFixtures` + `engine_cross.csv`/`engine_cross.csv2`） | ✅ **已闭合**（2026-10-15）：`EngineModelsM5.crossFixture()`（r3 主格 `ds1.select(id/name/dept/salary)` + r4 从格 `ds2.select(item/amount, emp_id==A3)` 带 `setLeftHead("A3")`，title 跨 6 列合并）+ `crossRootFixture()`（3×2，Root 态 `ds2.select(item/amount, amount>=2000)` 无主格引用）；离线用 CSV 文件数据集复刻，进 `engine_grid_compare` 20 夹具主对拍全绿，Java 侧 `--verify` round-trip 同步闭合 |
 | M5-05 | `filtercross` 多对多 | `rpx-engine` | **探针完成 → 带账**（2026-10-15）：8 布局实证（从格带/主带/从从带 × 裸列/限定名 × 无选项/`@r`）+ 跟踪子类 + 解析树三路取证 ⇒ 过滤语义依赖的 `ExtExtendCell._$4` 在 filtercross 求值期间恒为 null（全源唯一写入点在其自身求值**之后**）⇒ 本版运行时不可驱动。按「无夹具不实现」纪律不实现，理由与复现路径见 §2.6 末、§6.3 ⑧ |
 | M5-06 | Root 态裸列 `ds.col` = 首行值（修 `UnsupportedExpr`） | `rpx-engine`（`expr/dsfn.rs` `root_current_data`） | ✅ **已闭合**（随 M5-01）：`dsfn::root_current_data` 实现产品 currentRow 语义；`select(item:item)` → paramTypeError 单测 + 裸列首行值单测双钉 |
-| M5-07 | `cross()` 维度对齐（交叉表同数据集双方向） | `rpx-engine` | **带账**：无夹具不实现；复现路径见 §6.4 |
+| M5-07 | 维度对齐（交叉表同数据集双方向） | `rpx-engine` | ✅ **已闭合**（2026-10-16）：探针 `ProbeCrossAlign`（4 布局）钉死产品语义——**交叉点格被复制为（横实例×纵实例）矩阵，相对引用分别跟随两方向实例**（B1 横跟列、A2 纵跟行）；三夹具 `engine_crossalign{,_lit,_ds2}` 进 `engine_grid_compare` 主对拍全绿（23 夹具）；Rust 侧 M2 复制循环 + M5-03 heads 链天然对齐，无需新实现；细节见 §6.4 |
 
 依赖序：M5-01 → M5-02 → M5-03（机制 M2 实装，本里程碑验收）→ M5-04（夹具闭环）→ M5-05（探针→带账）/M5-06 并行 → M5-07 后置。
 
@@ -330,12 +330,37 @@ r13 孙丽(5,市场部,7800)          ← 无匹配：**零从格行**
      没有能区分实现的语义出口，实现无对拍基准）；
    - **复现**：探针源码 `re_work/tmp_probe/filtercross/`（rpx 仓外），
      运行 `run.ps1`（cwd=tests/fixtures）；完整记录见 RUNLOG §42。
+9. **交叉点裸列不对齐**（M5-07 探针 B 布局核出）：19×18 交叉展开下，交叉点
+   写裸列（`ds1.amount`）产品给出 **null/首行值的混合态**（锚点 null、横向第二
+   实例 10），不是按 (region, product) 组合查行——与带账 ② 共带干扰同族；
+   本仓 Row/Root 态裸列语义未复刻此混合态，夹具不落该形态（对齐写法 =
+   相对引用双头，C 布局）。
 
-### 6.4 M5-07 复现路径
+### 6.4 M5-07 闭环记录（2026-10-16）
 
-交叉表维度对齐（`cross()`）：先造「同一数据集既纵向扩展又横向扩展」的探针模板
-（如 `ds1.select(region)` 行带 × `ds1.select(product)` 列带），dump 产品真值 →
-建夹具 → 才实现。在那之前维持带账。
+**第一步核掉一个立项假设**：产品运行时**没有 `cross()` 函数**——`FunctionLib.java:114`
+登记的 DS 函数只有 `filtercross`；「维度对齐」的产品形态就是 19（横向）× 18（纵向）
+同带交叉展开，靠 M2 扩展机制承载。
+
+**探针 `ProbeCrossAlign`**（scratch，`re_work/tmp_probe/crossalign/`；CWD=tests/fixtures）
+4 布局实证（数据集：region 2 值 × product 3 值真交叉，`select(x:1,,,x)` 去重）：
+
+| # | 布局 | 产品真值 |
+| --- | --- | --- |
+| A | 19h(region) × 18v(product)，交叉点字面量 | 网格 5×4；交叉点复制为 **2×3 矩阵**（每格同字面量）——纯拓扑成立 |
+| B | 同 A，交叉点 = `ds1.amount`（裸列） | **不对齐**：锚点 null、(2,3)=10（首行值）——共带污染近亲，登记带账 ⑨ |
+| C | 同 A，交叉点 = `B1+"/"+A2`（相对引用双头） | **完美对齐**：6 格 = 华北/A…华东/C；6 格的 `left_head`/`top_head` 均指向**源头格** (2,1)/(1,2)（dump 实测），实例化靠复制时 current 沿链传递——对齐必须靠相对引用 |
+| D | 19h(ds2.x) × 18v(ds1.region)，交叉点字面量 | 网格 4×5，结构与 A 同构（跨数据集无分歧） |
+
+**夹具三件套**（一模板一语义点，`EngineModelsM5.crossAlignFixture(name)`）：
+`engine_crossalign`（C 核心语义）/ `_lit`（A 拓扑对照）/ `_ds2`（D 跨数据集对照），
+`engine_crossalign{,2}.csv` 检入；进 `engine_grid_compare` 主对拍（23 夹具）。
+
+**Rust 侧结论**：**零新实现**——`engine_output_matches_every_fixture_cell_by_cell`
+23 夹具全绿。M2 的扩展复制循环（横扩复制右格、纵扩复制下格，交叉点被两方向
+先后复制成矩阵）+ M5-03 的 heads 链（交叉点的 left_head/top_head 自动挂接、
+相对引用沿链解析）的组合**天然覆盖**了交叉点双实例化。此前「带账待实现」的
+预估（归并/位图机制）被证伪——产品用的是结构复制，不是值对齐算法。
 
 ## 7. 变更记录
 

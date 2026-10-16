@@ -75,7 +75,7 @@ const SHAPE: [ShapeRow; 17] = [
 
 #[test]
 fn all_fixtures_load_and_self_identify() {
-    assert_eq!(all_names().len(), 20);
+    assert_eq!(all_names().len(), 23);
     for name in all_names() {
         // load 内部会校验 JSON 的 name 字段与请求名一致
         let fx = load(name);

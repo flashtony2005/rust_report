@@ -32,6 +32,11 @@ final class EngineModels {
 		if ("engine_cross_root".equals(name)) {
 			return EngineModelsM5.crossRootFixture();
 		}
+		if ("engine_crossalign".equals(name)
+				|| "engine_crossalign_lit".equals(name)
+				|| "engine_crossalign_ds2".equals(name)) {
+			return EngineModelsM5.crossAlignFixture(name);
+		}
 		if ("engine_ext".equals(name)) {
 			return extFixture();
 		}
@@ -247,6 +252,12 @@ final class EngineModels {
 	// =================================================================
 
 	static String csvName(String fixture) {
+		// M5-07：三个 crossalign 变体共用同一份主 CSV（ds1）；ds2 的
+		// engine_crossalign2.csv 由 GenEngineFixtures.writeCsv 连带写（同 engine_sum.csv2）。
+		if ("engine_crossalign".equals(fixture) || "engine_crossalign_lit".equals(fixture)
+				|| "engine_crossalign_ds2".equals(fixture)) {
+			return "engine_crossalign.csv";
+		}
 		return fixture + ".csv";
 	}
 
@@ -287,6 +298,13 @@ final class EngineModels {
 		if ("engine_cross".equals(fixture)
 				|| "engine_cross_root".equals(fixture)) {
 			return EngineModelsM5.empRows();
+		}
+		if ("engine_crossalign".equals(fixture)
+				|| "engine_crossalign_lit".equals(fixture)
+				|| "engine_crossalign_ds2".equals(fixture)) {
+			return new String[][] { { "华东", "A", "10" }, { "华东", "B", "20" },
+					{ "华北", "A", "30" }, { "华北", "B", "40" },
+					{ "华北", "C", "50" } };
 		}
 		return new String[][] { { "North", "100" }, { "East", "200" },
 				{ "South", "150" } };
