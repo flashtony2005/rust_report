@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { FUniver } from '@univerjs/presets'
 
 import {
+  applyValueEdit,
+  assertEditable,
+  downloadDefJson,
+  exportDefJson,
+  type CellValue,
+  type ReportDef,
+} from './designer'
+import {
   fetchMeta,
   fetchSnapshot,
   metaToRows,
@@ -13,16 +21,24 @@ import {
 
 /** 状态栏里算「出错」的前缀（红色上屏）。新加出错文案必须登记进来，
  * 否则会退化成灰色提示 —— 那是**静默降级**，用户看不出失败了。 */
-const ERROR_PREFIXES = ['装载失败', '入库失败', '请先', '未找到']
+const ERROR_PREFIXES = ['装载失败', '入库失败', '请先', '未找到', '编辑失败', '编辑面']
 
 /**
- * rpx 报表预览 + 定义 JSON 通道（M4 + M7-W W1）。
+ * rpx 报表预览 + 定义 JSON 通道（M4 + M7-W W1）+ 编辑面（M7-W W2-1）。
  *
- * 页面结构：顶栏（标题 + 文件选择 + 渲染/另存为）/ 参数表单（W1-2 起按
- * `/meta` 自动带出）/ 状态栏 / Univer 容器（flex 撑满）。
+ * 页面结构：顶栏（标题 + 文件选择 + 渲染 / 另存为 / **导出 JSON**）/ 参数表单
+ * （W1-2 起按 `/meta` 自动带出）/ 状态栏 / Univer 容器（flex 撑满）。
  * 数据管道：选文件（`.rpx` 或 `.json`）→ 点「渲染」→ `POST /api/render` →
  * 装载快照；点「另存为」→ `POST /reports` 拿 id → 按 `/meta` 刷新参数表单；
  * 失败原因**显式上屏**（不静默白屏）。流程见 `report.ts`。
+ *
+ * W2-1 编辑面的三条口径（实现在 `designer.ts`）：
+ * * **持有原始定义 JSON**（渲染时读文件文本）并对它打补丁 —— 不拿快照反推
+ *   （快照有损，见 `stylemap.ts` 文件头）；
+ * * **只跟 `SheetValueChanged` 事件**补用户真改过的那一格 —— 不做整体回灌，
+ *   否则 Univer 会把 `"0123"` 这类值按数值归一化，没碰过的格子也被改坏；
+ * * 编辑失败（越界 / 落在合并矩形内 / 该格由表达式驱动）**显式上屏**，
+ *   不猜、不吞。
  *
  * ⚠ 不用 `StrictMode`：dev 下 effect 双执行会二次 `createUniver` 到同一容器
  * （Univer 是 canvas 重量级挂载，非幂等）。骨架期如实取舍，见 `docs/spec-m4.md` §7。
@@ -32,10 +48,27 @@ const ERROR_PREFIXES = ['装载失败', '入库失败', '请先', '未找到']
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<FUniver | null>(null)
+  /** W2-1：单元格改动事件的订阅句柄（`addEvent` 返回的 `IDisposable`）。
+   * 重渲染会二次 `createWorkbook`，必须先把旧监听 dispose 掉，否则叠两份。 */
+  const eventDisposableRef = useRef<{ dispose: () => void } | null>(null)
   const [files, setFiles] = useState<FileList | null>(null)
   const [params, setParams] = useState<ParamRow[]>([])
   /** 「另存为」拿到的服务端 id（W1-3）；换文件即失效（id 属于旧文件）。 */
   const [saved, setSaved] = useState<{ id: number; name: string } | null>(null)
+  /** W2-1：持有的定义 JSON（**打了补丁的那份**）。只有 `.json` 报表源才有；
+   * `.rpx` 与未渲染时为 null ⇒ 编辑面不可用（`assertEditable` 给文案）。 */
+  const [def, setDef] = useState<ReportDef | null>(null)
+  /** W2-1：`def` 的镜像 ref —— 事件回调是闭包，若直接读 `def` 状态会拿到
+   * 订阅那一刻的**旧值**（改一格后 `setDef` 的新值进不来）。补丁逻辑一律
+   * 读 `defRef.current`，保证永远 patch 在最新持有的 JSON 上。 */
+  const defRef = useRef<ReportDef | null>(null)
+  /** 同时更新 `def` 状态与 `defRef` 镜像（W2-1 专用 setter）。 */
+  const setDefBoth = (next: ReportDef | null) => {
+    defRef.current = next
+    setDef(next)
+  }
+  /** W2-1：报表源形态，用于「.rpx 不能编辑」这条能力边界的提示。 */
+  const [sourceKind, setSourceKind] = useState<'json' | 'rpx' | null>(null)
   const [status, setStatus] = useState(
     '请选择 .rpx 或 .json 报表源（可一起选中其同目录 CSV），点渲染；点「另存为」后可自动带出参数清单',
   )
@@ -45,17 +78,90 @@ export default function App() {
       setStatus('请先选择报表源文件')
       return
     }
+    const report = pickReportFile(Array.from(files))
+    if (!report) {
+      setStatus('未找到报表源文件（.rpx 或 .json）')
+      return
+    }
     setStatus('正在渲染…')
     try {
       const snapshot = await fetchSnapshot(Array.from(files), params)
+      // W2-1：**先读定义 JSON 文本再挂 Univer** —— 编辑面要持原始 JSON 打补丁。
+      // 只有 `.json` 才有；`.rpx` 是二进制，持不住 ⇒ 编辑面不可用（显式告知）。
+      const isJson = report.name.toLowerCase().endsWith('.json')
+      let held: ReportDef | null = null
+      if (isJson) {
+        const text = await report.text()
+        held = JSON.parse(text) as ReportDef
+        if (!held || typeof held !== 'object' || !held.grid) {
+          throw new Error('定义 JSON 缺 grid 字段，无法进入编辑面')
+        }
+      }
       apiRef.current?.dispose()
       if (!containerRef.current) return
       apiRef.current = mountUniver(containerRef.current)
       apiRef.current.createWorkbook(snapshot as Parameters<typeof apiRef.current.createWorkbook>[0])
-      setStatus('')
+      setDefBoth(held)
+      setSourceKind(isJson ? 'json' : 'rpx')
+      setStatus(
+        held
+          ? '已装载定义 JSON，可直接编辑单元格内容；改完点「导出 JSON」拿回定义文件'
+          : '已装载（.rpx 模板只读预览）',
+      )
+      // W2-1：订阅单元格改动事件。**只补用户真改过的那一格**（理由见
+      // `designer.ts` 文件头：整体回灌会把 `"0123"` 这类值按数值归一化，
+      // 没碰过的格子也被改坏）。旧监听先 dispose，避免二次挂载叠两份。
+      eventDisposableRef.current?.dispose()
+      eventDisposableRef.current = apiRef.current.addEvent(
+        apiRef.current.Event.SheetValueChanged,
+        (params) => {
+          const ranges = params.effectedRanges
+          // 批量/多区域编辑（粘贴、填充）暂不做内容补丁 —— 超出 W2-1 单格口径；
+          // 多区域只补第一格是**静默半截**，故直接跳过，不假装成功。
+          if (!ranges || ranges.length !== 1) return
+          // 只处理「值改动」（`SET_RANGE_VALUES`）。合并/结构类改动（如
+          // 合并矩形增减）不进**内容**补丁，否则把结构动作误当成内容写坏。
+          const id = (params.payload as { id: string }).id
+          if (id !== 'sheet.mutation.set-range-values') return
+          const range = ranges[0]
+          onCellEdited(range.getRow(), range.getColumn(), range.getValue())
+        },
+      )
     } catch (e) {
+      setDefBoth(null)
+      setSourceKind(null)
       setStatus(`装载失败：${e instanceof Error ? e.message : String(e)}`)
     }
+  }
+
+  /**
+   * W2-1：把一格的值改动补丁进持有的定义 JSON。
+   *
+   * 失败**不丢弃改动也不猜**：把服务端会拒的理由原样上屏（`designer.ts` 的
+   * 四条约束各自给一句话），让用户知道为什么这一格改不了。
+   */
+  const onCellEdited = (row0: number, col0: number, value: CellValue) => {
+    const cur = defRef.current
+    if (!cur) return
+    const r = applyValueEdit(cur, row0, col0, value)
+    if (r.error) {
+      setStatus(`编辑失败：${r.error}`)
+      return
+    }
+    setDefBoth(r.def ?? cur)
+    const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
+    setStatus(`已更新定义 JSON${warn}；点「导出 JSON」拿回文件`)
+  }
+
+  /** W2-1：导出（编辑面唯一出口）。 */
+  const exportJson = () => {
+    const cur = defRef.current
+    if (!cur) {
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      return
+    }
+    downloadDefJson(cur, 'report-definition.json')
+    setStatus(`已导出定义 JSON（${exportDefJson(cur).length} 字符）`)
   }
 
   /** 「另存为」（W1-3 + W1-2）：入库拿 id → 按 `/meta` 刷新参数表单。 */
@@ -84,9 +190,10 @@ export default function App() {
     }
   }
 
-  // 卸载时收掉 Univer 实例（canvas + 监听）。
+  // 卸载时收掉单元格监听 + Univer 实例（canvas + 监听）。
   useEffect(
     () => () => {
+      eventDisposableRef.current?.dispose()
       apiRef.current?.dispose()
     },
     [],
@@ -165,6 +272,26 @@ export default function App() {
           }}
         >
           另存为
+        </button>
+        {/* W2-1：编辑面唯一出口 —— 把打过补丁的定义 JSON 下载回来。
+            只有渲染过 .json 源才有内容（`def` 非空），否则置灰（能力边界可见，
+            而不是点了才报错）。`def` 也兼作「可导出」的真理来源（见 `onCellEdited`
+            / `exportJson` 走 `defRef` 读最新值，避免闭包旧值）。 */}
+        <button
+          onClick={exportJson}
+          disabled={!def}
+          title="把编辑后的定义 JSON 下载回本地（仅 .json 报表源可用）"
+          style={{
+            fontSize: 13,
+            padding: '4px 14px',
+            border: '1px solid var(--rpx-border)',
+            borderRadius: 6,
+            background: def ? '#fff' : 'var(--rpx-bg-muted)',
+            color: def ? 'var(--rpx-fg)' : 'var(--rpx-fg-muted)',
+            cursor: def ? 'pointer' : 'not-allowed',
+          }}
+        >
+          导出 JSON
         </button>
         {saved ? (
           <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>

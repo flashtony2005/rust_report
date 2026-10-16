@@ -1,6 +1,6 @@
-# Spec — ReportLite Rust 重实现 · M7-W（Univer 前端设计器）v0.5
+# Spec — ReportLite Rust 重实现 · M7-W（Univer 前端设计器）v0.6
 
-> 状态：**v0.5（2026-10-16）—— W0、W1、W2-2a 已收口；编辑面板（W2-1/2/5）未开工**。
+> 状态：**v0.6（2026-10-16）—— W0、W1、W2-2a、W2-1 已收口；编辑面板（W2-2/3/3'）与 W2-5 未开工**。
 > 上游决策：`docs/report-def-json.md` §7.2 明写「在线设计器（`web/` 侧）—— Univer
 > 目前仍是**纯渲染终端**，在它上面做『定格式』是**新阶段**，须另立 spec」——
 > 本文件就是那份 spec。
@@ -33,14 +33,16 @@ M7-W **不承担**计算、分页、导出（那些留在服务端，`rpx-engine
 
 ## 2. 当前状态（2026-10-16 晚，W2-2a 收口后）
 
-`web/` 共 **2346 行** TypeScript，7 个源文件 + 2 个测试：
+`web/` 共 **3050 行** TypeScript，9 个源文件 + 3 个测试：
 
 | 文件 | 行数 | 职责 |
 | --- | --- | --- |
+| `designer.ts` | 232 | **编辑面（W2-1）：内容补丁 + 导出**。Univer 改动 → 定义 JSON 的**内容补丁**；守四条服务端契约（坐标系 / text↔expr 互斥 / 合并内非锚点禁内容 / 网格边界）；纯函数 |
+| `designer.test.ts` | 345 | **30 条**纯逻辑单测（坐标系 11 + 边界/合并/expr 各 2 + 补丁语义 8 + 导出往返 + 可编辑性） |
 | `stylemap.ts` | 640 | **样式映射层**（W2-2a）：Univer `IStyleData` ↔ 定义 JSON 的 12 个槽；纯函数，码表本地字面量 |
 | `stylemap.test.ts` | 549 | **43 条**纯逻辑单测（枚举对齐 2 + 录得快照 3 + 六条坑位 22 + 补丁语义 12 + 写方向 4） |
 | `probe.tsx` | 369 | W2 准入探针页（开发期，不进 `index.html`） |
-| `App.tsx` | 306 | 顶栏（选文件 + 渲染 + **另存为**）+ 参数表单 + 状态栏 + Univer 容器 |
+| `App.tsx` | 433 | 顶栏（选文件 + 渲染 + **另存为** + **导出 JSON**）+ 参数表单 + 状态栏 + Univer 容器；W2-1 在 `render` 里订阅 `SheetValueChanged` 并把单格改动补丁进定义 JSON |
 | `report.ts` | 228 | `fetchSnapshot`（`.rpx`/`.json` 双入口）+ `saveReport` + `fetchMeta` + 三个纯函数 |
 | `report.test.ts` | 243 | **25 条**纯逻辑单测（`pickReportFile` 6 + `isReportSource` 1 + `paramsToObject` 12 + `metaToRows` 6） |
 | `main.tsx` | 10 | 挂载入口 |
@@ -61,8 +63,9 @@ M7-W **不承担**计算、分页、导出（那些留在服务端，`rpx-engine
 | 打印设置覆盖（17 字段） | M7-6 | ⬜ 快照不暴露（W2-4，已降级为 JSON 声明） |
 
 ⇒ W1 清掉了「服务端已支持、前端没接」；W2-2a 把**样式这条路的映射地基**立住
-（含补丁语义：只动 12 槽、其余原样保留、幂等、改回缺省删键）。剩下的缺口是
-**面板与编辑面本身**（W2-1/W2-2/W2-5）。
+（含补丁语义：只动 12 槽、其余原样保留、幂等、改回缺省删键）；W2-1 把**内容这条路
+的补丁地基**立住（持有原始定义 JSON、只补用户真改过的那一格、四条契约前置成显式错误）。
+剩下的缺口是**样式/边框/数字格式/旋转面板**（W2-2/W2-3/W2-3'）与 W2-5。
 
 ## 3. 阻塞项（**已于 2026-10-16 解除**）
 
@@ -161,7 +164,7 @@ FI-B 是在**完整 `gate.sh`** 上跑的（不是只跑 vitest），证明红�
 
 | 项 | 内容 | 验收 |
 | --- | --- | --- |
-| W2-1 | Univer 开编辑（**默认即可编辑**，无需 `readonly:false` 开关 —— 见坑位 4），单元格内容/合并可改 | 改完导出定义 JSON，`open_bytes(to_bytes(build(json))) == build(json)` 往返成立 |
+| W2-1 | **编辑面：内容补丁 + 导出**（W2-1，**已收口 2026-10-16**）。Univer 开编辑（默认即可编辑），`SheetValueChanged` 事件驱动、只把**用户真改过的那一格**补丁进持有的定义 JSON（不打整体回灌），四条服务端契约前置成显式错误；导出 JSON 经 `/render` 往返成立 | 改完点「导出 JSON」下载定义 JSON；`open_bytes(to_bytes(build(json))) == build(json)` 往返成立（契约判据在 `designer.test.ts`） |
 | W2-2a | **样式映射层**（纯函数，`stylemap.ts`） | ✅ **已收口 2026-10-16**，见下方小节 |
 | W2-2 | 样式面板：字体/字号/颜色/粗斜下划线（M7-3 的 7 字段） | 面板设的值原样进 JSON；映射层 W2-2a 已备好（含 `ul` 布尔↔对象、颜色 `#RRGGBB`↔`{rgb}` 两层） |
 | W2-3 | 边框 / 数字格式 / 旋转面板（M7-5 的 16 槽里**可做的那部分**） | 同上；**往返判据**（快照不暴露，见 §2 表） |
@@ -172,6 +175,41 @@ FI-B 是在**完整 `gate.sh`** 上跑的（不是只跑 vitest），证明红�
 W2 的判据形态是 **M7-5 已立下的模型往返**：面板写出的 JSON 经
 `parse → to_bytes → open_bytes` 必须逐字段相等（`tests/definition_roundtrip.rs`
 的同一条判据，只是输入从手写 JSON 变成面板产物）。
+
+#### W2-1 编辑面：内容补丁 + 导出（**已收口 2026-10-16**）
+
+`web/src/designer.ts` + `web/src/designer.test.ts`（30 测试，G9 覆盖）。`App.tsx` 的
+`render` 在 `createWorkbook` 后订阅 `univerAPI.addEvent(univerAPI.Event.SheetValueChanged, …)`
+（句柄存 `eventDisposableRef`，重渲染先 `dispose` 旧监听），并把**单格**改动喂给
+[`applyValueEdit]`；「导出 JSON」按钮调用 [`downloadDefJson]`。
+
+**为什么只跟事件、只补一格**（内容补丁比样式补丁更危险 —— 写错一个字段服务端就 400）：
+
+* Univer 会把用户敲的 `"0123"` 这类值**按数值归一化**（快照里 `{"t":2,"v":123}`）。
+  若做「快照 → JSON」整体回灌，没被碰过的格子也会被归一化 ⇒ **静默数据损坏**。
+  ⇒ 入口只有 [`applyValueEdit]`，由事件驱动，**只补用户真改过的那一格**。
+* `.rpx` 模板**没有**定义 JSON 可持 ⇒ 编辑面不可用，[`assertEditable]` 给人话文案
+  （「请改用 .json 报表源」），不退化成「改了但存不下去」。
+
+**四条服务端契约全部前置成显式错误**（写错一个字段就 400，不猜、不吞）：
+
+| # | 约束 | 出处 | 违反后果 |
+| --- | --- | --- | --- |
+| 1 | **坐标系**：JSON 逻辑 1 起、Univer 快照 0 起 | `report-def-json.md` §4.1；实证 `snapshot/tests.rs`：`engine_merge` 逻辑 `(2,1)纵2` → 快照 `startRow=1,startColumn=0` | 差一格 → 内容落到隔壁格，**不报错** |
+| 2 | **`text` 与 `expr` 互斥** | `report-def-json.md` §3.2 | 用 `text` 覆盖 `expr` = **静默切断数据绑定** |
+| 3 | **合并矩形内非锚点槽不得带内容** | `reportdef/parse.rs` 两趟校验 | 服务端 400，前端却显示成功 |
+| 4 | **行列号须在 `grid` 范围内** | 同上 §3.2 | 越界 400 |
+
+**补丁语义**（`applyValueEdit`，纯函数返回新对象）：清空 ⇒ **删 `text` 键**（不是写
+`text:""`，后者是语义等于缺省的冗余键）；原格无 `cells[]` 条目 ⇒ 追加 `{row,col,text}`；
+数值/布尔一律 `String()`（JSON 的 `text` 契约类型是字符串）；重复 `(row,col)` 条目显式告警
+（静默改第一条会让用户以为改的是另一条）。
+
+**坐标系期望值不是推导来的，是 `snapshot/tests.rs` 已实证的组**（见 `designer.test.ts`
+文件头）—— 这是 W2-1 最危险的形态（差一格不报错，只是落到隔壁格），故用已实证值钉死。
+
+**判据有效性已用故障注入证明**（`designer.test.ts`）：越界 → 红、合并内非锚点 → 红、
+`expr` 格写内容 → 红、坐标系 +1/−1 往返一致、清空删键、数值 `String`、重复条目告警。
 
 #### W2-2a 样式映射层（**已收口 2026-10-16**）
 
@@ -247,8 +285,10 @@ Univer 是**表格**模型，而 rpx 有它没有的概念：`extend_mode` 的�
 3. **当** 用户点「另存为」，**系统应**把报表源经 `POST /reports` 入库并回报 id，
    且该条目在 `GET /reports` 列表可见（W1-3）。
    ✅ **已实测**：`已入库 id=1`，`/reports` 列表含 `{id:1,name:"def_params_demo"}`。
-4. **当** 用户在编辑面改完点「另存为」，**系统应**产出可被 `POST /reports` 接受的
-   定义 JSON，且该 JSON 经 `.rpx` 往返后逐字段相等（W2-1）。⬜ **待做**。
+4. **当** 用户在编辑面改完点「导出 JSON」，**系统应**产出可被 `POST /reports` 接受的
+   定义 JSON，且该 JSON 经 `.rpx` 往返后逐字段相等（W2-1）。✅ **已收口 2026-10-16**：
+   `designer.ts` 持有原始定义 JSON、`SheetValueChanged` 事件驱动只补单格、四条契约前置成
+   显式错误；30 条单测钉住契约与坐标系（已实证组），G9 覆盖。
 5. **当** 前端纯逻辑被改坏，**系统应**在 `scripts/gate.sh` 的 G9 上报红
    （W0-3；判据本身须用故障注入证明）。✅ **已证明**（§4 W0-3 的 FI-1~FI-3 + §4 W1 的 FI-A~FI-C）。
 
@@ -447,3 +487,14 @@ JSON 声明**，与 `extend_mode` 同规格。W2 代码**未开工**。 |
 「宁可报 warning 不静默丢」硬规矩。6 组故障注入全部验证有牙，其中 FI-6
 （本地码表漂移）**一针见红 6 条**，证明「与 Univer 真实运行时枚举对齐」那条判据
 真的有牙齿。**G1–G9 全绿（Rust 584 + 前端 68）。** |
+| 2026-10-16 | v0.6 **W2-1 编辑面收口** | 新增 `web/src/designer.ts`（内容补丁 + 导出，纯函数层）
++ `web/src/designer.test.ts`（**30 条**单测）。`App.tsx` 在 `render` 里订阅
+`univerAPI.addEvent(Event.SheetValueChanged)` 把**单格**改动喂给 [`applyValueEdit]`
+（句柄存 `eventDisposableRef`，重渲染先 `dispose` 旧监听，避免叠两份）；顶栏加
+**「导出 JSON」**按钮（无 `.json` 源时置灰）。守四条服务端契约（坐标系 1 起↔0 起、
+`text`↔`expr` 互斥、合并内非锚点禁内容、网格边界），全部前置成显式错误；坐标系期望值
+取自 `snapshot/tests.rs` 已实证组。关键纪律：**只跟事件、只补一格**，不做整体回灌
+（否则 `"0123"` 这类值被 Univer 按数值归一化 ⇒ 静默数据损坏）。`.rpx` 模板无定义 JSON
+可持 ⇒ `assertEditable` 给「请改用 .json」文案而非静默退化。§4 加「W2-1」小节、§5
+EARS 第 4 条由 ⬜ 改 ✅、§2 状态表补两文件（web 共 3050 行）。
+**G1–G9 全绿（Rust 584 + 前端 98）。** |
