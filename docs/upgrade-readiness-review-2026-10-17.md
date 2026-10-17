@@ -32,7 +32,7 @@
 > **2026-10-17 开发更新（JSON canonical 实施后）**
 >
 > - 已完成：baseline/tag、CI、JSON v1 reader/schema、`rpx format` 四条命令、40/40 RPX Preserve、23/23 引擎夹具 JSON 对拍、字段级 overlay、`format normalize`、v1 preset。
-> - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`report list` 隔离坏包并返回 `diagnostics`；`report import-rpx` 经 Preserve 快照 40/40；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射。
+> - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`report list` 隔离坏包并返回 `diagnostics`；`report import-rpx` 经 Preserve 快照 40/40；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射；HTTP JSON rejection 统一返回 `error` envelope。
 > - 已修：`chart-gallery` 的 3D 图表、`images` 的打印背景 → `print-xlsx` 仍会失败，但只记 warning，不再拖垮 result/workbook/其他导出。
 > 当前最该做的不是重写，而是：**先提交并冻结一个可复现基线，再用一组真实失败场景把 CLI 边界补齐，最后把文档和 CI 分成「当前架构」与「历史里程碑」两套。**
 
@@ -531,7 +531,7 @@ rpx result inspect /tmp/rpx-complex/template.json
 - 修法：用 `sqlx` 的 prepare/statement 元数据取列名，而不是依赖首行。
 - 2026-10-17 已修：`fetch_sql` 先用 `prepare` 取列，再执行查询；新增空结果回归测试。
 
-#### P1-8：HTTP 非 JSON 错误破坏 Web 错误处理
+#### P1-8：HTTP 非 JSON 错误破坏 Web 错误处理（已修）
 
 - `PUT` 非法 JSON → `text/plain` 400；错误 Content-Type → 415 文本。
 - Web `request()` 无条件 `response.json()` → `SyntaxError`，而不是 `LibraryError`，用户看到的是解析异常而不是服务端原因。
@@ -631,7 +631,7 @@ GET  /reports/{id}/runs/{run}/artifacts/{name}
 | R9 | P1 | 错误文案是 Rust Debug | `execution.rs:175-178` 实测 | 难读、不稳定、无法给 agent 可靠修复提示 |
 | R10 | P1 | 默认 GBK+TAB 静默误读 | `parse.rs:379`、`encoding.rs:54-68`；UTF-8/逗号 CSV 实测 mojibake/单列 | 最常见 CSV 直接产出错误数据 |
 | R11 | 已修 | SQL 空结果列名已保留 | `sql_source.rs` | 空报表列结构可用 |
-| R12 | P1 | HTTP 非 JSON 错误 / Web `.json()` | `http.rs:77-96`、`library-api.ts:12-16` 实测 | Web 错误处理退化 |
+| R12 | 已修 | JSON rejection 统一返回 error envelope | `http.rs` + HTTP 回归测试 | Web 可解析 400/415 |
 | R13 | P1 | 无 CI / gate 非 hermetic | 无 `.github/`；本沙箱 G2/G3/G9 因环境红 | 升级回归无法自动守住 |
 | R14 | P1 | workbook 大 Long/Decimal 精度损失 | `snapshot/value.rs:23-40` 实测 9007199254740993 → JS 不可保真 | Web 显示与 result.json 不一致 |
 | R15 | P2 | `rpx-runtime` 过大 | 6.7k 生产行，职责 7+ 类 | 后续功能继续堆叠，测试/审查成本上升 |

@@ -1,6 +1,6 @@
 //! Library JSON source editing and fixed run artifacts. No calculation handlers.
 use axum::{
-    extract::{DefaultBodyLimit, Path, Query, State},
+    extract::{rejection::JsonRejection, DefaultBodyLimit, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
@@ -78,8 +78,23 @@ async fn save(
     State(root): State<PathBuf>,
     Path(id): Path<String>,
     headers: HeaderMap,
-    Json(value): Json<J>,
+    payload: std::result::Result<Json<J>, JsonRejection>,
 ) -> Response {
+    let value = match payload {
+        Ok(Json(value)) => value,
+        Err(e) => {
+            let code = match e.status() {
+                StatusCode::UNSUPPORTED_MEDIA_TYPE => "UNSUPPORTED_MEDIA_TYPE",
+                StatusCode::PAYLOAD_TOO_LARGE => "PAYLOAD_TOO_LARGE",
+                _ => "JSON_INVALID",
+            };
+            return (
+                e.status(),
+                Json(json!({"error":{"code":code,"message":e.body_text()}})),
+            )
+                .into_response();
+        }
+    };
     let expected = headers
         .get(header::IF_MATCH)
         .and_then(|v| v.to_str().ok())
