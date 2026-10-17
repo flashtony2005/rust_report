@@ -109,3 +109,42 @@ fn engine_fixtures_calculate_from_json_projection() {
     assert_eq!(checked, names().len(), "checked {checked}");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+#[test]
+fn edited_preserve_json_keeps_unmodeled_cell_fields() {
+    let dir = fixtures_dir();
+    let bytes = std::fs::read(dir.join("engine_merge.rpx")).unwrap();
+    let converted = format::rpx_to_json(
+        &bytes,
+        Options {
+            mode: Mode::PreserveLegacy,
+        },
+    )
+    .unwrap();
+    let mut doc = converted.document;
+    let cell = doc["cells"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["row"] == 2 && c["col"] == 1)
+        .expect("A2");
+    cell["font_size"] = json!(13);
+    let rebuilt = format::json_to_rpx(
+        &doc,
+        Options {
+            mode: Mode::PreserveLegacy,
+        },
+    )
+    .unwrap();
+    let rd = rpx_core::open_bytes(&rebuilt).unwrap();
+    let a2 = rd.cell_at(2, 1).unwrap();
+    let a3 = rd.cell_at(3, 1).unwrap();
+    assert_eq!(a2.font_size, 13);
+    assert_eq!(a2.extend_mode, 18);
+    assert_eq!(
+        a3.extend_mode, 16,
+        "independent merge continuation preserved"
+    );
+    assert!(a3.merged_area.is_none());
+    assert!(a2.exp_map.is_some(), "unmodeled exp_map preserved");
+}

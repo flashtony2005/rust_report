@@ -1,6 +1,6 @@
 # ADR 0001 — JSON 成为规范报表格式，`.rpx` 降级为 legacy 适配器
 
-- 状态：**Accepted — Phase 0 完成，Phase 1 完成（2026-10-17）；Phase 2 进行中**
+- 状态：**Accepted — Phase 0/1 完成；Phase 2 字段级 overlay + v1 normalize 完成，测试默认输入/feature 化进行中**
 - 日期：2026-10-17
 - 决策范围：报表定义格式、`rpx-core`/`rpx-runtime` 边界、CLI/Web/Server 的输入输出
 - 关联文档：
@@ -175,6 +175,18 @@
 
 **目标**：让 JSON 成为日常唯一路径，`.rpx` 只做 legacy/测试。
 
+**已完成（2026-10-17）**：
+
+- `format/overlay.rs`：编辑后的 preserve JSON 用原模型整 struct 合并未建模字段（cell/row/col/report/dataset/print），`format to-rpx` 可正常写出。
+- `format normalize`：v0/v1 → v1；`template create` / `library init --presets` 写 v1 标记。
+- 23/23 引擎夹具 JSON 投影逐格/逐段对拍；40/40 产品 RPX Preserve + 快照字节往返。
+
+**剩余**：
+
+- 引擎测试默认输入切 JSON（`.rpx` 只保留兼容对照）。
+- `.rpx`/`rpx-core` feature 化（Phase 3 前置）。
+- 结构性编辑（增删行列）下的 overlay：当前显式报 `LEGACY_STRUCTURAL_EDIT`，待支持后再放开。
+
 任务：
 
 1. writer 默认写 v1（`format`/`format_version`/`schema`）；保留 `--compat=v0` 一个版本。
@@ -283,8 +295,8 @@
   - Phase 0：baseline commit `33c6b11` + tag `v0.2.0-baseline`；`.github/workflows/ci.yml`；`format` / `format_version` / `meta` / `extensions` reader；`tests/fixtures/format/` golden corpus；schema 文件。
   - Phase 1（迁移快照模式）：`rpx_runtime::format` 的 `rpx_to_json` / `json_to_rpx` / `verify`；`rpx format to-json|to-rpx|verify|check`；40/40 产品 `.rpx` Preserve + 快照字节往返；23/23 引擎夹具 JSON 投影逐格/逐段对拍。
   - Phase 1 收口：23/23 引擎夹具用 JSON 投影完成 `calculated`/`pagination`/`merged` 对拍；`engine_merge` 的合并延续独立格已用快照 overlay 还原。
-- Phase 2 起始：`format normalize` 命令；`template create` / `library init --presets` 写 v1 标记；23/23 引擎夹具 JSON 对拍已通过。
-- 待办：字段级 legacy 覆盖（非合并延续字段）、测试默认输入全面切 JSON、`.rpx` feature 化。
+- Phase 2：字段级 `format/overlay.rs` 已实现（编辑后的 preserve JSON 可写出）；`format normalize`；`template create` / `library init --presets` 写 v1；23/23 引擎夹具 JSON 对拍。
+- 待办：测试默认输入全面切 JSON、结构性编辑 overlay 边界、`.rpx` feature 化。
 - 评审通过条件：
   1. 确认“JSON canonical + RPX legacy”是目标；
   2. 确认 Phase 0 的 baseline/CI 是前置；

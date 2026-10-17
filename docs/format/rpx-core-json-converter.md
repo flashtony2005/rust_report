@@ -1,6 +1,6 @@
 # `rpx-core → JSON` 无损转换器 — 接口与迁移测试清单
 
-> 状态：**Phase 1 已实现并收口（迁移快照 + 合并延续格 overlay）；逐字段 legacy 覆盖待 Phase 2**
+> 状态：**Phase 2 字段级 overlay 已实现并收口（cell/row/col/report/dataset/print）；字节相等只承诺未编辑快照**
 > 上游格式：`docs/format/rpx-report-json-v1.md`
 > 决策：`docs/adr/0001-json-canonical-format.md`
 > 本文里的“无损”有严格分层，不是一句口号；见 §1。
@@ -151,7 +151,7 @@ pub fn model_to_json(rd: &ReportDefine, opts: &ConvertOptions) -> Result<Convert
 /// v1 / v0 JSON → ReportDefine；忽略 extensions["rpx.legacy"]。
 pub fn json_to_model(doc: &J) -> Result<ReportDefine>;
 
-/// v1 / v0 JSON → .rpx bytes；Preserve 且未编辑时返回原始快照，编辑后报 LEGACY_READ_ONLY。
+/// v1 / v0 JSON → .rpx bytes；Preserve 且未编辑时返回原始快照，编辑后走字段级 overlay。
 pub fn json_to_rpx(doc: &J, opts: &ConvertOptions) -> Result<Vec<u8>>;
 
 /// 迁移验收：读 → JSON → 模型/字节 → 再读，比较。
@@ -164,12 +164,12 @@ pub fn verify(bytes: &[u8], opts: &ConvertOptions) -> Result<VerifyReport>;
 |---|---|---|
 | `rpx_to_json` | Preserve 时写入 | 迁移/导出 |
 | `json_to_model` | 忽略 | runtime/渲染/校验 |
-| `json_to_rpx` | Preserve 时校验快照哈希；未编辑则原样返回，编辑则拒绝 | 回写/验收 |
+| `json_to_rpx` | Preserve 时未编辑原样返回；编辑后 overlay 合并未建模字段再写出 | 回写/验收 |
 | `verify` | Preserve 时使用快照 | 测试/交付验证 |
 
 - `json_to_model` 必须忽略未知 `extensions`，否则 Web 加一个 vendor 扩展就会让运行失败。
-- `json_to_rpx` 在 `PreserveLegacy` 下读取 `extensions["rpx.legacy"]`：`modeled_sha256` 一致则原样返回原始字节；不一致（即 JSON 被编辑）则报 `LEGACY_READ_ONLY`。这是 Phase 1 的迁移边界，不是长期编辑面。
-- 逐字段 `LEGACY_CONFLICT` / `LEGACY_ORPHAN` 属于 Phase 2 的字段级 legacy 覆盖；Phase 1 用快照哈希避免静默丢失。
+- `json_to_rpx` 在 `PreserveLegacy` 下读取 `extensions["rpx.legacy"]`：`modeled_sha256` 一致则原样返回原始字节；不一致（即 JSON 被编辑）则用字段级 overlay 合并未建模字段后写出。语义保留，不保证字节相等。
+- `LEGACY_INVALID` 用于快照 base64/sha256/format 损坏；不静默忽略。
 - `rpx_to_json` 在 `Strict` 下遇到任一未建模字段就失败；错误必须带 JSON Pointer。
 
 ### 3.2 错误码
@@ -178,9 +178,8 @@ pub fn verify(bytes: &[u8], opts: &ConvertOptions) -> Result<VerifyReport>;
 |---|---|---:|
 | `FORMAT_VERSION_UNSUPPORTED` | reader 不支持该 `format_version` | 3 |
 | `UNSUPPORTED_FIELD` | Strict 模式下有未建模字段 | 3 |
-| `LEGACY_READ_ONLY` | Preserve 快照存在但可建模字段被编辑 | 3 |
-| `LEGACY_CONFLICT` | 字段级 legacy 与显式字段冲突（Phase 2） | 3 |
-| `LEGACY_ORPHAN` | 字段级 legacy key 找不到宿主（Phase 2） | 3 |
+| `LEGACY_INVALID` | 迁移快照损坏（base64/sha256/format） | 3 |
+| `LEGACY_STRUCTURAL_EDIT` | 含快照时增删行列（Phase 2 暂不支持） | 3 |
 | `ROUNDTRIP_MISMATCH` | verify 的 L1/L2 不成立 | 3 |
 | `INVALID_JSON` / `INVALID_MODEL` | 输入不合法 | 3 |
 | `SIZE_LIMIT` | 超出网格/文件上限 | 3 |
@@ -221,15 +220,15 @@ doc
   → 若 Preserve 且存在快照：
         modeled_sha256(doc) == snapshot.modeled_sha256 ?
           → 返回 snapshot.bytes
-          → 否则 LEGACY_READ_ONLY
-  → json_to_model(doc)              # v0/v1；忽略 legacy
+          → 否则继续
+  → json_to_model(doc)              # v0/v1 + 字段级 overlay
   → validate_model(rd)
   → rpx_core::to_bytes(rd)
   → （可选）open_bytes(bytes) 断言模型相等
 ```
 
 - `json_to_model` 与 `rpx_to_json` 共用同一套 JSON 字段表。
-- Phase 1 不把快照字段合并回模型；快照只用于“未编辑时原样回写”。
+- 编辑路径由 `format/overlay.rs` 把原 `ReportDefine` 的未建模字段合并回解析模型：整 struct clone + 覆盖已建模槽，避免逐字段枚举遗漏。
 - 写回后再次 `validate_model`，防止 JSON 改动产生非法模型。
 
 ### 4.3 `verify`
@@ -349,7 +348,7 @@ json_sha256 = sha256(canonical(json))
 
 ## 6. legacy 舱的 key 设计
 
-**Phase 1 实现是单个原始快照**（`format` / `encoding` / `sha256` / `modeled_sha256` / `data`）；下面这份地址/名字映射是 Phase 2 的逐字段 legacy 目标。
+**实现使用单个原始快照**（`format` / `encoding` / `sha256` / `modeled_sha256` / `data`）作为未建模字段的来源；`format/overlay.rs` 在模型层按 cell/row/col/report/dataset/print 合并。下面这份地址/名字映射是描述性目标，不是额外的 JSON 键。
 
 不要用数组下标，用稳定标识：
 
@@ -440,7 +439,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
 | T11 | 数据集高级槽 | `colList`/`filter`/`beginRow` 等 | legacy 保留，L1 相等 |
 | T12 | print_setup 全槽 | `paper`/`orient` 等 | legacy 保留，L1 相等 |
 | T13 | `ObjValue` 未建模类型 | BigInteger/Millis/Obj/Bytes | 标签编码，L1 相等；未知标签显式失败 |
-| T14 | 快照编辑保护 | 手工编辑 preserve JSON | 未编辑时 `bytes_equal=true`；编辑后 `LEGACY_READ_ONLY`，不静默 |
+| T14 | 快照编辑 overlay | 手工编辑 preserve JSON | 未编辑时 `bytes_equal=true`；字段编辑可写出且未建模字段保留；增删行列报 `LEGACY_STRUCTURAL_EDIT` |
 | T15 | 规范化/确定性 | 同语义不同 key 顺序/空白 | canonical JSON 相同；`source_revision` 仍按原始字节 |
 | T16 | fuzz/鲁棒性 | 随机 JSON + 随机 RPX bytes | 无 panic；错误有 pointer；大小上限 |
 | T17 | CLI 契约 | 真实二进制 | `format to-json/to-rpx/verify/check` 的 0/3/6 退出码与 JSON envelope |

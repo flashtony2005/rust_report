@@ -3,11 +3,10 @@
 //! 设计取舍：v1 目前没有为全部产品字段建 JSON 表达；为了让 40 个产品 `.rpx`
 //! 都能先“安全迁移”，Preserve 模式把**原始 `.rpx` 字节**放进
 //! `extensions["rpx.legacy"]`，并记录可建模部分的哈希。只要 JSON 的可建模
-//! 部分未被编辑，`json_to_rpx` 可以原样还回原字节；一旦编辑，明确报
-//! `LEGACY_READ_ONLY`，要求先移除 legacy 舱再导出（或等待 Phase 2 的逐字段
-//! 覆盖实现）。
+//! 部分未被编辑，`json_to_rpx` 可以原样还回原字节；一旦编辑，`format/overlay.rs`
+//! 把原模型未建模字段合并回解析模型再写出（语义保留，不保证字节相等）。
 //!
-//! 这不是长期编辑格式；它是迁移/验收的安全绳。
+//! 这不是长期编辑格式；它是迁移/验收与字段级 overlay 的安全绳。
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Map, Value as J};
@@ -98,47 +97,6 @@ pub fn read(doc: &J) -> Option<Snapshot> {
         bytes,
         modeled_sha256,
     })
-}
-
-/// 把原 RPX 中“合并区里仍有独立格”的继承单元格补回模型。
-///
-/// 产品 `.rpx` 允许合并区延续槽持有独立 `Cell`（例如 `engine_merge` 的 A3：
-/// 锚点 A2 是纵向扩展格，A3 仍是 `extend=16` 的独立格）。JSON v1 的 `merge`
-/// 语义只表达锚点，parser 会把延续槽建成锚点别名；若原文件有独立格，计算态会
-/// 出现 `source.extend` 差异。这里用迁移快照把独立延续格克隆回 `grid`。
-pub fn apply_merge_continuations(doc: &J, rd: &mut rpx_core::ReportDefine) {
-    let Some(snapshot) = read(doc) else {
-        return;
-    };
-    let Ok(original) = rpx_core::open_bytes(&snapshot.bytes) else {
-        return;
-    };
-    if original.rows != rd.rows || original.cols != rd.cols {
-        return;
-    }
-    for area in &original.merges {
-        for row in area.begin_row..=area.end_row {
-            for col in area.begin_col..=area.end_col {
-                if row == area.begin_row && col == area.begin_col {
-                    continue;
-                }
-                let Some(original_cell) = original.cell_at(row, col) else {
-                    continue;
-                };
-                let original_id = original.grid[row][col];
-                let anchor_id = original.grid[area.begin_row][area.begin_col];
-                if original_id == anchor_id {
-                    continue;
-                }
-                let Some(slot) = rd.grid.get_mut(row).and_then(|r| r.get_mut(col)) else {
-                    continue;
-                };
-                let id = rd.store.len();
-                rd.store.push(original_cell.clone());
-                *slot = Some(id);
-            }
-        }
-    }
 }
 
 /// 移除 legacy 舱，返回是否移除。

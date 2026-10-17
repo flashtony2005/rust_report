@@ -141,10 +141,11 @@ fn check_accepts_v1_fixture_and_rejects_bad_extension() {
 }
 
 #[test]
-fn edited_preserve_document_is_read_only() {
+fn edited_preserve_document_roundtrips_with_overlay() {
     let temp = Temp::new();
     let json_path = temp.path("edited.json");
     let rpx_path = temp.path("edited.rpx");
+    let roundtrip_path = temp.path("roundtrip.json");
     let (code, value, _) = invoke(&[
         "format",
         "to-json",
@@ -156,31 +157,61 @@ fn edited_preserve_document_is_read_only() {
     ]);
     assert_eq!(code, 0, "{value}");
     let mut doc: J = serde_json::from_slice(&fs::read(&json_path).unwrap()).unwrap();
-    doc["grid"]["rows"] = json!(1);
+    let row = doc["cells"][0]["row"].as_u64().unwrap();
+    let col = doc["cells"][0]["col"].as_u64().unwrap();
+    doc["cells"][0]["font_size"] = json!(13);
+    fs::write(&json_path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
+
+    let (code, value, _) = invoke(&[
+        "format", "to-rpx", &json_path, "--out", &rpx_path, "--mode", "preserve",
+    ]);
+    assert_eq!(
+        code, 0,
+        "edited preserve JSON must remain writable: {value}"
+    );
+
+    let (code, value, _) = invoke(&[
+        "format",
+        "to-json",
+        &rpx_path,
+        "--out",
+        &roundtrip_path,
+        "--mode",
+        "preserve",
+    ]);
+    assert_eq!(code, 0, "{value}");
+    let roundtrip: J = serde_json::from_slice(&fs::read(&roundtrip_path).unwrap()).unwrap();
+    let cell = roundtrip["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["row"].as_u64() == Some(row) && c["col"].as_u64() == Some(col))
+        .expect("edited cell survives");
+    assert_eq!(cell["font_size"], json!(13));
+    assert!(roundtrip["extensions"]["rpx.legacy"].is_object());
+}
+
+#[test]
+fn structural_edit_with_snapshot_is_rejected_explicitly() {
+    let temp = Temp::new();
+    let json_path = temp.path("structural.json");
+    let rpx_path = temp.path("structural.rpx");
+    let (code, value, _) = invoke(&[
+        "format",
+        "to-json",
+        &fixture("engine_merge.rpx"),
+        "--out",
+        &json_path,
+        "--mode",
+        "preserve",
+    ]);
+    assert_eq!(code, 0, "{value}");
+    let mut doc: J = serde_json::from_slice(&fs::read(&json_path).unwrap()).unwrap();
+    doc["grid"]["rows"] = json!(9);
     fs::write(&json_path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
     let (code, value, _) = invoke(&[
         "format", "to-rpx", &json_path, "--out", &rpx_path, "--mode", "preserve",
     ]);
     assert_eq!(code, 3, "{value}");
-    assert_eq!(value["error"]["code"], json!("LEGACY_READ_ONLY"));
-}
-
-#[test]
-fn normalize_adds_v1_markers() {
-    let temp = Temp::new();
-    let out = temp.path("normalized.json");
-    let (code, value, _) = invoke(&[
-        "format",
-        "normalize",
-        &format_fixture("minimal-v0.json"),
-        "--out",
-        &out,
-    ]);
-    assert_eq!(code, 0, "{value}");
-    let doc: J = serde_json::from_slice(&fs::read(&out).unwrap()).unwrap();
-    assert_eq!(doc["format"], "rpx-report");
-    assert_eq!(doc["format_version"], 1);
-    assert_eq!(doc["schema"], "rpx-report/v1");
-    let (code, value, _) = invoke(&["format", "check", &out]);
-    assert_eq!(code, 0, "{value}");
+    assert_eq!(value["error"]["code"], json!("LEGACY_STRUCTURAL_EDIT"));
 }

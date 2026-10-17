@@ -380,7 +380,7 @@
 | `template patch` | ✅ | ✅ | ✅ | RFC 6902、dry-run、stdin、原子写 |
 | `template compile` | ✅ | ✅ | ✅ | JSON → `.rpx`，legacy 入口 |
 | `format to-json` | ✅ | ✅ | ✅ | RPX → JSON v1；preserve 带原始快照 |
-| `format to-rpx` | ✅ | ✅ | ✅ | 未编辑快照原样回写；编辑后 `LEGACY_READ_ONLY` |
+| `format to-rpx` | ✅ | ✅ | ✅ | 未编辑快照原样回写；编辑后字段级 overlay 合并 |
 | `format verify` | ✅ | ✅ | ✅ | 40/40 Preserve + 快照字节往返已实测 |
 | `format check` | ✅ | ✅ | ✅ | v1/v0 reader 校验 |
 | `format normalize` | ✅ | ✅ | ✅ | v0/v1 → v1 标记 |

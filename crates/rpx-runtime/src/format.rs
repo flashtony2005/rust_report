@@ -7,6 +7,7 @@
 
 mod legacy;
 mod modeled;
+mod overlay;
 
 use crate::{
     definition,
@@ -92,29 +93,59 @@ pub fn normalize(doc: &J) -> Result<J> {
 
 /// v1/v0 JSON → [`ReportDefine`]；忽略 `extensions`。
 pub fn json_to_model(doc: &J) -> Result<ReportDefine> {
+    reject_corrupt_legacy(doc)?;
     let (mut rd, _) = definition::parse(doc)?;
-    legacy::apply_merge_continuations(doc, &mut rd);
+    overlay::apply(doc, &mut rd);
     Ok(rd)
+}
+
+fn has_legacy(doc: &J) -> bool {
+    doc.get("extensions")
+        .and_then(|v| v.get(legacy::KEY))
+        .is_some()
+}
+
+fn reject_corrupt_legacy(doc: &J) -> Result<()> {
+    if has_legacy(doc) && legacy::read(doc).is_none() {
+        return Err(Error::new(
+            3,
+            "LEGACY_INVALID",
+            "format",
+            "extensions.rpx.legacy 存在但快照无效（base64/sha256/format 不匹配）",
+        )
+        .at("/extensions/rpx.legacy"));
+    }
+    Ok(())
 }
 
 /// v1/v0 JSON → `.rpx` 字节。
 ///
 /// Preserve 模式且存在未被编辑的迁移快照时直接返回原字节；一旦可建模字段被
-/// 编辑，返回 `LEGACY_READ_ONLY`，要求先移除快照再导出。这样不会出现
-/// “编辑了 JSON，但写回时丢了未建模字段”的静默损失。
+/// 编辑，用字段级 overlay 把未建模字段合并回模型再写出。语义保留，不保证
+/// 字节相等；原始字节路径只用于“未编辑”的文件。
 pub fn json_to_rpx(doc: &J, opts: Options) -> Result<Vec<u8>> {
     if opts.mode != Mode::DropLegacy {
+        reject_corrupt_legacy(doc)?;
         if let Some(snapshot) = legacy::read(doc) {
             if legacy::modeled_sha256(doc) == snapshot.modeled_sha256 {
                 return Ok(snapshot.bytes);
             }
-            return Err(Error::new(
-                3,
-                "LEGACY_READ_ONLY",
-                "format",
-                "该 JSON 含 RPX 迁移快照，且可建模字段已被编辑；请先移除 extensions.rpx.legacy 再导出，或重新从 .rpx 迁移",
-            )
-            .at("/extensions/rpx.legacy"));
+            // 结构性编辑（增删行列）会让未建模槽失去宿主；Phase 2 显式拒绝，
+            // 等字段级 overlay 支持结构变更后再放开。
+            let (parsed, _) = definition::parse(doc)?;
+            let original = rpx_core::open_bytes(&snapshot.bytes)
+                .map_err(|e| Error::new(3, "RPX_INVALID", "format", e))?;
+            if parsed.rows != original.rows || parsed.cols != original.cols {
+                return Err(Error::new(
+                    3,
+                    "LEGACY_STRUCTURAL_EDIT",
+                    "format",
+                    "含 RPX 迁移快照时暂不支持增删行列；请先移除 extensions.rpx.legacy 再导出",
+                )
+                .at("/extensions/rpx.legacy"));
+            }
+            // 已编辑：用字段级 overlay 把未建模字段合并回模型，再走普通写出。
+            // 语义保留；不保证字节相等（原始字节路径只用于“未编辑”）。
         }
     }
     let rd = json_to_model(doc)?;
@@ -204,11 +235,12 @@ mod tests {
     }
 
     #[test]
-    fn editing_snapshot_json_is_rejected() {
+    fn editing_snapshot_json_uses_overlay() {
         let doc = json!({
             "format": "rpx-report",
             "format_version": 1,
             "grid": {"rows": 1, "cols": 1},
+            "cells": [{"row": 1, "col": 1, "text": "hello"}],
         });
         let bytes = json_to_rpx(&doc, Options::default()).unwrap();
         let mut converted = rpx_to_json(
@@ -218,14 +250,15 @@ mod tests {
             },
         )
         .unwrap();
-        converted.document["grid"]["rows"] = json!(2);
-        let error = json_to_rpx(
+        converted.document["cells"][0]["font_size"] = json!(13);
+        let rebuilt = json_to_rpx(
             &converted.document,
             Options {
                 mode: Mode::PreserveLegacy,
             },
         )
-        .unwrap_err();
-        assert_eq!(error.diagnostic["code"], json!("LEGACY_READ_ONLY"));
+        .unwrap();
+        let rd = rpx_core::open_bytes(&rebuilt).unwrap();
+        assert_eq!(rd.cell_at(1, 1).unwrap().font_size, 13);
     }
 }

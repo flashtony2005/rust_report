@@ -1,6 +1,6 @@
 # RPX Report JSON — Format v1（设计稿）
 
-> 状态：**Phase 0 reader 已实现；Phase 1 迁移快照 + 合并延续 overlay 已实现；新 preset 已写 v1；v2 尚未实现**
+> 状态：**Phase 0 reader 已实现；Phase 1 迁移快照 + Phase 2 字段级 overlay 已实现；新 preset 已写 v1；v2 尚未实现**
 > 目标：把当前“事实上的 JSON 定义”升级为**有明确 `format_version`、兼容策略和扩展位的规范格式**。
 > 关联决策：`docs/adr/0001-json-canonical-format.md`
 > 关联转换器：`docs/format/rpx-core-json-converter.md`
@@ -310,9 +310,9 @@ v1 保持当前顶层字段名，避免一次性重排：
 
 - `data` 是原始 `.rpx` 字节的 base64；`sha256` 是原始字节哈希。
 - `modeled_sha256` 是“会进入 `ReportDefine` 的可建模字段”的规范化哈希；不包含 `meta`/`extensions`。
-- `json_to_rpx` 在快照存在且 `modeled_sha256` 未变化时原样返回原字节；一旦可建模字段被编辑，返回 `LEGACY_READ_ONLY`，要求先移除快照再导出。**不会静默丢弃未建模字段。**
+- `json_to_rpx` 在快照存在且 `modeled_sha256` 未变化时原样返回原字节；一旦可建模字段被编辑，用字段级 overlay 合并未建模字段后写出。**不会静默丢弃未建模字段；编辑后不保证字节相等。**
 
-Phase 2 可以把原始快照升级为以下**逐字段 legacy 舱**（迁移期间也可保留给需要细粒度编辑的场景）：
+Phase 2 的实现选择是保留原始快照、由 `format/overlay.rs` 在模型层合并；下面的**逐字段 legacy 舱**是另一种可选形态（若未来需要把未建模字段直接暴露成 JSON）：
 
 ```json
 "rpx.legacy": {

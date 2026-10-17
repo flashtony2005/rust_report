@@ -22,8 +22,8 @@ SQL 连接只通过显式 `--datasources FILE` 提供；不要写进模板。
 需要新导出时在 run 中指定 `--export csv|xlsx|print-xlsx`。失败记录保留，旧成功结果仍可查看。
 RPX 通过显式 `report import-rpx` 分析和导入；不支持的属性必须修正或报告，不能丢字段后伪称无损。
 迁移前先 `rpx format verify FILE.rpx --mode preserve`；`format to-json` 会把原始 RPX 字节放进
-`extensions.rpx.legacy`。该快照是迁移用的，不是编辑面：编辑可建模字段后 `format to-rpx`
-会报 `LEGACY_READ_ONLY`，必须先移除 legacy 扩展再导出。
+`extensions.rpx.legacy`。编辑可建模字段后 `format to-rpx` 会用字段级 overlay 把未建模字段
+合并回模型再写出；语义保留，不保证字节相等。
 
 三份可复制的例子（目录必须尚不存在）：
 
