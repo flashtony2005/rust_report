@@ -35,11 +35,16 @@ pub enum Mode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Options {
     pub mode: Mode,
+    /// 允许含快照的结构性编辑（尾部增删/坐标不变的重叠区）；默认拒绝。
+    pub allow_structural: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { mode: Mode::Strict }
+        Self {
+            mode: Mode::Strict,
+            allow_structural: false,
+        }
     }
 }
 
@@ -147,12 +152,14 @@ pub fn json_to_rpx(doc: &J, opts: Options) -> Result<Vec<u8>> {
             let (parsed, _) = definition::parse(doc)?;
             let original = rpx_core::open_bytes(&snapshot.bytes)
                 .map_err(|e| Error::new(3, "RPX_INVALID", "format", e))?;
-            if parsed.rows != original.rows || parsed.cols != original.cols {
+            if (parsed.rows != original.rows || parsed.cols != original.cols)
+                && !opts.allow_structural
+            {
                 return Err(Error::new(
                     3,
                     "LEGACY_STRUCTURAL_EDIT",
                     "format",
-                    "含 RPX 迁移快照时暂不支持增删行列；请先移除 extensions.rpx.legacy 再导出",
+                    "含 RPX 迁移快照时暂不支持增删行列；请加 --allow-structural（仅保证重叠区）或先移除 extensions.rpx.legacy",
                 )
                 .at("/extensions/rpx.legacy"));
             }
@@ -233,6 +240,7 @@ mod tests {
             &bytes,
             Options {
                 mode: Mode::PreserveLegacy,
+                allow_structural: false,
             },
         )
         .unwrap();
@@ -242,6 +250,7 @@ mod tests {
             &converted.document,
             Options {
                 mode: Mode::PreserveLegacy,
+                allow_structural: false,
             },
         )
         .unwrap();
@@ -261,6 +270,7 @@ mod tests {
             &bytes,
             Options {
                 mode: Mode::PreserveLegacy,
+                allow_structural: false,
             },
         )
         .unwrap();
@@ -269,6 +279,7 @@ mod tests {
             &converted.document,
             Options {
                 mode: Mode::PreserveLegacy,
+                allow_structural: false,
             },
         )
         .unwrap();

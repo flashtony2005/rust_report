@@ -179,7 +179,7 @@ pub fn verify(bytes: &[u8], opts: &ConvertOptions) -> Result<VerifyReport>;
 | `FORMAT_VERSION_UNSUPPORTED` | reader 不支持该 `format_version` | 3 |
 | `UNSUPPORTED_FIELD` | Strict 模式下有未建模字段 | 3 |
 | `LEGACY_INVALID` | 迁移快照损坏（base64/sha256/format） | 3 |
-| `LEGACY_STRUCTURAL_EDIT` | 含快照时增删行列（Phase 2 暂不支持） | 3 |
+| `LEGACY_STRUCTURAL_EDIT` | 含快照时增删行列且未加 `--allow-structural` | 3 |
 | `ROUNDTRIP_MISMATCH` | verify 的 L1/L2 不成立 | 3 |
 | `INVALID_JSON` / `INVALID_MODEL` | 输入不合法 | 3 |
 | `SIZE_LIMIT` | 超出网格/文件上限 | 3 |
@@ -439,7 +439,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
 | T11 | 数据集高级槽 | `colList`/`filter`/`beginRow` 等 | legacy 保留，L1 相等 |
 | T12 | print_setup 全槽 | `paper`/`orient` 等 | legacy 保留，L1 相等 |
 | T13 | `ObjValue` 未建模类型 | BigInteger/Millis/Obj/Bytes | 标签编码，L1 相等；未知标签显式失败 |
-| T14 | 快照编辑 overlay | 手工编辑 preserve JSON | 未编辑时 `bytes_equal=true`；字段编辑可写出且未建模字段保留；增删行列报 `LEGACY_STRUCTURAL_EDIT` |
+| T14 | 快照编辑 overlay | 手工编辑 preserve JSON | 未编辑时 `bytes_equal=true`；字段编辑可写出且未建模字段保留；结构性编辑默认报错，`--allow-structural` 仅保证重叠区 |
 | T15 | 规范化/确定性 | 同语义不同 key 顺序/空白 | canonical JSON 相同；`source_revision` 仍按原始字节 |
 | T16 | fuzz/鲁棒性 | 随机 JSON + 随机 RPX bytes | 无 panic；错误有 pointer；大小上限 |
 | T17 | CLI 契约 | 真实二进制 | `format to-json/to-rpx/verify/check` 的 0/3/6 退出码与 JSON envelope |

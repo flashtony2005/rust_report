@@ -105,6 +105,9 @@ pub enum FormatCommand {
         out: PathBuf,
         #[arg(long,default_value="preserve",value_parser=["strict","preserve","drop"])]
         mode: String,
+        /// 允许含快照的结构性编辑；仅保证坐标不变的重叠区
+        #[arg(long)]
+        allow_structural: bool,
     },
     /// 读 → JSON → 模型/字节 → 再读
     Verify {

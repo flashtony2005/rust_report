@@ -32,6 +32,7 @@ fn all_product_rpx_files_preserve_roundtrip() {
             &bytes,
             Options {
                 mode: Mode::PreserveLegacy,
+                allow_structural: false,
             },
         ) {
             Ok(v) => v,
@@ -66,6 +67,7 @@ fn all_product_rpx_files_preserve_roundtrip() {
             &converted.document,
             Options {
                 mode: Mode::PreserveLegacy,
+                allow_structural: false,
             },
         ) {
             Ok(rebuilt) if rebuilt == bytes => {}
@@ -76,6 +78,7 @@ fn all_product_rpx_files_preserve_roundtrip() {
             &bytes,
             Options {
                 mode: Mode::PreserveLegacy,
+                allow_structural: false,
             },
         ) {
             Ok(report) if report.model_equal && report.bytes_equal => {}

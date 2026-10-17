@@ -28,11 +28,9 @@ pub(super) fn apply(doc: &J, rd: &mut ReportDefine) {
     overlay_report(&original, rd);
     overlay_print(&original, rd);
     overlay_datasets(&original, rd);
-    if original.rows == rd.rows && original.cols == rd.cols {
-        overlay_rows(&original, rd);
-        overlay_cols(&original, rd);
-        overlay_cells(&original, rd);
-    }
+    overlay_rows(&original, rd);
+    overlay_cols(&original, rd);
+    overlay_cells(&original, rd);
 }
 
 fn overlay_report(original: &ReportDefine, rd: &mut ReportDefine) {
@@ -211,6 +209,9 @@ fn overlay_cells(original: &ReportDefine, rd: &mut ReportDefine) {
     // 这类格要单独克隆原格，不能跟随锚点的 merged_area。
     for r in 1..rd.rows {
         for c in 1..rd.cols {
+            if r >= original.rows || c >= original.cols {
+                continue;
+            }
             let Some(orig_id) = original.grid[r][c] else {
                 continue;
             };

@@ -254,3 +254,37 @@ fn report_import_json_and_delete_wire_the_library() {
     let (code, value, _) = invoke(&["report", "show", "json-one", "--library", &lib]);
     assert_eq!(code, 6, "{value}");
 }
+
+#[test]
+fn structural_edit_can_opt_in_to_partial_overlay() {
+    let temp = Temp::new();
+    let json_path = temp.path("structural.json");
+    let rpx_path = temp.path("structural.rpx");
+    let (code, value, _) = invoke(&[
+        "format",
+        "to-json",
+        &fixture("engine_merge.rpx"),
+        "--out",
+        &json_path,
+        "--mode",
+        "preserve",
+    ]);
+    assert_eq!(code, 0, "{value}");
+    let mut doc: J = serde_json::from_slice(&fs::read(&json_path).unwrap()).unwrap();
+    doc["grid"]["rows"] = json!(9);
+    fs::write(&json_path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
+    let (code, value, _) = invoke(&[
+        "format",
+        "to-rpx",
+        &json_path,
+        "--out",
+        &rpx_path,
+        "--mode",
+        "preserve",
+        "--allow-structural",
+    ]);
+    assert_eq!(code, 0, "{value}");
+    let (code, value, _) = invoke(&["format", "verify", &rpx_path, "--mode", "preserve"]);
+    assert_eq!(code, 0, "{value}");
+    assert_eq!(value["data"]["model_equal"], true);
+}

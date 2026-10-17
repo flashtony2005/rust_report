@@ -267,6 +267,7 @@ fn format_command(command: FormatCommand) -> Result<J> {
                 &bytes,
                 rpx_format::Options {
                     mode: format_mode(&mode)?,
+                    allow_structural: false,
                 },
             )?;
             let out = files::absolute(&out)?;
@@ -277,12 +278,18 @@ fn format_command(command: FormatCommand) -> Result<J> {
                 "warnings": converted.warnings,
             }))
         }
-        FormatCommand::ToRpx { file, out, mode } => {
+        FormatCommand::ToRpx {
+            file,
+            out,
+            mode,
+            allow_structural,
+        } => {
             let document = read(&file)?;
             let bytes = rpx_format::json_to_rpx(
                 &document,
                 rpx_format::Options {
                     mode: format_mode(&mode)?,
+                    allow_structural,
                 },
             )?;
             let out = files::absolute(&out)?;
@@ -295,6 +302,7 @@ fn format_command(command: FormatCommand) -> Result<J> {
                 &bytes,
                 rpx_format::Options {
                     mode: format_mode(&mode)?,
+                    allow_structural: false,
                 },
             )?;
             Ok(json!({

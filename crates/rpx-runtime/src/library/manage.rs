@@ -229,6 +229,7 @@ pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bo
         &fs::read(file)?,
         crate::format::Options {
             mode: crate::format::Mode::PreserveLegacy,
+            allow_structural: false,
         },
     )?;
     let template = converted.document;

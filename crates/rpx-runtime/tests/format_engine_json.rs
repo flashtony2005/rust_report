@@ -118,6 +118,7 @@ fn edited_preserve_json_keeps_unmodeled_cell_fields() {
         &doc,
         format::Options {
             mode: format::Mode::PreserveLegacy,
+            allow_structural: false,
         },
     )
     .unwrap();
