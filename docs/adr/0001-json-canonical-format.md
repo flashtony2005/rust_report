@@ -7,6 +7,7 @@
   - 格式：`docs/format/rpx-report-json-v1.md`
   - 转换器：`docs/format/rpx-core-json-converter.md`
   - legacy 退役：`docs/format/rpx-legacy-retirement.md`
+  - v2.0 工作计划：`docs/v2.0-work-plan.md`
   - 现状审计：`docs/upgrade-readiness-review-2026-10-17.md`
 
 ---
