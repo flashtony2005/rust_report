@@ -1,0 +1,433 @@
+{
+  "format": "rpx-report",
+  "format_version": 1,
+  "schema": "rpx-report/v1",
+  "version": 1,
+  "grid": {
+    "rows": 20,
+    "cols": 11
+  },
+  "datasets": [
+    {
+      "name": "summary",
+      "sql": {
+        "dsn": "demo-db",
+        "sql": "WITH base AS (\n SELECT substr(s.order_date,1,7) AS month,\n        s.region, p.category, p.product,\n        SUM(s.qty) AS qty,\n        ROUND(SUM(s.qty*s.price),2) AS revenue,\n        ROUND(SUM(s.qty*s.cost),2) AS cost\n FROM fact_sales s\n JOIN dim_product p ON p.product_id=s.product_id\n WHERE s.status='paid'\n GROUP BY 1,2,3,4\n), ranked AS (\n SELECT *,\n        SUM(revenue) OVER (PARTITION BY month) AS month_revenue,\n        ROW_NUMBER() OVER (PARTITION BY month ORDER BY revenue DESC, product) AS rn\n FROM base\n)\nSELECT month,region,category,product,qty,revenue,cost,\n       ROUND(revenue-cost,2) AS margin,\n       ROUND((revenue-cost)*100.0/NULLIF(revenue,0),1) AS margin_pct,\n       ROUND(revenue*100.0/NULLIF(month_revenue,0),1) AS share_pct\nFROM ranked\nWHERE rn<=3\nORDER BY month,rn"
+      }
+    },
+    {
+      "name": "returns",
+      "sql": {
+        "dsn": "demo-db",
+        "sql": "SELECT substr(r.return_date,1,7) AS month,\n       s.region,\n       ROUND(SUM(r.amount),2) AS return_amount\nFROM fact_returns r\nJOIN fact_sales s ON s.id=r.sale_id\nGROUP BY 1,2\nORDER BY 1,2"
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "text": "SQL 复杂示例 · 月度 TOP3 产品经营看板",
+      "font_size": 18,
+      "bold": true,
+      "fore_color": "#163D46",
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 11
+      },
+      "extend_mode": "none"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "text": "CTE + 窗口排名 + 条件聚合 + 退货关联；数据来自 SQLite，QTY/收入/成本/毛利/占比/净额。",
+      "font_size": 9,
+      "bold": false,
+      "fore_color": "#52666E",
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 11
+      },
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "text": "月份",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "text": "区域",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 3,
+      "text": "类别",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "text": "产品",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "text": "数量",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 6,
+      "text": "收入",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 7,
+      "text": "成本",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 8,
+      "text": "毛利率%",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 9,
+      "text": "收入占比%",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 10,
+      "text": "退货",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 3,
+      "col": 11,
+      "text": "净收入",
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#FFFFFF",
+      "back_color": "#1B505B",
+      "h_align": "center",
+      "v_align": "middle",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 1,
+      "expr": "summary.select(month)",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "center",
+      "left_head": "`0",
+      "format": "@",
+      "merge_same": "vertical",
+      "extend_mode": "vertical"
+    },
+    {
+      "row": 4,
+      "col": 2,
+      "expr": "summary.region",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "left",
+      "left_head": "A4",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 3,
+      "expr": "summary.category",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "left",
+      "left_head": "A4",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 4,
+      "expr": "summary.product",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "left",
+      "left_head": "A4",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 5,
+      "expr": "summary.qty",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "right",
+      "left_head": "A4",
+      "format": "#,##0",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 6,
+      "expr": "summary.revenue",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "right",
+      "left_head": "A4",
+      "format": "#,##0.00",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 7,
+      "expr": "summary.cost",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "right",
+      "left_head": "A4",
+      "format": "#,##0.00",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 8,
+      "expr": "summary.margin_pct",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "right",
+      "left_head": "A4",
+      "format": "0.0",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 9,
+      "expr": "summary.share_pct",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "right",
+      "left_head": "A4",
+      "format": "0.0",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 10,
+      "expr": "sum(returns.select(return_amount,month==A4 and region==B4))",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "right",
+      "left_head": "A4",
+      "format": "#,##0.00",
+      "extend_mode": "none"
+    },
+    {
+      "row": 4,
+      "col": 11,
+      "expr": "F4-G4-J4",
+      "font_size": 10,
+      "v_align": "middle",
+      "h_align": "right",
+      "left_head": "A4",
+      "format": "#,##0.00",
+      "extend_mode": "none"
+    },
+    {
+      "row": 5,
+      "col": 1,
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#163D46",
+      "back_color": "#E8F2F1",
+      "h_align": "right",
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "TOP3 合计",
+      "merge": {
+        "rows": 1,
+        "cols": 4
+      }
+    },
+    {
+      "row": 5,
+      "col": 5,
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#163D46",
+      "back_color": "#E8F2F1",
+      "h_align": "right",
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "summary.sum(qty)",
+      "format": "#,##0"
+    },
+    {
+      "row": 5,
+      "col": 6,
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#163D46",
+      "back_color": "#E8F2F1",
+      "h_align": "right",
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "summary.sum(revenue)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 7,
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#163D46",
+      "back_color": "#E8F2F1",
+      "h_align": "right",
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "summary.sum(cost)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 8,
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#163D46",
+      "back_color": "#E8F2F1",
+      "h_align": "right",
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "if(F5==0,0,(F5-G5)*100/F5)",
+      "format": "0.0"
+    },
+    {
+      "row": 5,
+      "col": 9,
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#163D46",
+      "back_color": "#E8F2F1",
+      "h_align": "right",
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "100.0",
+      "format": "0.0"
+    },
+    {
+      "row": 5,
+      "col": 10,
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#163D46",
+      "back_color": "#E8F2F1",
+      "h_align": "right",
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "returns.sum(return_amount)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 11,
+      "font_size": 10,
+      "bold": true,
+      "fore_color": "#163D46",
+      "back_color": "#E8F2F1",
+      "h_align": "right",
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "F5-G5-J5",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "text": "说明：毛利=收入-成本；净收入=收入-成本-退货。SQL 先按 CTE 聚合，再用窗口函数取每月收入 TOP3；合计只统计 TOP3 结果行，不是全量销售额。",
+      "font_size": 9,
+      "fore_color": "#52666E",
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 11
+      },
+      "extend_mode": "none"
+    }
+  ],
+  "print_setup": {
+    "paper": "A3",
+    "orientation": "landscape",
+    "pager_style": "paper",
+    "table_column_num": 11
+  }
+}
