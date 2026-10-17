@@ -77,6 +77,9 @@ rpx format normalize template.json --out template-v1.json
 
 - `preserve` 是迁移默认；`strict` 遇到 v1 尚不能表达的字段会显式失败；`drop` 只用于渲染。
 - `--export print-xlsx` 支持 A3/A4/A5/Letter 自定义纸张；3D 图表、工作表背景等仍会返回 `EXPORT_FAILED`。
+- SQL 取数默认上限 **100,000 行**；超限显式报 `TooManyRows`，可用 `RPX_SQL_MAX_ROWS` 调整。
+- 大模板基线见 [performance-baseline.md](performance-baseline.md)。
+- CLI 不直接生成 PDF；需要 PDF 时从 Web 打印预览另存（`doctor.pdf=false`）。
 - `template create` / `library init --presets` 现在写出带 v1 标记的 JSON；旧 v0 文件仍可读。
 - `extensions.rpx.legacy` 是迁移快照；Phase 2 已用字段级 overlay 把未建模字段合并回模型，因此字段编辑后可正常 `to-rpx`（语义保留，不保证字节相等）。
 - 增删行列属于结构性编辑；默认报 `LEGACY_STRUCTURAL_EDIT`，可加 `--allow-structural` 只保证坐标不变的重叠区，或先移除 legacy 扩展再改结构。

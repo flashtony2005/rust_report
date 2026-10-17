@@ -129,6 +129,7 @@ pub async fn execute(command: Command) -> Result<J> {
             "datasources":["CSV","TSV","Excel","SQLite","PostgreSQL","MySQL"],
             "exports":["csv","xlsx","print-xlsx"],
             "web_executes_engine":false,
+            "pdf":false,
             "checks":[
                 doctor_library(lib.as_deref()),
                 doctor_datasources(datasources.as_deref()),

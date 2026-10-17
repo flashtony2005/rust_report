@@ -10,13 +10,16 @@ pub(crate) mod style;
 /// 按模板纸张与页映射导出。错误直接返回，不生成半份工作簿。
 pub fn to_print_xlsx(grid: &CalcGrid, setup: &PrintSetup) -> Result<Vec<u8>, String> {
     if setup.back_graph_printed && grid.page_background.is_some() {
-        return Err("Excel 不支持打印工作表背景图片；请使用图形与打印预览保存 PDF".into());
+        return Err(
+            "Excel 不支持打印工作表背景图片；请使用 CSV/XLSX，或从 Web 打印预览另存 PDF".into(),
+        );
     }
     let paper = if setup.paper == 256 {
         standard_paper(setup.paper_width, setup.paper_height)?
     } else {
-        u8::try_from(setup.paper)
-            .map_err(|_| "Excel 不支持此自定义纸张代码；请使用图形与打印预览保存 PDF".to_string())?
+        u8::try_from(setup.paper).map_err(|_| {
+            "Excel 不支持此自定义纸张代码；请使用 CSV/XLSX，或从 Web 打印预览另存 PDF".to_string()
+        })?
     };
     let pages = paginate_with_setup(grid, setup).map_err(|e| e.to_string())?;
     let mut wb = crate::xlsx::new_workbook();
@@ -81,7 +84,7 @@ fn message(error: XlsxError) -> String {
 }
 
 /// 自定义纸张（`paper=256`）→ Excel 标准纸码。只映射可判定的标准尺寸；
-/// 其他尺寸显式失败，交给图形/打印预览保存 PDF。
+/// 其他尺寸显式失败；CLI 不直接生成 PDF，可从 Web 打印预览另存。
 fn standard_paper(width: f32, height: f32) -> Result<u8, String> {
     let (short, long) = if width <= height {
         (width, height)
@@ -99,7 +102,7 @@ fn standard_paper(width: f32, height: f32) -> Result<u8, String> {
         1 // Letter
     } else {
         return Err(
-            "Excel 不支持该自定义纸张尺寸；请使用 A3/A4/A5/Letter 或查看图形与打印预览保存 PDF"
+            "Excel 不支持该自定义纸张尺寸；请使用 A3/A4/A5/Letter，或从 Web 打印预览另存 PDF"
                 .into(),
         );
     };

@@ -2,6 +2,15 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.12.0-sql-perf-pdf — 2026-10-17
+
+### Added / Changed
+
+- SQL 取数改为有界流式物化：默认最多 100,000 行，超限报 `TooManyRows`；`RPX_SQL_MAX_ROWS` 可调。
+- 大模板基准脚本 `scripts/bench_large.py` 与基线文档；100×50=5,000 cells debug 约 1.07s。
+- PDF 决策：CLI 不直接生成 PDF；`doctor.pdf=false`，错误文案指向 Web 打印预览。
+- `rpx-ds` 新增 `futures-util` 依赖（G5 已登记）。
+
 ## v0.11.0-json-diagonal — 2026-10-17
 
 ### Added

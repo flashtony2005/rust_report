@@ -20,9 +20,13 @@
 //!    显式豁免并在此留档（模板 SQL 是用户资产，注入面口径见 `spec-m3.md` §8）；
 //! ③ SQLite 同一时刻只允许一个写者 ⇒ 池上限按库种配置（sqlite=1，网络库 10+）。
 
+use futures_util::TryStreamExt;
 use rpx_core::rowset::RowSet;
 use rpx_core::value::Value;
 use sqlx::{Column, Executor, Row, SqlSafeStr, Statement, TypeInfo, ValueRef};
+
+/// 默认最多物化 100k 行；超过即显式失败，避免一次性打爆内存。
+pub const DEFAULT_MAX_ROWS: usize = 100_000;
 
 /// 取数错误。具体到可定位（渲染期报错兜底是蓝图口径，错误文本就是给用户的）。
 #[derive(Debug)]
@@ -38,6 +42,8 @@ pub enum DsError {
         /// sqlx 报的类型名（如 `NUMERIC`）。
         type_name: String,
     },
+    /// 结果行数超过上限，拒绝继续物化。
+    TooManyRows { limit: usize },
 }
 
 impl std::fmt::Display for DsError {
@@ -48,6 +54,10 @@ impl std::fmt::Display for DsError {
             DsError::UnsupportedColumnType { col, type_name } => {
                 write!(f, "列 {col} 的类型 {type_name} 暂不支持（骨架期未覆盖）")
             }
+            DsError::TooManyRows { limit } => write!(
+                f,
+                "SQL 结果超过 {limit} 行上限；请缩小查询或提高 RPX_SQL_MAX_ROWS"
+            ),
         }
     }
 }
@@ -91,9 +101,26 @@ impl SqlSource {
         Ok(r.rows_affected())
     }
 
+    /// 默认最大结果行数；可用 `RPX_SQL_MAX_ROWS` 覆盖。
+    fn default_max_rows() -> usize {
+        std::env::var("RPX_SQL_MAX_ROWS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(DEFAULT_MAX_ROWS)
+    }
+
     /// 执行模板 SQL 并物化。列名取结果集表头（SQL 数据集的列 = 查询产物，
     /// 与产品 SQL 数据集语义一致），行值经 [`any_cell`] 收敛到 `Value`。
     pub async fn fetch_sql(&self, sql: &str) -> Result<RowSet, DsError> {
+        self.fetch_sql_limited(sql, Self::default_max_rows()).await
+    }
+
+    /// 带显式行数上限的 [`fetch_sql`](Self::fetch_sql)；超限返回 `TooManyRows`。
+    pub async fn fetch_sql_limited(&self, sql: &str, max_rows: usize) -> Result<RowSet, DsError> {
+        if max_rows == 0 {
+            return Err(DsError::TooManyRows { limit: 0 });
+        }
         // `fetch_all` 在没有行时拿不到列元数据；单独 prepare 一次取 statement.columns()。
         let cols = {
             let mut conn = self.pool.acquire().await?;
@@ -106,14 +133,15 @@ impl SqlSource {
                 .map(|c| c.name().to_string())
                 .collect::<Vec<_>>()
         };
-        let rows: Vec<sqlx::any::AnyRow> = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()))
-            .fetch_all(&self.pool)
-            .await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in &rows {
+        let mut stream = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned())).fetch(&self.pool);
+        let mut out = Vec::new();
+        while let Some(row) = stream.try_next().await? {
+            if out.len() >= max_rows {
+                return Err(DsError::TooManyRows { limit: max_rows });
+            }
             let mut vals = Vec::with_capacity(cols.len());
             for (i, col) in cols.iter().enumerate() {
-                vals.push(any_cell(row, i).map_err(|e| match e {
+                vals.push(any_cell(&row, i).map_err(|e| match e {
                     DsError::UnsupportedColumnType { type_name, .. } => {
                         DsError::UnsupportedColumnType {
                             col: col.clone(),
@@ -248,6 +276,28 @@ mod tests {
             .unwrap();
         assert_eq!(rs.cols, ["id", "region"]);
         assert!(rs.rows.is_empty());
+    }
+
+    /// 行数上限必须在物化前触发；2 行结果配 2 行上限即失败，配 3 行通过。
+    #[tokio::test]
+    async fn row_limit_is_explicit_and_counts_before_truncation() {
+        let src = SqlSource::connect("sqlite::memory:").await.unwrap();
+        src.fetch_sql("CREATE TABLE lim (id INTEGER)")
+            .await
+            .unwrap();
+        src.fetch_sql("INSERT INTO lim VALUES (1),(2),(3)")
+            .await
+            .unwrap();
+        let err = src
+            .fetch_sql_limited("SELECT id FROM lim ORDER BY id", 2)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, DsError::TooManyRows { limit: 2 }), "{err}");
+        let rs = src
+            .fetch_sql_limited("SELECT id FROM lim ORDER BY id", 3)
+            .await
+            .unwrap();
+        assert_eq!(rs.rows.len(), 3);
     }
 
     /// 换库只换 URL 的反面：未知 scheme 显式报错（不猜、不静默）。

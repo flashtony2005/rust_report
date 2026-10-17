@@ -36,3 +36,4 @@ rpx-cli serde_json
 rpx-cli tokio
 
 rpx-format serde_json
+rpx-ds futures-util
