@@ -538,10 +538,10 @@ rpx result inspect /tmp/rpx-complex/template.json
 - 位置：`http.rs:77-96`、`web/src/library-api.ts:12-16`。
 - 修法：注册 `JsonRejection`/`DefaultBodyLimit` 的 JSON 错误处理器，统一返回 `{"error":{...}}`；Web 先看 content-type/文本兜底。
 
-#### P2-1：`doctor` 名不副实
+#### P2-1：`doctor` 名不副实（已增强）
 
 - 它返回的是静态 JSON：版本、支持格式、`offline:true`、`authentication:not_required`；不检查库是否可写、数据源配置是否可连、`node_modules`/Web 是否可用、`print-xlsx` 的已知限制。
-- 建议：`doctor` 至少检查当前目录/library 可读、`--datasources` 文件可解析（不连接）、Rust/Node 版本；把能力差异写进 `capabilities` 字段。
+- 已补：`doctor --library` 检查库版本/可写，`--datasources` 只检查 JSON 形状与 URL scheme，不连接；输出 `checks` 与 `legacy_rpx` 能力位。
 
 #### P2-2：帮助文本过于简陋
 

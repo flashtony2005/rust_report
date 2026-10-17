@@ -288,3 +288,23 @@ fn structural_edit_can_opt_in_to_partial_overlay() {
     assert_eq!(code, 0, "{value}");
     assert_eq!(value["data"]["model_equal"], true);
 }
+
+#[test]
+fn doctor_checks_library_and_datasource_shape() {
+    let temp = Temp::new();
+    let lib = temp.path("lib");
+    let (code, value, _) = invoke(&["library", "init", &lib]);
+    assert_eq!(code, 0, "{value}");
+    let (code, value, _) = invoke(&["doctor", "--library", &lib]);
+    assert_eq!(code, 0, "{value}");
+    assert_eq!(value["data"]["checks"][0]["ok"], true);
+    let ds = temp.path("datasources.json");
+    fs::write(&ds, br#"{"local":"not-a-url"}"#).unwrap();
+    let (code, value, _) = invoke(&["doctor", "--datasources", &ds]);
+    assert_eq!(code, 0, "{value}");
+    assert_eq!(value["data"]["checks"][1]["ok"], false);
+    assert_eq!(
+        value["data"]["checks"][1]["detail"]["code"],
+        "DATASOURCES_INVALID"
+    );
+}

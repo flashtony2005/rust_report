@@ -38,11 +38,102 @@ fn inputs(inputs: Inputs) -> Result<run::Options> {
         exports: inputs.exports,
     })
 }
+fn doctor_library(path: Option<&Path>) -> J {
+    let Some(path) = path else {
+        return json!({"name":"library","ok":true,"detail":"not requested"});
+    };
+    let checked = (|| {
+        let root = files::absolute(path)?;
+        let meta = files::read_json(&root.join(".library.json"))?;
+        if meta["version"] != 1 {
+            return Err(Error::new(
+                3,
+                "LIBRARY_INVALID",
+                "doctor",
+                "不支持的报表库版本",
+            ));
+        }
+        let probe = root.join(format!(".doctor-{}", files::unique()));
+        files::create(&probe, b"ok")?;
+        let _ = std::fs::remove_file(&probe);
+        Ok::<_, Error>(root)
+    })();
+    match checked {
+        Ok(root) => json!({"name":"library","ok":true,"detail":root,"writable":true}),
+        Err(e) => json!({"name":"library","ok":false,"detail":e.diagnostic}),
+    }
+}
+
+fn doctor_datasources(path: Option<&Path>) -> J {
+    let Some(path) = path else {
+        return json!({"name":"datasources","ok":true,"detail":"not requested","connected":false});
+    };
+    let checked = (|| {
+        let value: J = serde_json::from_slice(&std::fs::read(path)?)?;
+        let Some(map) = value.as_object() else {
+            return Err(Error::new(
+                3,
+                "DATASOURCES_INVALID",
+                "doctor",
+                "数据源配置必须是 JSON 对象",
+            ));
+        };
+        for (name, spec) in map {
+            let url = match spec {
+                J::String(url) => url.as_str(),
+                J::Object(m) => m.get("url").and_then(J::as_str).ok_or_else(|| {
+                    Error::new(3, "DATASOURCES_INVALID", "doctor", format!("{name} 缺 url"))
+                })?,
+                _ => {
+                    return Err(Error::new(
+                        3,
+                        "DATASOURCES_INVALID",
+                        "doctor",
+                        format!("{name} 必须是 URL 或 {{url,user,pass}}"),
+                    ))
+                }
+            };
+            if !url.contains("://") {
+                return Err(Error::new(
+                    3,
+                    "DATASOURCES_INVALID",
+                    "doctor",
+                    format!("{name} 的 URL 缺 scheme"),
+                ));
+            }
+        }
+        Ok::<_, Error>(map.len())
+    })();
+    match checked {
+        Ok(count) => {
+            json!({"name":"datasources","ok":true,"detail":format!("{count} datasource(s)"),"connected":false})
+        }
+        Err(e) => json!({"name":"datasources","ok":false,"detail":e.diagnostic,"connected":false}),
+    }
+}
+
 pub async fn execute(command: Command) -> Result<J> {
     match command {
-        Command::Doctor => Ok(
-            json!({"version":env!("CARGO_PKG_VERSION"),"protocol_version":1,"offline":true,"authentication":"not_required","definition":"JSON v1","json_format":"rpx-report/v1","legacy":"rpx-rpx-v1","datasources":["CSV","TSV","Excel","SQLite","PostgreSQL","MySQL"],"exports":["csv","xlsx","print-xlsx"],"web_executes_engine":false}),
-        ),
+        Command::Doctor {
+            library: lib,
+            datasources,
+        } => Ok(json!({
+            "version":env!("CARGO_PKG_VERSION"),
+            "protocol_version":1,
+            "offline":true,
+            "authentication":"not_required",
+            "definition":"JSON v1",
+            "json_format":"rpx-report/v1",
+            "legacy":"rpx-rpx-v1",
+            "legacy_rpx":cfg!(feature = "legacy-rpx"),
+            "datasources":["CSV","TSV","Excel","SQLite","PostgreSQL","MySQL"],
+            "exports":["csv","xlsx","print-xlsx"],
+            "web_executes_engine":false,
+            "checks":[
+                doctor_library(lib.as_deref()),
+                doctor_datasources(datasources.as_deref()),
+            ],
+        })),
         Command::Schema { .. } => Ok(json!({"schema":definition::schema()})),
         Command::Template { command } => template(command),
         #[cfg(feature = "legacy-rpx")]

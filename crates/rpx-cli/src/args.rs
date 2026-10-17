@@ -44,7 +44,14 @@ pub struct Library {
 }
 #[derive(Subcommand)]
 pub enum Command {
-    Doctor,
+    Doctor {
+        /// 检查目录库是否可读可写
+        #[arg(long)]
+        library: Option<PathBuf>,
+        /// 只做 JSON 形状检查，不建立数据库连接
+        #[arg(long)]
+        datasources: Option<PathBuf>,
+    },
     Schema {
         #[arg(value_parser=["template"])]
         kind: String,
@@ -320,7 +327,7 @@ pub enum Report {
 impl Command {
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Doctor => "doctor",
+            Self::Doctor { .. } => "doctor",
             Self::Schema { .. } => "schema.template",
             Self::Run { .. } => "run",
             Self::Template { command } => match command {
