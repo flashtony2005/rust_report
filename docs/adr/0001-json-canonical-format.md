@@ -197,6 +197,7 @@
 **v2.0 再做（不在本次完成口径内）**：
 
 - 默认关闭 `legacy-rpx`，默认构建不含 `.rpx` 读写。
+- 拆分 `rpx-model`，让 no-default 依赖图彻底不含 `rpx-core`（当前只保证不含 `rpx-core/legacy-rpx` feature）。
 - `rpx-format` 抽离、`rpx-runtime::reportdef` 迁移。
 - 引擎/运行时测试全面切 JSON，`.rpx` 只留独立 legacy 测试目标。
 - `.rpxpkg`、schema v2、库级 `format migrate`。
@@ -312,6 +313,7 @@
 - `rpx-runtime` 通过 `pub use rpx_format::reportdef::*` 保留旧路径；`definition` re-export `strict/schema`。
 - `rpx-format` 默认无 `.rpx` 二进制依赖；`legacy-rpx` feature 仅用于 `.rpx` 入口。
 - G5/G8 登记新 crate；JSON-only 构建与 734 测试保持绿。
+- 引擎主对拍 `engine_grid_compare` 改读 `tests/fixtures/format/engine/*.json`；`.rpx` 只留兼容入口。
 
 仍未做（v2.0）：
 

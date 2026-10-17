@@ -2,12 +2,13 @@
 //!
 //! # 这条链路验收什么
 //!
-//! 对 15 个引擎夹具各跑一遍：「`.rpx` 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
+//! 对 23 个引擎夹具各跑一遍：「JSON 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
 //! → `emit::render_document()` 渲染成 `expected.json` 同 schema 的 JSON」，再交给
 //! [`common::compare_actual_text`] 与夹具**逐格**比（值 / 类型 / `disp_value` /
 //! `source` 的 6 个子字段 / `sub_values` / `left_head` / `top_head` / 网格尺寸 /
 //! **`merged.cells` 的合并跨度**）。
-//! 计算态的唯一事实源是产品引擎自己产出的 `tests/fixtures/engine_*.expected.json`
+//! 模板输入是 `tests/fixtures/format/engine/*.json`；计算态的唯一事实源是产品引擎
+//! 自己产出的 `tests/fixtures/engine_*.expected.json`
 //! （`GenEngineFixtures.java`），禁止手搓期望值。
 //!
 //! # 全夹具对拍
@@ -41,11 +42,62 @@ fn fixture_text(name: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读 {} 失败：{e}", path.display()))
 }
 
-/// 解析 `.rpx`（产品 writer 产出的真实字节），写法对齐 `tests/units_contract.rs:55-59`。
-fn open_rpx(name: &str) -> rpx_core::ReportDefine {
-    let path = fixtures_dir().join(format!("{name}.rpx"));
+/// 读落盘的 JSON 定义（v1 + Preserve 快照）。
+///
+/// `rpx-format` 负责 JSON parse/build；快照里的“合并延续独立格”在测试侧
+/// 还原，避免把 `.rpx` 作为主输入。
+fn open_json(name: &str) -> rpx_core::ReportDefine {
+    let path = fixtures_dir()
+        .join("format/engine")
+        .join(format!("{name}.json"));
     let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("读 {} 失败：{e}", path.display()));
-    rpx_core::open_bytes(&bytes).unwrap_or_else(|e| panic!("解析 {} 失败：{e}", path.display()))
+    let (mut rd, _) = rpx_format::reportdef::open_report_full(&bytes)
+        .unwrap_or_else(|e| panic!("解析 {} 失败：{e}", path.display()));
+    restore_merge_continuations(&mut rd, &bytes);
+    rd
+}
+
+/// 从 JSON 里的迁移快照还原独立的合并延续格（`engine_merge` 的 A3）。
+fn restore_merge_continuations(rd: &mut rpx_core::ReportDefine, json: &[u8]) {
+    let Ok(j) = serde_json::from_slice::<serde_json::Value>(json) else {
+        return;
+    };
+    let Some(encoded) = j["extensions"]["rpx.legacy"]["data"].as_str() else {
+        return;
+    };
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let Ok(bytes) = STANDARD.decode(encoded) else {
+        return;
+    };
+    let Ok(original) = rpx_core::open_bytes(&bytes) else {
+        return;
+    };
+    if original.rows != rd.rows || original.cols != rd.cols {
+        return;
+    }
+    for area in &original.merges {
+        for r in area.begin_row..=area.end_row {
+            for c in area.begin_col..=area.end_col {
+                if r == area.begin_row && c == area.begin_col {
+                    continue;
+                }
+                let Some(orig_id) = original.grid[r][c] else {
+                    continue;
+                };
+                if Some(orig_id) == original.grid[area.begin_row][area.begin_col] {
+                    continue;
+                }
+                let Some(cell) = original.cell_at(r, c) else {
+                    continue;
+                };
+                let mut cell = cell.clone();
+                cell.merged_area = None;
+                let id = rd.store.len();
+                rd.store.push(cell);
+                rd.grid[r][c] = Some(id);
+            }
+        }
+    }
 }
 
 /// 引擎错误 → `(class, chain)`。
@@ -73,7 +125,7 @@ fn error_class_chain(e: &rpx_engine::EngineError) -> (String, Option<String>) {
 /// `CalcProbe.calc(rd, ds, params)`（`GenEngineFixtures.java`）一一对应。
 /// 无参夹具的 `params` 为空 vec ⇒ 走无参入口（与 M2 路径完全相同）。
 fn engine_text(name: &str) -> String {
-    let rd = open_rpx(name);
+    let rd = open_json(name);
     let ds = rpx_engine::dataset::load_datasets(&fixtures_dir(), &rd)
         .unwrap_or_else(|e| panic!("{name}: load_datasets 失败：{e}"));
     let fx = common::load(name);
@@ -222,7 +274,7 @@ fn a_cells_free_grid_is_reported_as_mass_missing() {
 #[test]
 fn renderer_emits_parseable_json() {
     let name = "engine_types";
-    let rd = open_rpx(name);
+    let rd = open_json(name);
     let ds = rpx_engine::dataset::load_datasets(&fixtures_dir(), &rd).expect("load_datasets");
     let grid = rpx_engine::calculate(&rd, &ds).expect("engine_types 应算出网格");
     let text = rpx_engine::emit::render_calculated(&grid);
@@ -275,7 +327,7 @@ fn rowheight_property_closes_the_last_pagination_diff() {
 #[test]
 fn samemerge_collapses_equal_adjacent_values_into_row_merge_two() {
     let name = "engine_samemerge";
-    let rd = open_rpx(name);
+    let rd = open_json(name);
     let ds = rpx_engine::dataset::load_datasets(&fixtures_dir(), &rd).expect("load_datasets");
     let grid = rpx_engine::calculate(&rd, &ds).expect("engine_samemerge 应算出网格");
 
@@ -295,7 +347,7 @@ fn samemerge_collapses_equal_adjacent_values_into_row_merge_two() {
 #[test]
 fn cycle_fixture_is_error_with_expected_class_and_chain() {
     let name = "engine_cycle";
-    let rd = open_rpx(name);
+    let rd = open_json(name);
     let ds = rpx_engine::dataset::load_datasets(&fixtures_dir(), &rd).expect("load_datasets");
     let err = rpx_engine::calculate(&rd, &ds).expect_err("engine_cycle 必须报错，绝不产出网格");
 

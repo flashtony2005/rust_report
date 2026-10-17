@@ -1186,7 +1186,10 @@ dependencies = [
 name = "rpx-engine"
 version = "0.4.0"
 dependencies = [
+ "base64",
  "rpx-core",
+ "rpx-format",
+ "serde_json",
 ]
 
 [[package]]

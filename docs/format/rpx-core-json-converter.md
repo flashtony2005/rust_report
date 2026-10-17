@@ -454,7 +454,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
   - 必须先实现本文的 `rpx_to_json`（直接走 `ReportDefine`，不经过 import 的严格 `compare`）；
   - T05/T07 是 Phase 1 的硬门禁，未过不得进入 Phase 2。
 - 当前 37 个字节往返是 `rpx_core::to_bytes` 的既有证据（`docs/report-def-json.md:8-9`），T06 应复用同一夹具集。
-- 23 个引擎夹具的 JSON 输入已落盘到 `tests/fixtures/format/engine/`；T04 直接读 JSON，不再在测试时从 `.rpx` 生成。`crates/rpx-engine/tests/engine_grid_compare.rs` 的 `.rpx` 版本保留为兼容对照。
+- 23 个引擎夹具的 JSON 输入已落盘到 `tests/fixtures/format/engine/`；T04 直接读 JSON，不再在测试时从 `.rpx` 生成。引擎主对拍 `engine_grid_compare` 也已改读 JSON fixtures；其余 `.rpx` 测试保留为兼容对照。
 
 ---
 

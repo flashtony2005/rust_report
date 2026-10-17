@@ -10,6 +10,12 @@ cleanup() { /bin/rm -rf "$T"; }
 trap cleanup EXIT
 
 CARGO_TARGET_DIR="$TARGET" cargo build --no-default-features -p rpx-cli
+# The no-default graph must not enable the core legacy feature.
+if cargo tree -p rpx-cli --no-default-features -e features 2>/dev/null | grep -q 'rpx-core feature "legacy-rpx"'; then
+  printf 'JSON-only graph still enables rpx-core/legacy-rpx\n' >&2
+  exit 1
+fi
+
 # The no-default binary must not expose the three legacy entry points.
 if "$BIN" --help | grep -Eq 'format|import-rpx|compile'; then
   printf 'JSON-only CLI still exposes legacy commands\n' >&2

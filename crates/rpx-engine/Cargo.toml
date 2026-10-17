@@ -10,3 +10,6 @@ rpx-core = { path = "../rpx-core", default-features = false }
 [dev-dependencies]
 # engine 契约测试直接读 .rpx 夹具；库本身只依赖零依赖类型。
 rpx-core = { path = "../rpx-core", features = ["legacy-rpx"] }
+rpx-format = { path = "../rpx-format" }
+serde_json = "1"
+base64 = "0.22"
