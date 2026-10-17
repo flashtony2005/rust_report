@@ -60,9 +60,13 @@ rpx format to-rpx external.json --out external.rpx --mode preserve
 
 # 只检查 JSON 能否被当前 reader 接受
 rpx format check external.json
+
+# v0/v1 → v1：补 format / format_version / schema
+rpx format normalize template.json --out template-v1.json
 ```
 
 - `preserve` 是迁移默认；`strict` 遇到 v1 尚不能表达的字段会显式失败；`drop` 只用于渲染。
+- `template create` / `library init --presets` 现在写出带 v1 标记的 JSON；旧 v0 文件仍可读。
 - `extensions.rpx.legacy` 是迁移快照，不是长期编辑面。编辑后要导出，先移除该扩展（接受未建模字段不可表达）或等待 Phase 2 字段级覆盖。
 - `template compile` 与 `report import-rpx` 保留，但属于 legacy 入口；日常用 `format` + 原生 JSON。
 

@@ -84,9 +84,17 @@ pub fn rpx_to_json(bytes: &[u8], opts: Options) -> Result<Converted> {
     })
 }
 
+/// 把 v0/v1 定义规范化为 v1（补 `format`/`format_version`/`schema`）。
+pub fn normalize(doc: &J) -> Result<J> {
+    definition::parse(doc)?;
+    Ok(with_markers(doc.clone()))
+}
+
 /// v1/v0 JSON → [`ReportDefine`]；忽略 `extensions`。
 pub fn json_to_model(doc: &J) -> Result<ReportDefine> {
-    definition::parse(doc).map(|(rd, _)| rd)
+    let (mut rd, _) = definition::parse(doc)?;
+    legacy::apply_merge_continuations(doc, &mut rd);
+    Ok(rd)
 }
 
 /// v1/v0 JSON → `.rpx` 字节。

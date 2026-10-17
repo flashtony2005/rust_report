@@ -1,6 +1,6 @@
 # ADR 0001 — JSON 成为规范报表格式，`.rpx` 降级为 legacy 适配器
 
-- 状态：**Accepted — Phase 0 完成，Phase 1 进行中（2026-10-17）**
+- 状态：**Accepted — Phase 0 完成，Phase 1 完成（2026-10-17）；Phase 2 进行中**
 - 日期：2026-10-17
 - 决策范围：报表定义格式、`rpx-core`/`rpx-runtime` 边界、CLI/Web/Server 的输入输出
 - 关联文档：
@@ -146,7 +146,7 @@
    - print_setup 未开放槽；
    - `ObjValue` 未建模类型。
 4. 实现 CLI：`rpx format to-json` / `to-rpx` / `verify` / `check`。
-5. 把 40 个 `.rpx` 跑通 Preserve；40/40 快照字节往返；23 个引擎夹具 JSON 化对照（Phase 1 解析/尺寸，Phase 2 逐格）。
+5. 把 40 个 `.rpx` 跑通 Preserve；40/40 快照字节往返；23 个引擎夹具 JSON 化并逐格/逐段对拍。
 6. 修 `import-rpx` 的边界或明确标注“只用于 legacy”，不要让用户 import 承担迁移。
 7. 建立迁移测试清单（`docs/format/rpx-core-json-converter.md` 的 T01–T20）。
 
@@ -155,7 +155,7 @@
 - 转换器 + CLI；
 - 40/40 Preserve 报告；
 - 37/37 字节报告；
-- 23/23 引擎 JSON 可解析且尺寸/数据集/参数一致；
+- 23/23 引擎 JSON 投影逐格/逐段对拍；
 - 迁移测试与差异清单。
 
 **门禁 G1**：
@@ -163,7 +163,7 @@
 - T05：40/40 `rpx_to_json` 成功（Preserve）；
 - T06：已知 37 个 `verify --bytes` 全过；
 - T07：40/40 `model_equal`；
-- T04：23/23 引擎夹具 JSON 可解析；逐格全绿是 Phase 2 门禁；
+- T04：23/23 引擎夹具用 JSON 投影完成逐格/逐段对拍；
 - 任何 `UNSUPPORTED_FIELD` 都有 pointer + 处理决定（补映射或进 legacy），不允许静默丢弃；
 - CLI `format verify` 在 CI 可跑。
 
@@ -268,7 +268,7 @@
 | Preserve 转换成功率（40 夹具） | 40/40 |
 | 语义往返（40 夹具） | 40/40 `model_equal` |
 | 字节往返（37 已知） | 37/37 |
-| 引擎夹具 JSON 化 | Phase 1：23/23 可解析；Phase 2：23/23 逐格全绿 |
+| 引擎夹具 JSON 化 | 23/23 JSON 投影逐格全绿 |
 | Strict 模式的未支持字段 | 全部有明确错误与处理决定 |
 | CLI `format verify` CI 时长 | 在可接受预算内（建议 <2 min） |
 | 旧库迁移成功率 | 100%（dry-run 可回滚） |
@@ -281,12 +281,14 @@
 - 2026-10-17：提出 ADR；建议采纳选项 B。
 - 2026-10-17：采纳选项 B，开始实施。已完成：
   - Phase 0：baseline commit `33c6b11` + tag `v0.2.0-baseline`；`.github/workflows/ci.yml`；`format` / `format_version` / `meta` / `extensions` reader；`tests/fixtures/format/` golden corpus；schema 文件。
-  - Phase 1（迁移快照模式）：`rpx_runtime::format` 的 `rpx_to_json` / `json_to_rpx` / `verify`；`rpx format to-json|to-rpx|verify|check`；40/40 产品 `.rpx` Preserve + 快照字节往返；23/23 引擎夹具 JSON 可解析与尺寸/数据集/参数一致。
-  - 待办：Phase 1 的 23/23 逐格计算对拍、字段级 legacy 覆盖；Phase 2 writer v1 与 JSON 默认测试输入。
+  - Phase 1（迁移快照模式）：`rpx_runtime::format` 的 `rpx_to_json` / `json_to_rpx` / `verify`；`rpx format to-json|to-rpx|verify|check`；40/40 产品 `.rpx` Preserve + 快照字节往返；23/23 引擎夹具 JSON 投影逐格/逐段对拍。
+  - Phase 1 收口：23/23 引擎夹具用 JSON 投影完成 `calculated`/`pagination`/`merged` 对拍；`engine_merge` 的合并延续独立格已用快照 overlay 还原。
+- Phase 2 起始：`format normalize` 命令；`template create` / `library init --presets` 写 v1 标记；23/23 引擎夹具 JSON 对拍已通过。
+- 待办：字段级 legacy 覆盖（非合并延续字段）、测试默认输入全面切 JSON、`.rpx` feature 化。
 - 评审通过条件：
   1. 确认“JSON canonical + RPX legacy”是目标；
   2. 确认 Phase 0 的 baseline/CI 是前置；
-  3. 确认 Phase 1 的 40/40 Preserve、40/40 快照字节、23/23 JSON 可解析是硬门禁；
+  3. 确认 Phase 1 的 40/40 Preserve、40/40 快照字节、23/23 JSON 对拍是硬门禁；
   4. 确认不重写引擎、不改 `ReportDefine` 内部模型。
 
 ---

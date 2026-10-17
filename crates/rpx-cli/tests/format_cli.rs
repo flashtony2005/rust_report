@@ -164,3 +164,23 @@ fn edited_preserve_document_is_read_only() {
     assert_eq!(code, 3, "{value}");
     assert_eq!(value["error"]["code"], json!("LEGACY_READ_ONLY"));
 }
+
+#[test]
+fn normalize_adds_v1_markers() {
+    let temp = Temp::new();
+    let out = temp.path("normalized.json");
+    let (code, value, _) = invoke(&[
+        "format",
+        "normalize",
+        &format_fixture("minimal-v0.json"),
+        "--out",
+        &out,
+    ]);
+    assert_eq!(code, 0, "{value}");
+    let doc: J = serde_json::from_slice(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(doc["format"], "rpx-report");
+    assert_eq!(doc["format_version"], 1);
+    assert_eq!(doc["schema"], "rpx-report/v1");
+    let (code, value, _) = invoke(&["format", "check", &out]);
+    assert_eq!(code, 0, "{value}");
+}

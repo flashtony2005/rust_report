@@ -1,6 +1,6 @@
 # `rpx-core → JSON` 无损转换器 — 接口与迁移测试清单
 
-> 状态：**Phase 1 已实现（迁移快照模式）；逐字段 legacy 覆盖待 Phase 2**
+> 状态：**Phase 1 已实现并收口（迁移快照 + 合并延续格 overlay）；逐字段 legacy 覆盖待 Phase 2**
 > 上游格式：`docs/format/rpx-report-json-v1.md`
 > 决策：`docs/adr/0001-json-canonical-format.md`
 > 本文里的“无损”有严格分层，不是一句口号；见 §1。
@@ -430,7 +430,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
 | T01 | v1 schema 自检 | `tests/fixtures/format/*.json` | 所有 golden 通过 schema；未知字段被拒 |
 | T02 | v0 兼容读 | 当前 `examples/tutorial/*.json` | 无 `format` 也能 `json_to_model` |
 | T03 | v1 读写 | 新增最小 v1 文档 | `json_to_model` / `model_to_json` 往返 L1 |
-| T04 | **23 个引擎夹具 JSON 化** | `tests/fixtures/engine_*.rpx` → JSON | Phase 1：23/23 可被 `json_to_model` 解析，rows/cols/datasets/params 与原始一致；Phase 2：`engine_grid_compare` 用 JSON 输入仍逐格全绿 |
+| T04 | **23 个引擎夹具 JSON 化** | `tests/fixtures/engine_*.rpx` → JSON | 23/23 通过：JSON 投影 → 引擎 → `calculated`/`pagination`/`merged` 逐段相等（含 `engine_cycle` 错误型） |
 | T05 | **40 个 RPX Preserve** | `tests/fixtures/*.rpx` | 40/40 `rpx_to_json` 成功，`legacy=true` 且有原始快照 |
 | T06 | **字节往返** | 40 个 + 历史 37 个 | Preserve 快照：40/40 `bytes_equal=true`；native writer：37/37（Phase 2 门禁） |
 | T07 | 40 个语义往返 | 40 个 | 40/40 `model_equal=true` |
@@ -455,7 +455,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
   - 必须先实现本文的 `rpx_to_json`（直接走 `ReportDefine`，不经过 import 的严格 `compare`）；
   - T05/T07 是 Phase 1 的硬门禁，未过不得进入 Phase 2。
 - 当前 37 个字节往返是 `rpx_core::to_bytes` 的既有证据（`docs/report-def-json.md:8-9`），T06 应复用同一夹具集。
-- 当前 23 个引擎夹具的输入是 `.rpx`（`crates/rpx-engine/tests/engine_grid_compare.rs:5` 的 `all_names()`）；T04 在 Phase 1 只验证 JSON 可解析与尺寸/数据集/参数一致，逐格对拍留到 Phase 2。
+- 当前 23 个引擎夹具的输入是 `.rpx`（`crates/rpx-engine/tests/engine_grid_compare.rs:5` 的 `all_names()`）；T04 已经用 JSON 投影跑通 23/23，`.rpx` 保留为对照。
 
 ---
 

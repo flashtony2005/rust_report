@@ -112,6 +112,12 @@ pub enum FormatCommand {
     },
     /// 检查 JSON 定义是否可被当前 reader 接受
     Check { file: PathBuf },
+    /// v0/v1 → v1：补 format / format_version / schema
+    Normalize {
+        file: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 #[derive(Subcommand)]
 pub enum Template {
@@ -296,6 +302,7 @@ impl Command {
                 FormatCommand::ToRpx { .. } => "format.to-rpx",
                 FormatCommand::Verify { .. } => "format.verify",
                 FormatCommand::Check { .. } => "format.check",
+                FormatCommand::Normalize { .. } => "format.normalize",
             },
             Self::Result { .. } => "result.inspect",
             Self::Dataset { .. } => "dataset.inspect",

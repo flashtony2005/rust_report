@@ -283,6 +283,13 @@ fn format_command(command: FormatCommand) -> Result<J> {
             definition::parse(&document)?;
             Ok(json!({"valid": true}))
         }
+        FormatCommand::Normalize { file, out } => {
+            let document = read(&file)?;
+            let normalized = rpx_format::normalize(&document)?;
+            let out = files::absolute(&out)?;
+            files::create(&out, &files::json_bytes(&normalized)?)?;
+            Ok(json!({"out": out}))
+        }
     }
 }
 

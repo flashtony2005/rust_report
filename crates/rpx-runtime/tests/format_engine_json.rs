@@ -12,11 +12,32 @@ fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures")
 }
 
-fn names() -> [&'static str; 1] {
-    // Phase 1 的 modeled JSON 只覆盖 v1 可表达字段；这个夹具没有会改变计算的
-    // 未建模字段，因此可以做完整的“JSON 投影 → 引擎 → 逐段对拍”。
-    // 其余 22 个夹具的逐格对拍要等 Phase 2 的字段级 legacy 覆盖。
-    ["engine_types"]
+fn names() -> [&'static str; 23] {
+    [
+        "engine_sum",
+        "engine_ext",
+        "engine_expr",
+        "engine_pager",
+        "engine_merge",
+        "engine_cycle",
+        "engine_samemerge",
+        "engine_disp",
+        "engine_types",
+        "engine_rowheight",
+        "engine_head_top",
+        "engine_head_left",
+        "engine_avgrange",
+        "engine_collate",
+        "engine_listrange",
+        "engine_param",
+        "engine_gbk",
+        "engine_emp",
+        "engine_cross",
+        "engine_cross_root",
+        "engine_crossalign",
+        "engine_crossalign_lit",
+        "engine_crossalign_ds2",
+    ]
 }
 
 fn params(expected: &J) -> J {
@@ -33,7 +54,7 @@ fn params(expected: &J) -> J {
 }
 
 #[test]
-fn engine_types_calculates_from_json_projection() {
+fn engine_fixtures_calculate_from_json_projection() {
     let dir = fixtures_dir();
     let mut failures = Vec::new();
     let mut checked = 0;

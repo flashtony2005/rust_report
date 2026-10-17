@@ -1,6 +1,6 @@
 # RPX Report JSON — Format v1（设计稿）
 
-> 状态：**Phase 0 reader 已实现；Phase 1 迁移快照已实现；v2 尚未实现**
+> 状态：**Phase 0 reader 已实现；Phase 1 迁移快照 + 合并延续 overlay 已实现；新 preset 已写 v1；v2 尚未实现**
 > 目标：把当前“事实上的 JSON 定义”升级为**有明确 `format_version`、兼容策略和扩展位的规范格式**。
 > 关联决策：`docs/adr/0001-json-canonical-format.md`
 > 关联转换器：`docs/format/rpx-core-json-converter.md`

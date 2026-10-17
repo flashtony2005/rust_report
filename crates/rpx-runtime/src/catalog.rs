@@ -63,10 +63,11 @@ pub fn write_package(id: &str, out: &Path, manifest: bool) -> Result<J> {
         .find(|e| e.id == id)
         .ok_or_else(|| Error::new(2, "EXAMPLE_UNKNOWN", "catalog", id))?;
     let j: J = serde_json::from_str(e.template)?;
-    definition::validate(&j, None)?;
+    let normalized = crate::format::normalize(&j)?;
+    definition::validate(&normalized, None)?;
     fs::create_dir(out)?;
     let result = (|| {
-        files::create(&out.join("template.json"), e.template.as_bytes())?;
+        files::create(&out.join("template.json"), &files::json_bytes(&normalized)?)?;
         let data = if manifest {
             fs::create_dir(out.join("data"))?;
             out.join("data")
