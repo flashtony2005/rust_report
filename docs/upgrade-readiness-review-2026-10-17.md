@@ -32,7 +32,7 @@
 > **2026-10-17 开发更新（JSON canonical 实施后）**
 >
 > - 已完成：baseline/tag、CI、JSON v1 reader/schema、`rpx format` 四条命令、40/40 RPX Preserve、23/23 引擎夹具 JSON 对拍、字段级 overlay、`format normalize`、v1 preset。
-> - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`report list` 隔离坏包并返回 `diagnostics`；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射。
+> - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`report list` 隔离坏包并返回 `diagnostics`；`report import-rpx` 经 Preserve 快照 40/40；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射。
 > - 已修：`chart-gallery` 的 3D 图表、`images` 的打印背景 → `print-xlsx` 仍会失败，但只记 warning，不再拖垮 result/workbook/其他导出。
 > 当前最该做的不是重写，而是：**先提交并冻结一个可复现基线，再用一组真实失败场景把 CLI 边界补齐，最后把文档和 CI 分成「当前架构」与「历史里程碑」两套。**
 
@@ -404,7 +404,7 @@
 | `report validate` | ✅ | ✅ | ✅ | 使用 manifest 默认参数 |
 | `report run` | ✅ | ✅ | ✅ | 修订校验、库内 `.runs`、导出 |
 | `report update` | ✅ | ✅ | ✅ | 改 name/description，带 If-Match |
-| `report import-rpx` | ✅ | ✅ | ⚠️ | **自产 `.rpx` 5/5 成功；40 个产品夹具 0/40** |
+| `report import-rpx` | ✅ | ✅ | ✅ | 40/40 产品 `.rpx` 经 Preserve 快照导入 |
 
 ### 5.3 实测成功路径
 
@@ -457,7 +457,9 @@ rpx run examples/tutorial/complex-master-expansion.json \
 
 **建议**：短期二选一——① 按 `paper_width/height` 映射到标准纸张（420×297→A3），或② 在 CLI 入口做 preflight，明确报「该模板的打印布局不支持 print-xlsx」，同时**仍发布 result/workbook**，把导出失败作为 `warnings`/`artifacts_missing` 而非整体失败。中期把所有能力差异写进 `doctor`/`--help`。
 
-#### P0-2：`report import-rpx` 对产品 `.rpx` 语料 0/40 成功
+#### P0-2：`report import-rpx` 对产品 `.rpx` 语料 0/40 成功（已修）
+
+> **2026-10-17 已修**：`report import-rpx` 改走 `format::rpx_to_json(Preserve)`，40/40 产品夹具可导入；未建模字段在 `extensions.rpx.legacy`，实际写入/`show` 均有回归测试。
 
 - 对 `tests/fixtures/*.rpx` 全量跑 `report import-rpx --dry-run`：
   - `ok=0 / fail=40`
@@ -468,14 +470,14 @@ rpx run examples/tutorial/complex-master-expansion.json \
 
 **建议**：把 import 明确定位为「本工具生成 `.rpx` 的往返校验」还是「产品 `.rpx` 迁移」；如果是后者，先选 3–5 个产品夹具做逐字段差分，修 `row_cells`/cell 解码，再扩到 40 个；在 README/SKILL 里写清覆盖率和已知不支持项。
 
-#### P1-1：断管 panic（退出码 101）
+#### P1-1：断管 panic（退出码 101，已修）
 
 - 复现：`rpx report show ... | head -c 100` → `failed printing to stdout: Broken pipe`，退出 101。
 - 位置：`main.rs:36`、`commands.rs:227-236`。
 - 影响：agent 常用的 `| jq`、`| head`、`| grep -q` 都可能触发；101 不在协议退出码表里，调用方无法按码处理。
 - 修法：用 `write_all` 写 stdout，遇到 `ErrorKind::BrokenPipe` 静默退出 0（或 141），不要 `println!`。
 
-#### P1-2：`result inspect` 把模板文件当结果文件，返回 ok:true
+#### P1-2：`result inspect` 把模板文件当结果文件，返回 ok:true（已修）
 
 - 复现：
 
@@ -617,7 +619,7 @@ GET  /reports/{id}/runs/{run}/artifacts/{name}
 | --- | :---: | --- | --- | --- |
 | R1 | **P0** | 当前成果未提交 | `git status`：30 D / 75 M / 68 ??；`rpx-runtime`、`examples`、README/Makefile/skills 均未跟踪 | 从 HEAD 升级会丢失整套新架构；干净克隆无法构建当前 runtime |
 | R2 | P1 | `print-xlsx` 在 2/5 preset 上仍失败（3D 图表/背景），但只记 warning | `print_xlsx.rs`、`run.rs` | 用户得到结果但缺少打印文件 |
-| R3 | **P0** | `import-rpx` 对产品 `.rpx` 0/40 | 40 个 `tests/fixtures/*.rpx` 全失败；自产 5/5 成功 | 「已有 RPX 迁移」承诺不成立 |
+| R3 | 已修 | `import-rpx` 经 Preserve 快照 40/40 | `tests/fixtures/*.rpx` 全量 dry-run + 实际写入回归 | 已有 RPX 可迁移 |
 | R4 | **P0** | 文档当前态/历史态混杂 | 62 `/render`、25 `/export`、23 `/meta`、20 `reportdef/` 引用；`report-def-json` 实现路径已过期 | 升级时按错文档改代码，风险极高 |
 | R5 | P1 | 断管 panic 101 | `main.rs:36`、`commands.rs:227-236` 实测 | agent 管道使用不可靠 |
 | R6 | P1 | `result inspect` 接受模板文件 | `result.rs:63-80` 实测 | 错误输入被当成功，污染 agent 推理 |

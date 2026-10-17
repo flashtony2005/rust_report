@@ -102,7 +102,16 @@ pub fn update(
 #[cfg(feature = "legacy-rpx")]
 pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bool) -> Result<J> {
     id(name)?;
-    let template = crate::import::convert(&fs::read(file)?)?;
+    // 迁移入口走 Preserve 快照：v1 未建模字段由 extensions.rpx.legacy 承载，
+    // 因而不再用 import::convert 的保守映射阻塞产品模板。
+    let converted = crate::format::rpx_to_json(
+        &fs::read(file)?,
+        crate::format::Options {
+            mode: crate::format::Mode::PreserveLegacy,
+        },
+    )?;
+    let template = converted.document;
+    let warnings = converted.warnings;
     let (rd, _) = definition::parse(&template)?;
     let mut dependencies = Vec::new();
     for d in &rd.datasets {
@@ -113,7 +122,12 @@ pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bo
         }
     }
     if dry {
-        return Ok(json!({"dry_run":true,"template":template,"dependencies":dependencies}));
+        return Ok(json!({
+            "dry_run":true,
+            "template":template,
+            "dependencies":dependencies,
+            "warnings":warnings,
+        }));
     }
     let _guard = lock(root)?;
     if root.join(name).exists() {
@@ -146,6 +160,7 @@ pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bo
         fs::rename(&staged, root.join(name))?;
         let mut value = show_captured(root, name, &capture(root, name)?)?;
         value["dependencies"] = json!(dependencies);
+        value["warnings"] = json!(warnings);
         Ok(value)
     })();
     if result.is_err() {

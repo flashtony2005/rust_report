@@ -232,3 +232,49 @@ fn list_skips_a_corrupt_package_with_a_diagnostic() {
     assert_eq!(page["diagnostics"][0]["code"], "JSON_INVALID");
     assert_eq!(page["items"].as_array().unwrap().len(), 0);
 }
+
+#[test]
+fn import_rpx_accepts_all_product_fixtures() {
+    let temp = Temp::new();
+    library::init(&temp.0, false).unwrap();
+    let mut checked = 0;
+    let fixtures =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+    for entry in std::fs::read_dir(fixtures).unwrap().flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("rpx") {
+            continue;
+        }
+        let name = format!(
+            "imp-{}",
+            path.file_stem().unwrap().to_string_lossy().to_lowercase()
+        );
+        let value = library::import(&temp.0, &path, &name, None, true)
+            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        assert!(
+            value["template"]["extensions"]["rpx.legacy"].is_object(),
+            "{} missing snapshot",
+            path.display()
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 40);
+}
+
+#[test]
+fn import_rpx_writes_a_preserved_json_package() {
+    let temp = Temp::new();
+    library::init(&temp.0, false).unwrap();
+    let file = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/engine_merge.rpx");
+    let value = library::import(&temp.0, &file, "external-merge", None, false).unwrap();
+    assert_eq!(value["id"], "external-merge");
+    assert!(value["warnings"].is_array());
+    let template: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(temp.0.join("external-merge/template.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(template["format_version"], 1);
+    assert!(template["extensions"]["rpx.legacy"].is_object());
+    assert!(library::show(&temp.0, "external-merge").is_ok());
+}

@@ -72,7 +72,7 @@ rpx format normalize template.json --out template-v1.json
 - `template create` / `library init --presets` 现在写出带 v1 标记的 JSON；旧 v0 文件仍可读。
 - `extensions.rpx.legacy` 是迁移快照；Phase 2 已用字段级 overlay 把未建模字段合并回模型，因此字段编辑后可正常 `to-rpx`（语义保留，不保证字节相等）。
 - 增删行列属于结构性编辑，含快照时暂报 `LEGACY_STRUCTURAL_EDIT`；先移除 legacy 扩展再改结构。
-- `template compile` 与 `report import-rpx` 保留，但属于 legacy 入口；日常用 `format` + 原生 JSON。
+- `template compile` 与 `report import-rpx` 保留为 legacy 入口；`report import-rpx` 现在用 Preserve 快照迁移，40/40 产品 `.rpx` 可导入（未建模字段在 `extensions.rpx.legacy`）。日常仍推荐 `format` + 原生 JSON。
 
 ## 目录模板库
 
