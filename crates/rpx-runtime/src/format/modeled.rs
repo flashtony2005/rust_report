@@ -158,6 +158,15 @@ fn cell_json(row: usize, col: usize, c: &Cell, warnings: &mut Vec<String>) -> J 
     if let Some(v) = &c.top_head {
         j["top_head"] = json!(v);
     }
+    if let Some(v) = &c.hyperlink {
+        j["hyperlink"] = json!(v);
+    }
+    if let Some(v) = &c.hyperlink_window {
+        j["hyperlink_window"] = json!(v);
+    }
+    if let Some(v) = &c.notes {
+        j["notes"] = json!(v);
+    }
     j["font_size"] = json!(c.font_size);
     j["fore_color"] = json!(format!("#{:06X}", c.fore_color as u32 & 0xffffff));
     if c.back_color != -1 {

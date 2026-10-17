@@ -147,6 +147,9 @@
 | `literal` | object | 否 | `{type, value}`；与 `text`/`expr` 互斥 |
 | `disp_value` | string | 否 | 显示覆盖；不改变原始值 |
 | `data_type` | string | 否 | `image` / `chart` / `cell_background` / `echarts` / `echarts_js` |
+| `hyperlink` | string | 否 | 超链接 URL；空字符串拒绝 |
+| `hyperlink_window` | string | 否 | 打开目标（如 `_blank`） |
+| `notes` | string | 否 | 单元格备注/批注文本 |
 
 `literal.type` 取值：
 

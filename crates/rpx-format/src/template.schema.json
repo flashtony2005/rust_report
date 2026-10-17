@@ -292,6 +292,16 @@
           },
           "split": {
             "type": "boolean"
+          },
+          "hyperlink": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hyperlink_window": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
           }
         },
         "required": [

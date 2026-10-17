@@ -133,6 +133,22 @@ pub(super) fn apply_cell_props(
         let p = format!("{path}.top_head");
         cell.top_head = Some(super::heads::parse_declared_head(as_str(h, &p)?, &p)?);
     }
+    if let Some(v) = o.get("hyperlink") {
+        let p = format!("{path}.hyperlink");
+        let url = as_str(v, &p)?;
+        if url.is_empty() {
+            return Err(err(&p, "超链接不能为空"));
+        }
+        cell.hyperlink = Some(url.to_string());
+    }
+    if let Some(v) = o.get("hyperlink_window") {
+        let p = format!("{path}.hyperlink_window");
+        cell.hyperlink_window = Some(as_str(v, &p)?.to_string());
+    }
+    if let Some(v) = o.get("notes") {
+        let p = format!("{path}.notes");
+        cell.notes = Some(as_str(v, &p)?.to_string());
+    }
     Ok(())
 }
 
@@ -458,5 +474,20 @@ mod tests {
             // 失败不得留下半写状态（left_head 那例要求它仍是 None）。
             assert!(c.top_head.is_none(), "{json} 报错后 top_head 不应被写入");
         }
+    }
+    #[test]
+    fn hyperlink_notes_and_window_are_optional_strings() {
+        let c = apply(
+            r#"{"hyperlink":"https://example.com","hyperlink_window":"_blank","notes":"备注"}"#,
+        );
+        assert_eq!(c.hyperlink.as_deref(), Some("https://example.com"));
+        assert_eq!(c.hyperlink_window.as_deref(), Some("_blank"));
+        assert_eq!(c.notes.as_deref(), Some("备注"));
+
+        let o: Map<String, J> = serde_json::from_str(r#"{"hyperlink":""}"#).unwrap();
+        let mut c = blank_cell();
+        let e = apply_cell_props(&mut c, &o, "$.cells[0]").unwrap_err();
+        assert!(format!("{e}").contains("超链接不能为空"));
+        assert!(c.hyperlink.is_none());
     }
 }

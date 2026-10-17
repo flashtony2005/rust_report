@@ -2,6 +2,14 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.10.0-json-cell-settings — 2026-10-17
+
+### Added
+
+- `cells[].hyperlink` / `hyperlink_window` / `notes`（超链接、打开目标、备注）。
+- JSON → model → `.rpx` → JSON 往返覆盖新增字段。
+- 空超链接显式拒绝；schema/文档同步。
+
 ## v0.9.0-json-settings — 2026-10-17
 
 ### Added

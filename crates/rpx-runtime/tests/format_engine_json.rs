@@ -135,3 +135,44 @@ fn edited_preserve_json_keeps_unmodeled_cell_fields() {
     assert!(a3.merged_area.is_none());
     assert!(a2.exp_map.is_some(), "unmodeled exp_map preserved");
 }
+
+#[test]
+fn cell_hyperlink_and_notes_roundtrip_through_rpx_json() {
+    let doc = json!({
+        "format":"rpx-report",
+        "format_version":1,
+        "schema":"rpx-report/v1",
+        "grid":{"rows":1,"cols":1},
+        "cells":[{
+            "row":1,"col":1,"text":"link",
+            "hyperlink":"https://example.com",
+            "hyperlink_window":"_blank",
+            "notes":"说明"
+        }]
+    });
+    let rd = format::json_to_model(&doc).unwrap();
+    let cell = rd.cell_at(1, 1).unwrap();
+    assert_eq!(cell.hyperlink.as_deref(), Some("https://example.com"));
+    assert_eq!(cell.notes.as_deref(), Some("说明"));
+
+    let bytes = format::json_to_rpx(
+        &doc,
+        format::Options {
+            mode: format::Mode::PreserveLegacy,
+            allow_structural: false,
+        },
+    )
+    .unwrap();
+    let converted = format::rpx_to_json(
+        &bytes,
+        format::Options {
+            mode: format::Mode::PreserveLegacy,
+            allow_structural: false,
+        },
+    )
+    .unwrap();
+    let c = &converted.document["cells"][0];
+    assert_eq!(c["hyperlink"], "https://example.com");
+    assert_eq!(c["hyperlink_window"], "_blank");
+    assert_eq!(c["notes"], "说明");
+}

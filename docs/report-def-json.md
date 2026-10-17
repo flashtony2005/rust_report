@@ -89,10 +89,13 @@
 | `top_head` | 字符串 | ✖ | **声明式上主格**：格号或根记法 `` `0 ``（§4.8） |
 | `merge` | 对象 | ✖ | 合并矩形 `{rows, cols}`（§4.2） |
 | `merge_same` | 枚举 | ✖ | 同值合并（§4.2） |
+| `hyperlink` | 字符串 | ✖ | 单元格超链接 URL；空字符串拒绝 |
+| `hyperlink_window` | 字符串 | ✖ | 打开目标（如 `_blank`） |
+| `notes` | 字符串 | ✖ | 单元格备注/批注文本 |
 
 * **样式字段逐字段独立**：给了才改，不给不动 —— 「只声明 `bold`」不会把字号 /
-  颜色打回默认。落地实现 `rpx-server/src/reportdef/style.rs`（7 槽）与
-  `rpx-server/src/reportdef/cellprops.rs`（16 槽）。
+  颜色打回默认。落地实现 `crates/rpx-format/src/reportdef/style.rs`（7 槽）与
+  `crates/rpx-format/src/reportdef/cellprops.rs`（18 槽）。
 * 字体/字号/粗斜下划线/前景背景色 7 个字段与 `/render` 快照的 `cellData[r][c].s`
   （Univer `IStyleData`）**严格互逆**（映射表 `docs/spec-m4.md` §4.3）。
 * ⚠ **边框 / `format` / `indent` / `rotation` 不在快照里**（`spec-m4.md` §4.3 列为

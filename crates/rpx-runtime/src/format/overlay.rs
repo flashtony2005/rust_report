@@ -257,6 +257,9 @@ fn merge_cell(orig: &Cell, parsed: &Cell) -> Cell {
     out.extend_mode = parsed.extend_mode;
     out.left_head = parsed.left_head.clone();
     out.top_head = parsed.top_head.clone();
+    out.hyperlink = parsed.hyperlink.clone();
+    out.hyperlink_window = parsed.hyperlink_window.clone();
+    out.notes = parsed.notes.clone();
     out.value = parsed.value.clone();
     out.disp_value = parsed.disp_value.clone();
     out.indent = parsed.indent;
