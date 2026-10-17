@@ -1,6 +1,6 @@
 # ADR 0001 — JSON 成为规范报表格式，`.rpx` 降级为 legacy 适配器
 
-- 状态：**Accepted — Phase 0/1/2/3 完成；Phase 4 `rpx-format` 抽离完成**
+- 状态：**Accepted — Phase 0/1/2/3/4 完成；no-default 图已不含 rpx-core**
 - 日期：2026-10-17
 - 决策范围：报表定义格式、`rpx-core`/`rpx-runtime` 边界、CLI/Web/Server 的输入输出
 - 关联文档：
@@ -189,7 +189,7 @@
 - `rpx-runtime` / `rpx-cli` 增加 `legacy-rpx` feature；v1.x **默认仍开启**，保留两个 minor 的兼容窗口。
 - `format`、`report import-rpx`、`template compile`、`.rpx` reader 分支都受 feature 控制；`cargo check -p rpx-cli --no-default-features` 通过，JSON-only 构建不暴露 legacy 命令。
 - `rpx-core` 拆分完成：`writer`、`open/open_bytes`、`fill`、`Cell/RowCell/ColCell/Param/PrintSetup/DataSet` 读方法、`RecordReader` 都受 `legacy-rpx` 控制；`ObjValue` 移到独立模块，JSON-only 仍可用。
-- no-default 的 runtime/CLI 依赖图不再启用 `rpx-core/legacy-rpx`；core 的二进制测试用 `required-features` 隔离。
+- no-default 的 runtime/CLI 依赖图不含 `rpx-core`，也不启用 `rpx-model/legacy-rpx`；二进制测试用 `required-features` 隔离。
 - `scripts/json_only_smoke.sh` 在 no-default 构建上跑 validate → run → result inspect → library/preset → report run；CI 同步执行。
 - JSON 门禁 `format_engine_json` 读取落盘 JSON fixtures；`.rpx` 版本保留为兼容对照。
 - 结构性编辑默认拒绝，`--allow-structural` 显式接受重叠区。
@@ -197,7 +197,7 @@
 **v2.0 再做（不在本次完成口径内）**：
 
 - 默认关闭 `legacy-rpx`，默认构建不含 `.rpx` 读写。
-- 拆分 `rpx-model`，让 no-default 依赖图彻底不含 `rpx-core`（当前只保证不含 `rpx-core/legacy-rpx` feature）。
+- 默认关闭 `legacy-rpx`；其余 engine `.rpx` 测试迁 JSON。
 - `rpx-format` 抽离、`rpx-runtime::reportdef` 迁移。
 - 引擎/运行时测试全面切 JSON，`.rpx` 只留独立 legacy 测试目标。
 - `.rpxpkg`、schema v2、库级 `format migrate`。
@@ -252,7 +252,7 @@
 
 **门禁 G3（本次完成口径）**：
 
-- JSON-only 构建不依赖 `rpx-core/legacy-rpx`，CI 有 `--no-default-features` + JSON-only smoke；
+- JSON-only 构建不含 `rpx-core`，CI 有 `--no-default-features` + JSON-only smoke；
 - 引擎 JSON 门禁 `format_engine_json` 读取 JSON fixtures；`.rpx` 测试保留为兼容对照；
 - 外部 `.rpx` 资产有迁移指南与 40/40 Preserve 基线；
 - `format` 转换器仍可独立安装；
@@ -312,7 +312,9 @@
 - 新 crate `crates/rpx-format`，包含 `reportdef` parse/build、`definition::strict` 与 template schema。
 - `rpx-runtime` 通过 `pub use rpx_format::reportdef::*` 保留旧路径；`definition` re-export `strict/schema`。
 - `rpx-format` 默认无 `.rpx` 二进制依赖；`legacy-rpx` feature 仅用于 `.rpx` 入口。
-- G5/G8 登记新 crate；JSON-only 构建与 734 测试保持绿。
+- 原 `rpx-core` 包重命名为 `rpx-model`（lib 名仍为 `rpx_core`，兼容既有 import）；`legacy-rpx` feature 控制二进制读写。
+- `cargo tree -p rpx-cli --no-default-features` **不含 rpx-core**，也不启用 `rpx-model/legacy-rpx`。
+- G5/G8 登记 `rpx-model` 与新 crate；JSON-only 构建、733 测试保持绿。
 - 引擎主对拍 `engine_grid_compare` 改读 `tests/fixtures/format/engine/*.json`；`.rpx` 只留兼容入口。
 
 仍未做（v2.0）：
@@ -329,7 +331,7 @@
   - Phase 1 收口：23/23 引擎夹具用 JSON 投影完成 `calculated`/`pagination`/`merged` 对拍；`engine_merge` 的合并延续独立格已用快照 overlay 还原。
 - Phase 2：字段级 `format/overlay.rs` 已实现（编辑后的 preserve JSON 可写出）；`format normalize`；`template create` / `library init --presets` 写 v1；23/23 引擎夹具 JSON 对拍。
 - 结构性编辑：默认拒绝；`format to-rpx --allow-structural` 可显式接受，只保证坐标不变的重叠区。
-- Phase 3（feature 边界）完成；Phase 4 `rpx-format` 抽离完成。默认仍开启 `legacy-rpx` 以保留 v1.x 兼容窗口。
+- Phase 3（feature 边界）与 Phase 4（`rpx-format` + `rpx-model` 重命名）完成；默认仍开启 `legacy-rpx` 以保留 v1.x 兼容窗口。
 - 评审通过条件：
   1. 确认“JSON canonical + RPX legacy”是目标；
   2. 确认 Phase 0 的 baseline/CI 是前置；

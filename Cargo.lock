@@ -1158,73 +1158,73 @@ dependencies = [
 
 [[package]]
 name = "rpx-cli"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "clap",
- "rpx-core",
+ "rpx-model",
  "rpx-runtime",
  "serde_json",
  "tokio",
 ]
 
 [[package]]
-name = "rpx-core"
-version = "0.4.0"
-
-[[package]]
 name = "rpx-ds"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "calamine",
  "csv",
- "rpx-core",
+ "rpx-model",
  "sqlx",
  "tokio",
 ]
 
 [[package]]
 name = "rpx-engine"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64",
- "rpx-core",
  "rpx-format",
+ "rpx-model",
  "serde_json",
 ]
 
 [[package]]
 name = "rpx-export"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64",
  "calamine",
- "rpx-core",
  "rpx-engine",
+ "rpx-model",
  "rust_xlsxwriter",
 ]
 
 [[package]]
 name = "rpx-format"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
- "rpx-core",
  "rpx-engine",
  "rpx-export",
+ "rpx-model",
  "serde_json",
 ]
 
 [[package]]
+name = "rpx-model"
+version = "0.5.0"
+
+[[package]]
 name = "rpx-runtime"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64",
  "calamine",
  "json-patch",
- "rpx-core",
  "rpx-ds",
  "rpx-engine",
  "rpx-export",
  "rpx-format",
+ "rpx-model",
  "serde_json",
  "sha2 0.10.9",
  "time",
@@ -1234,13 +1234,13 @@ dependencies = [
 
 [[package]]
 name = "rpx-server"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "axum",
- "rpx-core",
  "rpx-ds",
  "rpx-engine",
  "rpx-export",
+ "rpx-model",
  "rpx-runtime",
  "serde_json",
  "tokio",

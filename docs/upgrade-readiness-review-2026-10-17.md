@@ -40,7 +40,7 @@
 ### 0.2 五条最重要的结论
 
 1. **架构方向正确，且被门禁守住了。**
-   `rpx-core` / `rpx-engine` 保持零第三方依赖，`rpx-ds` / `rpx-export` / `rpx-runtime` / `rpx-cli` / `rpx-server` 分层明确；`scripts/gate.sh` 的 G5（依赖白名单）和 G8（crate 分层矩阵）不是纸面约定，而是会失败的检查。
+   `rpx-model` / `rpx-engine` 保持零第三方依赖，`rpx-ds` / `rpx-export` / `rpx-runtime` / `rpx-cli` / `rpx-server` 分层明确；`scripts/gate.sh` 的 G5（依赖白名单）和 G8（crate 分层矩阵）不是纸面约定，而是会失败的检查。
 
 2. **算法质量是项目最强的资产。**
    `rpx-engine` 约 2.1 万行生产代码、421 个测试属性，主对拍链路对 23 个产品夹具逐格比较且**不再设夹具级豁免**；合并、分页、属性表达式、中文排序、BigDecimal、GBK 都有专门证据。代码里没有 `todo!`/`unimplemented!`，不支持的能力基本都显式报错。
@@ -81,7 +81,7 @@
 | --- | ---: | ---: | ---: | --- |
 | `rpx-engine` | 32,568 | 11,319 | 21,249 | 扩展、求值、合并、分页、导出网格 |
 | `rpx-runtime` | 10,943 | 4,244 | 6,699 | 定义 JSON/运行库/快照/导入/编排 |
-| `rpx-core` | 4,851 | 1,586 | 3,265 | `.rpx` 二进制读写 |
+| `rpx-model` | 4,851 | 1,586 | 3,265 | 模型类型 + 可选 `.rpx` 二进制读写 |
 | `rpx-export` | 1,717 | 840 | 877 | CSV / XLSX / 打印 XLSX |
 | `rpx-server` | 1,089 | 144 | 945 | 8 个 HTTP 端点 |
 | `rpx-cli` | 1,409 | 648 | 761 | 30 个 CLI 命令 |
@@ -138,7 +138,7 @@
                         └────────────┴─────────────┘
                                    │
                              ┌─────▼─────┐
-                             │ rpx-core  │
+                             │ rpx-model │
                              │ .rpx 读写 │
                              └───────────┘
 ```
@@ -157,7 +157,7 @@
    G5 的零依赖层 + 白名单，G8 的 path 依赖矩阵，能真实拦住「engine 悄悄引第三方库」「cli 反向依赖 server」这类腐化。
 
 2. **零依赖计算核是长期资产。**
-   `rpx-core`/`rpx-engine` 不用 serde、不用时间库、不用异步 runtime；算法与 IO/框架解耦，未来换 Web 框架、换存储、做 WASM 都不会被拖住。
+   `rpx-model`/`rpx-engine` 不用 serde、不用时间库、不用异步 runtime；算法与 IO/框架解耦，未来换 Web 框架、换存储、做 WASM 都不会被拖住。
 
 3. **运行层抽取方向正确。**
    `rpx-runtime` 把原先散在 server 的解析、快照、导入、运行编排收拢后，CLI 与 server 共享同一套语义；server 退化成「目录库 API」，职责明显更窄。

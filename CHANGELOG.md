@@ -2,6 +2,16 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.5.0-rpx-model — 2026-10-17
+
+### Changed
+
+- 原 `rpx-core` 包重命名为 `rpx-model`（lib 名仍为 `rpx_core`，兼容既有 import）。
+- `.rpx` reader/writer 继续由 `legacy-rpx` feature 控制。
+- `cargo tree -p rpx-cli --no-default-features` 不再包含 `rpx-core`。
+- 引擎 grid/pager/cross 测试改读 `tests/fixtures/format/engine/*.json`；`.rpx` 只留兼容。
+- HTTP JSON rejection 测试合并进 server 测试，消除并行启动抖动。
+
 ## v0.4.0-format-crate — 2026-10-17
 
 ### Changed

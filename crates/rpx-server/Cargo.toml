@@ -1,6 +1,6 @@
 [package]
 name = "rpx-server"
-version = "0.4.0"
+version = "0.5.0"
 edition.workspace = true
 [dependencies]
 rpx-runtime = { path = "../rpx-runtime" }
@@ -8,7 +8,7 @@ axum = "0.8"
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }
 [dev-dependencies]
-rpx-core = { path = "../rpx-core" }
+rpx-model = { path = "../rpx-model" }
 rpx-engine = { path = "../rpx-engine" }
 rpx-ds = { path = "../rpx-ds" }
 rpx-export = { path = "../rpx-export" }

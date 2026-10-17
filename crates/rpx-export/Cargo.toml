@@ -1,8 +1,8 @@
 [package]
 name = "rpx-export"
-version = "0.4.0"
+version = "0.5.0"
 edition.workspace = true
-description = "ReportLite export face (M6): calculated CalcGrid -> files; CSV first, xlsx next. Audited layer: rpx-core/rpx-engine stay zero-dependency."
+description = "ReportLite export face (M6): calculated CalcGrid -> files; CSV first, xlsx next. Audited layer: rpx-model/rpx-engine stay zero-dependency."
 
 [dependencies]
 rpx-engine = { path = "../rpx-engine" }
@@ -14,4 +14,4 @@ base64 = "0.22"
 # 读回自洽对拍用（不进产物，G5 不覆盖 dev-deps；见 spec-m6 §2.4）
 calamine = "0.36"
 # M6-05 导出基线：测试要 open 模板（rpx-export 本体只依赖 rpx-engine）
-rpx-core = { path = "../rpx-core", features = ["legacy-rpx"] }
+rpx-model = { path = "../rpx-model", features = ["legacy-rpx"] }

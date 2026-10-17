@@ -83,7 +83,7 @@ printf '\n'
 ALLOWLIST="scripts/dep_allowlist.txt"
 dep_out="$(awk -v allowfile="$ALLOWLIST" '
   BEGIN {
-    zero["rpx-core"] = 1
+    zero["rpx-model"] = 1
     zero["rpx-engine"] = 1
     while ((getline l < allowfile) > 0) {
       sub(/#.*/, "", l); gsub(/^[ \t]+|[ \t]+$/, "", l)
@@ -108,7 +108,7 @@ dep_out="$(awk -v allowfile="$ALLOWLIST" '
     if (line ~ /path[ \t]*=/) next            # path 依赖一律放行
     key = crate " " dep
     if (crate in zero) {
-      printf "  零依赖层违规  %s: %s —— rpx-core/rpx-engine 只许 path 依赖\n", crate, dep
+      printf "  零依赖层违规  %s: %s —— rpx-model/rpx-engine 只许 path 依赖\n", crate, dep
       bad = 1; next
     }
     if (!(key in allow)) {
@@ -129,7 +129,7 @@ hr
 printf '>>> G5 依赖策略（分层白名单：零依赖层 + 受审白名单）\n'
 hr
 if [ -z "$dep_out" ]; then
-  printf '零依赖层（rpx-core / rpx-engine）无第三方依赖；%s 内无未登记项。\n' "$ALLOWLIST"
+  printf '零依赖层（rpx-model / rpx-engine）无第三方依赖；%s 内无未登记项。\n' "$ALLOWLIST"
   RESULTS+=("PASS  G5 依赖策略")
 else
   printf '%s\n' "$dep_out"
@@ -175,21 +175,21 @@ hr
 layer_out="$(awk '
   BEGIN {
     # allowed["crate dep"] = 1
-    allowed["rpx-engine rpx-core"] = 1
-    allowed["rpx-format rpx-core"] = 1
+    allowed["rpx-engine rpx-model"] = 1
+    allowed["rpx-format rpx-model"] = 1
     allowed["rpx-format rpx-engine"] = 1
     allowed["rpx-format rpx-export"] = 1
-    allowed["rpx-ds rpx-core"] = 1
-    allowed["rpx-cli rpx-core"] = 1
+    allowed["rpx-ds rpx-model"] = 1
+    allowed["rpx-cli rpx-model"] = 1
     allowed["rpx-cli rpx-engine"] = 1
     allowed["rpx-cli rpx-export"] = 1
-    allowed["rpx-server rpx-core"] = 1
+    allowed["rpx-server rpx-model"] = 1
     allowed["rpx-server rpx-engine"] = 1
     allowed["rpx-server rpx-ds"] = 1
     allowed["rpx-server rpx-export"] = 1
     # M6-01：导出面（受审层）吃已算完的 CalcGrid ⇒ 只依赖 engine，向下不溜。
     allowed["rpx-export rpx-engine"] = 1
-    allowed["rpx-runtime rpx-core"] = 1
+    allowed["rpx-runtime rpx-model"] = 1
     allowed["rpx-runtime rpx-format"] = 1
     allowed["rpx-runtime rpx-engine"] = 1
     allowed["rpx-runtime rpx-ds"] = 1
@@ -197,7 +197,7 @@ layer_out="$(awk '
     allowed["rpx-cli rpx-runtime"] = 1
     allowed["rpx-server rpx-runtime"] = 1
     known["rpx-runtime"] = 1
-    known["rpx-core"] = 1; known["rpx-engine"] = 1; known["rpx-ds"] = 1
+    known["rpx-model"] = 1; known["rpx-engine"] = 1; known["rpx-ds"] = 1
     known["rpx-cli"] = 1; known["rpx-server"] = 1; known["rpx-export"] = 1
     known["rpx-format"] = 1
   }

@@ -1,12 +1,15 @@
 [package]
-name = "rpx-core"
-version = "0.4.0"
+name = "rpx-model"
+version = "0.5.0"
 edition.workspace = true
-description = "ReportLite .rpx binary format parser (pure std, zero dependencies)"
+description = "ReportLite model types + optional .rpx binary reader/writer (pure std, zero dependencies)"
 
 [features]
 default = ["legacy-rpx"]
 legacy-rpx = []
+
+[lib]
+name = "rpx_core"
 
 [dependencies]
 
