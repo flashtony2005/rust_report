@@ -208,6 +208,13 @@ fn cell_json(row: usize, col: usize, c: &Cell, warnings: &mut Vec<String>) -> J 
     if let Some(mode) = naming::merge_same(c.merge_same) {
         j["merge_same"] = json!(mode);
     }
+    if c.diagonal_style != 0 {
+        j["diagonal"] = json!({
+            "style": naming::border_style(c.diagonal_style),
+            "width": c.diagonal_width,
+            "color": format!("#{:06X}", c.diagonal_color as u32 & 0xffffff),
+        });
+    }
     let mut border = Map::new();
     for (key, style, width, color) in [
         ("left", c.lb_style, c.lb_width, c.lb_color),
@@ -240,18 +247,12 @@ fn cell_json(row: usize, col: usize, c: &Cell, warnings: &mut Vec<String>) -> J 
 }
 
 fn cell_has_legacy(c: &Cell) -> bool {
-    c.diagonal_style != 0
-        || c.diagonal_color != def::COLOR_BLACK
-        || c.diagonal_width != def::DIAGONAL_WIDTH
-        || c.extend_area.is_some()
+    c.extend_area.is_some()
         || c.to_excel_mode != def::TO_EXCEL_MODE
         || c.adjust_size_mode != def::ADJUST_SIZE_MODE
         || c.cell_obj.is_some()
-        || c.hyperlink.is_some()
-        || c.hyperlink_window.is_some()
         || c.exp_map.is_some()
         || c.cell_type != def::CELL_TYPE
-        || c.notes.is_some()
         || c.cell_graph_config.is_some()
         || c.under_line_style != 0
         || c.cell_style_name.is_some()

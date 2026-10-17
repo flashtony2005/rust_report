@@ -2,6 +2,14 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.11.0-json-diagonal — 2026-10-17
+
+### Added
+
+- `cells[].diagonal`：`{style, width?, color?}`，复用边框线型码表。
+- JSON → model → `.rpx` → JSON 往返覆盖对角线。
+- schema/文档同步；cellprops 测试拆分以守住 500 行门禁。
+
 ## v0.10.0-json-cell-settings — 2026-10-17
 
 ### Added

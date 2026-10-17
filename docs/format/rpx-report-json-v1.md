@@ -169,6 +169,7 @@ null | text | bool | byte | short | int | long | float | double | decimal | date
 | `bold` / `italic` / `underline` | boolean | 独立开关 |
 | `fore_color` / `back_color` | string | `#RRGGBB` |
 | `border` | object | `{left?,right?,top?,bottom?}`，每边 `{style, width?, color?}` |
+| `diagonal` | object | `{style, width?, color?}`，style 同边框线型 |
 | `format` | string | 数字格式串 |
 | `indent` | number | `>=0` |
 | `rotation` | number | 角度 `>=0` |

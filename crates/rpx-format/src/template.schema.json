@@ -302,6 +302,33 @@
           },
           "notes": {
             "type": "string"
+          },
+          "diagonal": {
+            "type": "object",
+            "properties": {
+              "style": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "dotted",
+                  "dashed",
+                  "solid",
+                  "double"
+                ]
+              },
+              "width": {
+                "type": "number",
+                "minimum": 0
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}$"
+              }
+            },
+            "required": [
+              "style"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

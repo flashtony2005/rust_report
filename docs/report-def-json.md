@@ -92,6 +92,7 @@
 | `hyperlink` | 字符串 | ✖ | 单元格超链接 URL；空字符串拒绝 |
 | `hyperlink_window` | 字符串 | ✖ | 打开目标（如 `_blank`） |
 | `notes` | 字符串 | ✖ | 单元格备注/批注文本 |
+| `diagonal` | 对象 | ✖ | 对角线 `{style, width?, color?}`；style 同边框线型 |
 
 * **样式字段逐字段独立**：给了才改，不给不动 —— 「只声明 `bold`」不会把字号 /
   颜色打回默认。落地实现 `crates/rpx-format/src/reportdef/style.rs`（7 槽）与

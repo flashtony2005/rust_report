@@ -280,6 +280,9 @@ fn merge_cell(orig: &Cell, parsed: &Cell) -> Cell {
     out.bb_style = parsed.bb_style;
     out.bb_width = parsed.bb_width;
     out.bb_color = parsed.bb_color;
+    out.diagonal_style = parsed.diagonal_style;
+    out.diagonal_width = parsed.diagonal_width;
+    out.diagonal_color = parsed.diagonal_color;
     out.merge_same = parsed.merge_same;
     out.rotation_angle = parsed.rotation_angle;
     out.exp_map = merge_exp_map(orig.exp_map.as_ref(), parsed.exp_map.as_ref(), &[40]);

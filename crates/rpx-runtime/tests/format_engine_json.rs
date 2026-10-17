@@ -147,13 +147,16 @@ fn cell_hyperlink_and_notes_roundtrip_through_rpx_json() {
             "row":1,"col":1,"text":"link",
             "hyperlink":"https://example.com",
             "hyperlink_window":"_blank",
-            "notes":"说明"
+            "notes":"说明",
+            "diagonal":{"style":"dashed","width":2,"color":"#123456"}
         }]
     });
     let rd = format::json_to_model(&doc).unwrap();
     let cell = rd.cell_at(1, 1).unwrap();
     assert_eq!(cell.hyperlink.as_deref(), Some("https://example.com"));
     assert_eq!(cell.notes.as_deref(), Some("说明"));
+    assert_eq!(cell.diagonal_style, 82);
+    assert_eq!(cell.diagonal_width, 2.0);
 
     let bytes = format::json_to_rpx(
         &doc,
@@ -175,4 +178,6 @@ fn cell_hyperlink_and_notes_roundtrip_through_rpx_json() {
     assert_eq!(c["hyperlink"], "https://example.com");
     assert_eq!(c["hyperlink_window"], "_blank");
     assert_eq!(c["notes"], "说明");
+    assert_eq!(c["diagonal"]["style"], "dashed");
+    assert_eq!(c["diagonal"]["width"], 2.0);
 }
