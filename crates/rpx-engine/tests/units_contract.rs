@@ -1,7 +1,7 @@
 //! 口径契约：模板尺寸 ↔ 裸矩阵尺寸 ↔ 计算态行数 ↔ 扩展块高。
 //!
 //! 这一组断言**不写死任何数字**（夹具名除外）：每一列都从产品产物现推 ——
-//! `.rpx` 经 `rpx-core` 解析、`.csv` 数非空行、`expected.json` 取 `template_rows` /
+//! JSON 定义经 `rpx-format` 解析、`.csv` 数非空行、`expected.json` 取 `template_rows` /
 //! `template_cols` / `dataset.row_count` / `calculated.rows` / 扩展格的 `row_merge`。
 //! 目的是让"夹具改了但测试没跟着改"这件事**不可能静默通过**。
 //!
@@ -20,11 +20,14 @@
 //! ⇒ 从解析结果调用 [`calc_row_count`] 必须先减 1；少减一次就整体偏大 1 行，
 //! 而公式本身在 6 个夹具上都"看起来对"—— 所以这条换算必须单独钉。
 //!
-//! 旁证实测：`rpx-cli print tests/fixtures/engine_sum.rpx` → `matrix: 7x10 (logical 6x9)`。
+//! 旁证实测：产品矩阵 7x10（逻辑 6x9）；JSON 夹具与 `expected.json` 对齐。
 
 use std::path::PathBuf;
 
 use rpx_engine::calc_row_count;
+
+mod common;
+use common::open_json_fixture;
 
 /// 七个**有扩展、且能算出网格**的夹具。
 ///
@@ -49,13 +52,6 @@ fn fixtures_dir() -> PathBuf {
 fn read_fixture(name: &str, ext: &str) -> String {
     let path = fixtures_dir().join(format!("{name}.{ext}"));
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
-}
-
-/// 解析 `.rpx`（产品 writer 产出的真实字节）。
-fn open_rpx(name: &str) -> rpx_core::ReportDefine {
-    let path = fixtures_dir().join(format!("{name}.rpx"));
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    rpx_core::open_bytes(&bytes).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
 }
 
 /// 数据集行数 = CSV 的非空行数 − 1（首行是列名）。
@@ -169,7 +165,7 @@ fn parsed_matrix_dims_are_one_more_than_the_template_dims() {
         let json = read_fixture(name, "expected.json");
         let template_rows = int_after(&json, "template_rows");
         let template_cols = int_after(&json, "template_cols");
-        let define = open_rpx(name);
+        let define = open_json_fixture(name);
         assert_eq!(
             define.rows as i32,
             template_rows + 1,
@@ -183,7 +179,7 @@ fn parsed_matrix_dims_are_one_more_than_the_template_dims() {
     }
 }
 
-/// 行数公式成立 —— 四列输入全部现推：`.rpx` 出模板尺寸、`.csv` 出数据集行数、
+/// 行数公式成立 —— 四列输入全部现推：JSON 定义出模板尺寸、`.csv` 出数据集行数、
 /// `dataset.row_count` 交叉校验 csv、计算态 `source.row_merge` 出块高。
 #[test]
 fn row_count_formula_is_derived_from_product_artifacts() {
@@ -204,9 +200,9 @@ fn row_count_formula_is_derived_from_product_artifacts() {
             "{name}: csv 行数 vs expected.json 的 dataset.row_count"
         );
 
-        // 模板行数与 .rpx 对齐（再钉一次，防止 json 与 rpx 不同步）
+        // 模板行数与 JSON 定义对齐（再钉一次，防止两套夹具不同步）
         assert_eq!(
-            open_rpx(name).rows as i32 - 1,
+            open_json_fixture(name).rows as i32 - 1,
             template_rows,
             "{name}: 模板行数口径"
         );

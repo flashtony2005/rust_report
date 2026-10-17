@@ -2,7 +2,7 @@
 //!
 //! # 这条链路验收什么
 //!
-//! 对 7 个 cross 夹具各跑一遍：「`.rpx` 模板 + 内存 SQL 行集 →
+//! 对 7 个 cross 夹具各跑一遍：「JSON 模板 + 内存 SQL 行集 →
 //! `load_datasets_full(rd, read, Some(&kb_fetch))` → `calculate()` →
 //! `emit::render_document()`」，与产品探针真值
 //! `tests/fixtures/out/cross_*_product.json` **逐格**比（值/类型/`source`/
@@ -24,6 +24,7 @@
 //! 真值把 T1/T2/T3 的语义钉住，两条链共用 [`common::compare`] 同一套口径。
 
 mod common;
+use common::open_json_fixture;
 
 use common::{compare_actual_with_raw, Dim, Kind};
 use rpx_core::rowset::RowSet;
@@ -34,12 +35,6 @@ use rpx_engine::error::EngineError;
 /// 夹具目录（与 `engine_grid_compare.rs` 同口径）。
 fn fixtures_dir() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures")
-}
-
-fn open_rpx(name: &str) -> rpx_core::ReportDefine {
-    let path = fixtures_dir().join(format!("{name}.rpx"));
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("读 {} 失败：{e}", path.display()));
-    rpx_core::open_bytes(&bytes).unwrap_or_else(|e| panic!("解析 {} 失败：{e}", path.display()))
 }
 
 /// 读探针真值原始 JSON（`out/cross_<name>_product.json`）。
@@ -163,7 +158,7 @@ fn kb_fetch(dsn: &str, sql: &str) -> std::result::Result<RowSet, EngineError> {
 
 /// 跑一个 cross 夹具，产出引擎侧文本。
 fn engine_text(name: &str) -> String {
-    let rd = open_rpx(name);
+    let rd = open_json_fixture(name);
     let fetch: &SqlFetcher = &kb_fetch;
     let ds = load_datasets_full(&rd, &|_| None, Some(&fetch))
         .unwrap_or_else(|e| panic!("{name}: load_datasets_full 失败：{e}"));

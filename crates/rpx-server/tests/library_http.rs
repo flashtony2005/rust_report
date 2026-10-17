@@ -60,6 +60,7 @@ async fn web_saves_json_with_revision_and_reads_fixed_artifacts() {
     let addr = listener.local_addr().unwrap().to_string();
     let app = rpx_server::http::app(root.clone());
     let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     let (status, bytes) = send(&addr, "GET", "/reports/complex-master", None, None).await;
     assert_eq!(status, 200);
     let mut detail: J = serde_json::from_slice(&bytes).unwrap();
@@ -140,6 +141,22 @@ async fn web_saves_json_with_revision_and_reads_fixed_artifacts() {
         404
     );
     assert_eq!(library::runs(root, "complex-master").unwrap().len(), 1);
+    let (status, bytes) = send_raw(&addr, "/reports/x/template", "application/json", b"{bad").await;
+    assert_eq!(status, 400);
+    let value: J = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value["error"]["code"], "JSON_INVALID");
+
+    let (status, bytes) = send_raw(
+        &addr,
+        "/reports/x/template",
+        "text/plain",
+        br#"{"grid":{"rows":1,"cols":1}}"#,
+    )
+    .await;
+    assert_eq!(status, 415);
+    let value: J = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value["error"]["code"], "UNSUPPORTED_MEDIA_TYPE");
+
     task.abort();
 }
 
@@ -162,32 +179,4 @@ async fn send_raw(addr: &str, path: &str, content_type: &str, body: &[u8]) -> (u
         .parse()
         .unwrap();
     (status, output[split + 4..].to_vec())
-}
-
-#[tokio::test]
-async fn json_rejections_are_json_errors() {
-    let temp = Temp(std::env::temp_dir().join(format!("rpx-http-json-{}", files::unique())));
-    library::init(&temp.0, false).unwrap();
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap().to_string();
-    let app = rpx_server::http::app(temp.0.clone());
-    let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-
-    let (status, bytes) = send_raw(&addr, "/reports/x/template", "application/json", b"{bad").await;
-    assert_eq!(status, 400);
-    let value: J = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(value["error"]["code"], "JSON_INVALID");
-
-    let (status, bytes) = send_raw(
-        &addr,
-        "/reports/x/template",
-        "text/plain",
-        br#"{"grid":{"rows":1,"cols":1}}"#,
-    )
-    .await;
-    assert_eq!(status, 415);
-    let value: J = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(value["error"]["code"], "UNSUPPORTED_MEDIA_TYPE");
-
-    task.abort();
 }

@@ -5,6 +5,7 @@
 //! 再断言分页切点 8+9 行；总对拍器也要求该夹具全段零差异、无任何豁免。
 
 mod common;
+use common::open_json_fixture;
 
 use std::path::PathBuf;
 
@@ -16,16 +17,9 @@ fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures")
 }
 
-/// 解析 `.rpx`（产品 writer 产出的真实字节）。
-fn open_rpx(name: &str) -> rpx_core::ReportDefine {
-    let path = fixtures_dir().join(format!("{name}.rpx"));
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("读 {} 失败：{e}", path.display()));
-    rpx_core::open_bytes(&bytes).unwrap_or_else(|e| panic!("解析 {} 失败：{e}", path.display()))
-}
-
 /// 引擎跑该夹具，返回 `(网格, 渲染文本)`。
 fn run(name: &str) -> (rpx_engine::CalcGrid, String) {
-    let rd = open_rpx(name);
+    let rd = open_json_fixture(name);
     let ds = rpx_engine::dataset::load_datasets(&fixtures_dir(), &rd)
         .unwrap_or_else(|e| panic!("{name}: load_datasets 失败：{e}"));
     let grid = rpx_engine::calculate(&rd, &ds).expect("engine_rowheight 应算出网格");

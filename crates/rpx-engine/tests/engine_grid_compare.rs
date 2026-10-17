@@ -42,62 +42,9 @@ fn fixture_text(name: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读 {} 失败：{e}", path.display()))
 }
 
-/// 读落盘的 JSON 定义（v1 + Preserve 快照）。
-///
-/// `rpx-format` 负责 JSON parse/build；快照里的“合并延续独立格”在测试侧
-/// 还原，避免把 `.rpx` 作为主输入。
+/// 读取落盘 JSON 定义（含 Preserve 快照），合并延续格由共享 helper 还原。
 fn open_json(name: &str) -> rpx_core::ReportDefine {
-    let path = fixtures_dir()
-        .join("format/engine")
-        .join(format!("{name}.json"));
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("读 {} 失败：{e}", path.display()));
-    let (mut rd, _) = rpx_format::reportdef::open_report_full(&bytes)
-        .unwrap_or_else(|e| panic!("解析 {} 失败：{e}", path.display()));
-    restore_merge_continuations(&mut rd, &bytes);
-    rd
-}
-
-/// 从 JSON 里的迁移快照还原独立的合并延续格（`engine_merge` 的 A3）。
-fn restore_merge_continuations(rd: &mut rpx_core::ReportDefine, json: &[u8]) {
-    let Ok(j) = serde_json::from_slice::<serde_json::Value>(json) else {
-        return;
-    };
-    let Some(encoded) = j["extensions"]["rpx.legacy"]["data"].as_str() else {
-        return;
-    };
-    use base64::{engine::general_purpose::STANDARD, Engine};
-    let Ok(bytes) = STANDARD.decode(encoded) else {
-        return;
-    };
-    let Ok(original) = rpx_core::open_bytes(&bytes) else {
-        return;
-    };
-    if original.rows != rd.rows || original.cols != rd.cols {
-        return;
-    }
-    for area in &original.merges {
-        for r in area.begin_row..=area.end_row {
-            for c in area.begin_col..=area.end_col {
-                if r == area.begin_row && c == area.begin_col {
-                    continue;
-                }
-                let Some(orig_id) = original.grid[r][c] else {
-                    continue;
-                };
-                if Some(orig_id) == original.grid[area.begin_row][area.begin_col] {
-                    continue;
-                }
-                let Some(cell) = original.cell_at(r, c) else {
-                    continue;
-                };
-                let mut cell = cell.clone();
-                cell.merged_area = None;
-                let id = rd.store.len();
-                rd.store.push(cell);
-                rd.grid[r][c] = Some(id);
-            }
-        }
-    }
+    common::open_json_fixture(name)
 }
 
 /// 引擎错误 → `(class, chain)`。

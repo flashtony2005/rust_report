@@ -14,23 +14,10 @@
 //! 其余配置在 2026-10-14 前是**静默按 2 处理**，现改为显式失败。
 
 mod common;
+use common::open_json_fixture;
 
 use common::all_names;
 use rpx_engine::EngineError;
-use std::path::PathBuf;
-
-/// 夹具目录口径与 `tests/engine_grid_compare.rs:40-42` 一致。
-fn fixtures_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures")
-}
-
-/// 解析 `.rpx`（产品 writer 产出的真实字节），写法对齐 `tests/engine_grid_compare.rs:47-51`。
-fn open_rpx(name: &str) -> rpx_core::ReportDefine {
-    let path = fixtures_dir().join(format!("{name}.rpx"));
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("读 {} 失败：{e}", path.display()));
-    rpx_core::open_bytes(&bytes).unwrap_or_else(|e| panic!("解析 {} 失败：{e}", path.display()))
-}
-
 /// ① 15 个夹具（产品真字节）的 `print_setup` 全部落在支持范围内。
 ///
 /// 这是"守卫不误伤夹具"的直接证据；若未来某个新夹具用非默认分页配置，
@@ -38,7 +25,7 @@ fn open_rpx(name: &str) -> rpx_core::ReportDefine {
 #[test]
 fn every_fixture_template_is_within_supported_paging() {
     for name in all_names() {
-        let rd = open_rpx(name);
+        let rd = open_json_fixture(name);
         assert!(
             rpx_engine::pager::ensure_supported(&rd.print_setup).is_ok(),
             "{name}: 夹具模板不在支持范围内 —— 守卫误伤 \
@@ -57,7 +44,7 @@ fn every_fixture_template_is_within_supported_paging() {
 #[test]
 fn every_fixture_template_has_only_data_columns() {
     for name in all_names() {
-        let rd = open_rpx(name);
+        let rd = open_json_fixture(name);
         assert!(
             rpx_engine::pager::ensure_data_columns(&rd).is_ok(),
             "{name}: 夹具模板出现非数据列（列区带）—— split_cols 的 1..=cols 假设被打破"
@@ -82,7 +69,7 @@ fn calculate_rejects_unsupported_paging_before_any_work() {
         ("tableColumnNum=0", |s| s.table_column_num = 0),
     ];
     for (label, mutate) in cases {
-        let mut rd = open_rpx("engine_expr");
+        let mut rd = open_json_fixture("engine_expr");
         mutate(&mut rd.print_setup);
         match rpx_engine::calculate(&rd, &[]) {
             Err(EngineError::UnsupportedPaging { .. }) => {}
@@ -95,7 +82,7 @@ fn calculate_rejects_unsupported_paging_before_any_work() {
 /// `UnsupportedPaging`，证明 `ensure_data_columns` 真的接进了 `calculate()` 入口。
 #[test]
 fn calculate_rejects_column_bands_before_any_work() {
-    let mut rd = open_rpx("engine_expr");
+    let mut rd = open_json_fixture("engine_expr");
     assert!(
         !rd.col_cells.is_empty(),
         "engine_expr 应至少有一列（守卫变异的前提）"
@@ -115,7 +102,7 @@ fn calculate_rejects_column_bands_before_any_work() {
 /// ④（M3-06）`paginate_with_setup` 自带守卫复核：不经 `calculate()` 直接调也安全。
 #[test]
 fn paginate_with_setup_rechecks_the_guard() {
-    let rd = open_rpx("engine_expr");
+    let rd = open_json_fixture("engine_expr");
     let mut ps = rd.print_setup.clone();
     ps.pager_style = 3; // 单页短路分支未实现
     let grid = rpx_engine::arena::CalcGrid::new(1, 1);

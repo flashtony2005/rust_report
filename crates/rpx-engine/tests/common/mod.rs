@@ -27,3 +27,60 @@ pub use compare::{
 };
 pub use loader::{all_names, load, load_raw, parse_fixture};
 pub use model::*;
+
+/// 读取落盘的 JSON 定义（含 Preserve 快照），并还原合并延续独立格。
+///
+/// 引擎测试的主输入是 `tests/fixtures/format/engine/*.json`；`.rpx` 只留
+/// 兼容/往返测试。合并区 A3 这类独立延续格由快照里的原始字节还原。
+pub fn open_json_fixture(name: &str) -> rpx_core::ReportDefine {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/format/engine")
+        .join(format!("{name}.json"));
+    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("读 {} 失败：{e}", path.display()));
+    let (mut rd, _) = rpx_format::reportdef::open_report_full(&bytes)
+        .unwrap_or_else(|e| panic!("解析 {} 失败：{e}", path.display()));
+    restore_merge_continuations(&mut rd, &bytes);
+    rd
+}
+
+fn restore_merge_continuations(rd: &mut rpx_core::ReportDefine, json: &[u8]) {
+    let Ok(j) = serde_json::from_slice::<serde_json::Value>(json) else {
+        return;
+    };
+    let Some(encoded) = j["extensions"]["rpx.legacy"]["data"].as_str() else {
+        return;
+    };
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let Ok(bytes) = STANDARD.decode(encoded) else {
+        return;
+    };
+    let Ok(original) = rpx_core::open_bytes(&bytes) else {
+        return;
+    };
+    if original.rows != rd.rows || original.cols != rd.cols {
+        return;
+    }
+    for area in &original.merges {
+        for r in area.begin_row..=area.end_row {
+            for c in area.begin_col..=area.end_col {
+                if r == area.begin_row && c == area.begin_col {
+                    continue;
+                }
+                let Some(orig_id) = original.grid[r][c] else {
+                    continue;
+                };
+                if Some(orig_id) == original.grid[area.begin_row][area.begin_col] {
+                    continue;
+                }
+                let Some(cell) = original.cell_at(r, c) else {
+                    continue;
+                };
+                let mut cell = cell.clone();
+                cell.merged_area = None;
+                let id = rd.store.len();
+                rd.store.push(cell);
+                rd.grid[r][c] = Some(id);
+            }
+        }
+    }
+}
