@@ -32,7 +32,7 @@
 > **2026-10-17 开发更新（JSON canonical 实施后）**
 >
 > - 已完成：baseline/tag、CI、JSON v1 reader/schema、`rpx format` 四条命令、40/40 RPX Preserve、23/23 引擎夹具 JSON 对拍、字段级 overlay、`format normalize`、v1 preset。
-> - Phase 3 feature 边界已完成：`legacy-rpx` 可关闭，JSON-only 构建与 smoke 进 CI；默认切换留 v2.0（见 `docs/format/rpx-legacy-retirement.md`）。
+> - Phase 3 feature 边界完成；Phase 4 `rpx-format` + `rpx-model` 完成；v0.6 起 **CLI 默认 JSON-only**，legacy CLI 需 `--features legacy-rpx`。
 > - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`report list` 隔离坏包并返回 `diagnostics`；`report import-rpx` 经 Preserve 快照 40/40；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射；HTTP JSON rejection 统一返回 `error` envelope。
 > - 已修：`chart-gallery` 的 3D 图表、`images` 的打印背景 → `print-xlsx` 仍会失败，但只记 warning，不再拖垮 result/workbook/其他导出。
 > 当前最该做的不是重写，而是：**先提交并冻结一个可复现基线，再用一组真实失败场景把 CLI 边界补齐，最后把文档和 CI 分成「当前架构」与「历史里程碑」两套。**

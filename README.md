@@ -3,7 +3,8 @@
 Agent 用 `rpx` 管理 JSON 报表定义、数据源、主格关系并执行引擎；人通过 Univer Web 修正定义、查看固定运行结果。
 
 ```sh
-make install-local
+make install-local            # JSON-only（默认）
+# make install-local-legacy  # 需要 format/compile/import-rpx 时
 export PATH="$HOME/.local/bin:$PATH"
 rpx doctor
 rpx library init ./reports --presets

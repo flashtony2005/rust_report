@@ -1,6 +1,6 @@
 # ADR 0001 — JSON 成为规范报表格式，`.rpx` 降级为 legacy 适配器
 
-- 状态：**Accepted — Phase 0/1/2/3/4 完成；no-default 图已不含 rpx-core**
+- 状态：**Accepted — Phase 0/1/2/3/4 完成；CLI 默认已切 JSON-only（v0.6）**
 - 日期：2026-10-17
 - 决策范围：报表定义格式、`rpx-core`/`rpx-runtime` 边界、CLI/Web/Server 的输入输出
 - 关联文档：
@@ -197,7 +197,7 @@
 **v2.0 再做（不在本次完成口径内）**：
 
 - 默认关闭 `legacy-rpx`，默认构建不含 `.rpx` 读写。
-- 默认关闭 `legacy-rpx`；其余 engine `.rpx` 测试迁 JSON。
+- `rpx-runtime` 默认关闭 `legacy-rpx`；`.rpx` 独立 legacy 测试目标。
 - `rpx-format` 抽离、`rpx-runtime::reportdef` 迁移。
 - 引擎/运行时测试全面切 JSON，`.rpx` 只留独立 legacy 测试目标。
 - `.rpxpkg`、schema v2、库级 `format migrate`。

@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! Real-process coverage for `rpx format ...`.
 
 use serde_json::{json, Value as J};

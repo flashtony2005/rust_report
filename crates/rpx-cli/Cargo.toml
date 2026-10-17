@@ -1,12 +1,12 @@
 [package]
 name = "rpx-cli"
-version = "0.5.0"
+version = "0.6.0"
 edition.workspace = true
 [[bin]]
 name = "rpx"
 path = "src/main.rs"
 [features]
-default = ["legacy-rpx"]
+default = []
 legacy-rpx = ["rpx-runtime/legacy-rpx", "rpx-model/legacy-rpx"]
 
 [dependencies]

@@ -2,6 +2,15 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.6.0-json-cli-default — 2026-10-17
+
+### Changed
+
+- `rpx-cli` 默认构建切为 JSON-only：不再暴露 `format` / `template compile` / `report import-rpx`。
+- `rpx-model` 默认不编译 `.rpx` reader/writer；`rpx-runtime` 库默认仍开启 legacy 兼容。
+- `make install-local` 安装 JSON-only；新增 `make install-local-legacy`。
+- CI/gate 额外运行 legacy CLI 测试，保证两条路径都有覆盖。
+
 ## v0.5.0-rpx-model — 2026-10-17
 
 ### Changed
