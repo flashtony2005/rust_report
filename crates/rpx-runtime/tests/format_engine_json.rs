@@ -1,10 +1,7 @@
-//! Phase 1/2 bridge: the same engine fixtures must calculate from the JSON
-//! projection, not only from their original `.rpx` bytes.
+//! Phase 2 gate: the same engine fixtures must calculate from the committed
+//! JSON definitions, not from their original `.rpx` bytes at test time.
 
-use rpx_runtime::{
-    format::{self, Mode, Options},
-    parameters,
-};
+use rpx_runtime::{format, parameters};
 use serde_json::{json, Map, Value as J};
 use std::path::PathBuf;
 
@@ -59,15 +56,10 @@ fn engine_fixtures_calculate_from_json_projection() {
     let mut failures = Vec::new();
     let mut checked = 0;
     for name in names() {
-        let bytes = std::fs::read(dir.join(format!("{name}.rpx"))).unwrap();
-        let converted = format::rpx_to_json(
-            &bytes,
-            Options {
-                mode: Mode::PreserveLegacy,
-            },
-        )
-        .unwrap_or_else(|e| panic!("{name}: to-json: {e}"));
-        let rd = format::json_to_model(&converted.document)
+        let json_path = dir.join("format/engine").join(format!("{name}.json"));
+        let document: J = serde_json::from_slice(&std::fs::read(&json_path).unwrap())
+            .unwrap_or_else(|e| panic!("{name}: fixture JSON: {e}"));
+        let rd = format::json_to_model(&document)
             .unwrap_or_else(|e| panic!("{name}: json_to_model: {e}"));
         let expected: J = serde_json::from_slice(
             &std::fs::read(dir.join(format!("{name}.expected.json"))).unwrap(),
@@ -113,15 +105,8 @@ fn engine_fixtures_calculate_from_json_projection() {
 #[test]
 fn edited_preserve_json_keeps_unmodeled_cell_fields() {
     let dir = fixtures_dir();
-    let bytes = std::fs::read(dir.join("engine_merge.rpx")).unwrap();
-    let converted = format::rpx_to_json(
-        &bytes,
-        Options {
-            mode: Mode::PreserveLegacy,
-        },
-    )
-    .unwrap();
-    let mut doc = converted.document;
+    let path = dir.join("format/engine/engine_merge.json");
+    let mut doc: J = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     let cell = doc["cells"]
         .as_array_mut()
         .unwrap()
@@ -131,8 +116,8 @@ fn edited_preserve_json_keeps_unmodeled_cell_fields() {
     cell["font_size"] = json!(13);
     let rebuilt = format::json_to_rpx(
         &doc,
-        Options {
-            mode: Mode::PreserveLegacy,
+        format::Options {
+            mode: format::Mode::PreserveLegacy,
         },
     )
     .unwrap();

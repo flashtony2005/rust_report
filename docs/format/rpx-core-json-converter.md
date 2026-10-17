@@ -429,7 +429,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
 | T01 | v1 schema 自检 | `tests/fixtures/format/*.json` | 所有 golden 通过 schema；未知字段被拒 |
 | T02 | v0 兼容读 | 当前 `examples/tutorial/*.json` | 无 `format` 也能 `json_to_model` |
 | T03 | v1 读写 | 新增最小 v1 文档 | `json_to_model` / `model_to_json` 往返 L1 |
-| T04 | **23 个引擎夹具 JSON 化** | `tests/fixtures/engine_*.rpx` → JSON | 23/23 通过：JSON 投影 → 引擎 → `calculated`/`pagination`/`merged` 逐段相等（含 `engine_cycle` 错误型） |
+| T04 | **23 个引擎夹具 JSON 化** | `tests/fixtures/format/engine/*.json`（由 `.rpx` 迁移生成） | 23/23 通过：JSON 输入 → 引擎 → `calculated`/`pagination`/`merged` 逐段相等（含 `engine_cycle` 错误型） |
 | T05 | **40 个 RPX Preserve** | `tests/fixtures/*.rpx` | 40/40 `rpx_to_json` 成功，`legacy=true` 且有原始快照 |
 | T06 | **字节往返** | 40 个 + 历史 37 个 | Preserve 快照：40/40 `bytes_equal=true`；native writer：37/37（Phase 2 门禁） |
 | T07 | 40 个语义往返 | 40 个 | 40/40 `model_equal=true` |
@@ -454,7 +454,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
   - 必须先实现本文的 `rpx_to_json`（直接走 `ReportDefine`，不经过 import 的严格 `compare`）；
   - T05/T07 是 Phase 1 的硬门禁，未过不得进入 Phase 2。
 - 当前 37 个字节往返是 `rpx_core::to_bytes` 的既有证据（`docs/report-def-json.md:8-9`），T06 应复用同一夹具集。
-- 当前 23 个引擎夹具的输入是 `.rpx`（`crates/rpx-engine/tests/engine_grid_compare.rs:5` 的 `all_names()`）；T04 已经用 JSON 投影跑通 23/23，`.rpx` 保留为对照。
+- 23 个引擎夹具的 JSON 输入已落盘到 `tests/fixtures/format/engine/`；T04 直接读 JSON，不再在测试时从 `.rpx` 生成。`crates/rpx-engine/tests/engine_grid_compare.rs` 的 `.rpx` 版本保留为兼容对照。
 
 ---
 

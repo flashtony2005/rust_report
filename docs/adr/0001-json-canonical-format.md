@@ -1,6 +1,6 @@
 # ADR 0001 — JSON 成为规范报表格式，`.rpx` 降级为 legacy 适配器
 
-- 状态：**Accepted — Phase 0/1 完成；Phase 2 字段级 overlay + v1 normalize 完成，测试默认输入/feature 化进行中**
+- 状态：**Accepted — Phase 0/1 完成；Phase 2 完成（JSON fixtures 已是引擎门禁默认输入）**
 - 日期：2026-10-17
 - 决策范围：报表定义格式、`rpx-core`/`rpx-runtime` 边界、CLI/Web/Server 的输入输出
 - 关联文档：
@@ -180,12 +180,14 @@
 - `format/overlay.rs`：编辑后的 preserve JSON 用原模型整 struct 合并未建模字段（cell/row/col/report/dataset/print），`format to-rpx` 可正常写出。
 - `format normalize`：v0/v1 → v1；`template create` / `library init --presets` 写 v1 标记。
 - 23/23 引擎夹具 JSON 投影逐格/逐段对拍；40/40 产品 RPX Preserve + 快照字节往返。
+- 引擎 JSON 门禁读取 `tests/fixtures/format/engine/*.json`；`.rpx` 只保留迁移/兼容对照。
+- 结构性编辑（增删行列）显式报 `LEGACY_STRUCTURAL_EDIT`，不静默丢字段。
 
-**剩余**：
+**剩余 Phase 3**：
 
-- 引擎测试默认输入切 JSON（`.rpx` 只保留兼容对照）。
-- `.rpx`/`rpx-core` feature 化（Phase 3 前置）。
-- 结构性编辑（增删行列）下的 overlay：当前显式报 `LEGACY_STRUCTURAL_EDIT`，待支持后再放开。
+- `.rpx`/`rpx-core` feature 化。
+- 结构性编辑 overlay 支持。
+- 引擎主测试文件 `engine_grid_compare.rs` 仍以 `.rpx` 作兼容对照（JSON 门禁是 `format_engine_json`）。
 
 任务：
 
@@ -296,7 +298,7 @@
   - Phase 1（迁移快照模式）：`rpx_runtime::format` 的 `rpx_to_json` / `json_to_rpx` / `verify`；`rpx format to-json|to-rpx|verify|check`；40/40 产品 `.rpx` Preserve + 快照字节往返；23/23 引擎夹具 JSON 投影逐格/逐段对拍。
   - Phase 1 收口：23/23 引擎夹具用 JSON 投影完成 `calculated`/`pagination`/`merged` 对拍；`engine_merge` 的合并延续独立格已用快照 overlay 还原。
 - Phase 2：字段级 `format/overlay.rs` 已实现（编辑后的 preserve JSON 可写出）；`format normalize`；`template create` / `library init --presets` 写 v1；23/23 引擎夹具 JSON 对拍。
-- 待办：测试默认输入全面切 JSON、结构性编辑 overlay 边界、`.rpx` feature 化。
+- 待办（Phase 3）：结构性编辑 overlay、`.rpx` feature 化；引擎 JSON 门禁已默认读 JSON fixtures。
 - 评审通过条件：
   1. 确认“JSON canonical + RPX legacy”是目标；
   2. 确认 Phase 0 的 baseline/CI 是前置；

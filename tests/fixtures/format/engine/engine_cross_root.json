@@ -1,0 +1,299 @@
+{
+  "cells": [
+    {
+      "bold": false,
+      "border": {
+        "bottom": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "left": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "right": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "top": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        }
+      },
+      "col": 1,
+      "extend_mode": "default",
+      "font_name": "宋体",
+      "font_size": 12,
+      "fore_color": "#000000",
+      "h_align": "left",
+      "indent": 0.0,
+      "italic": false,
+      "literal": {
+        "type": "text",
+        "value": "Root 态跨数据集：amount>=2000"
+      },
+      "merge": {
+        "cols": 2,
+        "rows": 1
+      },
+      "rotation": 0.0,
+      "row": 1,
+      "split": false,
+      "stretch_when_paged": false,
+      "underline": false,
+      "v_align": "middle"
+    },
+    {
+      "bold": false,
+      "border": {
+        "bottom": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "left": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "right": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "top": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        }
+      },
+      "col": 1,
+      "extend_mode": "default",
+      "font_name": "宋体",
+      "font_size": 12,
+      "fore_color": "#000000",
+      "h_align": "left",
+      "indent": 0.0,
+      "italic": false,
+      "literal": {
+        "type": "text",
+        "value": "奖金项"
+      },
+      "rotation": 0.0,
+      "row": 2,
+      "split": false,
+      "stretch_when_paged": false,
+      "underline": false,
+      "v_align": "middle"
+    },
+    {
+      "bold": false,
+      "border": {
+        "bottom": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "left": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "right": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "top": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        }
+      },
+      "col": 2,
+      "extend_mode": "default",
+      "font_name": "宋体",
+      "font_size": 12,
+      "fore_color": "#000000",
+      "h_align": "left",
+      "indent": 0.0,
+      "italic": false,
+      "literal": {
+        "type": "text",
+        "value": "金额"
+      },
+      "rotation": 0.0,
+      "row": 2,
+      "split": false,
+      "stretch_when_paged": false,
+      "underline": false,
+      "v_align": "middle"
+    },
+    {
+      "bold": false,
+      "border": {
+        "bottom": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "left": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "right": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "top": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        }
+      },
+      "col": 1,
+      "expr": "ds2.select(item, amount>=2000)",
+      "extend_mode": "default",
+      "font_name": "宋体",
+      "font_size": 12,
+      "fore_color": "#000000",
+      "h_align": "left",
+      "indent": 0.0,
+      "italic": false,
+      "rotation": 0.0,
+      "row": 3,
+      "split": false,
+      "stretch_when_paged": false,
+      "underline": false,
+      "v_align": "middle"
+    },
+    {
+      "bold": false,
+      "border": {
+        "bottom": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "left": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "right": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        },
+        "top": {
+          "color": "#000000",
+          "style": "none",
+          "width": 1.0
+        }
+      },
+      "col": 2,
+      "expr": "ds2.select(amount, amount>=2000)",
+      "extend_mode": "default",
+      "font_name": "宋体",
+      "font_size": 12,
+      "fore_color": "#000000",
+      "h_align": "left",
+      "indent": 0.0,
+      "italic": false,
+      "rotation": 0.0,
+      "row": 3,
+      "split": false,
+      "stretch_when_paged": false,
+      "underline": false,
+      "v_align": "middle"
+    }
+  ],
+  "col_props": [
+    {
+      "break_column": false,
+      "break_page": false,
+      "col": 1,
+      "type": "data",
+      "visible": true,
+      "width": 25.0
+    },
+    {
+      "break_column": false,
+      "break_page": false,
+      "col": 2,
+      "type": "data",
+      "visible": true,
+      "width": 25.0
+    }
+  ],
+  "datasets": [
+    {
+      "file": {
+        "delimiter": "\t",
+        "encoding": "GBK",
+        "file_name": "engine_cross.csv"
+      },
+      "name": "ds1"
+    },
+    {
+      "file": {
+        "delimiter": "\t",
+        "encoding": "GBK",
+        "file_name": "engine_cross.csv2"
+      },
+      "name": "ds2"
+    }
+  ],
+  "extensions": {
+    "rpx.legacy": {
+      "data": "UlFRUgAABp0AAAAEAAAAAwAAABylQQAAAAEA//////////8BAAAABqztAAVwcAAAAAAAHKVBAAAAAQD//////////wEAAAAGrO0ABXBwAAAAAAAcpUEAAAABAP//////////AQAAAAas7QAFcHAAAAAAABqxQcgAAAEA//////////8AAAAGrO0ABXBwAAAAABqxQcgAAAEA//////////8AAAAGrO0ABXBwAAAAAMkAAAAQAAAAAQAAAAEAAAABAAAAAtDhAP8AAAA/gAAAEP///////////////yIxAAEAI1Jvb3Qg5oCB6Leo5pWw5o2u6ZuG77yaYW1vdW50Pj0yMDAw/////wAAAAAAAAAG5a6L5L2TAAz//////wAAAP///////////////wA/gAAA/wAAAAA/gAAA/wAAAAA/gAAA/wAAAAA/gAAA/wAAAP////8AIMD/////AAAAAAAGrO0ABXBw/////wD/////YXF2eQAAAAAAAACU/////9DhAP8AAAA/gAAAEP///////////////yIxAP//////AAAAAAAAAAblrovkvZMADP//////AAAA////////////////AD+AAAD/AAAAAD+AAAD/AAAAAD+AAAD/AAAAAD+AAAD/AAAA/////wAgwP////8AAAAAAAas7QAFcHD/////AP////9hcXZ5AAAAAAAAAJ//////0OEA/wAAAD+AAAAQ////////////////IjEAAQAJ5aWW6YeR6aG5/////wAAAAAAAAAG5a6L5L2TAAz//////wAAAP///////////////wA/gAAA/wAAAAA/gAAA/wAAAAA/gAAA/wAAAAA/gAAA/wAAAP////8AIMD/////AAAAAAAGrO0ABXBw/////wD/////YXF2eQAAAAAAAACc/////9DhAP8AAAA/gAAAEP///////////////yIxAAEABumHkeminf////8AAAAAAAAABuWui+S9kwAM//////8AAAD///////////////8AP4AAAP8AAAAAP4AAAP8AAAAAP4AAAP8AAAAAP4AAAP8AAAD/////ACDA/////wAAAAAABqztAAVwcP////8A/////2FxdnkAAAAAAAAAuP/////Q4QD/AAAAP4AAABD///////////////8iMQD//////wAAAAAAAAAG5a6L5L2TAAz//////wAAAP///////////////wA/gAAA/wAAAAA/gAAA/wAAAAA/gAAA/wAAAAA/gAAA/wAAAAAAACQAASgBAB5kczIuc2VsZWN0KGl0ZW0sIGFtb3VudD49MjAwMCkAIMD/////AAAAAAAGrO0ABXBw/////wD/////YXF2eQAAAAAAAAC6/////9DhAP8AAAA/gAAAEP///////////////yIxAP//////AAAAAAAAAAblrovkvZMADP//////AAAA////////////////AD+AAAD/AAAAAD+AAAD/AAAAAD+AAAD/AAAAAD+AAAD/AAAAAAAAJgABKAEAIGRzMi5zZWxlY3QoYW1vdW50LCBhbW91bnQ+PTIwMDApACDA/////wAAAAAABqztAAVwcP////8A/////2FxdnkAAAAAAAAAQwAJAAEAAQABAAAAFAABAAEAZENSAABDlIAAQZgAAEGYAABByAAAQcgAAAEAAAIAAAIAAgEBAAD/////AAAAAAEAAAD//////////wAAAR0AAgEAAAAvY29tLnJhcXNvZnQucmVwb3J0bC51c2VybW9kZWwuRmlsZURhdGFTZXRDb25maWcAAABVAAAAEwAAAANkczEAAAADZHMxAAAAAAAAAAAQZW5naW5lX2Nyb3NzLmNzdv////8AAAADR0JLAAABAAAJAAAAAP////8AAAAAAAAAAAD//////////wEAAAAvY29tLnJhcXNvZnQucmVwb3J0bC51c2VybW9kZWwuRmlsZURhdGFTZXRDb25maWcAAABWAAAAEwAAAANkczIAAAADZHMyAAAAAAAAAAARZW5naW5lX2Nyb3NzLmNzdjL/////AAAAA0dCSwAAAQAACQAAAAD/////AAAAAAAAAAAA/////////////////////wAAAB///////////wAADzz/////AwEAAAAAAgAAAAH/////AAAAhQH/////AP//////////AAAAAAAAAAAB/////wAAAAD//////////////////////////wH/////UlFRUlJRUVI=",
+      "encoding": "base64",
+      "format": "rpx-rpx-v1",
+      "modeled_sha256": "ba38ce39f018aca3edad20bf2937fe57f0f54fb7550a99bff380d0439cac50d0",
+      "sha256": "abd5a1a015daee7876f07332b7a53f8088556e959b4bac8064f24faba2c82cb5"
+    }
+  },
+  "format": "rpx-report",
+  "format_version": 1,
+  "grid": {
+    "cols": 2,
+    "rows": 3
+  },
+  "row_props": [
+    {
+      "adjust_height": false,
+      "break_column": false,
+      "break_page": false,
+      "height": 8.0,
+      "row": 1,
+      "type": "data",
+      "visible": true
+    },
+    {
+      "adjust_height": false,
+      "break_column": false,
+      "break_page": false,
+      "height": 8.0,
+      "row": 2,
+      "type": "data",
+      "visible": true
+    },
+    {
+      "adjust_height": false,
+      "break_column": false,
+      "break_page": false,
+      "height": 8.0,
+      "row": 3,
+      "type": "data",
+      "visible": true
+    }
+  ],
+  "schema": "rpx-report/v1",
+  "version": 1
+}
