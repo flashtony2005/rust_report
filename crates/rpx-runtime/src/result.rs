@@ -60,9 +60,35 @@ pub fn inspect(
         })
         .transpose()?;
     let origin = origin.map(coord).transpose()?.map(|(r, c)| address(r, c));
+    if j.get("version").and_then(J::as_u64) != Some(1) {
+        return Err(Error::new(
+            3,
+            "RESULT_INVALID",
+            "result",
+            "结果缺少 version=1（这可能是模板定义，不是运行结果）",
+        ));
+    }
     let cells = j["cells"]
         .as_array()
         .ok_or_else(|| Error::new(3, "RESULT_INVALID", "result", "结果没有 cells 数组"))?;
+    if j.get("rows").and_then(J::as_u64).is_none() || j.get("cols").and_then(J::as_u64).is_none() {
+        return Err(Error::new(
+            3,
+            "RESULT_INVALID",
+            "result",
+            "结果缺少 rows/cols",
+        ));
+    }
+    if let Some((i, _)) = cells
+        .iter()
+        .enumerate()
+        .find(|(_, c)| !c.get("value").is_some_and(J::is_object))
+    {
+        return Err(
+            Error::new(3, "RESULT_INVALID", "result", "结果 cell 缺少类型化 value")
+                .at(format!("/cells/{i}/value")),
+        );
+    }
     let selected: Vec<_> = cells
         .iter()
         .filter(|c| {

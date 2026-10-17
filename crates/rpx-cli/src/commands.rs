@@ -5,7 +5,10 @@ use rpx_runtime::{
     files, format as rpx_format, library, result, run,
 };
 use serde_json::{json, Value as J};
-use std::{io::Read, path::Path};
+use std::{
+    io::{Read, Write},
+    path::Path,
+};
 fn read(path: &Path) -> Result<J> {
     if path == Path::new("-") {
         let mut bytes = Vec::new();
@@ -302,16 +305,17 @@ pub fn print_text(value: &J) {
         );
         return;
     }
-    println!("{command}: OK");
+    let mut out = std::io::stdout().lock();
+    let _ = writeln!(out, "{command}: OK");
     let data = &value["data"];
     if let Some(items) = data["items"].as_array() {
-        println!("返回 {} / {}", items.len(), data["total"]);
+        let _ = writeln!(out, "返回 {} / {}", items.len(), data["total"]);
         for item in items {
-            println!("{}", serde_json::to_string(item).unwrap());
+            let _ = writeln!(out, "{}", serde_json::to_string(item).unwrap_or_default());
         }
     } else {
         for (key, v) in data.as_object().into_iter().flatten() {
-            println!("{key}: {v}");
+            let _ = writeln!(out, "{key}: {v}");
         }
     }
 }

@@ -12,8 +12,12 @@ pub fn to_print_xlsx(grid: &CalcGrid, setup: &PrintSetup) -> Result<Vec<u8>, Str
     if setup.back_graph_printed && grid.page_background.is_some() {
         return Err("Excel 不支持打印工作表背景图片；请使用图形与打印预览保存 PDF".into());
     }
-    let paper = u8::try_from(setup.paper)
-        .map_err(|_| "Excel 不支持此自定义纸张代码；请使用图形与打印预览保存 PDF".to_string())?;
+    let paper = if setup.paper == 256 {
+        standard_paper(setup.paper_width, setup.paper_height)?
+    } else {
+        u8::try_from(setup.paper)
+            .map_err(|_| "Excel 不支持此自定义纸张代码；请使用图形与打印预览保存 PDF".to_string())?
+    };
     let pages = paginate_with_setup(grid, setup).map_err(|e| e.to_string())?;
     let mut wb = crate::xlsx::new_workbook();
     let mut data = CalcGrid::new(0, 0);
@@ -74,4 +78,44 @@ pub fn to_print_xlsx(grid: &CalcGrid, setup: &PrintSetup) -> Result<Vec<u8>, Str
 
 fn message(error: XlsxError) -> String {
     error.to_string()
+}
+
+/// 自定义纸张（`paper=256`）→ Excel 标准纸码。只映射可判定的标准尺寸；
+/// 其他尺寸显式失败，交给图形/打印预览保存 PDF。
+fn standard_paper(width: f32, height: f32) -> Result<u8, String> {
+    let (short, long) = if width <= height {
+        (width, height)
+    } else {
+        (height, width)
+    };
+    let close = |a: f32, b: f32| (a - b).abs() < 1.0;
+    let code = if close(short, 210.0) && close(long, 297.0) {
+        9 // A4
+    } else if close(short, 297.0) && close(long, 420.0) {
+        8 // A3
+    } else if close(short, 148.0) && close(long, 210.0) {
+        11 // A5
+    } else if close(short, 215.9) && close(long, 279.4) {
+        1 // Letter
+    } else {
+        return Err(
+            "Excel 不支持该自定义纸张尺寸；请使用 A3/A4/A5/Letter 或查看图形与打印预览保存 PDF"
+                .into(),
+        );
+    };
+    Ok(code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::standard_paper;
+
+    #[test]
+    fn custom_paper_maps_only_known_standard_sizes() {
+        assert_eq!(standard_paper(420.0, 297.0), Ok(8));
+        assert_eq!(standard_paper(297.0, 420.0), Ok(8));
+        assert_eq!(standard_paper(210.0, 297.0), Ok(9));
+        assert_eq!(standard_paper(148.0, 210.0), Ok(11));
+        assert!(standard_paper(25.0, 100.0).is_err());
+    }
 }

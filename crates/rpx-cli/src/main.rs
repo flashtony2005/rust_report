@@ -2,6 +2,13 @@ mod args;
 mod commands;
 use clap::Parser;
 use rpx_runtime::error::{envelope, Error};
+use std::io::Write;
+
+/// 写一行 JSON；stdout 被提前关闭（EPIPE）时不 panic。
+fn emit(value: &serde_json::Value) {
+    let mut out = std::io::stdout().lock();
+    let _ = writeln!(out, "{value}");
+}
 #[tokio::main]
 async fn main() {
     let started = std::time::Instant::now();
@@ -12,7 +19,8 @@ async fn main() {
                 e.kind(),
                 clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
             ) {
-                print!("{e}");
+                let mut out = std::io::stdout().lock();
+                let _ = write!(out, "{e}");
                 return;
             }
             let (_, value) = envelope(
@@ -20,7 +28,7 @@ async fn main() {
                 Err(Error::new(2, "USAGE", "arguments", e)),
                 started.elapsed().as_millis(),
             );
-            println!("{value}");
+            emit(&value);
             std::process::exit(2);
         }
     };
@@ -33,7 +41,7 @@ async fn main() {
     if cli.output == "text" {
         commands::print_text(&value);
     } else {
-        println!("{value}");
+        emit(&value);
     }
     std::process::exit(code);
 }

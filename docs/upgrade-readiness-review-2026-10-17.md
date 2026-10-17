@@ -28,6 +28,12 @@
 一句话结论：
 
 > **架构与算法是强项，CLI 的「功能面」已经实现，但「功能边界」和「交付工程」还没有收口。**
+
+> **2026-10-17 开发更新（JSON canonical 实施后）**
+>
+> - 已完成：baseline/tag、CI、JSON v1 reader/schema、`rpx format` 四条命令、40/40 RPX Preserve、23/23 引擎夹具 JSON 对拍、字段级 overlay、`format normalize`、v1 preset。
+> - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射。
+> - 仍在：`chart-gallery` 的 3D 图表、`images` 的打印背景 → `print-xlsx` 仍显式失败；导出失败目前仍会使整次 run failed（all-or-nothing 未改）。
 > 当前最该做的不是重写，而是：**先提交并冻结一个可复现基线，再用一组真实失败场景把 CLI 边界补齐，最后把文档和 CI 分成「当前架构」与「历史里程碑」两套。**
 
 ### 0.2 五条最重要的结论
@@ -226,7 +232,7 @@
 
 - CSV：满矩阵展开、RFC 4180 子集、`disp_value` 优先、无 BOM、末尾无换行；规则有单测和读回自洽。
 - XLSX：单 sheet、合并区锚点重建、Excel 硬上限裁剪（>1,048,576 行 / >16,384 列）、超长文本截断、确定性字节（固定 zip 时间戳）。
-- 打印 XLSX：按引擎页映射，一页一 sheet，保留页眉/页脚/合并/图形；但自定义纸张（`paper=256`）、工作表背景、部分 3D 图表**明确不支持**。
+- 打印 XLSX：按引擎页映射，一页一 sheet，保留页眉/页脚/合并/图形；自定义 A3/A4/A5/Letter 纸张已可映射；工作表背景、部分 3D 图表仍明确不支持。
 - 快照：`CalcGrid` → Univer `IWorkbookData`，含 `cellData`/`mergeData`/`rowData`/`columnData`/`pagination`/`rpxGraphics`；多页时每页一个 sheet。
 - **精度边界**：`result.json` 对 Long/Decimal 用字符串保真；但 `workbook.json` 把 Long 写成 JSON number、Decimal 写成 f64。浏览器/JS 超过 2^53 会丢精度，Decimal 会丢尾数。项目文档声明了 Decimal 的近似，但没有对 Long 的同一问题给出声明。
 

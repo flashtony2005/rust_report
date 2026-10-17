@@ -177,13 +177,22 @@ pub fn runs(root: &Path, name: &str) -> Result<Vec<J>> {
         }
     }
     records.sort_by(|a, b| {
-        b["started_at"]
-            .as_str()
-            .cmp(&a["started_at"].as_str())
+        timestamp_key(b["started_at"].as_str().unwrap_or_default())
+            .cmp(&timestamp_key(a["started_at"].as_str().unwrap_or_default()))
             .then_with(|| b["run_id"].as_str().cmp(&a["run_id"].as_str()))
     });
     Ok(records)
 }
+/// RFC3339 时间字符串 → 固定宽度键（小数位补齐），避免 `.99Z` 与 `.9901Z`
+/// 的字典序错误。
+fn timestamp_key(value: &str) -> String {
+    let value = value.trim_end_matches('Z');
+    match value.split_once('.') {
+        Some((base, fraction)) => format!("{base}.{fraction:0<9}"),
+        None => format!("{value}.000000000"),
+    }
+}
+
 fn state(records: &[J], revision: &str) -> J {
     let successes: Vec<_> = records
         .iter()
@@ -329,4 +338,50 @@ pub fn artifact(root: &Path, name: &str, run_id: &str, artifact: &str) -> Result
         .as_str()
         .ok_or_else(|| Error::new(6, "ARTIFACT_MISSING", "result", "运行未生成该文件"))?;
     files::relative(&root.join(".runs").join(name).join(run_id), path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::timestamp_key;
+
+    #[test]
+    fn timestamp_key_pads_fractional_seconds() {
+        assert!(
+            timestamp_key("2026-10-17T11:09:07.9901Z") > timestamp_key("2026-10-17T11:09:07.99Z")
+        );
+        assert_eq!(
+            timestamp_key("2026-10-17T11:09:07Z"),
+            "2026-10-17T11:09:07.000000000"
+        );
+    }
+}
+
+#[cfg(test)]
+mod ordering_tests {
+    use super::runs;
+    use serde_json::json;
+
+    #[test]
+    fn run_history_orders_fractional_timestamps() {
+        let root = std::env::temp_dir().join(format!("rpx-order-{}", crate::files::unique()));
+        let dir = root.join(".runs").join("x");
+        std::fs::create_dir_all(dir.join("a")).unwrap();
+        std::fs::create_dir_all(dir.join("b")).unwrap();
+        std::fs::write(
+            dir.join("a/run.json"),
+            serde_json::to_vec(&json!({"started_at":"2026-10-17T11:09:07.99Z","run_id":"a"}))
+                .unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("b/run.json"),
+            serde_json::to_vec(&json!({"started_at":"2026-10-17T11:09:07.9901Z","run_id":"b"}))
+                .unwrap(),
+        )
+        .unwrap();
+        let records = runs(&root, "x").unwrap();
+        assert_eq!(records[0]["run_id"], "b");
+        assert_eq!(records[1]["run_id"], "a");
+        let _ = std::fs::remove_dir_all(root);
+    }
 }

@@ -215,3 +215,10 @@ fn structural_edit_with_snapshot_is_rejected_explicitly() {
     assert_eq!(code, 3, "{value}");
     assert_eq!(value["error"]["code"], json!("LEGACY_STRUCTURAL_EDIT"));
 }
+
+#[test]
+fn result_inspect_rejects_a_template_definition() {
+    let (code, value, _) = invoke(&["result", "inspect", &format_fixture("minimal-v0.json")]);
+    assert_eq!(code, 3, "{value}");
+    assert_eq!(value["error"]["code"], json!("RESULT_INVALID"));
+}
