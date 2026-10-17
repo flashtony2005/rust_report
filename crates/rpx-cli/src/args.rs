@@ -53,6 +53,7 @@ pub enum Command {
         #[command(subcommand)]
         command: Template,
     },
+    #[cfg(feature = "legacy-rpx")]
     Format {
         #[command(subcommand)]
         command: FormatCommand,
@@ -86,6 +87,7 @@ pub enum Command {
         command: Report,
     },
 }
+#[cfg(feature = "legacy-rpx")]
 #[derive(Subcommand)]
 pub enum FormatCommand {
     /// .rpx → JSON v1；preserve 会保留原始字节迁移快照
@@ -151,6 +153,7 @@ pub enum Template {
         #[arg(long)]
         dry_run: bool,
     },
+    #[cfg(feature = "legacy-rpx")]
     Compile {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -271,6 +274,7 @@ pub enum Report {
         #[command(flatten)]
         library: Library,
     },
+    #[cfg(feature = "legacy-rpx")]
     ImportRpx {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -295,8 +299,10 @@ impl Command {
                 Template::Validate { .. } => "template.validate",
                 Template::Create { .. } => "template.create",
                 Template::Patch { .. } => "template.patch",
+                #[cfg(feature = "legacy-rpx")]
                 Template::Compile { .. } => "template.compile",
             },
+            #[cfg(feature = "legacy-rpx")]
             Self::Format { command } => match command {
                 FormatCommand::ToJson { .. } => "format.to-json",
                 FormatCommand::ToRpx { .. } => "format.to-rpx",
@@ -320,6 +326,7 @@ impl Command {
                 Report::Validate { .. } => "report.validate",
                 Report::Run { .. } => "report.run",
                 Report::Update { .. } => "report.update",
+                #[cfg(feature = "legacy-rpx")]
                 Report::ImportRpx { .. } => "report.import-rpx",
             },
         }

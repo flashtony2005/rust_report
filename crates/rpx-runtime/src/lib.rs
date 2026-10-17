@@ -8,6 +8,7 @@ pub mod files;
 pub mod form;
 pub mod format;
 pub mod gallery;
+#[cfg(feature = "legacy-rpx")]
 pub mod import;
 pub mod library;
 pub mod parameters;

@@ -37,6 +37,9 @@ jobs:
         working-directory: web
         run: npm ci
 
+      - name: Check JSON-only build (no legacy RPX)
+        run: cargo check -p rpx-cli --no-default-features
+
       - name: Run project gate G1-G9
         shell: bash
         run: |

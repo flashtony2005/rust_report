@@ -11,7 +11,9 @@ use std::{
     path::{Path, PathBuf},
 };
 mod manage;
-pub use manage::{copy, import, init, update};
+#[cfg(feature = "legacy-rpx")]
+pub use manage::import;
+pub use manage::{copy, init, update};
 
 pub fn id(value: &str) -> Result<()> {
     if value.is_empty()

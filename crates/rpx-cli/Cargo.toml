@@ -5,6 +5,10 @@ edition.workspace = true
 [[bin]]
 name = "rpx"
 path = "src/main.rs"
+[features]
+default = ["legacy-rpx"]
+legacy-rpx = ["rpx-runtime/legacy-rpx"]
+
 [dependencies]
 rpx-runtime = { path = "../rpx-runtime" }
 rpx-core = { path = "../rpx-core" }

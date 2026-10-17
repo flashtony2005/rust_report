@@ -1,8 +1,10 @@
 use crate::args::*;
+#[cfg(feature = "legacy-rpx")]
+use rpx_runtime::format as rpx_format;
 use rpx_runtime::{
     catalog, definition,
     error::{Error, Result},
-    files, format as rpx_format, library, result, run,
+    files, library, result, run,
 };
 use serde_json::{json, Value as J};
 use std::{
@@ -43,6 +45,7 @@ pub async fn execute(command: Command) -> Result<J> {
         ),
         Command::Schema { .. } => Ok(json!({"schema":definition::schema()})),
         Command::Template { command } => template(command),
+        #[cfg(feature = "legacy-rpx")]
         Command::Format { command } => format_command(command),
         Command::Run {
             file,
@@ -125,6 +128,7 @@ fn template(command: Template) -> Result<J> {
             }
             Ok(json!({"dry_run":dry_run,"out":files::absolute(&out)?,"template":changed}))
         }
+        #[cfg(feature = "legacy-rpx")]
         Template::Compile { file, out } => {
             let value = read(&file)?;
             definition::validate(&value, None)?;
@@ -209,6 +213,7 @@ async fn report(command: Report) -> Result<J> {
             name.as_deref(),
             description.as_deref(),
         ),
+        #[cfg(feature = "legacy-rpx")]
         Report::ImportRpx {
             file,
             id,
@@ -219,6 +224,7 @@ async fn report(command: Report) -> Result<J> {
     }
 }
 
+#[cfg(feature = "legacy-rpx")]
 fn format_mode(value: &str) -> Result<rpx_format::Mode> {
     Ok(match value {
         "strict" => rpx_format::Mode::Strict,
@@ -235,6 +241,7 @@ fn format_mode(value: &str) -> Result<rpx_format::Mode> {
     })
 }
 
+#[cfg(feature = "legacy-rpx")]
 fn format_command(command: FormatCommand) -> Result<J> {
     match command {
         FormatCommand::ToJson { file, out, mode } => {

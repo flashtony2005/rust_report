@@ -123,6 +123,7 @@ impl fmt::Display for SourceError {
 impl std::error::Error for SourceError {}
 
 /// `.rpx` 文件层魔数（`docs/format-contract.md` §0）。
+#[cfg(feature = "legacy-rpx")]
 const RPX_MAGIC: &[u8; 4] = b"RQQR";
 
 /// 按**内容**分派报表来源 → [`ReportDefine`]。
@@ -142,6 +143,7 @@ pub fn open_report(bytes: &[u8]) -> Result<ReportDefine, SourceError> {
 /// 定义 JSON 入口则从顶层 `macros` 块取（`docs/report-def-json.md` §3.7）。
 /// 跑计算一律走本函数，免得"JSON 里写了宏、渲染时静默没生效"。
 pub fn open_report_full(bytes: &[u8]) -> Result<(ReportDefine, MacroTable), SourceError> {
+    #[cfg(feature = "legacy-rpx")]
     if bytes.starts_with(RPX_MAGIC) {
         return rpx_core::open_bytes(bytes)
             .map(|rd| {

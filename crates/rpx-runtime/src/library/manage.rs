@@ -99,6 +99,7 @@ pub fn update(
     files::atomic_json(&root.join(name).join("manifest.json"), &c.manifest)?;
     show_captured(root, name, &capture(root, name)?)
 }
+#[cfg(feature = "legacy-rpx")]
 pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bool) -> Result<J> {
     id(name)?;
     let template = crate::import::convert(&fs::read(file)?)?;

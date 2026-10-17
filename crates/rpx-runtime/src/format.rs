@@ -5,13 +5,18 @@
 //! `.rpx` 字节放进 `extensions["rpx.legacy"]`（迁移快照）；对已编辑的可建模
 //! 字段会显式拒绝回写，避免“看起来无损、实际丢字段”。
 
+#[cfg(feature = "legacy-rpx")]
 mod legacy;
+#[cfg(feature = "legacy-rpx")]
 mod modeled;
+#[cfg(feature = "legacy-rpx")]
 mod overlay;
 
+#[cfg(feature = "legacy-rpx")]
+use crate::error::Error;
 use crate::{
     definition,
-    error::{Error, Result},
+    error::Result,
     reportdef::{FORMAT, FORMAT_VERSION},
 };
 use rpx_core::ReportDefine;
@@ -55,6 +60,7 @@ pub struct VerifyReport {
 }
 
 /// `.rpx` → v1 JSON。`PreserveLegacy` 会挂原始字节快照。
+#[cfg(feature = "legacy-rpx")]
 pub fn rpx_to_json(bytes: &[u8], opts: Options) -> Result<Converted> {
     let rd = rpx_core::open_bytes(bytes).map_err(|e| Error::new(3, "RPX_INVALID", "format", e))?;
     if opts.mode == Mode::Strict {
@@ -93,18 +99,23 @@ pub fn normalize(doc: &J) -> Result<J> {
 
 /// v1/v0 JSON → [`ReportDefine`]；忽略 `extensions`。
 pub fn json_to_model(doc: &J) -> Result<ReportDefine> {
+    #[cfg(feature = "legacy-rpx")]
     reject_corrupt_legacy(doc)?;
+    #[allow(unused_mut)]
     let (mut rd, _) = definition::parse(doc)?;
+    #[cfg(feature = "legacy-rpx")]
     overlay::apply(doc, &mut rd);
     Ok(rd)
 }
 
+#[cfg(feature = "legacy-rpx")]
 fn has_legacy(doc: &J) -> bool {
     doc.get("extensions")
         .and_then(|v| v.get(legacy::KEY))
         .is_some()
 }
 
+#[cfg(feature = "legacy-rpx")]
 fn reject_corrupt_legacy(doc: &J) -> Result<()> {
     if has_legacy(doc) && legacy::read(doc).is_none() {
         return Err(Error::new(
@@ -119,6 +130,7 @@ fn reject_corrupt_legacy(doc: &J) -> Result<()> {
 }
 
 /// v1/v0 JSON → `.rpx` 字节。
+#[cfg(feature = "legacy-rpx")]
 ///
 /// Preserve 模式且存在未被编辑的迁移快照时直接返回原字节；一旦可建模字段被
 /// 编辑，用字段级 overlay 把未建模字段合并回模型再写出。语义保留，不保证
@@ -153,6 +165,7 @@ pub fn json_to_rpx(doc: &J, opts: Options) -> Result<Vec<u8>> {
 }
 
 /// 读 → JSON → 模型/字节 → 再读；用于迁移验收。
+#[cfg(feature = "legacy-rpx")]
 pub fn verify(bytes: &[u8], opts: Options) -> Result<VerifyReport> {
     let original =
         rpx_core::open_bytes(bytes).map_err(|e| Error::new(3, "RPX_INVALID", "format", e))?;
@@ -177,6 +190,7 @@ fn with_markers(mut doc: J) -> J {
     doc
 }
 
+#[cfg(feature = "legacy-rpx")]
 fn unsupported(path: &str) -> Error {
     let pointer = format!("/{}", path.replace('.', "/"));
     Error::new(
@@ -188,7 +202,7 @@ fn unsupported(path: &str) -> Error {
     .at(pointer)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-rpx"))]
 mod tests {
     use super::*;
     use serde_json::json;

@@ -16,6 +16,8 @@ rpx catalog examples
 ```
 
 无需服务或登录。Rust 1.89+；`clap` 负责命令解析，`json-patch` 负责 RFC 6902，文件锁使用标准库。
+默认构建包含 `legacy-rpx`（`format`/`template compile`/`report import-rpx`）。JSON-only 构建用
+`cargo build -p rpx-cli --no-default-features`，这些 legacy 命令不会出现。
 配套技能源码在 `skills/rpx/SKILL.md`，可安装到 `~/.codex/skills/rpx/SKILL.md`。
 
 ## 文件操作
