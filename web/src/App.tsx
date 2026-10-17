@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { FUniver } from '@univerjs/presets'
+import { LifecycleStages, type ICellData } from '@univerjs/core'
 
 import {
-  applyValueEdit,
   assertEditable,
   downloadDefJson,
   exportDefJson,
-  type CellValue,
   type ReportDef,
 } from './designer'
 import {
@@ -18,18 +17,15 @@ import {
 } from './cellprops'
 import {
   downloadBlob,
-  exportReportFile,
-  fetchMeta,
-  fetchSnapshot,
-  fetchSnapshotWithDef,
-  metaToRows,
   mountUniver,
   pickReportFile,
-  saveReport,
-  type ParamRow,
 } from './report'
+import { listReports, getReport, getRuns, saveTemplate, loadWorkbook, artifactUrl, sourceUrl, LibraryError, type ReportDetail, type RunRecord } from './library-api'
 import MenuBar, { type MenuGroup } from './menubar'
 import SidePanes from './panes'
+import DefinitionSource from './DefinitionSource'
+import type { PrintWorkbook } from './PrintPreview'
+const PrintPreview=lazy(()=>import('./PrintPreview'))
 import {
   applyColWidths,
   applyGridResize,
@@ -37,11 +33,10 @@ import {
   applyRowHeights,
   mmToPx,
 } from './rowcol'
-import {
-  applyDatasetAdd,
-  applyDatasetRemove,
-  type DatasetInput,
-} from './datasets'
+import TemplateCellPane from './TemplateCellPane'
+import TemplateDatasets from './TemplateDatasets'
+import { galleryFiles } from './gallery-data'
+import { applyTemplateCell, applyTemplateValues, parseTemplate, templateCellData, templateInputValue, templateWorkbook, type CellDraft } from './template'
 import {
   PRINT_SETUP_DEFAULTS,
   applyPrintSetup,
@@ -62,7 +57,7 @@ import {
 
 /** 状态栏里算「出错」的前缀（红色上屏）。新加出错文案必须登记进来，
  * 否则会退化成灰色提示 —— 那是**静默降级**，用户看不出失败了。 */
-const ERROR_PREFIXES = ['装载失败', '入库失败', '请先', '未找到', '编辑失败', '编辑面']
+const ERROR_PREFIXES = ['装载失败', '入库失败', '请先', '未找到', '编辑失败', '编辑面', '运行失败', '导出失败']
 
 /** W2-3：属性编辑的状态栏标签（边标签随之搬迁 panes.tsx，这里本地小 map）。 */
 const SIDE_LABEL: Record<string, string> = { top: '上', right: '右', bottom: '下', left: '左' }
@@ -82,28 +77,13 @@ function propsEditLabel(edit: CellPropsEdit): string {
 }
 
 /**
- * rpx 报表预览 + 定义 JSON 通道（M4 + M7-W W1）+ 编辑面（M7-W W2-1）。
- *
- * 页面结构：顶栏（标题 + 文件选择 + 渲染 / 另存为 / **导出 JSON**）/ 参数表单
- * （W1-2 起按 `/meta` 自动带出）/ 状态栏 / Univer 容器（flex 撑满）。
- * 数据管道：选文件（`.rpx` 或 `.json`）→ 点「渲染」→ `POST /api/render` →
- * 装载快照；点「另存为」→ `POST /reports` 拿 id → 按 `/meta` 刷新参数表单；
- * 失败原因**显式上屏**（不静默白屏）。流程见 `report.ts`。
- *
- * W2-1 编辑面的三条口径（实现在 `designer.ts`）：
- * * **持有原始定义 JSON**（渲染时读文件文本）并对它打补丁 —— 不拿快照反推
- *   （快照有损，见 `stylemap.ts` 文件头）；
- * * **只跟 `SheetValueChanged` 事件**补用户真改过的那一格 —— 不做整体回灌，
- *   否则 Univer 会把 `"0123"` 这类值按数值归一化，没碰过的格子也被改坏；
- * * 编辑失败（越界 / 落在合并矩形内 / 该格由表达式驱动）**显式上屏**，
- *   不猜、不吞。
- *
- * ⚠ 不用 `StrictMode`：dev 下 effect 双执行会二次 `createUniver` 到同一容器
- * （Univer 是 canvas 重量级挂载，非幂等）。骨架期如实取舍，见 `docs/spec-m4.md` §7。
- * ⚠ 重渲染会二次挂载：先 `dispose()` 旧实例再建新的（否则同一容器叠两份 canvas）。
- * ⚠ 配色全部走 Design Token（`:root` 变量）；图标一律内联 SVG（统一描边，不用 emoji）。
+ * JSON 是模板的唯一编辑源；Univer 展示原始格，Rust 生成只读运行结果。
+ * 打开、编辑、下载、入库和运行都读取当前持有的定义，不从扩展结果反推。
+ * Univer 实例和事件在切换工作簿时一起释放；不启用 React StrictMode 的双挂载。
  */
 export default function App() {
+  const [printWorkbook, setPrintWorkbook] = useState<PrintWorkbook | null>(null)
+  const [showPrint, setShowPrint] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<FUniver | null>(null)
   /** W2-1：单元格改动事件的订阅句柄（`addEvent` 返回的 `IDisposable`）。
@@ -112,15 +92,50 @@ export default function App() {
   /** W2-2：选区变化（`CommandExecuted` 过滤 `sheet.operation.set-selections`）
    * 的订阅句柄；同 `eventDisposableRef` 的 dispose 纪律。 */
   const selectionDisposableRef = useRef<{ dispose: () => void } | null>(null)
+  const commandDisposableRef = useRef<{ dispose: () => void } | null>(null)
+  const lifecycleDisposableRef = useRef<{ dispose: () => void } | null>(null)
   /** W2-2：样式面板显示态。`null` = 当前没有选区可读（或未渲染）⇒ 面板显示
    * 缺省并整体置灰（`.rpx` 源没有定义 JSON 可打补丁，见 `assertEditable`）。 */
   const [panel, setPanel] = useState<PanelStyle | null>(null)
   /** W2-3：当前选区的坐标快照（属性面板显示态的派生来源；`null` = 无选区）。 */
   const [selection, setSelection] = useState<PanelRange | null>(null)
-  const [files, setFiles] = useState<FileList | null>(null)
-  const [params, setParams] = useState<ParamRow[]>([])
+  const [files, setFiles] = useState<File[]>([])
+  const [attachments, setAttachments] = useState<File[]>([])
+  const [view, setViewState] = useState<'design' | 'result'>('design')
+  const viewRef = useRef<'design' | 'result'>('design')
+  const writingRef = useRef(false)
+  const [cellDirty, setCellDirty] = useState(false)
+  const cellDirtyRef = useRef(false)
+  const datasetDirtyRef = useRef(false)
+  const requestRef = useRef(0)
+  const [documentKey, setDocumentKey] = useState(0)
+  const [sheetReady, setSheetReady] = useState(false)
+  const setView = (next: 'design' | 'result') => { viewRef.current = next; setViewState(next) }
+  const setCellPending = (dirty: boolean) => { cellDirtyRef.current = dirty; setCellDirty(dirty) }
+  const runFiles = () => [...new Map([...files, ...attachments].map(f => [f.name, f])).values()]
+  const jsonDirtyRef = useRef(false)
+  const readyToLeaveCell = () => {
+    if (jsonDirtyRef.current) { setStatus('请先应用或放弃 JSON 源码草稿'); return false }
+    if (!cellDirtyRef.current && !datasetDirtyRef.current) return true
+    setStatus(cellDirtyRef.current ? '请先应用或放弃当前单元格的修改，再运行或保存' : '请先添加、保存或取消当前数据集的修改，再运行或保存')
+    return false
+  }
+  const invalidateResult = () => { requestRef.current++; setShowPrint(false) }
+  const ownWrite = (write: () => void) => {
+    writingRef.current = true
+    try { write() } finally { writingRef.current = false }
+  }
+  const addFiles = (incoming: File[]) => {
+    invalidateResult()
+    setAttachments(current => [...new Map([...current, ...incoming].map(f => [f.name, f])).values()])
+  }
   /** 「另存为」拿到的服务端 id（W1-3）；换文件即失效（id 属于旧文件）。 */
-  const [saved, setSaved] = useState<{ id: number; name: string } | null>(null)
+  const [saved, setSaved] = useState<ReportDetail | null>(null)
+  const [reports, setReports] = useState<ReportDetail[]>([])
+  const [runs, setRuns] = useState<RunRecord[]>([])
+  const [selectedRun, setSelectedRun] = useState('')
+  const sourceRef = useRef('')
+  const [sharedRevision, setSharedRevision] = useState('')
   /** W2-1：持有的定义 JSON（**打了补丁的那份**）。只有 `.json` 报表源才有；
    * `.rpx` 与未渲染时为 null ⇒ 编辑面不可用（`assertEditable` 给文案）。 */
   const [def, setDef] = useState<ReportDef | null>(null)
@@ -130,168 +145,225 @@ export default function App() {
   const defRef = useRef<ReportDef | null>(null)
   /** 同时更新 `def` 状态与 `defRef` 镜像（W2-1 专用 setter）。 */
   const setDefBoth = (next: ReportDef | null) => {
+    if (next !== defRef.current) invalidateResult()
     defRef.current = next
     setDef(next)
   }
   /** W2-1：报表源形态，用于「.rpx 不能编辑」这条能力边界的提示。 */
   const [sourceKind, setSourceKind] = useState<'json' | 'rpx' | null>(null)
   const [status, setStatus] = useState(
-    '请选择 .rpx 或 .json 报表源（可一起选中其同目录 CSV），点渲染；点「另存为」后可自动带出参数清单',
+    '新建或打开 JSON 模板；在右侧配置数据集、公式和主格，由 agent 执行引擎生成结果',
   )
 
   /** W2-5：报表源文件名（重渲染时 def 上传体沿用这个名字）。 */
   const [reportName, setReportName] = useState('report-definition.json')
 
-  /**
-   * 装载快照 + 订阅事件（W2-5 抽取：`render` 与 `renderFromDef` 共用的后半程）。
-   *
-   * 原逻辑逐字搬入（dispose 旧实例 → mount → createWorkbook → 两事件订阅），
-   * 只把「held / kind 的来源」参数化 —— 从文件渲染时 held 来自文件文本，
-   * 补丁后重渲染时 held 就是**当前持有的 def**（补丁不丢的唯一保证）。
-   */
-  const attachSnapshot = (snapshot: unknown, held: ReportDef | null, kind: 'json' | 'rpx') => {
+  /** 装载设计工作簿或运行快照；仅模板设计订阅内容修改。 */
+  const attachSnapshot = (snapshot: unknown, held: ReportDef | null, kind: 'json' | 'rpx', design = false, selected?: { row0: number; col0: number }) => {
+    eventDisposableRef.current?.dispose()
+    selectionDisposableRef.current?.dispose()
+    commandDisposableRef.current?.dispose()
+    lifecycleDisposableRef.current?.dispose()
     apiRef.current?.dispose()
-    if (!containerRef.current) return
-    apiRef.current = mountUniver(containerRef.current)
-    apiRef.current.createWorkbook(snapshot as Parameters<typeof apiRef.current.createWorkbook>[0])
     setDefBoth(held)
     setSourceKind(kind)
-    setStatus(
-      held
-        ? '已装载定义 JSON，可直接编辑单元格内容；改完点「导出 JSON」拿回定义文件'
-        : '已装载（.rpx 模板只读预览）',
-    )
-    // W2-1：订阅单元格改动事件。**只补用户真改过的那一格**（理由见
-    // `designer.ts` 文件头：整体回灌会把 `"0123"` 这类值按数值归一化，
-    // 没碰过的格子也被改坏）。旧监听先 dispose，避免二次挂载叠两份。
-    eventDisposableRef.current?.dispose()
-    eventDisposableRef.current = apiRef.current.addEvent(
-      apiRef.current.Event.SheetValueChanged,
-      (params) => {
-        const ranges = params.effectedRanges
-        // 批量/多区域编辑（粘贴、填充）暂不做内容补丁 —— 超出 W2-1 单格口径；
-        // 多区域只补第一格是**静默半截**，故直接跳过，不假装成功。
-        if (!ranges || ranges.length !== 1) return
-        // 只处理「值改动」（`SET_RANGE_VALUES`）。合并/结构类改动（如
-        // 合并矩形增减）不进**内容**补丁，否则把结构动作误当成内容写坏。
-        const id = (params.payload as { id: string }).id
-        if (id !== 'sheet.mutation.set-range-values') return
-        const range = ranges[0]
-        onCellEdited(range.getRow(), range.getColumn(), range.getValue())
-      },
-    )
-    // W2-2：订阅选区变化 —— 面板显示态跟着用户选中的格子走。facade 的
-    // sheets 事件表里**没有**选区专用事件（`f-event.d.ts` 的 getter 清单里
-    // 无 Selection*）⇒ 用命令级事件 `CommandExecuted` 按 id 过滤：
-    // `sheet.operation.set-selections` 是选区落定的命令
-    // （`@univerjs/sheets/lib/es/index.js:5081` 实测）。
-    selectionDisposableRef.current?.dispose()
-    selectionDisposableRef.current = apiRef.current.addEvent(
-      apiRef.current.Event.CommandExecuted,
-      (e) => {
-        if (e.id === 'sheet.operation.set-selections') syncPanel()
-      },
-    )
-    syncPanel()
-  }
-
-  const render = async () => {
-    if (!files) {
-      setStatus('请先选择报表源文件')
-      return
-    }
-    const report = pickReportFile(Array.from(files))
-    if (!report) {
-      setStatus('未找到报表源文件（.rpx 或 .json）')
-      return
-    }
-    setStatus('正在渲染…')
-    try {
-      // W2-5：**持有 def 时优先用它**——点「渲染」是刷新画布，不是丢弃补丁
-      // 重新读盘（那会把用户的全部编辑静默回滚，比报错恶劣得多）。
-      const held = defRef.current
-      if (held) {
-        const snapshot = await fetchSnapshotWithDef(
-          JSON.stringify(held),
-          reportName,
-          Array.from(files),
-          params,
-        )
-        attachSnapshot(snapshot, held, 'json')
+    setSheetReady(false)
+    setView(design ? 'design' : 'result')
+    if (!design) setPrintWorkbook(snapshot as PrintWorkbook)
+    if (!containerRef.current) return
+    const api = mountUniver(containerRef.current, design)
+    apiRef.current = api
+    const workbook = api.createWorkbook(snapshot as Parameters<typeof api.createWorkbook>[0])
+    workbook?.setEditable(design && !!held)
+    commandDisposableRef.current = api.addEvent(api.Event.BeforeCommandExecute, event => {
+      if (!design || writingRef.current || !event.id.startsWith('sheet.mutation.')) return
+      if (event.id === 'sheet.mutation.set-range-values' && defRef.current) {
+        if (cellDirtyRef.current) { event.cancel = true; setStatus('请先应用或放弃右侧单元格修改，再编辑画布'); return }
+        const matrix = event.params?.cellValue as Record<string, Record<string, ICellData | null>> | undefined
+        const edits = Object.entries(matrix ?? {}).flatMap(([r, row]) => Object.entries(row).map(([c, cell]) => ({
+          row0: Number(r), col0: Number(c), value: templateInputValue(cell), cell,
+        })))
+        if (edits.some(({ cell }) => cell && !['v', 'f', 'p'].some(key => key in cell))) {
+          event.cancel = true
+          setStatus('编辑失败：请使用右侧样式面板设置单元格格式')
+          return
+        }
+        const result = applyTemplateValues(defRef.current, edits)
+        if (!result.def) { event.cancel = true; setStatus(`编辑失败：${result.error}`); return }
+        // Force report formulas to text before Univer's own formula engine sees them.
+        for (const edit of edits) {
+          const cell = result.def.cells?.find(c => c.row === edit.row0 + 1 && c.col === edit.col0 + 1)
+          if (cell && matrix) matrix[edit.row0][edit.col0] = templateCellData(cell)
+        }
         return
       }
-      const snapshot = await fetchSnapshot(Array.from(files), params)
-      // W2-1：**先读定义 JSON 文本再挂 Univer** —— 编辑面要持原始 JSON 打补丁。
-      // 只有 `.json` 才有；`.rpx` 是二进制，持不住 ⇒ 编辑面不可用（显式告知）。
-      const isJson = report.name.toLowerCase().endsWith('.json')
-      let fromFile: ReportDef | null = null
-      if (isJson) {
-        const text = await report.text()
-        fromFile = JSON.parse(text) as ReportDef
-        if (!fromFile || typeof fromFile !== 'object' || !fromFile.grid) {
-          throw new Error('定义 JSON 缺 grid 字段，无法进入编辑面')
+      // Native structural changes cannot preserve report expressions and head addresses.
+      event.cancel = true
+      setStatus('编辑失败：请使用右侧模板面板设置样式、合并区域和行列尺寸')
+    })
+    eventDisposableRef.current = api.addEvent(api.Event.SheetValueChanged, event => {
+      if (viewRef.current !== 'design' || writingRef.current || !defRef.current) return
+      if ((event.payload as { id: string }).id !== 'sheet.mutation.set-range-values') return
+      const edits: { row0: number; col0: number; value: unknown }[] = []
+      for (const range of event.effectedRanges ?? []) {
+        const data = range.getCellDatas()
+        for (let r = 0; r < range.getHeight(); r++) for (let c = 0; c < range.getWidth(); c++) {
+          const cell = data[r]?.[c]
+          edits.push({ row0: range.getRow() + r, col0: range.getColumn() + c,
+            value: templateInputValue(cell) })
         }
       }
-      setReportName(report.name)
-      attachSnapshot(snapshot, fromFile, isJson ? 'json' : 'rpx')
-    } catch (e) {
-      setDefBoth(null)
-      setSourceKind(null)
-      setStatus(`装载失败：${e instanceof Error ? e.message : String(e)}`)
-    }
+      const result = applyTemplateValues(defRef.current, edits)
+      if (!result.def) {
+        // Restore the authoritative template after an invalid paste.
+        queueMicrotask(() => { showTemplate(); setStatus(`编辑失败：${result.error}`) })
+        return
+      }
+      setDefBoth(result.def)
+      setStatus('已更新模板内容；可保存模板或运行生成报表')
+      syncPanel()
+    })
+    selectionDisposableRef.current = api.addEvent(api.Event.CommandExecuted, event => {
+      if (event.id === 'sheet.operation.set-selections') syncPanel()
+    })
+    const onReady = () => queueMicrotask(() => {
+      if (apiRef.current !== api) return
+      const sheet = workbook?.getActiveSheet()
+      if (design && sheet) sheet.setActiveRange(sheet.getRange(selected?.row0 ?? 0, selected?.col0 ?? 0))
+      syncPanel()
+      setSheetReady(true)
+    })
+    if (api.getCurrentLifecycleStage() >= LifecycleStages.Steady) onReady()
+    else lifecycleDisposableRef.current = api.addEvent(api.Event.LifeCycleChanged, ({ stage }) => {
+      if (stage === LifecycleStages.Steady) onReady()
+    })
   }
 
-  /**
-   * W2-1：把一格的值改动补丁进持有的定义 JSON。
-   *
-   * 失败**不丢弃改动也不猜**：把服务端会拒的理由原样上屏（`designer.ts` 的
-   * 四条约束各自给一句话），让用户知道为什么这一格改不了。
-   */
-  const onCellEdited = (row0: number, col0: number, value: CellValue) => {
-    const cur = defRef.current
-    if (!cur) return
-    const r = applyValueEdit(cur, row0, col0, value)
-    if (r.error) {
-      setStatus(`编辑失败：${r.error}`)
-      return
-    }
-    setDefBoth(r.def ?? cur)
-    const warn = r.warnings.length > 0 ? `（${r.warnings.join('；')}）` : ''
-    setStatus(`已更新定义 JSON${warn}；点「导出 JSON」拿回文件`)
+  const showTemplate = (held = defRef.current, selected?: { row0: number; col0: number }) => {
+    if (!held || cellDirtyRef.current) return
+    attachSnapshot(templateWorkbook(held, reportName), held, 'json', true, selected)
+    setStatus('模板设计：原始公式由 agent 调用 Rust 引擎执行，主格关系在右侧设置')
+  }
+
+  const openFiles = async (selected: File[]) => {
+    if (!selected?.length) return
+    const report = pickReportFile(Array.from(selected))
+    if (!report) { addFiles(Array.from(selected)); return }
+    if (!readyToLeaveCell()) return
+    try {
+      const held = report.name.toLowerCase().endsWith('.json') ? parseTemplate(await report.text()) : null
+      setFiles(selected)
+      setAttachments([])
+      setReportName(report.name)
+      setCellPending(false)
+      datasetDirtyRef.current = false
+      setDocumentKey(key => key + 1)
+      setPrintWorkbook(null)
+      setShowPrint(false)
+      setSaved(null)
+      setRuns([])
+      setSelectedRun('')
+      setSharedRevision('')
+      if (held) {
+        attachSnapshot(templateWorkbook(held, report.name), held, 'json', true)
+        setStatus(`已打开模板 ${report.name}；无需数据即可编辑，运行前上传对应数据文件`)
+      } else {
+        eventDisposableRef.current?.dispose()
+        selectionDisposableRef.current?.dispose()
+        commandDisposableRef.current?.dispose()
+        lifecycleDisposableRef.current?.dispose()
+        apiRef.current?.dispose()
+        apiRef.current = null
+        setSelection(null)
+        setPanel(null)
+        setDefBoth(null)
+        setSourceKind('rpx')
+        setView('result')
+        setStatus('已选择 RPX 模板，请使用 rpx report import-rpx 显式导入为 JSON 定义')
+      }
+    } catch (error) { setStatus(`装载失败：${error instanceof Error ? error.message : String(error)}`) }
+  }
+
+  const draftChanged = () => JSON.stringify(defRef.current) !== sourceRef.current
+  const refreshLibrary = async (id = saved?.id, replaceDraft = false) => {
+    if (!readyToLeaveCell()) return
+    const request = ++requestRef.current
+    try {
+      const listing = await listReports()
+      const chosen = id ?? listing.items[0]?.id
+      if (!chosen) { setStatus('模板库为空，请用 rpx library init --presets 创建预制报表'); return }
+      const detail = await getReport(chosen)
+      const history = await getRuns(chosen)
+      const run = detail.display_run_id
+      const workbook = run ? await loadWorkbook(chosen, run) as PrintWorkbook : null
+      if (request !== requestRef.current) return
+      setReports(listing.items)
+      setSharedRevision(detail.revision)
+      if (replaceDraft || !defRef.current || !draftChanged()) {
+        sourceRef.current = JSON.stringify(detail.template)
+        setReportName(`${detail.manifest.name}.json`)
+        setDocumentKey(key => key + 1)
+        attachSnapshot(templateWorkbook(detail.template, detail.manifest.name), detail.template, 'json', true)
+        setSaved(detail)
+      } else if (saved && detail.revision !== saved.revision) {
+        setStatus('共享源码已更新；本地草稿已保留，保存时将检查修订冲突')
+      }
+      if (!replaceDraft && saved && draftChanged()) {
+        setSaved(current => current ? { ...detail, revision: current.revision } : current)
+      }
+      setRuns(history.items)
+      setSelectedRun(run ?? '')
+      setPrintWorkbook(workbook)
+      if (replaceDraft || !draftChanged()) setStatus(detail.result_state === 'older_revision' ? '定义已修改，结果对应旧修订；等待 agent 执行' : '已读取模板库与保存的运行结果')
+    } catch (error) { setStatus(`读取失败：${error instanceof Error ? error.message : String(error)}`) }
+  }
+  const render = async () => {
+    if (!saved) { setStatus('请从模板库选择报表；本地模板可通过 rpx run 执行'); return }
+    if (!readyToLeaveCell()) return
+    try {
+      if (!selectedRun) { await refreshLibrary(); return }
+      const workbook = await loadWorkbook(saved.id, selectedRun)
+      attachSnapshot(workbook, defRef.current, 'json')
+      setStatus(`正在查看已保存的运行 ${selectedRun}`)
+    } catch (error) { setStatus(`结果读取失败：${error instanceof Error ? error.message : String(error)}`) }
+  }
+
+  const onTemplateCellApply = (row0: number, col0: number, draft: CellDraft): boolean => {
+    if (!defRef.current || viewRef.current !== 'design') return false
+    const result = applyTemplateCell(defRef.current, row0, col0, draft)
+    if (!result.def) { setStatus(`编辑失败：${result.error}`); return false }
+    setCellPending(false)
+    datasetDirtyRef.current = false
+    showTemplate(result.def, { row0, col0 })
+    setStatus('已应用单元格定义，可保存共享定义，由 agent 运行查看扩展结果')
+    return true
   }
 
   /** W2-1：导出（编辑面唯一出口）。 */
   const exportJson = () => {
     const cur = defRef.current
     if (!cur) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先新建或打开 JSON 模板'}`)
       return
     }
-    downloadDefJson(cur, 'report-definition.json')
+    if (!readyToLeaveCell()) return
+    downloadDefJson(cur, /\.json$/i.test(reportName.trim()) ? reportName.trim() : `${reportName.trim() || 'report-definition'}.json`)
     setStatus(`已导出定义 JSON（${exportDefJson(cur).length} 字符）`)
   }
 
   /** W3-4：导出 Excel/CSV（`POST /export`，M6-03 服务端已就绪）——优先导出
    * **打过补丁的 def**（与「渲染」持有 def 优先同口径），否则回落磁盘源。 */
-  const exportFile = async (fmt: 'csv' | 'xlsx') => {
-    const cur = defRef.current
-    if (!files && !cur) {
-      setStatus('请先选择报表源文件')
-      return
-    }
-    setStatus(`正在导出 ${fmt.toUpperCase()}…`)
+  const exportFile = async (fmt: 'csv' | 'xlsx' | 'print-xlsx') => {
+    if (!saved || !selectedRun) { setStatus('请先选择一次成功运行'); return }
+    const name = fmt === 'csv' ? 'report.csv' : fmt === 'xlsx' ? 'report.xlsx' : 'report-print.xlsx'
+    const run = runs.find(run => run.run_id === selectedRun)
+    if (!run?.artifacts[name]) { setStatus(`该次运行未生成 ${name}；请由 agent 使用 --export ${fmt} 再执行`); return }
     try {
-      const { blob, filename } = await exportReportFile(
-        cur ? exportDefJson(cur) : null,
-        Array.from(files ?? []),
-        params,
-        fmt,
-      )
-      downloadBlob(blob, filename)
-      setStatus(`已导出 ${filename}（${blob.size} 字节）`)
-    } catch (e) {
-      setStatus(`导出失败：${e instanceof Error ? e.message : String(e)}`)
-    }
+      const response = await fetch(artifactUrl(saved.id, selectedRun, name))
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      downloadBlob(await response.blob(), name)
+      setStatus(`已下载运行 ${selectedRun} 的 ${name}`)
+    } catch (error) { setStatus(`下载失败：${String(error)}`) }
   }
 
   // -------------------------------------------------------------------------
@@ -308,29 +380,23 @@ export default function App() {
     await resizeGridAndRender(rows, cols)
   }
 
-  /** W3-7：新建报表（产品「文件→新建报表 Ctrl+N」）——最小 3×3 定义 JSON
+  /** W3-7：新建报表（产品「文件→新建报表 Ctrl+N」）——12×8 定义 JSON
    * 直接进编辑面（不经磁盘文件），A1 放一个字面量当锚点。 */
   const newReport = async () => {
-    const fresh: ReportDef = {
-      version: 1,
-      grid: { rows: 3, cols: 3 },
-      cells: [{ row: 1, col: 1, text: '新报表' }],
-    }
-    setDefBoth(fresh)
+    if (!readyToLeaveCell()) return
+    const fresh: ReportDef = { version: 1, grid: { rows: 12, cols: 8 }, cells: [{ row: 1, col: 1, text: '新报表' }] }
+    setFiles([])
+    setAttachments([])
+    setSaved(null)
+    setRuns([])
+    setSelectedRun('')
+    setPrintWorkbook(null)
+    setSharedRevision('')
+    setCellPending(false)
+    setDocumentKey(key => key + 1)
     setReportName('new-report.json')
-    setStatus('正在装载新建报表…')
-    try {
-      const snapshot = await fetchSnapshotWithDef(
-        JSON.stringify(fresh),
-        'new-report.json',
-        Array.from(files ?? []),
-        params,
-      )
-      attachSnapshot(snapshot, fresh, 'json')
-      setStatus('已新建 3×3 报表；可直接编辑单元格，或「另存为」入库')
-    } catch (e) {
-      setStatus(`新建失败：${e instanceof Error ? e.message : String(e)}`)
-    }
+    attachSnapshot(templateWorkbook(fresh, 'new-report.json'), fresh, 'json', true)
+    setStatus('已新建模板；配置数据集，选中单元格编写公式和主格关系')
   }
 
   /** W3-7：打开报表（产品「文件→打开报表 Ctrl+O」）——触发顶栏文件选择。
@@ -377,7 +443,7 @@ export default function App() {
         openReport()
       } else if (e.ctrlKey && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        exportJson()
+        void save()
       } else if (e.key === 'F9') {
         e.preventDefault()
         void render()
@@ -406,20 +472,21 @@ export default function App() {
       // 最近文件/最近连接、退出。
       label: '文件',
       items: [
-        { label: '新建报表(N)\tCtrl+N', onPick: () => void newReport(), hint: '建最小 3×3 定义 JSON 直接进编辑面' },
+        { label: '新建报表(N)\tCtrl+N', onPick: () => void newReport(), hint: '新建 12×8 模板，直接进入设计' },
         { label: '打开报表(O)\tCtrl+O', onPick: openReport, hint: '选择 .rpx / .json（可同选 CSV）' },
         { label: '打开数据集(D)', onPick: () => { setSideVisible(true); setStatus('右侧「数据集」分区：管理 datasets[] 引用') }, hint: '产品 F11 同款；Web 落在右侧面板' },
         { sep: true },
-        { label: '保存(S)\tCtrl+S', onPick: exportJson, disabled: !def, hint: '把打过补丁的定义 JSON 下载回本地' },
-        { label: '另存为(A)', onPick: () => void save(), disabled: !files, hint: 'POST /reports 入库拿 id' },
-        { label: '预览(F9)', onPick: () => void render(), disabled: !files, hint: '按当前持有 def 重渲染（分页/纸张设置生效）' },
+        { label: '保存(S)\tCtrl+S', onPick: () => void save(), disabled: !def, hint: '把打过补丁的定义 JSON 下载回本地' },
+        { label: '另存为(A)', onPick: () => void save(), disabled: !files.length && !def, hint: '保存当前编辑中的模板到服务端' },
+        { label: '查看结果(F9)', onPick: () => void render(), disabled: !files.length && !def, hint: '读取已保存结果' },
         {
           label: '导出(E)',
           onPick: () => {},
           children: [
-            { label: 'Excel（.xlsx）', onPick: () => void exportFile('xlsx'), disabled: !files && !def, hint: 'POST /api/export?fmt=xlsx' },
-            { label: 'CSV（.csv）', onPick: () => void exportFile('csv'), disabled: !files && !def, hint: 'POST /api/export?fmt=csv' },
-            { label: '定义 JSON（.json）', onPick: exportJson, disabled: !def, hint: '导出打过补丁的定义 JSON' },
+            { label: 'Excel（.xlsx）', onPick: () => void exportFile('xlsx'), disabled: !files.length && !def, hint: '下载该次运行已生成的 Excel' },
+            { label: '打印版 Excel（.xlsx）', onPick: () => void exportFile('print-xlsx'), disabled: !files.length && !def },
+            { label: 'CSV（.csv）', onPick: () => void exportFile('csv'), disabled: !files.length && !def, hint: '下载该次运行已生成的 CSV' },
+            { label: '定义 JSON（.json）', onPick: () => void save(), disabled: !def, hint: '导出打过补丁的定义 JSON' },
           ],
         },
       ],
@@ -433,7 +500,7 @@ export default function App() {
         {
           label: '插入(I)',
           onPick: () => {},
-          disabled: !def,
+          disabled: !def || view !== 'design',
           children: [
             { label: '追加行', onPick: insertRow, hint: '网格行数 +1（内容不动）' },
             { label: '追加列', onPick: insertCol, hint: '网格列数 +1（内容不动）' },
@@ -442,7 +509,7 @@ export default function App() {
         {
           label: '删除(D)',
           onPick: () => {},
-          disabled: !def,
+          disabled: !def || view !== 'design',
           children: [
             { label: '删末行', onPick: deleteLastRow, hint: '行数 -1；末行有内容时显式报错（不静默错位）' },
             { label: '删末列', onPick: deleteLastCol, hint: '列数 -1；末列有内容时显式报错' },
@@ -523,6 +590,7 @@ export default function App() {
 
   /** W2-2：面板操作的公共前置（选区 + 定义 JSON 都就位）。不满足 ⇒ 上屏原因并返回 null。 */
   const panelContext = () => {
+    if (viewRef.current !== 'design') return null
     const cur = currentSelection()
     if (!cur) {
       setStatus('编辑失败：请先在表格里选中单元格，再改样式')
@@ -530,7 +598,7 @@ export default function App() {
     }
     const held = defRef.current
     if (!held) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先新建或打开 JSON 模板'}`)
       return null
     }
     return {
@@ -646,7 +714,7 @@ export default function App() {
   const onRowHeightChange = (mm: number | null) => {
     const held = defRef.current
     if (!held) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先新建或打开 JSON 模板'}`)
       return
     }
     const rows = selectedRows()
@@ -679,7 +747,7 @@ export default function App() {
   const onColWidthChange = (mm: number | null) => {
     const held = defRef.current
     if (!held) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先新建或打开 JSON 模板'}`)
       return
     }
     const cols = selectedCols()
@@ -711,7 +779,7 @@ export default function App() {
   const onBreakPageChange = (on: boolean | null) => {
     const held = defRef.current
     if (!held) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先新建或打开 JSON 模板'}`)
       return
     }
     const rows = selectedRows()
@@ -740,9 +808,10 @@ export default function App() {
   /** W3-7：网格调整 + 重渲染的公共通路（面板「调整网格」与编辑菜单
    * 「插入→/删除→」共用；越界校验 + 失败上屏同规）。 */
   const resizeGridAndRender = async (rows: number, cols: number) => {
+    if (viewRef.current !== 'design' || !readyToLeaveCell()) return
     const held = defRef.current
     if (!held) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先新建或打开 JSON 模板'}`)
       return
     }
     const r = applyGridResize(held, rows, cols)
@@ -750,55 +819,8 @@ export default function App() {
       setStatus(`编辑失败：${r.error ?? '值不合法'}`)
       return
     }
-    setDefBoth(r.def)
-    setStatus('网格已调整，正在按新尺寸重渲染…')
-    try {
-      const snapshot = await fetchSnapshotWithDef(
-        JSON.stringify(r.def),
-        reportName,
-        Array.from(files ?? []),
-        params,
-      )
-      attachSnapshot(snapshot, r.def, 'json')
-      setStatus('网格已调整并重渲染；点「导出 JSON」拿回文件')
-    } catch (e) {
-      setStatus(`重渲染失败：${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
-
-  /** W2-5：数据集草稿（添加行）。修改已有条目 v1 不做 UI —— 删了重加，
-   * 或导出 JSON 手改（`datasets.ts::applyDatasetUpdate` 语义已有单测钉住）。 */
-  const [dsDraft, setDsDraft] = useState<DatasetInput>({ name: '', file: { file_name: '', encoding: 'GBK' } })
-
-  /** W2-5：添加数据集（校验失败上屏，成功后清空草稿）。 */
-  const onDatasetAdd = () => {
-    const held = defRef.current
-    if (!held) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
-      return
-    }
-    const r = applyDatasetAdd(held, dsDraft)
-    if (r.error || !r.def) {
-      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
-      return
-    }
-    setDefBoth(r.def)
-    setDsDraft({ name: '', file: { file_name: '', encoding: 'GBK' } })
-    const warn = r.warnings.length > 1 ? `（${r.warnings[0]}）` : ''
-    setStatus(`已添加数据集${warn}；点「导出 JSON」拿回文件`)
-  }
-
-  /** W2-5：删除第 i 条数据集。 */
-  const onDatasetRemove = (i: number) => {
-    const held = defRef.current
-    if (!held) return
-    const r = applyDatasetRemove(held, i)
-    if (r.error || !r.def) {
-      setStatus(`编辑失败：${r.error ?? '值不合法'}`)
-      return
-    }
-    setDefBoth(r.def)
-    setStatus('已删除数据集；点「导出 JSON」拿回文件')
+    showTemplate(r.def)
+    setStatus('已调整模板网格')
   }
 
   // -------------------------------------------------------------------------
@@ -817,7 +839,7 @@ export default function App() {
   const onSetupChange = (field: keyof typeof PRINT_SETUP_DEFAULTS, value: number | boolean) => {
     const held = defRef.current
     if (!held) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先新建或打开 JSON 模板'}`)
       return
     }
     const r = applyPrintSetup(held, { [field]: value })
@@ -826,14 +848,14 @@ export default function App() {
       return
     }
     setDefBoth(r.def)
-    setStatus(`已更新报表设置 ${field}；点「渲染」生效，或「导出 JSON」拿回文件`)
+    setStatus(`已更新报表设置 ${field}；保存后由 agent 执行生效，或「导出 JSON」拿回文件`)
   }
 
   /** W3-1：横竖互换（纸张宽高对调）。 */
   const onSwapPaper = () => {
     const held = defRef.current
     if (!held) {
-      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先渲染 .json 报表源'}`)
+      setStatus(`编辑面不可用：${assertEditable(sourceKind) ?? '请先新建或打开 JSON 模板'}`)
       return
     }
     const r = swapPaperOrientation(held)
@@ -842,50 +864,54 @@ export default function App() {
       return
     }
     setDefBoth(r.def)
-    setStatus('已互换纸张方向；点「渲染」生效')
+    setStatus('已互换纸张方向；保存后由 agent 执行生效')
   }
 
   /** 「另存为」（W1-3 + W1-2）：入库拿 id → 按 `/meta` 刷新参数表单。 */
   const save = async () => {
-    if (!files) {
-      setStatus('请先选择报表源文件')
-      return
-    }
-    const report = pickReportFile(Array.from(files))
-    if (!report) {
-      setStatus('未找到报表源文件（.rpx 或 .json）')
-      return
-    }
-    setStatus('正在入库…')
+    if (!readyToLeaveCell()) return
+    if (!saved || !defRef.current) { setStatus('本地模板可下载 JSON；请用 CLI 创建或导入报表包后共同编辑'); return }
+    const held = defRef.current
     try {
-      const { id, name } = await saveReport(report)
-      setSaved({ id, name })
-      // W1-2：清单是权威来源 —— **替换**整个表单，不再手工填名。
-      const items = await fetchMeta(id)
-      setParams(metaToRows(items))
-      setStatus(
-        `已入库：${name}（id=${id}）；参数表单已按服务端声明刷新（${items.length} 条）`,
-      )
-    } catch (e) {
-      setStatus(`入库失败：${e instanceof Error ? e.message : String(e)}`)
+      const detail = await saveTemplate(saved.id, saved.revision, held)
+      sourceRef.current = JSON.stringify(held)
+      setSaved(detail)
+      setSharedRevision(detail.revision)
+      setReports(current => current.map(r => r.id === detail.id ? detail : r))
+      setStatus(detail.result_state === 'older_revision' ? '定义已保存；结果对应旧修订，等待 agent 执行' : '定义已保存')
+    } catch (error) {
+      setStatus(error instanceof LibraryError && error.status === 412
+        ? '修订冲突：共享源码已改变，本地草稿已保留。可下载草稿并与最新定义比较'
+        : `保存失败：${error instanceof Error ? error.message : String(error)}；草稿已保留`)
     }
   }
+
+  useEffect(() => { void refreshLibrary(undefined, true) }, [])
+
+  useEffect(() => {
+    const base = new URLSearchParams(location.search).get('gallery')
+    if (!base) return
+    let current = true
+    void galleryFiles(base).then(files => { if (current) void openFiles(files) })
+      .catch(error => { if (current) setStatus(`装载失败：${String(error)}`) })
+    return () => { current = false }
+    // 此入口只在首次装载时读取固定运行版本。
+  }, [])
 
   // 卸载时收掉单元格监听 + 选区监听 + Univer 实例（canvas + 监听）。
   useEffect(
     () => () => {
       eventDisposableRef.current?.dispose()
       selectionDisposableRef.current?.dispose()
+      commandDisposableRef.current?.dispose()
+      lifecycleDisposableRef.current?.dispose()
       apiRef.current?.dispose()
     },
     [],
   )
 
-  const setRow = (i: number, patch: Partial<ParamRow>) =>
-    setParams((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
-
   /** W2-2：面板可用性 = 持有定义 JSON（`.rpx` 源没有可打补丁的 JSON）。 */
-  const panelDisabled = !def
+  const panelDisabled = !def || view !== 'design' || !sheetReady
   /** W2-2：面板显示值（没有选区时显示缺省，与置灰状态一致）。 */
   const pv: PanelStyle = panel ?? PANEL_DEFAULTS
 
@@ -915,20 +941,14 @@ export default function App() {
         }}
       >
         <span>
-          rpx 报表预览{' '}
-          <span style={{ color: 'var(--rpx-fg-muted)' }}>
-            · POST /api/render + /reports → Univer
-          </span>
+          rpx 报表设计器
         </span>
+        <a href="/gallery.html" style={{ fontSize: 13 }}>报表实例库</a>
         <input
           type="file"
           multiple
-          accept=".rpx,.json,.csv"
-          onChange={(e) => {
-            setFiles(e.target.files)
-            // 换文件 ⇒ 旧 id 失效（id 属于上一个文件，不能留在界面上冒充）。
-            setSaved(null)
-          }}
+          accept=".json"
+          onChange={(e) => { const selected = Array.from(e.target.files ?? []); e.target.value = ''; void openFiles(selected) }}
           style={{ fontSize: 13 }}
         />
         <button
@@ -943,7 +963,7 @@ export default function App() {
             cursor: 'pointer',
           }}
         >
-          渲染
+          查看保存的结果
         </button>
         {/* 「另存为」（W1-3）：入库拿 id，并按 `/meta` 刷新参数表单（W1-2）。 */}
         <button
@@ -958,12 +978,8 @@ export default function App() {
             cursor: 'pointer',
           }}
         >
-          另存为
+          保存共享定义
         </button>
-        {/* W2-1：编辑面唯一出口 —— 把打过补丁的定义 JSON 下载回来。
-            只有渲染过 .json 源才有内容（`def` 非空），否则置灰（能力边界可见，
-            而不是点了才报错）。`def` 也兼作「可导出」的真理来源（见 `onCellEdited`
-            / `exportJson` 走 `defRef` 读最新值，避免闭包旧值）。 */}
         <button
           onClick={exportJson}
           disabled={!def}
@@ -978,18 +994,47 @@ export default function App() {
             cursor: def ? 'pointer' : 'not-allowed',
           }}
         >
-          导出 JSON
+          保存模板 JSON
         </button>
         {saved ? (
           <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
-            已入库 id={saved.id}
+            报表 {saved.id} · 草稿基于 {saved.revision.slice(0, 12)} · 当前共享 {sharedRevision.slice(0, 12)} · {draftChanged() ? '有本地草稿' : '已保存'}
           </span>
         ) : null}
       </header>
       {/* W3-4 菜单栏：产品式 IDE 菜单（文件/格式/报表/视图/帮助）。
           与顶栏按钮**并存不重复**：按钮服务高频操作，菜单服务全量入口 +
           面板显隐（右侧属性面板的开关只挂在菜单上）。 */}
+      <div className="template-toolbar">
+        <label>报表库 <select aria-label="报表库" value={saved?.id ?? ''} onChange={event => {
+          if (draftChanged() && defRef.current) { setStatus('请先保存共享定义或下载草稿，再切换报表'); return }
+          void refreshLibrary(event.target.value, true)
+        }}><option value="">选择报表</option>{reports.map(report => <option key={report.id} value={report.id}>{report.manifest.name}</option>)}</select></label>
+        <button onClick={() => void refreshLibrary()}>刷新库与结果</button>
+        <button disabled={!def} onClick={() => { setCellPending(false); datasetDirtyRef.current = false; jsonDirtyRef.current = false; void refreshLibrary(saved?.id, true) }}>放弃本地修改并读取共享源码</button>
+        <span>{saved?.result_state === 'older_revision' ? '结果对应旧修订' : saved?.result_state === 'current_revision' ? '已有同修订结果' : '尚未生成结果'}</span>
+        <label>运行记录 <select aria-label="运行记录" value={selectedRun} onChange={event => { setSelectedRun(event.target.value); setPrintWorkbook(null) }}>
+          <option value="">选择运行</option>{runs.map(run => <option key={run.run_id} value={run.run_id}>{run.status} · {run.run_id} · {run.revision.slice(0, 12)}</option>)}
+        </select></label>
+        {saved?.latest_attempt && <span>最近尝试：{saved.latest_attempt.status}</span>}
+      </div>
+      <DefinitionSource key={`source-${documentKey}`} value={def} onDirty={dirty => { jsonDirtyRef.current = dirty }} onApply={next => {
+        if (cellDirtyRef.current || datasetDirtyRef.current) { setStatus('请先应用或放弃侧栏修改，再应用 JSON 源码草稿'); return false }
+        showTemplate(next); setStatus('已应用 JSON 源码草稿，可保存共享定义'); return true
+      }} onError={message => setStatus(`源码修改失败：${message}`)} />
+      {selectedRun && <details style={{ padding: '0 14px' }}><summary>运行修订、实际参数与诊断</summary>
+        {saved && runs.find(run => run.run_id === selectedRun)?.source_files?.map(path => <a key={path} href={sourceUrl(saved.id, selectedRun, path)} target="_blank" rel="noreferrer" style={{ marginRight: 12 }}>查看当时源码 {path}</a>)}
+        <pre>{JSON.stringify(runs.find(run => run.run_id === selectedRun), null, 2)}</pre></details>}
+      <div className="template-toolbar">
+        <button onClick={() => void newReport()}>新建模板</button>
+        <button disabled={!def} aria-pressed={view === 'design'} onClick={() => showTemplate()}>模板设计</button>
+        <button disabled={!printWorkbook} aria-pressed={view === 'result'} onClick={() => { if (printWorkbook && readyToLeaveCell()) attachSnapshot(printWorkbook, defRef.current, sourceKind ?? 'json') }}>运行结果</button>
+        <label>导出文件名 <input aria-label="模板名称" value={reportName} onChange={e => setReportName(e.target.value)}/></label>
+        <span>{view === 'design' ? `设计网格 ${def?.grid.rows ?? '—'} × ${def?.grid.cols ?? '—'}` : '运行结果只读，返回模板设计可继续编辑'}{cellDirty ? ' · 当前格有未应用修改' : ''}</span>
+      </div>
       <MenuBar groups={menuGroups} />
+      <button disabled={!printWorkbook} onClick={() => setShowPrint(true)}>图形与打印预览</button>
+      {showPrint && printWorkbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={printWorkbook} onClose={() => setShowPrint(false)} /></Suspense>}
       
       {status ? (
         <div
@@ -1008,37 +1053,35 @@ export default function App() {
       {/* W3-5 主体：Univer 画布（flex 撑满）+ 右侧停靠属性面板（产品
           `RPX.java` 的 desk + 属性栏布局）。侧栏整体显隐由「视图」菜单控制。 */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        <div ref={containerRef} style={{ flex: 1, minWidth: 0, minHeight: 0 }} />
-        {sideVisible ? (
+        <div ref={containerRef} data-sheet-ready={sheetReady} aria-busy={!!apiRef.current && !sheetReady} style={{ flex: 1, minWidth: 0, minHeight: 0, pointerEvents: sheetReady ? 'auto' : 'none' }} />
+        <div style={{ display: sideVisible ? 'contents' : 'none' }}>
           <SidePanes
+            cellEditor={<TemplateCellPane key={`cell-${documentKey}`} def={def} selection={selection} disabled={panelDisabled} onApply={onTemplateCellApply} onDirtyChange={setCellPending} />}
+            datasetEditor={<TemplateDatasets key={`datasets-${documentKey}`} def={def} files={runFiles().filter(f => !f.name.toLowerCase().endsWith('.json') && !f.name.toLowerCase().endsWith('.rpx'))} disabled={panelDisabled}
+              onFiles={addFiles} onDirtyChange={dirty => { datasetDirtyRef.current = dirty }}
+              onChange={next => { setDefBoth(next); setStatus('已更新模板数据集；可保存共享定义') }} onError={message => setStatus(`编辑失败：${message}`)} />}
             api={{
               def,
               selection,
               panelDisabled,
               pv,
-              onPanelChange,
-              onPanelReset,
+              onPanelChange: (field, value) => ownWrite(() => onPanelChange(field, value)),
+              onPanelReset: () => ownWrite(onPanelReset),
               propsPanel,
-              onPropsChange,
-              onRowHeightChange,
-              onColWidthChange,
+              onPropsChange: edit => ownWrite(() => onPropsChange(edit)),
+              onRowHeightChange: mm => ownWrite(() => onRowHeightChange(mm)),
+              onColWidthChange: mm => ownWrite(() => onColWidthChange(mm)),
               onBreakPageChange,
               gridDraft,
               setGridDraft,
               onGridResize,
-              params,
-              setParams,
-              setRow,
-              dsDraft,
-              setDsDraft,
-              onDatasetAdd,
-              onDatasetRemove,
+              onParametersChange: next => { setDefBoth(next); setStatus('已更新参数声明，可保存共享定义') },
               setupPanel,
               onSetupChange,
               onSwapPaper,
             }}
           />
-        ) : null}
+        </div>
       </div>
     </div>
   )

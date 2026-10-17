@@ -109,6 +109,7 @@ impl StageA {
     /// 不走模板坐标** —— [`EngineMatrix`] 的坐标从 1 起，(0,0) 由 `CellId::ROOT` 表示。
     fn seed_cell00(&mut self) {
         let id = self.calc.push_cell(CalcCell {
+            origin: (0, 0),
             row: 0,
             col: 0,
             value: Value::Null,
@@ -147,6 +148,7 @@ impl StageA {
 
     fn push_header(&mut self, row: i32, col: i32) -> CellId {
         self.calc.push_cell(CalcCell {
+            origin: (row, col),
             row,
             col,
             value: Value::Null,
@@ -264,6 +266,7 @@ impl StageA {
         // 1x1 的非合并格也要写引擎矩阵（`:189-190`）
         self.seed_engine(at, tcell);
         self.calc.push_cell(CalcCell {
+            origin: (at.src_row, at.src_col),
             row: at.row,
             col: at.col,
             value: Value::Null, // 求值在阶段 C

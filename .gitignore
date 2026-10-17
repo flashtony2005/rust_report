@@ -1,5 +1,8 @@
 # Rust 构建产物（本机 target/ 约 2.3G，禁止入库）
 /target
+
+# 旧 BLOB 资产库遗留（当前架构已改用目录库；不要误提交）
+/rpx.db
 # 沙箱绕行构建目录（`.cargo-*` 锁文件被系统文件过滤按名拦截时的 CARGO_TARGET_DIR）
 /.cargo-target
 
@@ -55,3 +58,8 @@ Thumbs.db
 
 # 本机 agent 会话记忆（不入库）
 .workbuddy-ai/
+
+# 教程验收的浏览器会话与可重生成产物
+/.playwright-cli/
+/output/
+/web/public/report-gallery/

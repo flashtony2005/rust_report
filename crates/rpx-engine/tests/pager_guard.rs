@@ -74,15 +74,12 @@ type Mutate = fn(&mut rpx_core::print_setup::PrintSetup);
 
 #[test]
 fn calculate_rejects_unsupported_paging_before_any_work() {
-    let cases: [(&str, Mutate); 4] = [
-        ("pagerStyle=1", |s| s.pager_style = 1),
+    let cases: [(&str, Mutate); 3] = [
+        ("pagerStyle=3", |s| s.pager_style = 3),
         ("columnMode=1", |s| s.column_mode = 1),
-        ("repeatedGroupHeader=true", |s| {
-            s.column_repeated_group_header = true;
-        }),
         // M3-06：tableColumnNum > 1 走产品的多栏分支（PageBuilder.init1 →
         // pager.setColumns），本实现未移植 —— 显式拒绝。
-        ("tableColumnNum=2", |s| s.table_column_num = 2),
+        ("tableColumnNum=0", |s| s.table_column_num = 0),
     ];
     for (label, mutate) in cases {
         let mut rd = open_rpx("engine_expr");
@@ -103,11 +100,11 @@ fn calculate_rejects_column_bands_before_any_work() {
         !rd.col_cells.is_empty(),
         "engine_expr 应至少有一列（守卫变异的前提）"
     );
-    rd.col_cells[0].col_type = -80; // IColCell.TYPE_LEFT_HEADER
+    rd.col_cells[0].col_type = -77; // IColCell.TYPE_LEFT_HEADER
     match rpx_engine::calculate(&rd, &[]) {
         Err(EngineError::UnsupportedPaging { detail }) => {
             assert!(
-                detail.contains("colType=-80"),
+                detail.contains("colType=-77"),
                 "错误应点名 colType，实得：{detail}"
             );
         }
@@ -120,7 +117,7 @@ fn calculate_rejects_column_bands_before_any_work() {
 fn paginate_with_setup_rechecks_the_guard() {
     let rd = open_rpx("engine_expr");
     let mut ps = rd.print_setup.clone();
-    ps.pager_style = 0; // 单页短路分支未实现
+    ps.pager_style = 3; // 单页短路分支未实现
     let grid = rpx_engine::arena::CalcGrid::new(1, 1);
     match rpx_engine::pager::paginate_with_setup(&grid, &ps) {
         Err(EngineError::UnsupportedPaging { .. }) => {}

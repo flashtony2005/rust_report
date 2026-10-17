@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>报表开发三步走：数据源 → 报表设定 → 报表展示</title>
+<style>
+:root {
+  --fg: #1f2328; --fg-muted: #57606a; --border: #d8dee4; --bg: #ffffff;
+  --bg-muted: #f6f8fa; --accent: #0969da; --accent-soft: #ddf4ff;
+  --green: #1a7f37; --green-soft: #dafbe1; --red: #cf222e; --red-soft: #ffebe9;
+  --amber: #9a6700; --amber-soft: #fff8c5; --purple: #8250df; --purple-soft: #fbefff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg-muted); color: var(--fg);
+  font: 15px/1.7 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 28px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+.sub { color: var(--fg-muted); font-size: 13px; margin-bottom: 28px; }
+h2 { font-size: 20px; margin: 40px 0 12px; padding-top: 16px; border-top: 1px solid var(--border); }
+h2 .step { display: inline-block; background: var(--accent); color: #fff; border-radius: 6px;
+  font-size: 13px; padding: 1px 10px; margin-right: 8px; vertical-align: 3px; }
+h3 { font-size: 16px; margin: 24px 0 8px; }
+p { margin: 8px 0; }
+code { background: var(--bg-muted); border: 1px solid var(--border); border-radius: 4px;
+  padding: 0 5px; font: 13px/1.5 ui-monospace, "SF Mono", Consolas, monospace; }
+table.grid { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13.5px;
+  background: #fff; }
+table.grid th { background: var(--bg-muted); text-align: left; }
+table.grid th, table.grid td { border: 1px solid var(--border); padding: 6px 10px;
+  vertical-align: top; }
+table.grid tr:nth-child(even) td { background: #fafbfc; }
+pre.json { background: #f6f8fa; border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; font: 12.5px/1.55 ui-monospace, "SF Mono", Consolas, monospace;
+  overflow-x: auto; margin: 10px 0; }
+.jkey { color: var(--purple); } .jstr { color: var(--green); }
+.jnum { color: var(--accent); } .jkw { color: var(--red); }
+table.snap { border-collapse: collapse; margin: 10px 0; background: #fff;
+  font-size: 13.5px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+table.snap td { border: 1px solid #c9d1d9; padding: 7px 16px; text-align: center; }
+table.snap td[rowspan], table.snap td[colspan] { font-weight: 600; }
+.callout { border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px;
+  border: 1px solid; }
+.callout.blue { background: var(--accent-soft); border-color: #54aeff66; }
+.callout.green { background: var(--green-soft); border-color: #4ac26b66; }
+.callout.amber { background: var(--amber-soft); border-color: #d4a72c66; }
+.callout b { font-weight: 650; }
+.fig { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; margin: 14px 0; }
+.fig .box { flex: 1; min-width: 130px; border: 1.5px solid var(--accent); border-radius: 10px;
+  background: var(--accent-soft); padding: 10px 8px; text-align: center; font-size: 13px; }
+.fig .box b { display: block; font-size: 14px; margin-bottom: 4px; }
+.fig .box small { color: var(--fg-muted); font-size: 11.5px; }
+.arrow { align-self: center; color: var(--accent); font-size: 20px; font-weight: 700; }
+.tag { display: inline-block; border-radius: 20px; padding: 0 9px; font-size: 11.5px;
+  border: 1px solid; white-space: nowrap; }
+.tag.sql { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.tag.file { color: var(--green); border-color: var(--green); background: var(--green-soft); }
+.tag.ds { color: var(--purple); border-color: var(--purple); background: var(--purple-soft); }
+.tag.no { color: var(--fg-muted); border-color: var(--border); background: var(--bg-muted); }
+code.expr { background: #fff; border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>报表开发三步走：数据源 → 报表设定 → 报表展示</h1>
+<div class="sub">ReportLite Rust 重实现 · 定义 JSON 全链路示例总览 · 2026-10-16（HEAD <code>d037719</code>）
+· 本文所有 JSON 与渲染表格均取自仓库真实夹具（<code>tests/fixtures/**</code>）</div>
+
+<h2>0. 一条管线看懂三个词</h2>
+
+<div class="fig">
+  <div class="box"><b>定义 JSON</b><small>cells / datasets /<br>print_setup / grid …</small></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>POST /api/render</b><small>multipart：report +<br>dataset + params</small></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>渲染引擎</b><small>表达式求值 · 扩展展开<br>· 合并 · 聚合</small></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Univer 快照</b><small>IWorkbookData<br>cellData / mergeData</small></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>浏览器展示</b><small>Univer 画布<br>（可编辑）</small></div>
+</div>
+<p>闭环（设计器）：面板改 JSON → <b>导出 JSON</b> → 重渲染（数据集文件随 multipart 一并上传）。</p>
+
+<div class="callout blue"><b>数据源</b> = 定义 JSON 的 <code>datasets[]</code>（SQL 或 CSV 文件），
+经表达式在格子里取值；<b>报表设定</b> = <code>print_setup</code> / <code>extend_mode</code> /
+<code>row_props</code> / <code>col_props</code> / <code>grid</code>（不产数据，定形态）；
+<b>报表展示</b> = <code>POST /api/render</code> 渲染出的 Univer 快照在画布上的样子。
+一句话：<b>数据源决定「有哪些行」，设定决定「长什么样」，展示就是引擎把两者算完的结果。</b></div>
+
+<h2><span class="step">第一步</span>数据源（datasets[]）</h2>
+
+<h3>1.1 两种形态（互斥）</h3>
+
+<table class="grid">
+<tr><th>形态</th><th>字段</th><th>语义</th><th>实例</th></tr>
+<tr><td><span class="tag sql">sql</span></td>
+<td><code>{dsn, sql}</code></td>
+<td>SQL 数据集：<code>dsn</code> 是<b>连接名</b>（不是连接串），由服务端启动参数注册；
+<code>sql</code> 是查询语句</td>
+<td><code>ds1 ← SELECT name, salary FROM emp ORDER BY id</code></td></tr>
+<tr><td><span class="tag file">file</span></td>
+<td><code>{file_name, encoding?}</code></td>
+<td>文件数据集（CSV）：<code>file_name</code> 须与渲染时上传的 CSV 文件名
+<b>逐字一致</b>；<code>encoding</code> 可选，缺省 <b>GBK</b></td>
+<td><code>engine_crossalign.csv</code></td></tr>
+</table>
+<p>⚠ 两者<b>互斥</b>（都给 / 都不给都报错，校验镜像服务端 <code>parse_dataset</code>）；
+数据集名<b>重复只告警不拦截</b>——服务端对表达式按名字绑定不做重名校验，
+前端若拦就是「无出处的严」。</p>
+
+
+<h3>1.2 dsn 从哪来：服务端启动参数注册</h3>
+<p>产品把连接三要素放在配置文件（<code>raqsoftConfig.xml</code> 的 <code>&lt;DBList&gt;</code>），
+<b>不进 .rpx</b>；Rust 版同构——<code>serve --datasources &lt;path.json&gt;</code> 在
+<b>启动期建池</b>（配置错误快速失败，不带病服务），引擎与快照层只见 <code>dsn</code>：</p>
+<pre class="json">{
+  <span class="jkey">&quot;demo&quot;</span>: <span class="jstr">&quot;sqlite:///F:\\project\\report\\rpx\\target\\sqlite_demo.db&quot;</span>
+}</pre>
+<p>字符串形态 = 完整连接串（凭据内嵌）；对象形态 = 三要素分写。
+凭据<b>不进模板、不进日志</b>（<code>DataSourceRegistry</code> 手写 <code>Debug</code>）。</p>
+
+<h3>1.3 实例：SQLite 数据源的最小报表</h3>
+<pre class="json">{
+  <span class="jkey">&quot;version&quot;</span>: <span class="jnum">1</span>,
+  <span class="jkey">&quot;grid&quot;</span>: {
+    <span class="jkey">&quot;rows&quot;</span>: <span class="jnum">3</span>,
+    <span class="jkey">&quot;cols&quot;</span>: <span class="jnum">2</span>
+  },
+  <span class="jkey">&quot;cells&quot;</span>: [
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;姓名&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;工资&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;expr&quot;</span>: <span class="jstr">&quot;ds1.select(name)&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;expr&quot;</span>: <span class="jstr">&quot;ds1.select(salary)&quot;</span>
+    }
+  ],
+  <span class="jkey">&quot;datasets&quot;</span>: [
+    {
+      <span class="jkey">&quot;name&quot;</span>: <span class="jstr">&quot;ds1&quot;</span>,
+      <span class="jkey">&quot;sql&quot;</span>: {
+        <span class="jkey">&quot;dsn&quot;</span>: <span class="jstr">&quot;demo&quot;</span>,
+        <span class="jkey">&quot;sql&quot;</span>: <span class="jstr">&quot;SELECT name, salary FROM emp ORDER BY id&quot;</span>
+      }
+    }
+  ]
+}</pre>
+<div class="callout amber">⚠ <b>SQLite 连接 URL 有坑</b>（实测矩阵，<code>rpx-ds/tests/url_probe.rs</code>）：
+<code>sqlite::memory:</code> ✅；<code>sqlite:F:\abs\path</code> / <code>sqlite:///F:\abs\path</code> ✅（文件库）；
+<code>sqlite://F:\abs</code>（两斜杠）❌——host 被剥、fetch code 14；相对路径 ❌。
+Windows 下文件库务必走<b>与 server 同盘符的绝对反斜杠路径</b>。</div>
+
+<h3>1.4 表达式词汇表：怎么在格子里用数据</h3>
+
+<table class="grid">
+<tr><th>表达式</th><th>形态</th><th>语义</th><th>出处</th></tr>
+<tr><td><code class="expr">ds1.select(name)</code></td><td>纵带展开</td>
+<td>按数据集行数向下展开，每行取该列</td>
+<td>sqlite_demo.json</td></tr>
+<tr><td><code class="expr">ds1.select(name, dept==A3)</code></td><td>带过滤</td>
+<td>条件表达式过滤后展开（<code>A3</code> = 当前格上方的值，主子表关联的常用姿势）</td>
+<td>cross_dept_band</td></tr>
+<tr><td><code class="expr">ds1.select(item, id==1, 1)</code></td><td>过滤 + 偏移</td>
+<td>三参形态：列、条件、偏移量</td>
+<td>cross_emp_bonus</td></tr>
+<tr><td><code class="expr">ds1.select(item:-1)</code></td><td>DSOffset</td>
+<td>带偏移读（负偏移：向上取前 N 行）</td>
+<td>cross_emp_bonus</td></tr>
+<tr><td><code class="expr">ds1[2].qty</code></td><td>DSOffset 下标</td>
+<td>Root 态按行号取值（1 起）；越界（<code>[0]</code>/<code>[9]</code>）返回 <b>Null 不报错</b>；
+非整数下标显式报错</td>
+<td>expr/tests_offset.rs</td></tr>
+<tr><td><code class="expr">ds1.qty</code></td><td>DSVariable</td>
+<td>Row 态取当前行该列；Root 态取首行</td>
+<td>expr/dsfn.rs</td></tr>
+<tr><td><code class="expr">ds1.sum(salary)</code></td><td>DS 聚合</td>
+<td>整列聚合（另有 <code>count / avg / max / min</code>）；纯函数形态同款</td>
+<td>extend_demo.json</td></tr>
+<tr><td><code class="expr">@topN</code></td><td>参数引用</td>
+<td>渲染时注入；<b>声明 ≠ 给值</b>——未登记参数会 400（不是静默取 null）</td>
+<td>def_params_demo.json</td></tr>
+</table>
+
+
+<h3>1.5 文件数据集：CSV 随 multipart 上传</h3>
+<p>区域×产品交叉用例的 <code>engine_crossalign.csv</code>（GBK 编码，3 列 5 行）：
+<code>region / product / amount</code>。渲染时 CSV 作为 <code>dataset</code> 字段随
+<code>POST /api/render</code> 上传，文件名须与 <code>file_name</code> 逐字一致
+（少给一个文件会显式报「缺少数据集文件：&lt;文件名&gt;」）。</p>
+
+<h3>1.6 校验口径（与服务端逐字一致）</h3>
+<p><code>sql</code> 与 <code>file</code> 互斥；SQL 分支 <code>dsn</code>/<code>sql</code> 必填；
+文件分支 <code>file_name</code> 必填（<code>encoding</code> 缺省 GBK）。
+数据集<b>重名只告警</b>（表达式按名字绑定的歧义提示），不拦截。</p>
+
+<h2><span class="step">第二步</span>报表设定（定形态，不产数据）</h2>
+
+<h3>2.1 print_setup：16 个开放字段</h3>
+
+<table class="grid">
+<tr><th>字段</th><th>缺省</th><th>档位（校验镜像 <code>apply_print_setup</code>）</th></tr>
+<tr><td><code>paper_width / paper_height</code></td><td>210 / 297</td><td>f32 ≥0（A4，单位 mm）</td></tr>
+<tr><td><code>left / right / top / bottom_margin</code></td><td>19 / 19 / 25 / 25</td><td>f32 ≥0</td></tr>
+<tr><td><code>row_num_per_page</code></td><td>20</td><td>i32</td></tr>
+<tr><td><code>copy_count</code></td><td>1</td><td>i32</td></tr>
+<tr><td><code>zoom_scale</code></td><td>100</td><td>i16（0..=32767）</td></tr>
+<tr><td><code>table_column_num / layout_rows / layout_cols</code></td><td>1 / 1 / 1</td><td>i16</td></tr>
+<tr><td><code>back_graph_printed / column_repeated_group_header /<br>full_screen_preview / blank_line_filled</code></td>
+<td>false × 4</td><td>bool</td></tr>
+</table>
+<p>面板口径：读方向 = JSON 派生（未声明字段显示<b>契约缺省</b>而非空）；
+写方向<b>逐键补丁</b>，值等于缺省 ⇒ <b>删键</b>（不留冗余键）。
+<code>virtual_printer</code>（字符串）契约开放但<b>不做 UI</b>——虚拟打印机是打印链路概念，
+Web 设计器设它没有意义，不猜。</p>
+
+
+<h3>2.2 extend_mode：纵向 / 横向扩展</h3>
+
+<div class="fig">
+  <div class="box"><b>vertical（纵扩）</b><small>行结构放大 N 倍<br>每个员工占一行</small></div>
+  <div class="arrow">vs</div>
+  <div class="box"><b>horizontal（横扩）</b><small>列结构放大 N 倍<br>每个员工占一列</small></div>
+</div>
+<p>纵扩的格子带 <code>"extend_mode": "vertical"</code>，横扩带 <code>"horizontal"</code>。
+同一份数据、同一句 <code>ds1.select(name)</code>，两种展开方向产出完全不同的报表骨架。</p>
+
+
+<h3>2.3 行列属性与网格尺寸</h3>
+<p>定义 JSON 的 <code>height</code>/<code>width</code> 单位是 <b>mm</b>（与 .rpx 模板一致：
+缺省行高 8mm、列宽 25mm），服务端快照按 <b>96dpi</b> 换算成 px
+（<code>mm × 96 / 25.4</code>：8mm→30.24px、25mm→94.49px）。
+Univer 的 <code>setRowHeight</code>/<code>setColumnWidth</code> 吃 px ⇒ 面板输入显示用 mm，画布落地时换算。
+<code>row_props[].break_page</code> 控制断页。⚠ <b>缩小 grid 前必须先校验越界</b>——
+<code>cells[].row/col</code>、合并矩形、<code>row_props</code> 都须落在新网格内，否则服务端 400；
+面板显式报错（含首个越界位置），不静默截断、不自动删声明。</p>
+
+<h3>2.4 六个面板（右侧停靠，产品 IDE 同构）</h3>
+<table class="grid">
+<tr><th>面板</th><th>覆盖</th><th>补丁方式</th></tr>
+<tr><td>样式</td><td>字体族/字号/颜色/粗斜下划线（7 字段）</td><td>逐字段补丁，缺省即删键</td></tr>
+<tr><td>属性</td><td>边框四边 / 数字格式 / 旋转</td><td>读方向从<b>定义 JSON</b> 派生（快照不含这三项）</td></tr>
+<tr><td>行列</td><td>行高 / 列宽 / 断页 / grid 尺寸</td><td>mm 显示，96dpi 落地</td></tr>
+<tr><td>参数</td><td><code>params[]</code> 声明 + 渲染时给值</td><td>入库后按 <code>/meta</code> 刷新</td></tr>
+<tr><td>数据集</td><td><code>datasets[]</code> 增删改</td><td>整条替换（面板编辑的是完整一条）</td></tr>
+<tr><td>报表设置</td><td><code>print_setup</code> 16 字段</td><td>逐键补丁，缺省即删键</td></tr>
+</table>
+
+<h2><span class="step">第三步</span>报表展示（渲染结果）</h2>
+
+<h3>3.1 渲染管线</h3>
+<p><code>POST /api/render</code>（multipart）：<code>report</code> = 定义 JSON 或 .rpx 模板
+（服务端按内容分派：<code>RQQR</code> 魔数 → .rpx；首个非空白字节 <code>{</code> → JSON）；
+<code>dataset</code> = 模板引用的 CSV（可多个）；<code>params</code> = 参数 JSON（可选）。
+响应 = Univer <code>IWorkbookData</code> 快照，直接 <code>createWorkbook</code> 上画布。</p>
+
+<h3>3.2 快照长什么样</h3>
+<p>快照的 <code>cellData</code> 是「行 → 列 → 格」的对象矩阵，每格带
+<code>v</code>（值）、<code>t</code>（类型：2=数值、4=字符串）、<code>s</code>（样式）；
+合并区在 <code>mergeData</code>。下面三张表是<b>真实快照解析出的渲染结果</b>。</p>
+
+<h3>3.3 纵向扩展 + 合计聚合（extend_demo）</h3>
+<p>定义：表头两格 + 纵带 <code>ds1.select(name/salary)</code> + 末行
+<code>ds1.sum(salary)</code>。渲染后 3 名员工各占一行，合计落底：</p>
+<table class="snap"><tr><td>员工工资表</td><td></td></tr><tr><td>姓名</td><td>工资</td></tr><tr><td>张伟</td><td>8500</td></tr><tr><td>李娜</td><td>9200</td></tr><tr><td>王强</td><td>12000</td></tr><tr><td>合计</td><td>29700</td></tr></table>
+
+<h3>3.4 横向扩展（extend_demo_h）</h3>
+<p>同一句 <code>ds1.select(name)</code>，换成 <code>"extend_mode": "horizontal"</code>
+—— 展开成一行，标题格被快照自动标出合并（<code>mergeData</code>）：</p>
+<table class="snap"><tr><td colspan="3">员工名单（横向扩展）</td></tr><tr><td>张伟</td><td>李娜</td><td>王强</td></tr></table>
+
+<h3>3.5 最简 SQL 报表（sqlite_demo）</h3>
+<p>无扩展无样式：表头 + 纵带三行，每格 <code>t:4</code>（字符串）/ <code>t:2</code>（数值）
+类型分明：</p>
+<table class="snap"><tr><td>姓名</td><td>工资</td></tr><tr><td>张伟</td><td>8500</td></tr><tr><td>李娜</td><td>9200</td></tr><tr><td>王强</td><td>12000</td></tr></table>
+
+<h3>3.6 编辑 → 导出 → 重渲染闭环</h3>
+<div class="callout green">设计器里改单元格 → <code>SheetValueChanged</code> 事件只把
+<b>真改过的那一格</b>补丁进定义 JSON（不整体回灌——否则 <code>"0123"</code> 会被
+Univer 按数值归一化，静默改坏没碰过的格）→ 点「导出 JSON」下载 → 重渲染验证。
+服务端判据：<code>open_bytes(to_bytes(build(json))) == build(json)</code> 逐字节往返。</div>
+
+<h2>4. 各种报表的事例（画廊）</h2>
+<p>仓库里现成的十类事例，按数据源与设定复杂度排列（夹具均可在
+<code>tests/fixtures/</code> 直接找到）：</p>
+
+<table class="grid">
+<tr><th>#</th><th>事例</th><th>数据源</th><th>设定要点</th><th>看点</th></tr>
+<tr><td>1</td><td><b>员工工资表</b>（out/extend_demo.json）</td>
+<td><span class="tag sql">SQL</span> SQLite <code>demo</code>·<code>emp</code></td>
+<td>纵扩 + <code>ds1.sum(salary)</code> 合计</td>
+<td>数据驱动逐行展开 + 末行聚合（29700）</td></tr>
+<tr><td>2</td><td><b>员工名单</b>（out/extend_demo_h.json）</td>
+<td><span class="tag sql">SQL</span> SQLite <code>demo</code>·<code>emp</code></td>
+<td>横扩（1×8 网格 → 横带）</td>
+<td>列结构放大 N 倍 + 快照自动出 mergeData</td></tr>
+<tr><td>3</td><td><b>最简 SQL 报表</b>（out/sqlite_demo.json）</td>
+<td><span class="tag sql">SQL</span> SQLite <code>demo</code></td>
+<td>无扩展、无样式</td>
+<td>「SQL 数据集最小可用形态」：两格表头 + 纵带</td></tr>
+<tr><td>4</td><td><b>参数化报表</b>（def_params_demo.json）</td>
+<td><span class="tag no">无</span></td>
+<td><code>@topN</code>（静态）+ <code>@region</code>（动态）+ 合并表头 + 行列属性</td>
+<td>参数声明 ≠ 给值；动态参数渲染时必须传</td></tr>
+<tr><td>5</td><td><b>样式演示</b>（def_style_demo.json）</td>
+<td><span class="tag no">无</span></td>
+<td><code>bold / italic / fore_color / font_size</code></td>
+<td>7 样式字段的最小示例</td></tr>
+<tr><td>6</td><td><b>员工信息查询</b>（out/report_demo_product.json）</td>
+<td><span class="tag sql">SQL</span> 金仓 <code>emp_info</code></td>
+<td>主表纵带</td>
+<td>金仓 report schema 真数（产品口径对拍）</td></tr>
+<tr><td>7</td><td><b>部门-员工-奖金三级关联</b>（out/cross_dept_band_product.json）</td>
+<td><span class="tag ds">双数据集</span> emp_info + emp_bonus</td>
+<td><code>select(dept:1,,,dept)</code> 去重主格 + 两层过滤关联</td>
+<td>「部门 → 员工 → 奖金」三级钻取，主格去重</td></tr>
+<tr><td>8</td><td><b>员工奖金主子表</b>（out/cross_emp_bonus_product.json）</td>
+<td><span class="tag ds">双数据集</span> emp_info + emp_bonus</td>
+<td><code>emp_id==A3</code> 主子表过滤 + select 六种参数形态</td>
+<td>select 变体矩阵：过滤 / 偏移 / 取值 / 计数</td></tr>
+<tr><td>9</td><td><b>区域×产品交叉</b>（engine_crossalign）</td>
+<td><span class="tag file">文件</span> engine_crossalign.csv（GBK）</td>
+<td>extend 双轴（行带 × 列带）+ 交叉格 <code>B1+"/"+A2</code></td>
+<td>19×18 维度对齐：横纵两个方向同时展开出交叉矩阵</td></tr>
+<tr><td>10</td><td><b>Root 态 select 边界矩阵</b>（out/cross_root_*.json，9 变体）</td>
+<td><span class="tag sql">SQL</span> 金仓</td>
+<td>bare / count / desc / distinct / filter / num / select …</td>
+<td>select 各参数组合的边界行为对拍</td></tr>
+</table>
+
+
+<h2>5. 怎么跑（本机）</h2>
+<pre class="json"># 1) 起报表服务端（带 SQLite 数据源注册）
+cargo run -p rpx-server -- serve --datasources tests/fixtures/out/sqlite_datasources.json
+
+# 2) 起前端设计器
+cd web && npm run dev          # vite --port 5288 --strictPort
+
+# 3) 浏览器打开 http://127.0.0.1:5288
+#    选 tests/fixtures/out/extend_demo.json → 渲染 → 改格 → 导出 JSON → 重渲染
+
+# 服务端判据（真 socket + 真 HTTP，不起浏览器）
+cargo test -p rpx-server --test sqlite_fixture        # SQLite 端到端（零外部依赖）
+cargo test -p rpx-server --test definition_channel_http</pre>
+
+<div class="callout blue"><b>判据口径</b>：本文渲染表格由 <code>.render.json</code>
+真实快照解析生成；定义 JSON 全部逐字取自夹具文件。冲突时以证据为准：
+<b>夹具 &gt; 源码 &gt; 契约文档</b>。</div>
+
+</div>
+</body>
+</html>

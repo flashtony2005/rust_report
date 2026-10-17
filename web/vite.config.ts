@@ -7,11 +7,8 @@ export default defineConfig({
   server: {
     port: 5288,
     strictPort: true,
-    // M3-05/M4-06：`POST /api/render`（multipart 上传 .rpx + CSV）转发到 rpx-server。
-    // 起服务：`cargo run -p rpx-server -- serve`（默认 127.0.0.1:8090）。
-    // ⚠ rewrite 剥 `/api` 前缀：vite/http-proxy 默认**原样转发全路径**，
-    // 而服务端路由是 `/render`（`docs/spec-m3.md` §3.2）——不剥就是 404
-    // （2026-10-14 实测：MITM 抓到 `/api/health` 原样进引擎）。
+    // 代理共享 JSON 报表库与固定运行产物；服务端显式指定 --library DIR。
+    // 浏览器使用 /api/reports，后端路由为 /reports。
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8090',
@@ -29,6 +26,7 @@ export default defineConfig({
       input: {
         index: 'index.html',
         probe: 'probe.html',
+        gallery: 'gallery.html',
       },
     },
   },

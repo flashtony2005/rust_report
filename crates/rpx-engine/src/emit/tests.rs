@@ -308,17 +308,23 @@ fn render_merged_serializes_the_page_local_view() {
         row_num_per_page: 20,
         pages: vec![
             crate::pager::PageInfo {
+                panels: Vec::new(),
                 page: 1,
                 rows: 9,
                 col1_values: Vec::new(),
+                row_indices: (1..=9).collect(),
                 row_range: (1, 9),
+                col_indices: (1..=8).collect(),
                 col_range: (1, 8),
             },
             crate::pager::PageInfo {
+                panels: Vec::new(),
                 page: 2,
                 rows: 9,
                 col1_values: Vec::new(),
+                row_indices: (1..=9).collect(),
                 row_range: (1, 9),
+                col_indices: (9..=9).collect(),
                 col_range: (9, 9),
             },
         ],
@@ -405,18 +411,24 @@ fn render_pagination_pins_key_order_float_notation_and_optional_keys() {
         row_num_per_page: 20,
         pages: vec![
             crate::pager::PageInfo {
+                panels: Vec::new(),
                 page: 1,
                 rows: 2,
                 col1_values: vec![Value::Double(100.0), Value::Text("尾".into())],
                 // M3-06 新增字段：emit 逐键序列化不读它们 ⇒ 输出不变（下面断言钉死）。
+                row_indices: (1..=2).collect(),
                 row_range: (1, 2),
+                col_indices: (1..=1).collect(),
                 col_range: (1, 1),
             },
             crate::pager::PageInfo {
+                panels: Vec::new(),
                 page: 2,
                 rows: 1,
                 col1_values: Vec::new(),
+                row_indices: (2..=2).collect(),
                 row_range: (2, 2),
+                col_indices: (1..=1).collect(),
                 col_range: (1, 1),
             },
         ],

@@ -1,0 +1,23 @@
+# Rust Report
+
+Agent 用 `rpx` 管理 JSON 报表定义、数据源、主格关系并执行引擎；人通过 Univer Web 修正定义、查看固定运行结果。
+
+```sh
+make install-local
+export PATH="$HOME/.local/bin:$PATH"
+rpx doctor
+rpx library init ./reports --presets
+rpx report show complex-master --library ./reports
+revision=$(rpx report show complex-master --library ./reports | jq -r '.data.revision')
+rpx report run complex-master --library ./reports --if-match "$revision" --export xlsx --export csv
+cargo run --locked -p rpx-server -- serve --library ./reports
+npm run dev --prefix web
+```
+
+Web 开发服务默认 http://localhost:5288，API 默认 127.0.0.1:8090。
+保存 JSON 只更新源码修订；结果、打印预览和下载都读取 agent 已生成的产物。
+源码变化后旧结果会保留，并标明所属修订。已有 RPX 使用显式导入命令管理。
+
+[CLI 使用与错误协议](docs/agent-cli.md) · [设计](docs/agent-cli-design.md) · [Agent 配套技能](skills/rpx/SKILL.md)
+
+要求 Rust 1.89+，安装的依赖版本以 Cargo.lock 为准。`make check` 运行全部项目检查。

@@ -108,6 +108,8 @@ export type CellDef = JsonStyleFields & {
   col: number
   text?: string
   expr?: string
+  literal?: { type: string; value: unknown }
+  disp_value?: string
   indent?: number
   extend_mode?: ExtendModeName
   merge?: { rows: number; cols: number }

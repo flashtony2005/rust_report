@@ -157,12 +157,15 @@ impl<'a> Parser<'a> {
         Ok(Expr::ValueList { kind, items })
     }
 
-    /// `{...}` 单元格选择（`Expression.java:125-135` 的 `Select`）。
+    /// `{...}` 单元格选择（`Expression.java:125-135` 的 `Select`）—— **前缀位置**。
     ///
     /// ⛔ 产品的 `Select` **只拿到 parameter**（`Expression.java:132` 的 `setParameter`），
     /// 花括号里的表达式是**参数**、不是 `left`。`isExtended()` 读的是 `left`
     /// （`SpecialFunction.java:27-32`），所以 `arg` 对扩展性**没有贡献** ——
     /// 详见 [`super::ast::Expr::is_extend`] 的 `Select` 分支。
+    ///
+    /// 前缀位置没有前驱 ⇒ `target = None`（产品的 `left == null`）。后缀形态
+    /// （`Cellx{...}`）走 [`Self::parse_brace_after`]。
     pub(super) fn parse_select(&mut self) -> Result<Expr> {
         self.bump(); // 吃掉 `{`
         let inner = self.take_group(Tok::RBrace)?;
@@ -171,7 +174,44 @@ impl<'a> Parser<'a> {
         } else {
             super::parser::parse_tokens_with(inner, self.params)?
         };
-        Ok(Expr::Select { arg: Box::new(arg) })
+        Ok(Expr::Select {
+            target: None,
+            arg: Box::new(arg),
+        })
+    }
+
+    /// **后缀** `{...}` —— `Cellx{}` / `Cellx[坐标]{}` / `Cellx{条件}`（教程 `058_fzhz128`）。
+    ///
+    /// `lhs` 是前驱（产品的 `SpecialFunction.left`），本仓挂进 `target`。
+    ///
+    /// 另外认一个**兼容别名**：`Cellx{00}` = `` Cellx[`0]{} ``（2010 设计文档
+    /// `报表引擎设计.md` §四 的根坐标记号）。教程/产品的真记号是 `` Cellx[`0] ``，
+    /// 花括号装的是**条件** ⇒ 别名只在花括号内容**恰好是 `00`** 且前驱是格号时生效，
+    /// 避免吞掉合法条件。见 [`super::coord::is_root_alias`]。
+    pub(super) fn parse_brace_after(&mut self, lhs: Expr) -> Result<Expr> {
+        let inner = self.take_group(Tok::RBrace)?;
+        if let (Expr::CellRef { id, .. }, [Tok::Word(w)]) = (&lhs, inner) {
+            if super::coord::is_root_alias(w) {
+                let target = id.clone();
+                let spec = super::coord::root_coord();
+                return Ok(Expr::Select {
+                    target: Some(Box::new(Expr::Coord {
+                        target,
+                        spec: Box::new(spec),
+                    })),
+                    arg: Box::new(Expr::Const(Value::Null)),
+                });
+            }
+        }
+        let arg = if inner.is_empty() {
+            Expr::Const(Value::Null) // 空 `{}` = 不过滤（教程「中括号里为空时表示全部」）
+        } else {
+            super::parser::parse_tokens_with(inner, self.params)?
+        };
+        Ok(Expr::Select {
+            target: Some(Box::new(lhs)),
+            arg: Box::new(arg),
+        })
     }
 }
 

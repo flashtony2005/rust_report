@@ -69,6 +69,25 @@ const EXCEL_MAX_TEXT_CHARS: usize = 32_767;
 
 /// 计算态网格 → xlsx 字节（单 sheet、无样式；边界见模块文档）。
 pub fn to_xlsx(grid: &CalcGrid) -> Vec<u8> {
+    let mut workbook = new_workbook();
+    write_sheet(grid, workbook.add_worksheet());
+    workbook.save_to_buffer().expect("内存工作簿写入失败")
+}
+
+pub(crate) fn new_workbook() -> Workbook {
+    let mut workbook = Workbook::new();
+    let epoch = ExcelDateTime::from_ymd(1980, 1, 1).expect("合法固定日期");
+    workbook.set_properties(&DocProperties::new().set_creation_datetime(&epoch));
+    workbook
+}
+
+pub(crate) fn write_sheet(grid: &CalcGrid, ws: &mut Worksheet) {
+    write_sheet_impl(grid, ws, false);
+}
+pub(crate) fn write_print_sheet(grid: &CalcGrid, ws: &mut Worksheet) {
+    write_sheet_impl(grid, ws, true)
+}
+fn write_sheet_impl(grid: &CalcGrid, ws: &mut Worksheet, styled: bool) {
     let max_row = grid.rows.clamp(0, EXCEL_MAX_ROWS);
     let max_col = grid.cols.clamp(0, EXCEL_MAX_COLS);
 
@@ -91,40 +110,60 @@ pub fn to_xlsx(grid: &CalcGrid) -> Vec<u8> {
         }
     }
 
-    let mut workbook = Workbook::new();
-    // 钉死文档时间戳（模块文档 §确定性 5）：`DocProperties::new()` 默认取
-    // 「当前 UTC 时刻」⇒ 跨秒两次调用 core.xml 字节不同。导出是可复现产物，
-    // 固定为 1980-01-01T00:00:00Z（对齐 zip 条目时间戳的 DOS 纪元）。
-    let epoch = ExcelDateTime::from_ymd(1980, 1, 1).expect("1980-01-01 恒为合法日期");
-    workbook.set_properties(&DocProperties::new().set_creation_datetime(&epoch));
-    {
-        let ws = workbook.add_worksheet();
-        // ① 普通格：跳过全部合并槽（槽值统一由 merge_range 落锚点值）。
-        for r in 1..=max_row {
-            for c in 1..=max_col {
-                if covered.contains(&(r, c)) {
-                    continue;
-                }
-                if let Some(cell) = index.get(&(r, c)) {
+    // ① 普通格：跳过全部合并槽（槽值统一由 merge_range 落锚点值）。
+    for r in 1..=max_row {
+        for c in 1..=max_col {
+            if covered.contains(&(r, c)) {
+                continue;
+            }
+            if let Some(cell) = index.get(&(r, c)) {
+                if styled {
+                    write_styled_payload(
+                        ws,
+                        r,
+                        c,
+                        &cell_payload(cell),
+                        &crate::print_xlsx::style::format(grid, Some(cell)),
+                    )
+                } else {
                     write_payload(ws, r, c, &cell_payload(cell));
                 }
+            } else if styled && grid.print_options.border_width > 0.0 {
+                ws.write_blank(
+                    (r - 1) as u32,
+                    (c - 1) as u16,
+                    &crate::print_xlsx::style::format(grid, None),
+                )
+                .expect("已验证坐标");
             }
         }
-        // ② 合并区：锚点矩形 + 锚点值。
-        let format = Format::new();
-        for a in &areas {
-            let payload = match index.get(&(a.r0, a.c0)) {
-                // 锚点格在 cells 里 ⇒ 走统一取值口径（disp 优先）。
-                Some(cell) => cell_payload(cell),
-                // 锚点不在 cells 里（`merged` 不受稀疏规则约束）⇒ 用记录带的锚点值。
-                None => payload_of(&a.value),
-            };
-            write_merged(ws, a, &payload, &format);
-        }
     }
-    workbook
-        .save_to_buffer()
-        .expect("内存 zip 写入不可失败：Vec<u8> 后端无 IO 错误源（论证见模块文档）")
+    // ② 合并区：锚点矩形 + 锚点值。
+    for a in &areas {
+        let format = if styled {
+            crate::print_xlsx::style::format(grid, index.get(&(a.r0, a.c0)).copied())
+        } else {
+            Format::new()
+        };
+        let payload = match index.get(&(a.r0, a.c0)) {
+            // 锚点格在 cells 里 ⇒ 走统一取值口径（disp 优先）。
+            Some(cell) => cell_payload(cell),
+            // 锚点不在 cells 里（`merged` 不受稀疏规则约束）⇒ 用记录带的锚点值。
+            None => payload_of(&a.value),
+        };
+        write_merged(ws, a, &payload, &format);
+    }
+}
+
+fn write_styled_payload(ws: &mut Worksheet, r: i32, c: i32, p: &CellPayload, f: &Format) {
+    let (row, col) = pos(r, c);
+    let done = match p {
+        CellPayload::Skip => ws.write_blank(row, col, f),
+        CellPayload::Number(n) => ws.write_number_with_format(row, col, *n, f),
+        CellPayload::Bool(b) => ws.write_boolean_with_format(row, col, *b, f),
+        CellPayload::Text(s) => ws.write_string_with_format(row, col, clip_text(s), f),
+    };
+    done.expect("已验证坐标和文本长度");
 }
 
 /// 重建后的一个合并区（锚点矩形 + 锚点值）。

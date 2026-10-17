@@ -12,6 +12,7 @@ use crate::value::Value;
 /// 造一个带出处的格。
 fn cell_with_src(row: i32, col: i32, src_row: i32, src_col: i32, ext: ExtendMode) -> CalcCell {
     CalcCell {
+        origin: (src_row, src_col),
         row,
         col,
         value: Value::Text(format!("{src_row},{src_col}")),

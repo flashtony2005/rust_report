@@ -1,0 +1,1314 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 15,
+    "cols": 9
+  },
+  "datasets": [
+    {
+      "name": "sales",
+      "sql": {
+        "dsn": "operations-db",
+        "sql": "SELECT o.ordered_at,o.region,o.city,o.employee_id,l.product_id,l.qty,l.price FROM slice_lines l JOIN slice_orders o ON o.order_id=l.order_id ORDER BY l.line_id"
+      }
+    },
+    {
+      "name": "orders",
+      "sql": {
+        "dsn": "operations-db",
+        "sql": "SELECT * FROM slice_orders ORDER BY order_id"
+      }
+    },
+    {
+      "name": "lines",
+      "sql": {
+        "dsn": "operations-db",
+        "sql": "SELECT * FROM slice_lines ORDER BY line_id"
+      }
+    },
+    {
+      "name": "carriers",
+      "sql": {
+        "dsn": "organization-db",
+        "sql": "SELECT * FROM slice_carriers ORDER BY shipper_id"
+      }
+    },
+    {
+      "name": "staff",
+      "file": {
+        "file_name": "slicing.xlsx",
+        "sheet_name": "人员"
+      }
+    },
+    {
+      "name": "products",
+      "file": {
+        "file_name": "slicing.xlsx",
+        "sheet_name": "产品"
+      }
+    },
+    {
+      "name": "budget",
+      "file": {
+        "file_name": "slicing-budget.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 18,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "多源关联分片 · 完整运行示例",
+      "merge": {
+        "rows": 1,
+        "cols": 9
+      },
+      "bold": true,
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "年月 × 地区城市 / 人员 / 产品类别 / 静态汇总 / 订单主子片；两个数据库 + Excel + CSV",
+      "merge": {
+        "rows": 1,
+        "cols": 9
+      }
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "年",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "月 / 员工编号",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "horizontal",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sales.group(region;region:1)",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "merge_same": "horizontal"
+    },
+    {
+      "row": 4,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "horizontal",
+      "left_head": "`0",
+      "top_head": "C3",
+      "expr": "sales.group(city;city:1)",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "销售合计",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "城市金额 > 300",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "类别合计",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "预算",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "达成率",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "产品类别",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "horizontal",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "products.group(category,category!=null;category:1)",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 5,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sales.group(year(ordered_at);year(ordered_at):1)",
+      "format": "0",
+      "merge_same": "vertical"
+    },
+    {
+      "row": 5,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "left_head": "A5",
+      "top_head": "`0",
+      "expr": "sales.group(month(ordered_at);month(ordered_at):1)",
+      "format": "0"
+    },
+    {
+      "row": 5,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B5",
+      "top_head": "C4",
+      "expr": "ifn(sales.sum(qty*price),0)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B5",
+      "top_head": "`0",
+      "expr": "sales.sum(qty*price)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B5",
+      "top_head": "`0",
+      "expr": "sum(C5{C5>300})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B5",
+      "top_head": "F4",
+      "expr": "ifn(sales.sum(qty*price,product_id in products.select(product_id)),0)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B5",
+      "top_head": "`0",
+      "expr": "sum(F5{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B5",
+      "top_head": "`0",
+      "expr": "sum(budget.select(budget,year==A5 and month==B5))",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B5",
+      "top_head": "`0",
+      "expr": "if(H5==0,0,D5/H5)",
+      "format": "0.00%"
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "月份片合计",
+      "merge": {
+        "rows": 1,
+        "cols": 2
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 6,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "C4",
+      "expr": "sales.sum(qty*price)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 6,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sales.sum(qty*price)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 6,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sum(C6{C6>300})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 6,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "F4",
+      "expr": "sales.sum(qty*price,product_id in products.select(product_id))",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 6,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sum(F6{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 6,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sum(budget.select(budget))",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 6,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "if(H6==0,0,D6/H6)",
+      "format": "0.00%"
+    },
+    {
+      "row": 7,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "纵向第二片 · 按职务与人员关联城市、类别",
+      "merge": {
+        "rows": 1,
+        "cols": 9
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 8,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "staff.group(role;role:1)",
+      "format": "#,##0.00",
+      "merge_same": "vertical"
+    },
+    {
+      "row": 8,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "left_head": "A8",
+      "top_head": "`0",
+      "expr": "staff.select(employee_id:1)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 8,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B8",
+      "top_head": "C4",
+      "expr": "ifn(sales.sum(qty*price,employee_id==B8),0)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 8,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B8",
+      "top_head": "`0",
+      "expr": "ifn(sales.sum(qty*price,employee_id==B8),0)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 8,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B8",
+      "top_head": "`0",
+      "expr": "sum(C8{C8>300})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 8,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B8",
+      "top_head": "F4",
+      "expr": "ifn(sales.sum(qty*price,employee_id==B8 and product_id in products.select(product_id)),0)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 8,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B8",
+      "top_head": "`0",
+      "expr": "sum(F8{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 8,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B8",
+      "top_head": "`0",
+      "expr": "staff.budget",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 8,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B8",
+      "top_head": "`0",
+      "expr": "if(H8==0,0,D8/H8)",
+      "format": "0.00%"
+    },
+    {
+      "row": 9,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "人员片合计",
+      "merge": {
+        "rows": 1,
+        "cols": 2
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 9,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "C4",
+      "expr": "sum(C8{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 9,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sum(D8{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 9,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sum(C9{C9>300})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 9,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "F4",
+      "expr": "sum(F8{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 9,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sum(F9{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 9,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sum(H8{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 9,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "if(H9==0,0,D9/H9)",
+      "format": "0.00%"
+    },
+    {
+      "row": 10,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "多片扩展 · 订单抬头与明细整片复制（109 无明细）",
+      "merge": {
+        "rows": 1,
+        "cols": 9
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 11,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "订单"
+    },
+    {
+      "row": 11,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "orders.select(order_id:1)",
+      "format": "0"
+    },
+    {
+      "row": 11,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "客户"
+    },
+    {
+      "row": 11,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "expr": "orders.customer",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 11,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "日期"
+    },
+    {
+      "row": 11,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "expr": "orders.ordered_at",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 11,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "运输商"
+    },
+    {
+      "row": 11,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "expr": "carriers.select(company,shipper_id==orders.shipper_id,1)",
+      "format": "#,##0.00",
+      "merge": {
+        "rows": 1,
+        "cols": 2
+      }
+    },
+    {
+      "row": 12,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "序号",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 12,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "产品编号",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 12,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "数量",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 12,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "单价",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 12,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "金额",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 12,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "产品名称",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 12,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "明细金额不重复计订单运费",
+      "merge": {
+        "rows": 1,
+        "cols": 3
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 13,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "left_head": "B11",
+      "top_head": "`0",
+      "expr": "lines.select(product_id:1,order_id==B11)",
+      "format": "0"
+    },
+    {
+      "row": 13,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B13",
+      "top_head": "`0",
+      "expr": "&B13",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 13,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B13",
+      "top_head": "`0",
+      "expr": "lines.qty",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 13,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B13",
+      "top_head": "`0",
+      "expr": "lines.price",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 13,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B13",
+      "top_head": "`0",
+      "expr": "C13*D13",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 13,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B13",
+      "top_head": "`0",
+      "expr": "products.select(product_name,product_id==B13,1)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 13,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B13",
+      "top_head": "`0",
+      "text": "",
+      "merge": {
+        "rows": 1,
+        "cols": 3
+      }
+    },
+    {
+      "row": 14,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "本单汇总",
+      "merge": {
+        "rows": 1,
+        "cols": 4
+      }
+    },
+    {
+      "row": 14,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "expr": "sum(E13{})",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 14,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "运费"
+    },
+    {
+      "row": 14,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "expr": "orders.shipping",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 14,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "text": "含运费"
+    },
+    {
+      "row": 14,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "B11",
+      "top_head": "`0",
+      "expr": "E14+G14",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 15,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "全部订单总额（运费只计一次）",
+      "merge": {
+        "rows": 1,
+        "cols": 4
+      },
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 15,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sales.sum(qty*price)",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 15,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "总运费"
+    },
+    {
+      "row": 15,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "sum(orders.select(shipping))",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 15,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "text": "总应收"
+    },
+    {
+      "row": 15,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "`0",
+      "top_head": "`0",
+      "expr": "E15+G15",
+      "format": "#,##0.00"
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 12,
+      "type": "title"
+    },
+    {
+      "row": 2,
+      "height": 8,
+      "type": "table_header"
+    },
+    {
+      "row": 3,
+      "height": 8,
+      "type": "table_header"
+    },
+    {
+      "row": 4,
+      "height": 8,
+      "type": "table_header"
+    },
+    {
+      "row": 5,
+      "height": 8
+    },
+    {
+      "row": 6,
+      "height": 8
+    },
+    {
+      "row": 7,
+      "height": 8
+    },
+    {
+      "row": 8,
+      "height": 8
+    },
+    {
+      "row": 9,
+      "height": 8
+    },
+    {
+      "row": 10,
+      "height": 8
+    },
+    {
+      "row": 11,
+      "height": 8
+    },
+    {
+      "row": 12,
+      "height": 8
+    },
+    {
+      "row": 13,
+      "height": 8
+    },
+    {
+      "row": 14,
+      "height": 8
+    },
+    {
+      "row": 15,
+      "height": 8
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 27,
+      "type": "left_header"
+    },
+    {
+      "col": 2,
+      "width": 34,
+      "type": "left_header"
+    },
+    {
+      "col": 3,
+      "width": 27
+    },
+    {
+      "col": 4,
+      "width": 27
+    },
+    {
+      "col": 5,
+      "width": 34
+    },
+    {
+      "col": 6,
+      "width": 34
+    },
+    {
+      "col": 7,
+      "width": 27
+    },
+    {
+      "col": 8,
+      "width": 34
+    },
+    {
+      "col": 9,
+      "width": 27
+    }
+  ],
+  "print_setup": {
+    "paper_width": 420,
+    "paper_height": 297,
+    "left_margin": 10,
+    "right_margin": 10,
+    "top_margin": 10,
+    "bottom_margin": 10
+  },
+  "printing": {
+    "horizontal_split": false,
+    "vertical_split": false,
+    "border_width": 0.5,
+    "border_color": "#CBD5E1"
+  }
+}

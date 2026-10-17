@@ -8,6 +8,7 @@ description = "ReportLite export face (M6): calculated CalcGrid -> files; CSV fi
 rpx-engine = { path = "../rpx-engine" }
 # 受审层依赖：登记见 scripts/dep_allowlist.txt + docs/code-review.md §3.2
 rust_xlsxwriter = "0.99"
+base64 = "0.22"
 
 [dev-dependencies]
 # 读回自洽对拍用（不进产物，G5 不覆盖 dev-deps；见 spec-m6 §2.4）

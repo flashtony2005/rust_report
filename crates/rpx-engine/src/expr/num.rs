@@ -27,6 +27,12 @@ pub(crate) fn to_f64(v: &Value) -> Option<f64> {
 
 /// 加法：Text+Text 拼接 → Int/Long 同型回绕 → 其余升 Double。
 pub(crate) fn num_add(a: &Value, b: &Value) -> Result<Value> {
+    if a.is_null() {
+        return Ok(b.clone());
+    }
+    if b.is_null() {
+        return Ok(a.clone());
+    }
     if let (Value::Text(x), Value::Text(y)) = (a, b) {
         return Ok(Value::Text(format!("{x}{y}"))); // Variant2.add 的字符串拼接
     }
@@ -62,6 +68,9 @@ pub(crate) fn num_sub(a: &Value, b: &Value) -> Result<Value> {
 
 /// 乘法：Int/Long 同型回绕，其余升 Double。
 pub(crate) fn num_mul(a: &Value, b: &Value) -> Result<Value> {
+    if a.is_null() || b.is_null() {
+        return Ok(Value::Null);
+    }
     if let (Value::Int(x), Value::Int(y)) = (a, b) {
         return Ok(Value::Int(x.wrapping_mul(*y)));
     }

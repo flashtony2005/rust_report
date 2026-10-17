@@ -2,25 +2,14 @@
 name = "rpx-server"
 version = "0.1.0"
 edition.workspace = true
-description = "ReportLite render server (M3): Univer IWorkbookData snapshot mapping + dev bin"
-
 [dependencies]
-axum = { version = "0.8", features = ["multipart"] }
-rpx-core = { path = "../rpx-core" }
-rpx-ds = { path = "../rpx-ds" }
-rpx-engine = { path = "../rpx-engine" }
-# M6-03 `POST /export`：快照（/render）之外的第二条出口——文件字节（spec-m6 §2.1）。
-rpx-export = { path = "../rpx-export" }
+rpx-runtime = { path = "../rpx-runtime" }
+axum = "0.8"
 serde_json = "1"
-tokio = { version = "1", features = [
-    "rt-multi-thread",
-    "macros",
-    "net",
-    "io-util",
-] }
-
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }
 [dev-dependencies]
-# `/export` xlsx 的**读回**断言用（`tests/reportdef_http.rs`）：从 HTTP 响应体
-# 字节反读合并区/取值。口径同 `rpx-export` 的 dev-dep（spec-m6 §2.4）；
-# 不进产物，G5 只覆盖 `[dependencies]`（gate.sh G5 的 awk 只进 `[dependencies]` 段）。
-calamine = "0.36"
+rpx-core = { path = "../rpx-core" }
+rpx-engine = { path = "../rpx-engine" }
+rpx-ds = { path = "../rpx-ds" }
+rpx-export = { path = "../rpx-export" }
+tokio = { version = "1", features = ["time"] }

@@ -1,0 +1,814 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 12,
+    "cols": 11
+  },
+  "datasets": [
+    {
+      "name": "ds1",
+      "file": {
+        "file_name": "complex-master-sales.csv",
+        "encoding": "UTF-8"
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "text": "双年度经营分析 · 复杂主格交叉扩展",
+      "font_name": "Arial",
+      "font_size": 19,
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 11
+      },
+      "bold": true,
+      "fore_color": "#203B53",
+      "h_align": "left"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "text": "三级纵向：区域 / 事业部 / 成员    ×    两级横向：年度 / 季度    ·    金额单位：万元",
+      "font_name": "Arial",
+      "font_size": 10,
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 11
+      },
+      "bold": false,
+      "fore_color": "#203B53",
+      "h_align": "left"
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "text": "区域",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "text": "事业部",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 3,
+      "text": "组内号",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "text": "成员",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 7,
+      "text": "两年收入",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 8,
+      "text": "两年毛利",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 9,
+      "text": "部内排名",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 10,
+      "text": "部内占比 %",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 11,
+      "text": "序号 / 人数",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 3,
+        "cols": 1
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "expr": "ds1.group(year)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "horizontal",
+      "merge": {
+        "rows": 1,
+        "cols": 2
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 5,
+      "expr": "ds1.group(quarter)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "horizontal",
+      "top_head": "E3",
+      "merge": {
+        "rows": 1,
+        "cols": 2
+      },
+      "bold": true,
+      "back_color": "#D6E3ED",
+      "h_align": "center"
+    },
+    {
+      "row": 5,
+      "col": 5,
+      "text": "收入",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "top_head": "E4",
+      "extend_mode": "none",
+      "back_color": "#E8EFF5",
+      "h_align": "center"
+    },
+    {
+      "row": 5,
+      "col": 6,
+      "text": "毛利",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "top_head": "E4",
+      "extend_mode": "none",
+      "back_color": "#E8EFF5",
+      "h_align": "center"
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "expr": "ds1.group(region)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "bold": true,
+      "back_color": "#F1F5F8",
+      "h_align": "center"
+    },
+    {
+      "row": 6,
+      "col": 2,
+      "expr": "ds1.group(department)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "left_head": "A6",
+      "bold": true,
+      "h_align": "center"
+    },
+    {
+      "row": 6,
+      "col": 3,
+      "expr": "&D6",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "D6",
+      "extend_mode": "none",
+      "h_align": "center",
+      "fore_color": "#176B68"
+    },
+    {
+      "row": 6,
+      "col": 4,
+      "expr": "ds1.group(employee)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "B6",
+      "extend_mode": "vertical"
+    },
+    {
+      "row": 6,
+      "col": 5,
+      "expr": "ifn(ds1.sum(amount),0)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "D6",
+      "top_head": "E4",
+      "extend_mode": "none",
+      "h_align": "right",
+      "format": "#,##0"
+    },
+    {
+      "row": 6,
+      "col": 6,
+      "expr": "ifn(ds1.sum(profit),0)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "D6",
+      "top_head": "E4",
+      "extend_mode": "none",
+      "h_align": "right",
+      "format": "#,##0"
+    },
+    {
+      "row": 6,
+      "col": 7,
+      "expr": "ds1.sum(amount)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "D6",
+      "extend_mode": "none",
+      "h_align": "right",
+      "back_color": "#F0F6F6",
+      "format": "#,##0"
+    },
+    {
+      "row": 6,
+      "col": 8,
+      "expr": "ds1.sum(profit)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "D6",
+      "extend_mode": "none",
+      "h_align": "right",
+      "back_color": "#F0F6F6",
+      "format": "#,##0"
+    },
+    {
+      "row": 6,
+      "col": 9,
+      "expr": "count(G6[B6]{G6>$G6})+1",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "D6",
+      "extend_mode": "none",
+      "h_align": "center",
+      "back_color": "#FFFFFF",
+      "format": "#,##0"
+    },
+    {
+      "row": 6,
+      "col": 10,
+      "expr": "int(G6*1000/sum(G6[B6]{})+0.5)/10",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "D6",
+      "extend_mode": "none",
+      "h_align": "center",
+      "back_color": "#FFFFFF",
+      "format": "0.0"
+    },
+    {
+      "row": 6,
+      "col": 11,
+      "expr": "seq(D6)",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "left_head": "D6",
+      "extend_mode": "none",
+      "h_align": "center",
+      "back_color": "#FFFFFF",
+      "format": "#,##0"
+    },
+    {
+      "row": 7,
+      "col": 2,
+      "expr": "B6+' 小计'",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 3
+      },
+      "left_head": "B6",
+      "bold": true,
+      "back_color": "#EEF4F9",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 7,
+      "col": 5,
+      "expr": "sum(E6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "top_head": "E4",
+      "h_align": "right",
+      "format": "#,##0",
+      "left_head": "B6",
+      "bold": true,
+      "back_color": "#EEF4F9",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 7,
+      "col": 6,
+      "expr": "sum(F6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "top_head": "E4",
+      "h_align": "right",
+      "format": "#,##0",
+      "left_head": "B6",
+      "bold": true,
+      "back_color": "#EEF4F9",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 7,
+      "col": 7,
+      "expr": "sum(G6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "right",
+      "format": "#,##0",
+      "left_head": "B6",
+      "bold": true,
+      "back_color": "#EEF4F9",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 7,
+      "col": 8,
+      "expr": "sum(H6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "right",
+      "format": "#,##0",
+      "left_head": "B6",
+      "bold": true,
+      "back_color": "#EEF4F9",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 7,
+      "col": 11,
+      "expr": "count(D6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "center",
+      "left_head": "B6",
+      "bold": true,
+      "back_color": "#EEF4F9",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 8,
+      "col": 1,
+      "expr": "A6+' 合计'",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 4
+      },
+      "left_head": "A6",
+      "bold": true,
+      "back_color": "#DCE9F1",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 8,
+      "col": 5,
+      "expr": "sum(E6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "top_head": "E4",
+      "h_align": "right",
+      "format": "#,##0",
+      "left_head": "A6",
+      "bold": true,
+      "back_color": "#DCE9F1",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 8,
+      "col": 6,
+      "expr": "sum(F6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "top_head": "E4",
+      "h_align": "right",
+      "format": "#,##0",
+      "left_head": "A6",
+      "bold": true,
+      "back_color": "#DCE9F1",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 8,
+      "col": 7,
+      "expr": "sum(G6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "right",
+      "format": "#,##0",
+      "left_head": "A6",
+      "bold": true,
+      "back_color": "#DCE9F1",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 8,
+      "col": 8,
+      "expr": "sum(H6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "right",
+      "format": "#,##0",
+      "left_head": "A6",
+      "bold": true,
+      "back_color": "#DCE9F1",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 8,
+      "col": 11,
+      "expr": "count(D6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "center",
+      "left_head": "A6",
+      "bold": true,
+      "back_color": "#DCE9F1",
+      "fore_color": "#203B53",
+      "extend_mode": "none"
+    },
+    {
+      "row": 9,
+      "col": 1,
+      "text": "公司合计",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 4
+      },
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "extend_mode": "none"
+    },
+    {
+      "row": 9,
+      "col": 5,
+      "expr": "sum(E6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "top_head": "E4",
+      "h_align": "right",
+      "format": "#,##0",
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "extend_mode": "none"
+    },
+    {
+      "row": 9,
+      "col": 6,
+      "expr": "sum(F6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "top_head": "E4",
+      "h_align": "right",
+      "format": "#,##0",
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "extend_mode": "none"
+    },
+    {
+      "row": 9,
+      "col": 7,
+      "expr": "sum(G6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "right",
+      "format": "#,##0",
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "extend_mode": "none"
+    },
+    {
+      "row": 9,
+      "col": 8,
+      "expr": "sum(H6{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "right",
+      "format": "#,##0",
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "extend_mode": "none"
+    },
+    {
+      "row": 9,
+      "col": 11,
+      "expr": "count(D6[`0]{})",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "h_align": "center",
+      "bold": true,
+      "back_color": "#203B53",
+      "fore_color": "#FFFFFF",
+      "extend_mode": "none"
+    },
+    {
+      "row": 10,
+      "col": 1,
+      "text": "主格链：A6 区域 → B6 事业部 → D6 成员；C6 左主格显式指定为右侧的 D6，组内号随部门重置。",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 11
+      },
+      "fore_color": "#526779"
+    },
+    {
+      "row": 11,
+      "col": 1,
+      "text": "横向链：E3 年度 → E4 季度；E6 / F6 同时从属 D6 与 E4，按成员与年月的交集聚合。",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 11
+      },
+      "fore_color": "#526779"
+    },
+    {
+      "row": 12,
+      "col": 1,
+      "text": "同式不同域：sum(E6{}) 按部门 / 区域 / 全表汇总；缺失季度为 0；末列：明细为跨组序号，小计 / 合计为人数。",
+      "font_name": "Arial",
+      "font_size": 9,
+      "v_align": "middle",
+      "merge": {
+        "rows": 1,
+        "cols": 11
+      },
+      "fore_color": "#526779"
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 12,
+      "type": "title"
+    },
+    {
+      "row": 2,
+      "height": 9,
+      "type": "title"
+    },
+    {
+      "row": 3,
+      "height": 7,
+      "type": "table_header"
+    },
+    {
+      "row": 4,
+      "height": 7,
+      "type": "table_header"
+    },
+    {
+      "row": 5,
+      "height": 7,
+      "type": "table_header"
+    },
+    {
+      "row": 6,
+      "height": 9
+    },
+    {
+      "row": 7,
+      "height": 9
+    },
+    {
+      "row": 8,
+      "height": 9
+    },
+    {
+      "row": 9,
+      "height": 9
+    },
+    {
+      "row": 10,
+      "height": 7
+    },
+    {
+      "row": 11,
+      "height": 7
+    },
+    {
+      "row": 12,
+      "height": 7
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 14
+    },
+    {
+      "col": 2,
+      "width": 20
+    },
+    {
+      "col": 3,
+      "width": 12
+    },
+    {
+      "col": 4,
+      "width": 17
+    },
+    {
+      "col": 5,
+      "width": 14
+    },
+    {
+      "col": 6,
+      "width": 13
+    },
+    {
+      "col": 7,
+      "width": 21
+    },
+    {
+      "col": 8,
+      "width": 20
+    },
+    {
+      "col": 9,
+      "width": 16
+    },
+    {
+      "col": 10,
+      "width": 22
+    },
+    {
+      "col": 11,
+      "width": 16
+    }
+  ],
+  "print_setup": {
+    "pager_style": "none",
+    "paper_width": 420,
+    "paper_height": 297,
+    "left_margin": 10,
+    "right_margin": 10,
+    "top_margin": 12,
+    "bottom_margin": 12
+  },
+  "printing": {
+    "border_width": 0.35,
+    "border_color": "#C9D5DE",
+    "auto_size": true
+  }
+}

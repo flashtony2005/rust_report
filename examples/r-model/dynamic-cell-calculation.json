@@ -1,0 +1,372 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 7,
+    "cols": 5
+  },
+  "datasets": [
+    {
+      "name": "telecom",
+      "file": {
+        "file_name": "telecom.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    },
+    {
+      "name": "services",
+      "file": {
+        "file_name": "sources.xlsx",
+        "encoding": "UTF-8",
+        "sheet_name": "业务"
+      }
+    },
+    {
+      "name": "city",
+      "file": {
+        "file_name": "sources.xlsx",
+        "encoding": "UTF-8",
+        "sheet_name": "全市口径"
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 18,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "城八区电信销售统计 · 动态格间运算",
+      "merge": {
+        "rows": 1,
+        "cols": 5
+      },
+      "bold": true,
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "业务类型动态扩展为金额 / 排名列组；排名和前三名汇总由结果格集计算。",
+      "merge": {
+        "rows": 1,
+        "cols": 5
+      },
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "地区",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      }
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "合计",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "merge": {
+        "rows": 1,
+        "cols": 2
+      }
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "horizontal",
+      "expr": "services.select(service)",
+      "h_align": "center",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "merge": {
+        "rows": 1,
+        "cols": 2
+      }
+    },
+    {
+      "row": 4,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "销售额",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "排名",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "D3",
+      "text": "销售额",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "D3",
+      "text": "排名",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 5,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "expr": "telecom.group(region)",
+      "h_align": "left",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "telecom.sum(amount)",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "count(B5[`0]{B5>$B5})+1",
+      "h_align": "right",
+      "format": "0"
+    },
+    {
+      "row": 5,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "top_head": "D3",
+      "expr": "sum(telecom.select(amount,service==D3))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "top_head": "D3",
+      "expr": "count(D5[`0]{D3==$D3 and D5>$D5})+1",
+      "h_align": "right",
+      "format": "0"
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "前三名总和",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "sum(B5[`0]{C5<=3})",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "B6/sum(B5[`0]{})",
+      "h_align": "right",
+      "format": "0.00%",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "D3",
+      "expr": "sum(D5[`0]{D3==$D3 and E5<=3})",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 7,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "前三名占全市比"
+    },
+    {
+      "row": 7,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "B6/city.sum(amount)",
+      "h_align": "right",
+      "format": "0.00%"
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 12
+    },
+    {
+      "row": 2,
+      "height": 9
+    },
+    {
+      "row": 3,
+      "height": 8
+    },
+    {
+      "row": 4,
+      "height": 8
+    },
+    {
+      "row": 5,
+      "height": 8
+    },
+    {
+      "row": 6,
+      "height": 8
+    },
+    {
+      "row": 7,
+      "height": 8
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 32
+    },
+    {
+      "col": 2,
+      "width": 32
+    },
+    {
+      "col": 3,
+      "width": 29
+    },
+    {
+      "col": 4,
+      "width": 29
+    },
+    {
+      "col": 5,
+      "width": 29
+    }
+  ],
+  "print_setup": {
+    "paper_width": 420,
+    "paper_height": 297,
+    "left_margin": 10,
+    "right_margin": 10,
+    "top_margin": 10,
+    "bottom_margin": 10
+  },
+  "printing": {
+    "horizontal_split": false,
+    "vertical_split": false,
+    "border_width": 0.5,
+    "border_color": "#CBD5E1"
+  }
+}

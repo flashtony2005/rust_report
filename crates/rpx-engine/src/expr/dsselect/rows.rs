@@ -28,21 +28,18 @@ pub(super) fn eval_rows_idx(
         let set = ctx.ds(dsn).ok_or_else(|| missing(dsn))?;
         set.current
     };
-    let mut out = Vec::with_capacity(idx.len());
-    for &i in idx {
-        {
-            let set = ctx.ds(dsn).expect("上面刚取到");
-            set.set_current(DsCur::Row(i));
+    let result = (|| {
+        let mut out = Vec::with_capacity(idx.len());
+        for &i in idx {
+            ctx.ds(dsn).expect("上面刚取到").set_current(DsCur::Row(i));
+            let v = eval_bound(col_expr, dsn, ctx)?;
+            ctx.ds(dsn).expect("同上").selected[i] = Some(v.clone());
+            out.push(v);
         }
-        let v = eval_bound(col_expr, dsn, ctx)?;
-        {
-            let set = ctx.ds(dsn).expect("同上");
-            set.selected[i] = Some(v.clone());
-        }
-        out.push(v);
-    }
+        Ok(out)
+    })();
     ctx.ds(dsn).expect("同上").set_current(saved);
-    Ok(out)
+    result
 }
 
 /// `;` 多键排序：`Group.sort(sortExps, isDescs)` → `SortDsValue.sort:343-414`。
@@ -50,7 +47,7 @@ pub(super) fn eval_rows_idx(
 /// 产品算法 = 键0 排序 + 相等 run 内递归按键1…（`:384-401` 的 run 切分）。
 /// Rust 用**稳定多键比较**（`sort_by` 稳定）等价 —— 唯一未复刻点：产品手写
 /// 归并在**全键相等**时的次序（无夹具基准，`spec-m5.md` §6.3 带账 ④）。
-pub(super) fn multi_key_sort(
+pub(crate) fn multi_key_sort(
     idx: &[usize],
     sort_exps: &[Expr],
     is_descs: &[bool],
@@ -63,19 +60,20 @@ pub(super) fn multi_key_sort(
         let set = ctx.ds(dsn).ok_or_else(|| missing(dsn))?;
         set.current
     };
-    let mut keys: Vec<Vec<Value>> = Vec::with_capacity(idx.len());
-    for &i in idx {
-        {
-            let set = ctx.ds(dsn).expect("上面刚取到");
-            set.set_current(DsCur::Row(i));
+    let result: Result<Vec<Vec<Value>>> = (|| {
+        let mut keys = Vec::with_capacity(idx.len());
+        for &i in idx {
+            ctx.ds(dsn).expect("上面刚取到").set_current(DsCur::Row(i));
+            let mut ks = Vec::with_capacity(sort_exps.len());
+            for e in sort_exps {
+                ks.push(eval_bound(e, dsn, ctx)?);
+            }
+            keys.push(ks);
         }
-        let mut ks = Vec::with_capacity(sort_exps.len());
-        for e in sort_exps {
-            ks.push(eval_bound(e, dsn, ctx)?);
-        }
-        keys.push(ks);
-    }
+        Ok(keys)
+    })();
     ctx.ds(dsn).expect("同上").set_current(saved);
+    let keys = result?;
 
     let mut pos: Vec<usize> = (0..idx.len()).collect();
     pos.sort_by(|&a, &b| {

@@ -42,7 +42,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use types::{DsInstance, DsSpot, HeadPairTracker, NULL_ROW, ROOT_ROW};
+pub use types::{DsInstance, DsSpot, HeadPairTracker, NULL_ROW};
 
 use crate::arena::CellId;
 use crate::error::Result;
@@ -76,7 +76,12 @@ pub trait DsCurrentHost {
     fn ds_null_row(&self, ds: usize) -> DsInstance;
     /// `Row.cross(other)`（`Row.java:68-79`）。`other` 恒是一个 `Row` 实例
     /// （`_$4` 只会被写成 `Row`）；接收者也可以是 `Group`，那条分支本 crate 不移植。
-    fn ds_row_cross(&self, ds: usize, recv: DsInstance, other: DsInstance) -> Result<DsInstance>;
+    fn ds_row_cross(
+        &mut self,
+        ds: usize,
+        recv: DsInstance,
+        other: DsInstance,
+    ) -> Result<DsInstance>;
     /// `_$19.setChanged(false)` —— `resetDSCurrent` 的第一句（`:555`）。
     fn tracker_set_changed(&mut self, changed: bool);
 }

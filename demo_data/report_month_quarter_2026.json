@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "grid": { "rows": 3, "cols": 3 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "季度", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 1, "col": 2, "expr": "ds_q.select(quarter)", "extend_mode": "horizontal",
+      "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+
+    { "row": 2, "col": 1, "text": "月份", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 2, "col": 2, "expr": "ds_m.select@r(month_label, quarter==B1)", "extend_mode": "horizontal",
+      "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 2, "col": 3, "text": "小计", "top_head": "B1", "bold": true, "h_align": "center", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+
+    { "row": 3, "col": 1, "text": "销售金额（元）", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 3, "col": 2, "expr": "sum(ds2.select@r(amount, month_label==B2))", "format": "#,##0.00", "h_align": "right",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 3, "col": 3, "expr": "sum(ds2.select@r(amount, quarter==B1))", "format": "#,##0.00", "h_align": "right", "bold": true, "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } }
+  ],
+  "datasets": [
+    {
+      "name": "ds_q",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT DISTINCT s.quarter AS quarter FROM sales s ORDER BY s.quarter"
+      }
+    },
+    {
+      "name": "ds_m",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT DISTINCT s.quarter AS quarter, (s.month || '月') AS month_label, s.month AS month_no FROM sales s ORDER BY s.month"
+      }
+    },
+    {
+      "name": "ds2",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT s.quarter AS quarter, (s.month || '月') AS month_label, s.amount AS amount FROM sales s"
+      }
+    }
+  ],
+  "row_props": [
+    { "row": 1, "height": 24 },
+    { "row": 2, "height": 24 },
+    { "row": 3, "height": 26 }
+  ],
+  "col_props": [
+    { "col": 1, "width": 16 },
+    { "col": 2, "width": 13 },
+    { "col": 3, "width": 15 }
+  ],
+  "print_setup": {
+    "paper_width": 297,
+    "paper_height": 210,
+    "left_margin": 15,
+    "right_margin": 15,
+    "top_margin": 20,
+    "bottom_margin": 20,
+    "row_num_per_page": 30,
+    "copy_count": 1,
+    "zoom_scale": 100
+  }
+}

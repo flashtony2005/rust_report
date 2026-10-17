@@ -19,12 +19,7 @@
  * | 3 | `sql` 分支：`dsn` 与 `sql` 必填 | `field()` 缺失报错 |
  * | 4 | `file` 分支：`file_name` 必填；`encoding` 可选（缺省 GBK） | 同上 |
  *
- * ## 重名：**告警不拦截**（与服务端一致）
- *
- * `parse.rs` 对 `datasets[]` **没有重名校验**（已核源码）——引擎按名字绑定
- * 表达式是运行时行为，服务端都不拦，前端若拦就是「无出处的严」。
- * ⇒ `applyDatasetAdd` / `applyDatasetUpdate` 在重名时往 `warnings` 里放一条
- * （表达式绑定歧义的提示），不拒单。
+ * 数据集名称必须唯一；执行端也会拒绝重名，避免表达式绑定歧义。
  */
 import type { ReportDef } from './designer'
 
@@ -36,14 +31,14 @@ import type { ReportDef } from './designer'
 export type DatasetInput = {
   name?: string
   sql?: { dsn: string; sql: string }
-  file?: { file_name: string; encoding?: string }
+  file?: { file_name: string; encoding?: string; sheet_name?: string; delimiter?: string }
 }
 
 /** 服务端 JSON 里的原始条目形态（未知键原样保留）。 */
 export type DatasetEntry = {
   name?: string
   sql?: { dsn: string; sql: string; [k: string]: unknown }
-  file?: { file_name: string; encoding?: string; [k: string]: unknown }
+  file?: { file_name: string; encoding?: string; sheet_name?: string; delimiter?: string; [k: string]: unknown }
   [k: string]: unknown
 }
 
@@ -80,22 +75,20 @@ function validateInput(d: DatasetInput): string | null {
   }
   if (d.file) {
     if (!d.file.file_name || !d.file.file_name.trim()) {
-      return '文件数据集必须给 file_name（须与渲染时上传的 CSV 文件名逐字一致）'
+      return '文件数据集必须给 file_name（须与运行时上传的数据文件名逐字一致）'
     }
+    if (d.file.delimiter !== undefined && (!/^[\x00-\x7f]$/.test(d.file.delimiter) || /[\r\n"]/.test(d.file.delimiter))) return '分隔符必须是一个 ASCII 字符，且不能为引号或换行'
   }
   return null
 }
 
-/** 名字重复的告警行（`index` = 被改/被加的那条，不与自己比）。 */
-function duplicateNameWarning(def: ReportDef, name: string | undefined, index: number): string[] {
-  if (!name) return []
-  const others = datasetsOf(def).filter((_, i) => i !== index)
-  if (others.some((d) => d.name === name)) {
-    return [
-      `数据集名「${name}」重复——服务端不拦，但表达式按名字绑定时行为歧义，建议改名`,
-    ]
-  }
-  return []
+/** 与执行端使用同一个有效名称；未显式命名的文件使用文件名。 */
+function duplicateNameError(def: ReportDef, input: DatasetInput, index: number): string | null {
+  const nameOf = (d: DatasetInput) => d.name ?? d.file?.file_name ?? '<unnamed-sql>'
+  const name = nameOf(input)
+  return datasetsOf(def).some((d, i) => i !== index && nameOf(d) === name)
+    ? `数据集名称「${name}」重复，请修改名称`
+    : null
 }
 
 /** 输入 → 服务端 JSON 条目（只写面板产出的键，不造空壳）。 */
@@ -104,7 +97,7 @@ function toEntry(d: DatasetInput): DatasetEntry {
   if (d.name !== undefined && d.name !== '') entry.name = d.name
   if (d.sql) entry.sql = { dsn: d.sql.dsn, sql: d.sql.sql }
   if (d.file) {
-    entry.file = d.file.encoding ? { file_name: d.file.file_name, encoding: d.file.encoding } : { file_name: d.file.file_name }
+    entry.file = { ...d.file }
   }
   return entry
 }
@@ -113,16 +106,15 @@ function toEntry(d: DatasetInput): DatasetEntry {
 // 写方向：增 / 删 / 改（按下标定位 —— 面板列表的行序即声明序）
 // ---------------------------------------------------------------------------
 
-/** 追加一条数据集。校验镜像 `parse_dataset`；重名告警不拦。 */
+/** 追加一条数据集。校验镜像 `parse_dataset`；名称必须唯一。 */
 export function applyDatasetAdd(def: ReportDef, input: DatasetInput): DatasetResult {
   const warnings: string[] = []
-  const bad = validateInput(input)
+  const bad = validateInput(input) ?? duplicateNameError(def, input, -1)
   if (bad) return { error: bad, warnings }
   const next: ReportDef = { ...def }
   const list = [...datasetsOf(def), toEntry(input)]
   next.datasets = list
-  warnings.push(...duplicateNameWarning(next, input.name, list.length - 1))
-  warnings.push('数据集已写入 JSON；渲染时须一并提供其引用的 CSV（文件名逐字一致）')
+  warnings.push('数据集已写入 JSON；文件来源须提供对应 Excel / CSV / TSV，数据库来源按连接名读取')
   return { def: next, warnings }
 }
 
@@ -148,13 +140,12 @@ export function applyDatasetUpdate(def: ReportDef, index: number, input: Dataset
   if (!Number.isInteger(index) || index < 0 || index >= list.length) {
     return { error: `要修改的数据集下标 ${index} 不存在（当前共 ${list.length} 条）`, warnings }
   }
-  const bad = validateInput(input)
+  const bad = validateInput(input) ?? duplicateNameError(def, input, index)
   if (bad) return { error: bad, warnings }
   const next: ReportDef = { ...def }
   const newList = [...list]
   newList[index] = toEntry(input)
   next.datasets = newList
-  warnings.push(...duplicateNameWarning(next, input.name, index))
-  warnings.push('数据集已更新；渲染时须一并提供其引用的 CSV（文件名逐字一致）')
+  warnings.push('数据集已更新；文件来源须提供对应 Excel / CSV / TSV，数据库来源按连接名读取')
   return { def: next, warnings }
 }

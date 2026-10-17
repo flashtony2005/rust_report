@@ -182,7 +182,14 @@ libsql / sqlx / axum / rust_xlsxwriter / printpdf / nom / rust_decimal。旧 G5 
 | `rpx-server` | `tokio`（features = `rt-multi-thread`/`macros`/`net`/`io-util`） | axum 0.8 的运行时底座：`#[tokio::main]` + `TcpListener`（`serve` 子命令）+ 集成测试的异步 socket 客户端（`tests/render_http.rs`） | axum 的 `serve`/`Router` 全部构建在 tokio 之上，没有"用 axum 但不引 tokio"的路径；std 无异步运行时，替代只有自研 executor（axum 不接受） |
 | `rpx-ds` | `sqlx` 0.9（default-features=false，features = `any`/`postgres`/`mysql`/`sqlite`/`runtime-tokio`） | M3-03 取数主链路：`AnyPool` 按 URL 前缀选驱动（`postgres://`/`mysql://`/`sqlite://`，换库只换 URL——蓝图 §7.2 的既定选型）；sqlite 内存库冒烟 5/5 | ① 每库一个原生客户端（postgres/mysql/sqlite 三套协议）：三份连接池/类型映射/错误处理，维护面 ×3 且无对拍基准；② 自研协议：不可行；③ `libsql` 只覆盖 SQLite 一族，PG/MySQL 无解 |
 | `rpx-ds` | `tokio`（features = `rt-multi-thread`/`macros`） | sqlx 0.9 的 runtime-tokio 底座 + `#[tokio::test]`（sqlite 冒烟） | 同 rpx-server 行：sqlx async 只跑在 tokio 上，std 无异步运行时 |
+| `rpx-ds` | `calamine` 0.36 | Excel 工作表物化为类型化 RowSet，复用工作区已有读回验证依赖 | 自写 ZIP/OOXML、XLS 二进制解析与缓存公式处理复杂且易丢失类型；解析器留在数据源层，core/engine 保持零外部依赖 |
+| `rpx-ds` | `csv` 1.4 | 显式分隔符、引号、转义和引号内换行的 CSV/TSV 解析 | 字符串 split 无法正确解析实际业务 CSV，手写状态机重复成熟解析器 |
 | `rpx-export` | `rust_xlsxwriter` 0.99（默认 features） | M6-02 xlsx 写器：`CalcGrid` → xlsx 字节（`merge_range` + 类型化 `write_*`）；zip 容器 + OOXML 由库负责 | ① 手写 xlsx（zip + OOXML + `_xHHHH_` 控制字符转义 + 共享字符串表）是几百节点的格式工程，边界全靠自证且**无产品真值可对拍**（spec-m6 §0）；② `umya-spreadsheet` 偏读改场景、写从零场景更重；③ 零依赖层（rpx-core/rpx-engine）不能为它引——本 crate 是受审层，正是为这类出口依赖而分层 |
+
+| `rpx-export` | `base64` 0.22 | 解码图形 data URI，复用已进入锁文件的成熟实现；实际图片验证仍交给 `rust_xlsxwriter::Image` | 自写 base64 解码会重复处理填充、非法字符和截断边界，不能降低整体复杂度 |
+
+前端新增 `echarts`：同一成熟库提供交互图、SVG 打印、自定义区间图和 JS 模板运行时。
+服务端新增 dev-dependency `zip`：读取实际 XLSX 的图表 XML、图片与 drawing 条目，验证导出包含真正图形，不仅是单元格数据；不进入服务端产物。
 
 > （dev-dep，不经 G5）`rpx-export` 的 `calamine`（读回校验）：xlsx 是 zip 容器、**字节级对拍无意义**（时间戳/条目序），M6-02 的验收是「读回自洽」——`to_xlsx` 产出 → `calamine` 读回 → 与 `CalcGrid` 逐格比值/类型 + 合并区全等。只进 `[dev-dependencies]`（不进产物，`code-review.md` §3.2 注 3 的已知缺口的**正当用法**，与「藏生产依赖」相对）；正文见 `docs/spec-m6.md` §2.4。
 
@@ -417,3 +424,19 @@ SLA：Blocker 24h 内响应；Blocker 未清不得合并
 3. 新增 `#[allow(...)]` 而无理由注释；
 4. 新增 pub 项未同步 `lib.rs`；
 5. 未做故障注入的"新判据"。
+
+## Agent CLI 运行层依赖（2026-10-17）
+
+`rpx-runtime` 提取已有 JSON 定义、Univer 快照和 Excel/CSV/SQL 供数编排，依赖 core、engine、ds、export。
+CLI 依赖 runtime；server 只调用其目录库定义保存与固定产物读取接口。core/engine 保持零第三方生产依赖。
+
+| 依赖 | 使用方 | 理由 |
+| --- | --- | --- |
+| serde_json | runtime、CLI | 复用项目已有 JSON 表示，统一源码、协议、Schema 与运行记录，避免第二套转换模型 |
+| clap | CLI | 成熟命令树、参数约束与 try_parse 诊断；删除旧手写解析器 |
+| json-patch | runtime | 使用 RFC 6902 的完整操作和 test 条件，避免自写补丁实现 |
+| sha2 | runtime | 源码修订与真实输入内容的 SHA-256；避免修改时间和自制摘要 |
+| time | runtime | UTC RFC 3339 运行时间，避免自写日历/时区算法 |
+| tokio | CLI | 与项目已有 SQL 供数器共享异步执行环境 |
+
+模板库的跨进程锁使用标准库 File::lock。要求 Rust 1.89 或以上；依赖锁文件确定实际构建版本。

@@ -130,7 +130,7 @@ impl DsCurrentHost for Fake {
     }
 
     fn ds_row_cross(
-        &self,
+        &mut self,
         ds: usize,
         recv: DsInstance,
         other: DsInstance,

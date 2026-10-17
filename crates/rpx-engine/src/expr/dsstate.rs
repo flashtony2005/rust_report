@@ -61,8 +61,14 @@ impl Expr {
             Expr::DsOffsetColumn { .. } => true,
             Expr::Unknown(_) => true,
             Expr::ValueList { items, .. } => items.iter().any(Self::is_ds_function),
-            Expr::Select { arg } => arg.is_ds_function(),
+            // `SpecialFunction.is_ds_function = left || super`（super = Function 查参数）
+            // ⇒ M7-8 起 `target`（= `left`）也要查，不能只看花括号里的条件
+            Expr::Select { target, arg } => {
+                target.as_deref().is_some_and(Self::is_ds_function) || arg.is_ds_function()
+            }
             Expr::Index { target, .. } => target.is_ds_function(),
+            // `Move`：`left` 是格号（CSVariable ⇒ false），`[...]` 内容不建模 ⇒ false
+            Expr::Coord { .. } => false,
             Expr::Call(c) => c.qualifier.is_some() || c.args.iter().any(Self::is_ds_function),
             Expr::Unary { rhs, .. } => rhs.is_ds_function(),
             Expr::Binary { lhs, rhs, .. } => lhs.is_ds_function() || rhs.is_ds_function(),
@@ -108,8 +114,14 @@ impl Expr {
             | Expr::DsColumn { .. }
             | Expr::Unknown(_) => 4,
             Expr::ValueList { items, .. } => max_of(items.iter()),
-            Expr::Select { arg } => 4u8.max(arg.get_state()),
+            // `SpecialFunction.getState = max(super, left)`（`SpecialFunction.java:62-69`）
+            Expr::Select { target, arg } => {
+                let t = target.as_deref().map_or(4, Expr::get_state);
+                4u8.max(t).max(arg.get_state())
+            }
             Expr::Index { target, index } => 4u8.max(target.get_state()).max(index.get_state()),
+            // `Move`：`left` 是格号（CSVariable ⇒ 4）、参数不建模 ⇒ 4
+            Expr::Coord { .. } => 4,
             // 下标是子表达式（探针 O9：`ds1[1+1]` 的 Binary 也是 4）⇒ max_of 口径
             Expr::DsOffsetColumn { offset, .. } => 4u8.max(offset.get_state()),
             Expr::Call(c) => max_of(c.args.iter()),

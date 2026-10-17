@@ -202,11 +202,13 @@ fn postfix_index_on_unary_minus_wraps_the_whole_unary() {
         "应为 (-B2)[1]"
     );
     // `not`(16) < 后缀(17) ⇒ 后缀先绑：not (B2[1])
+    // ⚠ M7-8 起「格号 + `[...]`」建的是 `Expr::Coord`（层次/位移坐标），
+    //    不再是 `Expr::Index`（Move/Offset 的兜底形态）—— 见 `coord.rs` 模块文档。
     let n = parse("not B2[1]").unwrap();
     let Expr::Unary { op: UnOp::Not, rhs } = &n else {
         panic!("顶层应为 not");
     };
-    assert!(matches!(**rhs, Expr::Index { .. }), "应为 not (B2[1])");
+    assert!(matches!(**rhs, Expr::Coord { .. }), "应为 not (B2[1])");
 }
 
 /// 格引用优先于调用（`Expression.java:201-203` 在 `:210-228` 之前）⇒ `B2(1)` 是 `Offset`。

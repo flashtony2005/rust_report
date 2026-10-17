@@ -45,8 +45,9 @@ pub mod cell_eval;
 pub mod ctx;
 pub mod ds_current;
 pub mod merged_view;
+mod print_config;
 pub mod properties;
 pub mod run;
 
 pub use ds_current::{DsInstance, HeadPairTracker};
-pub use run::{calculate, calculate_with};
+pub use run::{calculate, calculate_full, calculate_with};

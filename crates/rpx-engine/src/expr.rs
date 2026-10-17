@@ -43,8 +43,10 @@ pub mod atom;
 pub mod call;
 pub mod cellset;
 pub mod classify;
+pub mod coord;
 pub mod ds;
 pub mod dsfn;
+pub mod dsgroup;
 pub mod dsselect;
 pub mod dsstate;
 pub mod eval;
@@ -59,6 +61,8 @@ pub mod token;
 mod tests;
 #[cfg(test)]
 mod tests_aggregate;
+#[cfg(test)]
+mod tests_coord;
 #[cfg(test)]
 mod tests_eval;
 #[cfg(test)]

@@ -2,10 +2,12 @@
 name = "rpx-cli"
 version = "0.1.0"
 edition.workspace = true
-description = "ReportLite .rpx inspector CLI (print command)"
-
+[[bin]]
+name = "rpx"
+path = "src/main.rs"
 [dependencies]
+rpx-runtime = { path = "../rpx-runtime" }
 rpx-core = { path = "../rpx-core" }
-# M6-04 `render --out`：离线导出链路（与 server `/export` 同构的下游组合）。
-rpx-engine = { path = "../rpx-engine" }
-rpx-export = { path = "../rpx-export" }
+clap = { version = "4", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

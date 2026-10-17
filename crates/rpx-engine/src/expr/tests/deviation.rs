@@ -133,16 +133,22 @@ fn one_list_len(e: &Expr) -> i32 {
     }
 }
 
-/// ⛔ **分叉 2**：`Select` 的 `left` **不是**花括号里的表达式。`Expression.java:131-134`
-/// 只调 `setParameter(...)`；`SpecialFunction.isExtended()`（`:27-32`）读的是 `left`，
-/// 而 `left` 要靠通用 `Expression.java:445` 的 `node.setLeft(right)` 才可能非 null。
-/// ⇒ `{ds1.select(x)}` 是 **false**，尽管参数里的 `DSSelect` 是 true。
+/// ⛔ **分叉 2**：`Select` 的 `left`（= 本切片的 `target`）**不是**花括号里的表达式。
+/// `Expression.java:131-134` 只调 `setParameter(...)`；`SpecialFunction.isExtended()`
+/// （`:27-32`）读的是 `left`。前缀位置（表达式开头）没有前驱 ⇒ `target = None`
+/// ⇒ **恒 false**，尽管参数里的 `DSSelect` 是 true。
+///
+/// ⚠ M7-8 起 `target` 被**建模**了（后缀 `Cellx{...}` 会挂上前驱），于是
+/// 「恒 false」这条结论**收窄为**：`target == None` 时为 false；`target` 存在时
+/// 取 `target.is_extend()`（与源码 `left.isExtended()` 同构）。`C2{}` 仍是 false
+/// —— `CSVariable.isExtended()` 恒 false（`CSVariable.java:379-381`）。
 #[test]
 fn select_brace_is_never_extendable_even_when_its_argument_is() {
     let e = parse("{ds1.select(qty)}").unwrap();
-    let Expr::Select { arg } = &e else {
+    let Expr::Select { target, arg } = &e else {
         panic!("顶层应为 Select");
     };
+    assert!(target.is_none(), "前缀花括号没有前驱 ⇒ target = None");
     let Expr::Call(inner) = &**arg else {
         panic!("参数应是 DSSelect 调用");
     };
@@ -153,6 +159,10 @@ fn select_brace_is_never_extendable_even_when_its_argument_is() {
     );
     // 同形对照：参数为 ValueList（isExtended=true）也照样 false
     assert!(!ext("{[1,2]}"));
+    // 后缀形态：`C2{}` 的前驱是 CSVariable（恒 false）⇒ 仍 false
+    assert!(!ext("B2{}"), "CSVariable 前驱 ⇒ 仍 false");
+    // 后缀形态：前驱本身可扩展 ⇒ 透传为 true（原先错判 false 的一条）
+    assert!(ext("ds1.select(qty){}"), "DSSelect 前驱 ⇒ true");
 }
 
 /// ⛔ **分叉 3**：`$[...]` 是**字符串常量**，不是格引用（`Expression.java:169-172`

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "grid": { "rows": 2, "cols": 5 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "区域", "h_align": "center", "bold": true },
+    { "row": 1, "col": 2, "text": "金额B2", "h_align": "center", "bold": true },
+    { "row": 1, "col": 3, "text": "裸B2", "h_align": "center", "bold": true },
+    { "row": 1, "col": 4, "text": "sum(sel@r)", "h_align": "center", "bold": true },
+    { "row": 1, "col": 5, "text": "sum(sel)", "h_align": "center", "bold": true },
+
+    { "row": 2, "col": 1, "expr": "ds1.select(region)", "extend_mode": "vertical" },
+    { "row": 2, "col": 2, "expr": "ds1.select(amount)", "extend_mode": "vertical" },
+    { "row": 2, "col": 3, "expr": "B2" },
+    { "row": 2, "col": 4, "expr": "sum(ds1.select@r(amount))" },
+    { "row": 2, "col": 5, "expr": "sum(ds1.select(amount))" }
+  ],
+  "datasets": [
+    {
+      "name": "ds1",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT e.region AS region, s.quarter AS quarter, SUM(s.amount) AS amount FROM sales s JOIN emp e ON e.id = s.emp_id GROUP BY e.region_order, e.region, s.quarter ORDER BY e.region_order, s.quarter"
+      }
+    }
+  ]
+}

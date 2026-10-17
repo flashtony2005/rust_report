@@ -1,100 +1,79 @@
 #!/usr/bin/env bash
-# e2e 冒烟（M3-07）：真 socket 全链路「上传 → render → 断言快照键集」。
-#
-# 与集成测试（tests/render_http.rs，cargo test 内跑）的区别：本脚本跑的是
-# **真实二进制** `target/debug/rpx-server` 的 `serve` 子命令（含 main.rs 的
-# 参数解析 / AssetStore 建库路径），覆盖「编译产物可执行」这一层。
-# 调用：bash scripts/e2e_smoke.sh（需先 cargo build -p rpx-server）。
-# 任一断言失败 exit 1；服务/临时文件必被清理（trap 兜底）。
-set -u
-
+# 真 CLI + 真 HTTP socket：共享源码、修订冲突、固定结果；临时库自动清理。
+set -eu
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT" || exit 1
-BIN="target/debug/rpx-server.exe"
-FIX="tests/fixtures"
-FAILED=0
+cd "$ROOT"
+cargo build --locked -p rpx-cli -p rpx-server
+python3 - <<'PY'
+import json
+from pathlib import Path
+import socket
+import subprocess
+import tempfile
+import time
+import urllib.error
+import urllib.request
 
-note() { printf '%s\n' "[e2e] $*"; }
-fail() { printf '%s\n' "[e2e] FAIL: $*"; FAILED=1; }
+metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--no-deps', '--format-version', '1']))
+bin_dir = Path(metadata['target_directory']) / 'debug'
+suffix = '.exe' if __import__('os').name == 'nt' else ''
 
-[ -x "$BIN" ] || { echo "[e2e] 二进制不存在：$BIN —— 先 cargo build -p rpx-server"; exit 2; }
+def cli(*args):
+    value = json.loads(subprocess.check_output([str(bin_dir / ('rpx' + suffix)), *map(str, args)]))
+    assert value['ok'], value
+    return value['data']
 
-# 随机高位端口 + 临时资产库。
-# ⚠ 临时库放仓库内**相对路径**：rpx-server.exe 是原生 Windows 程序，
-# 不认 MSYS 的 /tmp（mktemp 产物），$TEMP 的反斜杠也会砸碎 sqlite URL。
-PORT=$(( (RANDOM % 2000) + 18000 ))
-ADDR="127.0.0.1:$PORT"
-TMPDB="target/smoke-$$.db"
-CURL=(curl --noproxy '*' -s --max-time 15)
-
-cleanup() {
-  [ -n "${SRV_PID:-}" ] && kill "$SRV_PID" 2>/dev/null
-  rm -f "$TMPDB" "${JF:-}" 2>/dev/null
-}
-trap cleanup EXIT
-
-note "起服务 ${ADDR}（资产库 smoke.db）"
-"$BIN" serve --addr "$ADDR" --db "$TMPDB" >/dev/null 2>&1 &
-SRV_PID=$!
-
-# 轮询 /health（最多 10s）。
-for _ in $(seq 1 20); do
-  H="$("${CURL[@]}" "http://$ADDR/health" 2>/dev/null || true)"
-  [ "$H" = "ok" ] && break
-  sleep 0.5
-done
-[ "$H" = "ok" ] || { fail "服务未就绪（/health=${H}）"; exit 1; }
-note "health ok"
-
-# ① 上传 .rpx（full.rpx 声明两个静态参数）→ 断言 id。
-UP="$("${CURL[@]}" -F "file=@$FIX/full.rpx" "http://$ADDR/reports")"
-echo "$UP" | grep -q '"name":"full"' || fail "上传响应异常：$UP"
-RID="$(printf '%s' "$UP" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')"
-[ -n "$RID" ] || { fail "未拿到 report id：$UP"; exit 1; }
-note "上传 ok（id=${RID}）"
-
-# ② meta：静态参数清单（is_static + 默认值）。
-META="$("${CURL[@]}" "http://$ADDR/reports/$RID/meta")"
-echo "$META" | grep -q '"name":"startDate"' && echo "$META" | grep -q '"is_static":true' \
-  || fail "meta 异常：$META"
-echo "$META" | grep -q '"default_val":"2024-01-01"' || fail "meta 缺默认值：$META"
-note "meta ok（startDate/topN 静态参数）"
-
-# ③ render：GBK 模板 + CSV → 快照键集断言（契约 docs/spec-m4.md §4）。
-RD="$("${CURL[@]}" -F "report=@$FIX/engine_gbk.rpx" -F "dataset=@$FIX/engine_gbk.csv" \
-  "http://$ADDR/render")"
-for key in '"id":"rpx-engine_gbk"' '"sheetOrder"' '"mergeData"' '"cellData"' '"rowData"' '"columnData"' '"pagination"' '"page_w_pt"'; do
-  echo "$RD" | grep -q "$key" || fail "快照缺键 $key"
-done
-echo "$RD" | grep -q '华北' || fail "快照缺中文数据（GBK 过网）"
-note "render ok（快照键集 + 中文数据齐全）"
-
-# ④ 负路径：坏魔数上传必须 400 且不落库。
-JF="target/smoke-junk-$$.rpx"
-printf 'not an rpx' > "$JF"
-BAD="$("${CURL[@]}" -o /dev/null -w '%{http_code}' -F "file=@$JF;filename=junk.rpx" "http://$ADDR/reports")"
-[ "$BAD" = "400" ] || fail "坏魔数应 400，实得 $BAD"
-LIST="$("${CURL[@]}" "http://$ADDR/reports")"
-echo "$LIST" | grep -q 'junk' && fail "坏魔数不得入库：$LIST"
-note "负路径 ok（坏魔数 400 且不入库）"
-
-# ⑤ CLI 冒烟（spec-m2 §9 账项「CLI 无自动化断言」清偿）：真二进制 print。
-#    断言只用 ASCII 锚（matrix/cells/print_setup），不碰中文控制台编码差异。
-CLI="target/debug/rpx-cli.exe"
-[ -x "$CLI" ] || { echo "[e2e] 二进制不存在：$CLI —— 先 cargo build -p rpx-cli"; exit 2; }
-POUT="$("$CLI" print "$FIX/engine_sum.rpx" 2>&1)"
-echo "$POUT" | grep -q '^matrix: ' || fail "CLI print 缺 matrix 行"
-echo "$POUT" | grep -Eq '^cells: [1-9][0-9]* non-default' || fail "CLI print 非空格数断言失败：$(echo "$POUT" | tail -3)"
-echo "$POUT" | grep -q '^print_setup: paper=' || fail "CLI print 缺 print_setup 行"
-if "$CLI" print "$FIX/does-not-exist.rpx" >/dev/null 2>&1; then
-  fail "CLI 读不存在文件应非零退出"
-fi
-note "CLI ok（print 正路径 + 缺文件负路径）"
-
-cleanup
-if [ $FAILED -eq 0 ]; then
-  note "E2E SMOKE: 全绿（上传→meta→render 键集→负路径→CLI print）"
-  exit 0
-fi
-note "E2E SMOKE: 有红项"
-exit 1
+with tempfile.TemporaryDirectory(prefix='rpx-e2e-') as temp:
+    library = Path(temp) / 'reports'
+    cli('library', 'init', library, '--presets')
+    detail = cli('report', 'show', 'complex-master', '--library', library)
+    run = cli('report', 'run', 'complex-master', '--library', library,
+              '--if-match', detail['revision'], '--export', 'csv')
+    assert run['run']['shape']['rows'] == 23
+    assert run['run']['shape']['cols'] == 25
+    with socket.socket() as listener:
+        listener.bind(('127.0.0.1', 0))
+        port = listener.getsockname()[1]
+    addr = f'127.0.0.1:{port}'
+    process = subprocess.Popen([str(bin_dir / ('rpx-server' + suffix)), 'serve', '--library', str(library), '--addr', addr], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    def http(path, method='GET', body=None, revision=None):
+        headers = {'Content-Type': 'application/json'}
+        if revision is not None:
+            headers['If-Match'] = revision
+        request = urllib.request.Request(f'http://{addr}{path}', method=method, headers=headers,
+                                        data=None if body is None else json.dumps(body).encode())
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return response.status, response.read()
+        except urllib.error.HTTPError as error:
+            return error.code, error.read()
+    try:
+        for attempt in range(50):
+            try:
+                if http('/health') == (200, b'ok'):
+                    break
+            except OSError:
+                time.sleep(.1)
+        else:
+            raise AssertionError('server did not start')
+        detail['template']['cells'][0]['text'] = '人工与 agent 共同编辑'
+        path = '/reports/complex-master/template'
+        assert http(path, 'PUT', detail['template'])[0] == 428
+        assert http(path, 'PUT', detail['template'], detail['revision'])[0] == 200
+        assert http(path, 'PUT', detail['template'], detail['revision'])[0] == 412
+        state = json.loads(http('/reports/complex-master')[1])
+        assert state['result_state'] == 'older_revision'
+        # Results remain available when actual business data is absent.
+        (library / 'complex-master/data/complex-master-sales.csv').unlink()
+        run_id = run['run']['run_id']
+        status, workbook = http(f'/reports/complex-master/runs/{run_id}/artifacts/workbook.json')
+        assert status == 200 and workbook == Path(run['workbook']).read_bytes()
+        source = json.loads(http(f'/reports/complex-master/runs/{run_id}/source/template.json')[1])
+        assert source['cells'][0]['text'] != detail['template']['cells'][0]['text']
+        assert http('/render', 'POST', {})[0] == 404
+        assert cli('report', 'runs', 'complex-master', '--library', library)['total'] == 1
+        print('E2E PASS: CLI run 23x25, source save, stale revision, fixed workbook and source snapshot')
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+PY

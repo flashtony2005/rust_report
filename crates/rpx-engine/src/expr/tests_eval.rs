@@ -241,11 +241,20 @@ impl EvalCtx for Fake {
         self.note_row = None;
         self.note_list = None;
     }
-    fn ds_row_note(&self) -> Option<(usize, usize)> {
+    fn ds_row_note(&self) -> Option<(usize, crate::expr::ds::DsCur)> {
         self.note_row
+            .map(|(ds, row)| (ds, crate::expr::ds::DsCur::Row(row)))
     }
-    fn ds_list_note(&self) -> Option<(usize, Vec<usize>)> {
-        self.note_list.clone()
+    fn ds_list_note(&self) -> Option<(usize, Vec<crate::expr::ds::DsCur>)> {
+        self.note_list.as_ref().map(|(ds, rows)| {
+            (
+                *ds,
+                rows.iter()
+                    .copied()
+                    .map(crate::expr::ds::DsCur::Row)
+                    .collect(),
+            )
+        })
     }
 }
 

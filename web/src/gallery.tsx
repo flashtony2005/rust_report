@@ -1,0 +1,102 @@
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import { LifecycleStages } from '@univerjs/core'
+import { mountUniver } from './report'
+import type { PrintWorkbook } from './PrintPreview'
+import { artifact, type GalleryCatalog, type GalleryReport } from './gallery-data'
+import './gallery.css'
+
+const PrintPreview = lazy(() => import('./PrintPreview'))
+type Tab = 'result' | 'definition' | 'sources' | 'checks'
+const tabs: [Tab, string][] = [['result', '报表结果'], ['definition', '模板定义'], ['sources', '数据来源'], ['checks', '运行校验']]
+
+function Result({ workbook }: { workbook: PrintWorkbook }) {
+  const container = useRef<HTMLDivElement>(null)
+  const [error, setError] = useState('')
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    if (!container.current) return
+    setReady(false)
+    const api = mountUniver(container.current, true)
+    try { api.createWorkbook(workbook as Parameters<typeof api.createWorkbook>[0])?.setEditable(false) }
+    catch (error) { setError(String(error)) }
+    if (api.getCurrentLifecycleStage() >= LifecycleStages.Steady) setReady(true)
+    const lifecycle = api.addEvent(api.Event.LifeCycleChanged, ({ stage }) => {
+      if (stage === LifecycleStages.Steady) setReady(true)
+    })
+    return () => { lifecycle.dispose(); api.dispose() }
+  }, [workbook])
+  return <>{error && <p role="alert">{error}</p>}<div className="gallery-sheet" ref={container} aria-label="报表结果画布" aria-busy={!ready} /></>
+}
+
+function Detail({ report }: { report: GalleryReport }) {
+  const [tab, setTab] = useState<Tab>('result')
+  const [workbook, setWorkbook] = useState<PrintWorkbook | null>(null)
+  const [definition, setDefinition] = useState('')
+  const [error, setError] = useState('')
+  const [print, setPrint] = useState(false)
+  useEffect(() => {
+    let current = true
+    if (report.status !== 'succeeded') return
+    void Promise.all([
+      artifact(`${report.base}/workbook.json`).then(r => r.json() as Promise<PrintWorkbook>),
+      artifact(`${report.base}/template.json`).then(r => r.text()),
+    ]).then(([workbook, definition]) => { if (current) { setWorkbook(workbook); setDefinition(definition) } })
+      .catch(error => { if (current) setError(String(error)) })
+    return () => { current = false }
+  }, [report])
+  return <main className="gallery-detail">
+    <div className="gallery-heading">
+      <div><span className="gallery-eyebrow">{report.section}</span><h1>{report.title}</h1><p>{report.description}</p></div>
+      <div className="gallery-actions">
+        <a className="gallery-primary" href={`/?gallery=${encodeURIComponent(report.base)}`}>在设计器中打开 ↗</a>
+        <button disabled={!workbook} onClick={() => setPrint(true)}>打印预览</button>
+      </div>
+    </div>
+    <div className="gallery-context">
+      <div>{report.features.map(feature => <span className="gallery-tag" key={feature}>{feature}</span>)}</div>
+      {report.run && <span>模板 {report.run.template_rows} × {report.run.template_cols} → 结果 {report.run.rows} × {report.run.cols} · {report.run.pages} 页</span>}
+    </div>
+    <div className="gallery-tabs" role="tablist" aria-label="报表视图">
+      {tabs.map(([id, title]) => <button role="tab" key={id} aria-selected={tab === id} onClick={() => setTab(id)}>{title}</button>)}
+      {report.status === 'succeeded' && <div className="gallery-downloads"><a href={`${report.base}/report.xlsx`} download>下载 Excel</a><a href={`${report.base}/report.csv`} download>CSV</a><a href={`${report.base}/template.json`} download>JSON 定义</a></div>}
+    </div>
+    <div className="gallery-body" role="tabpanel" aria-label={tabs.find(([id]) => id === tab)?.[1]}>
+      {(report.error || error) ? <div className="gallery-error" role="alert">{report.error || error}</div> : <>
+        {tab === 'result' && (workbook ? <Result workbook={workbook} /> : <p className="gallery-loading" role="status">正在读取运行结果…</p>)}
+        {tab === 'definition' && <div className="gallery-document"><p>这份 JSON 定义包含数据集、公式、扩展方向和主格关系。可在设计器中修改并下载保存。</p><pre aria-label="JSON 报表定义">{definition}</pre></div>}
+        {tab === 'sources' && <div className="gallery-document"><h2>同一报表的独立数据来源</h2><p>数据集通过名称绑定公式，通过业务键关联。文件和数据库在执行时读取，当前页面展示已经保存的结果。</p>
+          <table><thead><tr><th>数据集</th><th>类型</th><th>文件 / 连接名</th><th>工作表</th><th>附件</th></tr></thead><tbody>{report.run?.inputs.map(input => <tr key={input.name}><td><code>{input.name}</code></td><td>{input.kind}</td><td>{input.file ?? input.dsn}</td><td>{input.sheet ?? '—'}</td><td>{input.file ? <a href={`${report.base}/${encodeURIComponent(input.file)}`} download>下载源文件</a> : '由执行端连接'}</td></tr>)}</tbody></table>
+          <h2>Agent 执行</h2><p>在项目目录运行以下命令，重建示例数据库、计算全部模板并保存新一轮结果；刷新此页查看。</p><pre>bash scripts/build_r_model_gallery.sh</pre><p>数据库 URL 与凭证由执行端的独立配置提供。示例采用两个 SQLite 数据库。</p></div>}
+        {tab === 'checks' && <div className="gallery-document"><h2>{report.run?.checks.length} 项独立预期全部通过</h2><p>逐项对照源数据计算的预期值，覆盖合计、边界、排名和跨来源公式。</p><table><thead><tr><th>检查</th><th>模板原格（行, 列）</th><th>实际值</th><th>状态</th></tr></thead><tbody>{report.run?.checks.map(check => <tr key={check.label}><td>{check.label}</td><td>{check.origin.join(', ')}</td><td><code>{JSON.stringify(check.actual)}</code></td><td className="gallery-passed">通过</td></tr>)}</tbody></table><p className="gallery-run-id">运行 ID：{report.run_id}</p><a href={`${report.base}/result.json`} download>下载带模板出处的计算结果</a> · <a href={`${report.base}/run.json`} download>下载运行记录</a></div>}
+      </>}
+    </div>
+    <footer className="gallery-status"><span className={report.status === 'succeeded' ? 'gallery-passed' : 'gallery-error'}>{report.status === 'succeeded' ? '● 计算及校验通过' : '● 生成失败'}</span><span>结果由 Rust 报表引擎生成 · Univer 只读展示</span></footer>
+    {print && workbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={workbook} onClose={() => setPrint(false)} /></Suspense>}
+  </main>
+}
+
+function Gallery() {
+  const [catalog, setCatalog] = useState<GalleryCatalog | null>(null)
+  const [selected, setSelected] = useState(location.hash.slice(1))
+  const [error, setError] = useState('')
+  useEffect(() => {
+    void artifact('/report-gallery/catalog.json').then(r => r.json() as Promise<GalleryCatalog>).then(catalog => {
+      if (catalog.version !== 1 || !Array.isArray(catalog.reports)) throw new Error('示例索引格式错误')
+      setCatalog(catalog)
+    }).catch(error => setError(`示例尚未生成或读取失败：${String(error)}`))
+    const change = () => setSelected(location.hash.slice(1))
+    window.addEventListener('hashchange', change)
+    return () => window.removeEventListener('hashchange', change)
+  }, [])
+  const active = catalog?.reports.find(report => report.id === selected) ?? catalog?.reports[0]
+  return <div className="gallery-app">
+    <header className="gallery-top"><a href="/gallery.html" className="gallery-brand"><b>RPX</b><span>报表实例库</span></a><span>报表模型 / 多源数据 / 自由格间运算</span><a href="/">打开报表设计器 ↗</a></header>
+    <div className="gallery-layout"><aside className="gallery-sidebar"><div className="gallery-sidebar-title"><strong>模型与实例</strong><span>{catalog?.reports.length ?? '—'} 份</span></div>
+      {catalog && [...new Set(catalog.reports.map(report => report.section))].map(section => <nav aria-label={section} key={section}><h2>{section}</h2>{catalog.reports.filter(report => report.section === section).map(report => <a href={`#${report.id}`} key={report.id} aria-current={active?.id === report.id ? 'page' : undefined}><span>{report.title}</span><small>{report.status === 'succeeded' ? '已生成' : '失败'}</small></a>)}</nav>)}
+      <div className="gallery-sidebar-note">Agent 执行与保存结果<br />在这里观察、校验和修正模板</div>
+    </aside>{active ? <Detail key={active.id} report={active} /> : <main className="gallery-empty"><h1>报表实例库</h1><p role={error ? 'alert' : 'status'}>{error || '正在读取示例目录…'}</p><pre>bash scripts/build_r_model_gallery.sh</pre></main>}</div>
+  </div>
+}
+
+createRoot(document.getElementById('app')!).render(<Gallery />)

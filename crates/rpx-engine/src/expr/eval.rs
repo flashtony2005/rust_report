@@ -39,15 +39,22 @@
 
 use crate::arena::CellId;
 use crate::error::{EngineError, Result};
-use crate::expr::ast::{BinOp, Call, Expr, UnOp};
+use crate::expr::ast::{Call, Expr};
 use crate::value::{single_value, Value};
 
 use super::cellset::{eval_cellset, CellSet};
 use super::ds::DataSet;
 use super::dsfn::{avg_list, ds_call, ds_column, max_list, min_list, sum_list};
-use super::num::{
-    aggregate_cmp, as_bool, num_add, num_cmp, num_div, num_mod, num_mul, num_neg, num_sub, val_eq,
-};
+// ⛔ 运算符的数值原语（`as_bool` / `num_neg` / `val_eq` …）已随
+//    `evaluate_unary`/`evaluate_binary` 一起搬进 `ops`，这里只留区域聚合要用的三个。
+use super::num::{aggregate_cmp, num_add, num_div};
+
+mod date;
+/// 一元 / 二元运算的求值（拆出只为门禁行数 G4，见该模块文档）。
+mod ops;
+pub(crate) mod scope;
+mod tutorial;
+use ops::{evaluate_binary, evaluate_unary};
 
 /// 「空行」哨兵 —— [`EvalCtx::note_ds_row`] 的 `row` 参数专用值。
 ///
@@ -153,14 +160,16 @@ pub trait EvalCtx {
     fn note_ds_row(&mut self, _ds: usize, _row: usize) {}
     /// 记下「本次求值的最终结果是**第 `ds` 号数据集的全量行**，逐元素行号如 `rows`」。
     fn note_ds_list(&mut self, _ds: usize, _rows: &[usize]) {}
+    /// 组身份与行身份共用同一条扩展旁路。
+    fn note_ds_members(&mut self, _ds: usize, _members: &[super::ds::DsCur]) {}
     /// 每次逐格求值**开始前**清空旁路，这样只会留下"这一次求值"的记录。
     fn clear_ds_notes(&mut self) {}
     /// 取出本次求值记下的"单个行"归属（若有）。
-    fn ds_row_note(&self) -> Option<(usize, usize)> {
+    fn ds_row_note(&self) -> Option<(usize, super::ds::DsCur)> {
         None
     }
     /// 取出本次求值记下的"整列"归属（若有）。
-    fn ds_list_note(&self) -> Option<(usize, Vec<usize>)> {
+    fn ds_list_note(&self) -> Option<(usize, Vec<super::ds::DsCur>)> {
         None
     }
 }
@@ -199,9 +208,17 @@ pub fn evaluate(expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
             }
             Ok(Value::List(vs))
         }
-        // Select{}：花括号内容求值（`left` 语义未建模，模块文档已声明）
-        Expr::Select { arg } => evaluate(arg, ctx),
-        // Move/Offset：未支持
+        // Select{}：两种位置（见 `ast.rs` 的变体文档）。带目标的形态是**格集**
+        // （`Value::List`，逐格取值），无目标的是普通前缀花括号。
+        Expr::Select { target: None, arg } => evaluate(arg, ctx),
+        Expr::Select {
+            target: Some(t),
+            arg,
+        } => super::cellset::eval_braced_set(t, arg, ctx),
+        // `Cellx[...]` —— 层次坐标 / 位移坐标 / 根坐标（教程 `056`/`057`/`061`）。
+        // 无 `{}` ⇒ **标量**：定位到多格取第一个（`056_bzbb121` 末段）。
+        Expr::Coord { target, spec } => super::cellset::eval_coord_scalar(target, spec, ctx),
+        // Move/Offset：非格号左操作数的后缀形态（如 `(A1)[2]`），未支持
         Expr::Index { .. } => Err(EngineError::UnsupportedExpr {
             expr: "Move/Offset".into(),
         }),
@@ -221,10 +238,10 @@ fn evaluate_call(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
         return ds_call(c, dsn, ctx);
     }
     match c.name.as_str() {
+        "year" | "month" => date::call(c, ctx),
+        "count" | "to" | "if" | "ifn" | "int" | "seq" | "value" => tutorial::call(c, ctx),
+        "sum" if c.args.len() == 2 => sum_link(c, ctx),
         // ── sum：叶子 / 复合两路（`Sum.java:106-206`）──
-        "sum" if c.param_kind == crate::expr::ast::ParamKind::Colon && c.args.len() == 2 => {
-            sum_link(c, ctx)
-        }
         // ── M2-12：avg / max / min 的 `A:B` 区域形态（单格 else 分支）──
         "avg" | "max" | "min"
             if c.param_kind == crate::expr::ast::ParamKind::Colon && c.args.len() == 2 =>
@@ -364,10 +381,7 @@ fn region_loop(
         CellSet::Single(c) => std::slice::from_ref(c),
         CellSet::Many(v) => v,
     };
-    ctx.save_current(); // `ecs.saveCurrent()`（`Sum.java:150` 等）
-    let r = region_accumulate(cells, value_expr, mode, ctx);
-    ctx.resume_current(); // `finally { ecs.resumeCurrent() }`（失败也回卷）
-    r
+    scope::with_current(ctx, |ctx| region_accumulate(cells, value_expr, mode, ctx))
 }
 
 /// [`region_loop`] 的循环体与收尾（拆出来只为让 `save`/`resume` 的配对一眼可见）。
@@ -452,40 +466,5 @@ fn unwrap_single(v: &Value) -> Option<Value> {
     match single_value(v) {
         None | Some(Value::Null) => None,
         Some(o) => Some(o.clone()),
-    }
-}
-
-fn evaluate_unary(op: UnOp, rhs: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
-    let v = evaluate(rhs, ctx)?;
-    match op {
-        UnOp::Neg => num_neg(&v),
-        UnOp::Pos => Ok(v),
-        UnOp::Not => Ok(Value::Bool(!as_bool(&v)?)),
-        UnOp::Address => Err(EngineError::UnsupportedExpr {
-            expr: "&addr".into(),
-        }),
-    }
-}
-
-fn evaluate_binary(op: BinOp, lhs: &Expr, rhs: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
-    let (a, b) = (evaluate(lhs, ctx)?, evaluate(rhs, ctx)?);
-    match op {
-        BinOp::Add => num_add(&a, &b),
-        BinOp::Sub => num_sub(&a, &b),
-        BinOp::Mul => num_mul(&a, &b),
-        BinOp::Div => num_div(&a, &b),
-        BinOp::Mod => num_mod(&a, &b),
-        BinOp::Eq => Ok(Value::Bool(val_eq(&a, &b))),
-        BinOp::Ne => Ok(Value::Bool(!val_eq(&a, &b))),
-        BinOp::Gt => Ok(Value::Bool(num_cmp(&a, &b)? == std::cmp::Ordering::Greater)),
-        BinOp::Ge => Ok(Value::Bool(num_cmp(&a, &b)? != std::cmp::Ordering::Less)),
-        BinOp::Lt => Ok(Value::Bool(num_cmp(&a, &b)? == std::cmp::Ordering::Less)),
-        BinOp::Le => Ok(Value::Bool(num_cmp(&a, &b)? != std::cmp::Ordering::Greater)),
-        BinOp::And => Ok(Value::Bool(as_bool(&a)? && as_bool(&b)?)),
-        BinOp::Or => Ok(Value::Bool(as_bool(&a)? || as_bool(&b)?)),
-        // Link 单独出现（`A:B` 不在 sum 里）——产品语义是"复合参数"，无独立求值面
-        BinOp::Link | BinOp::Comma | BinOp::In | BinOp::Eval => Err(EngineError::UnsupportedExpr {
-            expr: format!("{op:?}"),
-        }),
     }
 }

@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "grid": { "rows": 5, "cols": 5 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "2026 年度区域 × 季度 × 产品销售交叉表", "merge": { "rows": 1, "cols": 5 }, "bold": true, "font_size": 16, "h_align": "center", "fore_color": "#1F4E79", "back_color": "#DCE6F1" },
+
+    { "row": 2, "col": 1, "text": "报表年度", "bold": true, "h_align": "right" },
+    { "row": 2, "col": 2, "text": "2026" },
+
+    { "row": 3, "col": 1, "text": "区域", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 2, "text": "季度", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 3, "expr": "ds2.select(product:1,,,product)", "extend_mode": "horizontal", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 4, "text": "数量", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 5, "text": "金额（元）", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+
+    { "row": 4, "col": 1, "expr": "ds1.select(region)", "extend_mode": "vertical", "merge_same": "vertical" },
+    { "row": 4, "col": 2, "expr": "ds1.select(quarter)", "extend_mode": "vertical" },
+    { "row": 4, "col": 3, "expr": "sum(ds2.select@r(amount, region==A4 && quarter==B4 && product==C3))", "format": "#,##0.00" },
+    { "row": 4, "col": 4, "expr": "sum(ds2.select@r(qty, region==A4 && quarter==B4))", "format": "#,##0" },
+    { "row": 4, "col": 5, "expr": "sum(ds2.select@r(amount, region==A4 && quarter==B4))", "format": "#,##0.00" },
+
+    { "row": 5, "col": 1, "text": "合计", "bold": true, "h_align": "center", "merge": { "rows": 1, "cols": 2 }, "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 5, "col": 3, "expr": "sum(ds2.select@r(amount, product==C3))", "bold": true, "h_align": "center", "format": "#,##0.00", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 5, "col": 4, "expr": "sum(ds2.select@r(qty))", "bold": true, "h_align": "center", "format": "#,##0", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 5, "col": 5, "expr": "sum(ds2.select@r(amount))", "bold": true, "h_align": "center", "format": "#,##0.00", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } }
+  ],
+  "datasets": [
+    {
+      "name": "ds1",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT e.region AS region, s.quarter AS quarter FROM sales s JOIN emp e ON e.id = s.emp_id GROUP BY e.region_order, e.region, s.quarter ORDER BY e.region_order, s.quarter"
+      }
+    },
+    {
+      "name": "ds2",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT e.region AS region, s.quarter AS quarter, s.product AS product, s.qty AS qty, s.amount AS amount FROM sales s JOIN emp e ON e.id = s.emp_id ORDER BY s.quarter, e.id, s.product"
+      }
+    }
+  ],
+  "row_props": [
+    { "row": 1, "height": 36 },
+    { "row": 3, "height": 24 }
+  ],
+  "col_props": [
+    { "col": 1, "width": 12 },
+    { "col": 2, "width": 8 },
+    { "col": 3, "width": 13 },
+    { "col": 4, "width": 9 },
+    { "col": 5, "width": 15 }
+  ],
+  "print_setup": {
+    "paper_width": 297,
+    "paper_height": 210,
+    "left_margin": 15,
+    "right_margin": 15,
+    "top_margin": 20,
+    "bottom_margin": 20,
+    "row_num_per_page": 30,
+    "copy_count": 1,
+    "zoom_scale": 100
+  }
+}

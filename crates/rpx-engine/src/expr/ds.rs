@@ -33,6 +33,8 @@ pub enum DsCur {
     Root,
     /// 当前指向第 `0` 起第 `i` 行（`Row`）。
     Row(usize),
+    /// 数据集内登记的分组，成员为原始行号。
+    Group(usize),
 }
 
 /// 一个运行时数据集。
@@ -47,6 +49,7 @@ pub struct DataSet {
     pub rows: Vec<Vec<Value>>,
     /// 当前 DsValue 指针。初始 `Root`。
     pub current: DsCur,
+    pub groups: Vec<Vec<usize>>,
     /// Row 路径的 `DsValue.value` 缓存（`row.setValue(...)` 的落点；
     /// 下标与 `rows` 对齐）。`select`/`sum` 的 Row 路径先写这里再返回行。
     pub selected: Vec<Option<Value>>,
@@ -61,6 +64,7 @@ impl DataSet {
             cols: cols.iter().map(|s| s.to_string()).collect(),
             rows,
             current: DsCur::Root,
+            groups: Vec::new(),
             selected: vec![None; n],
         }
     }
@@ -77,8 +81,37 @@ impl DataSet {
             cols: rs.cols,
             rows: rs.rows,
             current: DsCur::Root,
+            groups: Vec::new(),
             selected: vec![None; n],
         }
+    }
+
+    /// 当前组的原始行号；根组包含全部行。
+    pub fn current_rows(&self) -> Vec<usize> {
+        self.rows_of(self.current)
+    }
+
+    pub fn rows_of(&self, current: DsCur) -> Vec<usize> {
+        match current {
+            DsCur::Root => (0..self.rows.len()).collect(),
+            DsCur::Row(i) => {
+                if i < self.rows.len() {
+                    vec![i]
+                } else {
+                    Vec::new()
+                }
+            }
+            DsCur::Group(i) => self.groups.get(i).cloned().unwrap_or_default(),
+        }
+    }
+
+    pub fn intern_group(&mut self, rows: Vec<usize>) -> usize {
+        if let Some(i) = self.groups.iter().position(|g| g == &rows) {
+            return i;
+        }
+        let i = self.groups.len();
+        self.groups.push(rows);
+        i
     }
 
     /// 列名 → 下标（大小写敏感，产品 `getData(String)` 同规）。
@@ -100,7 +133,7 @@ impl DataSet {
     pub fn current_row(&self) -> Option<usize> {
         match self.current {
             DsCur::Row(i) => Some(i),
-            DsCur::Root => None,
+            DsCur::Root | DsCur::Group(_) => None,
         }
     }
 

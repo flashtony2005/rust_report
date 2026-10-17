@@ -35,7 +35,7 @@ use crate::expr::eval::EvalCtx;
 
 /// `getCommonLeftHead(other)`（`ExtNormalCell.java:409-419`）：
 /// 从 `a` 沿左链走，第一个 `isLeftHeadOf(head, b)` 的节点；链尽 → `NONE`。
-fn common_left_head(ctx: &dyn EvalCtx, a: CellId, b: CellId) -> CellId {
+pub(crate) fn common_left_head(ctx: &dyn EvalCtx, a: CellId, b: CellId) -> CellId {
     let mut head = a;
     while head.is_some() {
         if is_left_head_of(ctx, head, b) {
@@ -47,7 +47,7 @@ fn common_left_head(ctx: &dyn EvalCtx, a: CellId, b: CellId) -> CellId {
 }
 
 /// `getCommonTopHead`（`:421-431`）：对称。
-fn common_top_head(ctx: &dyn EvalCtx, a: CellId, b: CellId) -> CellId {
+pub(crate) fn common_top_head(ctx: &dyn EvalCtx, a: CellId, b: CellId) -> CellId {
     let mut head = a;
     while head.is_some() {
         if is_top_head_of(ctx, head, b) {
@@ -90,7 +90,7 @@ pub(crate) fn is_top_head_of(ctx: &dyn EvalCtx, anchor: CellId, sub: CellId) -> 
 
 /// `getCellLeftHead(ExtCell source)`（`:403-409`）：从 `from` 沿链走，找
 /// **出处**等于 `target` 的节点；链尽 → `NONE`。
-fn walk_to_source(ctx: &dyn EvalCtx, from: CellId, target: CellId, top: bool) -> CellId {
+pub(crate) fn walk_to_source(ctx: &dyn EvalCtx, from: CellId, target: CellId, top: bool) -> CellId {
     let mut head = from;
     for _ in 0..4096 {
         if head.is_none() {

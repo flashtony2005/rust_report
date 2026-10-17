@@ -67,7 +67,7 @@ fn scalar_branch(ctx: &mut CalcCtx, id: CellId, result: Value) -> Result<(), Flo
     let mut saved: Option<(usize, Option<DsInstance>)> = None;
     if let Some((d, row)) = note {
         let prev = ctx.ds_spot(d).value; // :462 `ds = value.getDataSet().getCurrent()`
-        let inst = DsInstance::new(d, row);
+        let inst = DsInstance::member(d, row);
         if let Some(rt) = ctx.rt_mut(id) {
             rt.instance = Some(inst); // :463 `this._$4 = result`
         }
@@ -120,7 +120,7 @@ fn list_branch(ctx: &mut CalcCtx, id: CellId, list: Vec<Value>) -> Result<(), Fl
         for (i, v) in list.iter().enumerate() {
             if let Some((d, rows)) = &note {
                 if let Some(&row) = rows.get(i) {
-                    let inst = DsInstance::new(*d, row);
+                    let inst = DsInstance::member(*d, row);
                     if let Some(rt) = ctx.rt_mut(id) {
                         rt.instance = Some(inst); // :410 `this._$4 = value`
                     }
@@ -175,7 +175,7 @@ fn list_branch(ctx: &mut CalcCtx, id: CellId, list: Vec<Value>) -> Result<(), Fl
             (Some((d, rows)), Some(_)) => match rows.get(i) {
                 Some(&row) => {
                     let prev = ctx.ds_spot(*d).value;
-                    let inst = DsInstance::new(*d, row);
+                    let inst = DsInstance::member(*d, row);
                     if let Some(rt) = ctx.rt_mut(cid) {
                         rt.instance = Some(inst); // :453 `cell._$4 = value`
                     }

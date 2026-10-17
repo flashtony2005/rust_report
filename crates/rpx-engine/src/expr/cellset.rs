@@ -38,9 +38,11 @@
 
 use crate::arena::CellId;
 use crate::error::{EngineError, Result};
+use crate::value::Value;
 
 use super::ast::{BinOp, Expr, ParamKind};
 use super::eval::EvalCtx;
+use super::num::as_bool;
 use super::resolve::resolve_cell;
 
 /// `cellSet` 操作数的求值结果（对应产品的 `CSVariable` / `List<ExtCell>`）。
@@ -73,8 +75,124 @@ pub(crate) fn eval_cellset(expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Option<
             lhs,
             rhs,
         } => Ok(Some(CellSet::Many(rect_cells(lhs, rhs, ctx)?))),
+        // `Cellx[坐标]` —— 坐标界定的集合（教程 `058_fzhz128`：
+        // `C2[`0]{}` 返回扩展后的 c2..c12）
+        Expr::Coord { target, spec } => {
+            let src = target_source(target, ctx)?;
+            let cells = super::coord::coord_cells(target, src, spec, ctx)?;
+            Ok(Some(CellSet::Many(cells)))
+        }
+        // `Cellx{}` / `Cellx[坐标]{}` / `Cellx[坐标]{条件}`
+        Expr::Select {
+            target: Some(t),
+            arg,
+        } => Ok(Some(CellSet::Many(select_cells(t, arg, ctx)?))),
+        // 前缀 `{...}`：产品的 `left == null` ⇒ 不是格集
+        Expr::Select { target: None, .. } => Ok(None),
         _ => Ok(None),
     }
+}
+
+/// 目标格号 → **引擎矩阵**格（产品的 `getSource(String)`）。
+pub(crate) fn target_source(target: &str, ctx: &dyn EvalCtx) -> Result<CellId> {
+    ctx.source_by_id(target)
+        .ok_or_else(|| EngineError::UnknownCell {
+            id: target.to_string(),
+        })
+}
+
+/// `Cellx{}` / `Cellx[坐标]{}` / `Cellx[坐标]{条件}` 的**值**形态 —— `Value::List`。
+///
+/// 教程 `058_fzhz128`：「有了 `{}`，就返回该范围内单元格的集合」⇒ 九类值里对应
+/// `Value::List`（逐格取值，顺序 = 坐标界定顺序）。于是 `sum(D2{})` 走的是既有的
+/// `sum(List)` 聚合分支（`Sum.java:106-133`），**不需要在 `sum` 里加特判**。
+pub(crate) fn eval_braced_set(target: &Expr, cond: &Expr, ctx: &mut dyn EvalCtx) -> Result<Value> {
+    values_of(select_cells(target, cond, ctx)?, ctx)
+}
+
+/// `Cellx[...]`（层次 / 位移 / 根坐标）**无 `{}`** 的值形态 —— **标量**。
+///
+/// 定位到多格时取**第一个**（教程 `056_bzbb121` 末段：「如果定位到多个单元格，
+/// 那么返回这些单元格中的第一个单元格的值」）。与 [`eval_braced_set`] 的
+/// 「整个集合」正相反 —— 这一对差异是 `{}` 的全部意义。
+pub(crate) fn eval_coord_scalar(
+    target: &str,
+    spec: &super::coord::Coord,
+    ctx: &mut dyn EvalCtx,
+) -> Result<Value> {
+    let src = target_source(target, ctx)?;
+    let cells = super::coord::coord_cells(target, src, spec, ctx)?;
+    match cells.first() {
+        Some(&c) => ctx.cell_value_checked(c),
+        None => Ok(Value::Null),
+    }
+}
+
+/// 逐格取值成 `Value::List`。走 [`EvalCtx::cell_value_checked`]（过 `testValue()` 门）
+/// —— 与 `CellRef` 的取值路径同一条，不另开裸读口子。
+fn values_of(cells: Vec<CellId>, ctx: &mut dyn EvalCtx) -> Result<Value> {
+    let mut vs = Vec::with_capacity(cells.len());
+    for c in cells {
+        vs.push(ctx.cell_value_checked(c)?);
+    }
+    Ok(Value::List(vs))
+}
+
+/// `Cellx[坐标]{条件}` 的完整求值：坐标界定集合 → 条件过滤（教程 `059_tjhz131`）。
+///
+/// `target` 只接受**格号**（`Cellx`）或坐标节点 —— 教程里 `{}` 永远跟在 `Cellx`
+/// 或 `Cellx[坐标]` 后面；其余形态显式失败，不猜。
+pub(crate) fn select_cells(
+    target: &Expr,
+    cond: &Expr,
+    ctx: &mut dyn EvalCtx,
+) -> Result<Vec<CellId>> {
+    let cells = match target {
+        Expr::CellRef {
+            id,
+            absolute,
+            provisional: _,
+        } => {
+            let src = target_source(id, ctx)?;
+            let coord = super::coord::Coord::default();
+            let _ = absolute;
+            super::coord::coord_cells(id, src, &coord, ctx)?
+        }
+        Expr::Coord { target: id, spec } => {
+            let src = target_source(id, ctx)?;
+            super::coord::coord_cells(id, src, spec, ctx)?
+        }
+        other => {
+            return Err(EngineError::UnsupportedExpr {
+                expr: format!("`{{}}` 的左操作数须是格号或坐标，实得 {other:?}"),
+            })
+        }
+    };
+    filter_by_cond(cells, cond, ctx)
+}
+
+/// 条件过滤：**空 `{}` 不过滤**（教程「中括号里为空时表示全部」）。
+///
+/// 逐格 `saveCurrent()` → `setCurrent(格)` → 求值条件 → `resumeCurrent()`。
+/// 这套两指针操作是 `$Cellx`（`060_fztqb134`「`$B2` 指代当前格的 B2 主格」）
+/// 能工作的**唯一机制**：`$` 走 `resolve_cell(.., saved=true)` 读 `_$20`，
+/// 而 `_$20` 正是循环前 `saveCurrent()` 钉下的"写表达式的那个格"。
+fn filter_by_cond(cells: Vec<CellId>, cond: &Expr, ctx: &mut dyn EvalCtx) -> Result<Vec<CellId>> {
+    // 空 `{}` ⇒ 语法层建的是 `Const(Null)`；`null` 条件恒假，所以必须显式短路，
+    // 否则 `sum(D2{})` 会变成空集（这正是 `058_fzhz128` 的核心用法）。
+    if matches!(cond, Expr::Const(crate::value::Value::Null)) {
+        return Ok(cells);
+    }
+    super::eval::scope::with_current(ctx, |ctx| {
+        let mut out = Vec::new();
+        for c in cells {
+            ctx.set_current(c);
+            if as_bool(&super::eval::evaluate(cond, ctx)?)? {
+                out.push(c);
+            }
+        }
+        Ok(out)
+    })
 }
 
 /// 矩形遍历 —— `Link._$1`（`:78-89`）与 `ValueList._$1`（`:112-119`）的**共同语义**。

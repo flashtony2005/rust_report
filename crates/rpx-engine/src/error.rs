@@ -94,6 +94,16 @@ pub enum EngineError {
     /// [`Flow::Suspend`]（`calc/cell_eval.rs`），通道与 `flow_to_result`
     /// 永远不该见到它 —— 见到即移植层 bug。
     Suspend(crate::eval::Suspend),
+    /// `${名}` / `%{名}` 引用了**未登记**的宏（[`crate::macros`]）。
+    ///
+    /// 与 [`Self::UnknownParam`] 同一条纪律：**显式失败，不静默**。静默留着
+    /// `${x}` 会让它在词法层被拆成 `$` + `{x}`，报出一个与真实原因无关的语法错
+    /// （"因为错的原因得出对的答案"的反面：因为别的原因报错的错）。
+    UnknownMacro { name: String },
+    /// 宏引用本身写坏了（[`crate::macros`]）：缺 `}` / 宏名为空 / 宏之间**成环**
+    /// 超过 [`crate::macros::MAX_ROUNDS`] 轮。与 [`Self::UnsupportedEncoding`] /
+    /// [`Self::MalformedEncoding`] 同款的一对（"不支持" vs "写坏了"）。
+    MalformedMacro { detail: String },
 }
 
 impl fmt::Display for EngineError {
@@ -151,6 +161,12 @@ impl fmt::Display for EngineError {
                 write!(f, "malformed dataset encoding: {detail}")
             }
             EngineError::Suspend(s) => write!(f, "suspend (state {})", s.state),
+            EngineError::UnknownMacro { name } => {
+                write!(f, "unknown macro: ${{{name}}}")
+            }
+            EngineError::MalformedMacro { detail } => {
+                write!(f, "malformed macro reference: {detail}")
+            }
         }
     }
 }

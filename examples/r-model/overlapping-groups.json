@@ -1,0 +1,485 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 7,
+    "cols": 8
+  },
+  "datasets": [
+    {
+      "name": "loans",
+      "file": {
+        "file_name": "loans.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    },
+    {
+      "name": "groups",
+      "file": {
+        "file_name": "sources.xlsx",
+        "encoding": "UTF-8",
+        "sheet_name": "贷款分组"
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 18,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "不良贷款情况分析 · 重叠分组",
+      "merge": {
+        "rows": 1,
+        "cols": 8
+      },
+      "bold": true,
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "地区、其中青岛与重点地区允许重复命中；原因可多重归因，原因合计可能大于不良贷款余额。",
+      "merge": {
+        "rows": 1,
+        "cols": 8
+      },
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "地区 / 自定义分组",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      }
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "贷款余额",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      }
+    },
+    {
+      "row": 3,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "不良贷款余额",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      }
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "不良贷款内部原因（允许重叠）",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "merge": {
+        "rows": 1,
+        "cols": 5
+      }
+    },
+    {
+      "row": 4,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "归因合计",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "三查不落实",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "决策失误",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "期限不当",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "其他",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 5,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "expr": "groups.select(label)",
+      "h_align": "left",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "sum(loans.select(amount,((groups.region=='重点' and (region=='北京' or region=='山东')) or (region==groups.region and (groups.city=='全部' or city==groups.city)))))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "sum(loans.select(bad,((groups.region=='重点' and (region=='北京' or region=='山东')) or (region==groups.region and (groups.city=='全部' or city==groups.city)))))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "E5+F5+G5+H5",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "sum(loans.select(bad,((groups.region=='重点' and (region=='北京' or region=='山东')) or (region==groups.region and (groups.city=='全部' or city==groups.city))) and review==1))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "sum(loans.select(bad,((groups.region=='重点' and (region=='北京' or region=='山东')) or (region==groups.region and (groups.city=='全部' or city==groups.city))) and decision==1))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "sum(loans.select(bad,((groups.region=='重点' and (region=='北京' or region=='山东')) or (region==groups.region and (groups.city=='全部' or city==groups.city))) and term==1))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 5,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "expr": "sum(loans.select(bad,((groups.region=='重点' and (region=='北京' or region=='山东')) or (region==groups.region and (groups.city=='全部' or city==groups.city))) and other==1))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "原始贷款合计（不重复）",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "loans.sum(amount)",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "loans.sum(bad)",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "E6+F6+G6+H6",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "sum(loans.select(bad,review==1))",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "sum(loans.select(bad,decision==1))",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "sum(loans.select(bad,term==1))",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "sum(loans.select(bad,other==1))",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 7,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "合计直接汇总原始贷款，不累加重叠行；青岛同时属于山东与重点地区。",
+      "merge": {
+        "rows": 1,
+        "cols": 8
+      }
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 12
+    },
+    {
+      "row": 2,
+      "height": 9
+    },
+    {
+      "row": 3,
+      "height": 8
+    },
+    {
+      "row": 4,
+      "height": 8
+    },
+    {
+      "row": 5,
+      "height": 8
+    },
+    {
+      "row": 6,
+      "height": 8
+    },
+    {
+      "row": 7,
+      "height": 8
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 32
+    },
+    {
+      "col": 2,
+      "width": 32
+    },
+    {
+      "col": 3,
+      "width": 29
+    },
+    {
+      "col": 4,
+      "width": 29
+    },
+    {
+      "col": 5,
+      "width": 29
+    },
+    {
+      "col": 6,
+      "width": 29
+    },
+    {
+      "col": 7,
+      "width": 29
+    },
+    {
+      "col": 8,
+      "width": 29
+    }
+  ],
+  "print_setup": {
+    "paper_width": 420,
+    "paper_height": 297,
+    "left_margin": 10,
+    "right_margin": 10,
+    "top_margin": 10,
+    "bottom_margin": 10
+  },
+  "printing": {
+    "horizontal_split": false,
+    "vertical_split": false,
+    "border_width": 0.5,
+    "border_color": "#CBD5E1"
+  }
+}

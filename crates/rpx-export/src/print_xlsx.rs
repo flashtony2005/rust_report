@@ -1,0 +1,77 @@
+//! 打印工作簿：一张工作表对应一张引擎页面，保留重复区带与跨页合并。
+use rpx_engine::{
+    arena::CalcGrid,
+    pager::{paginate_with_setup, project_page, unit_to_pt, PrintSetup},
+};
+use rust_xlsxwriter::XlsxError;
+mod graphics;
+pub(crate) mod style;
+
+/// 按模板纸张与页映射导出。错误直接返回，不生成半份工作簿。
+pub fn to_print_xlsx(grid: &CalcGrid, setup: &PrintSetup) -> Result<Vec<u8>, String> {
+    if setup.back_graph_printed && grid.page_background.is_some() {
+        return Err("Excel 不支持打印工作表背景图片；请使用图形与打印预览保存 PDF".into());
+    }
+    let paper = u8::try_from(setup.paper)
+        .map_err(|_| "Excel 不支持此自定义纸张代码；请使用图形与打印预览保存 PDF".to_string())?;
+    let pages = paginate_with_setup(grid, setup).map_err(|e| e.to_string())?;
+    let mut wb = crate::xlsx::new_workbook();
+    let mut data = CalcGrid::new(0, 0);
+    for page in &pages.pages {
+        let local = project_page(grid, page);
+        let ws = wb.add_worksheet();
+        ws.set_name(format!("Page {}", page.page))
+            .map_err(message)?;
+        for (i, &height) in local.row_heights.iter().enumerate() {
+            let pt = unit_to_pt(height, local.unit);
+            if pt > 0.0 {
+                ws.set_row_height(i as u32, pt).map_err(message)?;
+            }
+            if local.row_visible.get(i) == Some(&false) {
+                ws.set_row_hidden(i as u32).map_err(message)?;
+            }
+        }
+        for (i, &width) in local.col_widths.iter().enumerate() {
+            let px = unit_to_pt(width, local.unit) * 96.0 / 72.0;
+            if px > 0.0 {
+                ws.set_column_width_pixels(i as u16, px.round() as u32)
+                    .map_err(message)?;
+            }
+            if local.col_visible.get(i) == Some(&false) {
+                ws.set_column_hidden(i as u16).map_err(message)?;
+            }
+        }
+        crate::xlsx::write_print_sheet(&local, ws);
+        graphics::write(ws, &local.graphics, &mut data)?;
+        if local.rows > 0 && local.cols > 0 {
+            ws.set_print_area(0, 0, (local.rows - 1) as u32, (local.cols - 1) as u16)
+                .map_err(message)?;
+        }
+        ws.set_paper_size(paper);
+        ws.set_margins(
+            f64::from(setup.left_margin) / 25.4,
+            f64::from(setup.right_margin) / 25.4,
+            f64::from(setup.top_margin) / 25.4,
+            f64::from(setup.bottom_margin) / 25.4,
+            0.0,
+            0.0,
+        );
+        if setup.paper_width > setup.paper_height {
+            ws.set_landscape();
+        } else {
+            ws.set_portrait();
+        }
+        ws.set_print_fit_to_pages(1, 1);
+    }
+    if graphics::has_data(&data) {
+        let ws = wb.add_worksheet();
+        ws.set_name("_chart_data").map_err(message)?;
+        ws.set_hidden(true);
+        crate::xlsx::write_sheet(&data, ws);
+    }
+    wb.save_to_buffer().map_err(message)
+}
+
+fn message(error: XlsxError) -> String {
+    error.to_string()
+}

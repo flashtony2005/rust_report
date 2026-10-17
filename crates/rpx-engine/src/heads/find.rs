@@ -92,6 +92,10 @@ pub type HeadResult = Result<CellId, String>;
 pub fn find_left_head<G: HeadGrid>(g: &mut G, cell: CellId) -> HeadResult {
     // ── 分支 A（:633-647）：模板自声明的 leftHead 字符串 ──
     if let Some(id) = non_blank(g.declared_left_head(cell)) {
+        // 教程《多片扩展》的显式根：终止本轴推导，不扫描邻近主格。
+        if id == "`0" {
+            return Ok(g.cell00());
+        }
         let head = g.get_source_by_id(&id);
         if !head.is_none() {
             if !is_left_head_of(g, cell, head) {
@@ -146,6 +150,9 @@ pub fn find_left_head<G: HeadGrid>(g: &mut G, cell: CellId) -> HeadResult {
 pub fn find_top_head<G: HeadGrid>(g: &mut G, cell: CellId) -> HeadResult {
     // ── 分支 A（:670-684） ──
     if let Some(id) = non_blank(g.declared_top_head(cell)) {
+        if id == "`0" {
+            return Ok(g.cell00());
+        }
         let head = g.get_source_by_id(&id);
         if !head.is_none() {
             if !is_top_head_of(g, cell, head) {

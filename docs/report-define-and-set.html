@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>报表如何定义、如何在前端设</title>
+<style>
+:root { --fg:#1f2328; --fg-muted:#57606a; --border:#d8dee4; --bg:#fff;
+  --bg-muted:#f6f8fa; --accent:#0969da; --accent-soft:#ddf4ff;
+  --green:#1a7f37; --green-soft:#dafbe1; --red:#cf222e; --red-soft:#ffebe9;
+  --amber:#9a6700; --amber-soft:#fff8c5; --purple:#8250df; --purple-soft:#fbefff; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg-muted); color:var(--fg);
+  font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+.wrap { max-width:1060px; margin:0 auto; padding:32px 28px 64px; }
+h1 { font-size:26px; margin:0 0 4px; }
+.sub { color:var(--fg-muted); font-size:13px; margin-bottom:24px; }
+h2 { font-size:20px; margin:40px 0 12px; padding-top:16px; border-top:1px solid var(--border); }
+h3 { font-size:16px; margin:22px 0 8px; }
+p { margin:8px 0; } code { background:var(--bg-muted); border:1px solid var(--border);
+  border-radius:4px; padding:0 5px; font:13px/1.5 ui-monospace,"SF Mono",Consolas,monospace; }
+table.grid { border-collapse:collapse; width:100%; margin:10px 0; font-size:13.5px; background:#fff; }
+table.grid th { background:var(--bg-muted); text-align:left; }
+table.grid th, table.grid td { border:1px solid var(--border); padding:6px 10px; vertical-align:top; }
+table.grid tr:nth-child(even) td { background:#fafbfc; }
+pre.json { background:#f6f8fa; border:1px solid var(--border); border-radius:8px;
+  padding:12px 14px; font:12.5px/1.55 ui-monospace,"SF Mono",Consolas,monospace;
+  overflow-x:auto; margin:10px 0; }
+.jkey { color:var(--purple); } .jstr { color:var(--green); }
+.jnum { color:var(--accent); } .jkw { color:var(--red); }
+.callout { border-radius:8px; padding:10px 14px; margin:12px 0; font-size:13.5px; border:1px solid; }
+.callout.blue { background:var(--accent-soft); border-color:#54aeff66; }
+.callout.green { background:var(--green-soft); border-color:#4ac26b66; }
+.callout.amber { background:var(--amber-soft); border-color:#d4a72c66; }
+.callout.red { background:var(--red-soft); border-color:#ff818266; }
+.callout b { font-weight:650; }
+.fig { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; margin:14px 0; }
+.fig .box { flex:1; min-width:120px; border:1.5px solid var(--accent); border-radius:10px;
+  background:var(--accent-soft); padding:9px 8px; text-align:center; font-size:12.5px; }
+.fig .box b { display:block; font-size:13.5px; margin-bottom:3px; }
+.fig .box small { color:var(--fg-muted); font-size:11px; }
+.arrow { align-self:center; color:var(--accent); font-size:18px; font-weight:700; }
+.tag { display:inline-block; border-radius:20px; padding:0 8px; font-size:11.5px;
+  border:1px solid; white-space:nowrap; }
+.tag.req { color:var(--red); border-color:var(--red); background:var(--red-soft); }
+.tag.opt { color:var(--fg-muted); border-color:var(--border); background:var(--bg-muted); }
+.step-num { display:inline-block; width:22px; height:22px; line-height:22px; text-align:center;
+  border-radius:50%; background:var(--accent); color:#fff; font-size:13px; margin-right:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>报表如何定义、如何在前端设</h1>
+<div class="sub">ReportLite Rust 重实现 · 定义 JSON 契约 + Web 设计器全景 · 2026-10-16（HEAD <code>d037719</code>）
+· 契约依据 <code>docs/report-def-json.md</code>，前端依据 <code>web/src/</code>，实例取自 <code>tests/fixtures/</code></div>
+
+<h2>0. 一张图看懂「定义」与「设」</h2>
+
+<div class="fig">
+  <div class="box"><b>定义 JSON</b><small>唯一事实源<br>（可手写 / 面板产出 / 编辑器导出）</small></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>POST /api/render</b><small>report + dataset<br>+ params（multipart）</small></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>渲染引擎</b><small>表达式求值 · 扩展 · 合并</small></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Univer 快照</b><small>上画布 · 可编辑</small></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>导出 / 入库</b><small>「导出 JSON」下载<br>「另存为」→ .rpx</small></div>
+</div>
+<p>设计器闭环：面板与画布的改动<b>补丁进持有的定义 JSON</b> → 点「渲染」用最新 JSON
+重渲染（补丁不丢）→「导出 JSON」拿回文件或「另存为」入库。</p>
+
+<div class="callout blue"><b>核心口径</b>：定义 JSON 是<b>唯一事实源</b> —— 手写、面板产出、
+编辑器导出都是它；渲染只是它的一次快照。前端设计器不重建 JSON、只对它<b>打补丁</b>
+（快照有损：<code>style_json</code> 只暴露 9 字段，边框/format/indent/rotation/extend_mode/
+print_setup 都不在快照里 ⇒ 反推会静默抹掉用户手写字段）。</div>
+
+<h2>1. 报表如何定义（定义 JSON 全字段）</h2>
+
+<h3>1.1 顶层结构</h3>
+
+<table class="grid">
+<tr><th>顶层字段</th><th>必填</th><th>语义</th></tr>
+<tr><td><code>version</code></td><td><span class="tag opt">可选</span></td><td>契约版本（当前 <code>1</code>）</td></tr>
+<tr><td><code>grid</code></td><td><span class="tag req">必填</span></td><td><code>{rows, cols}</code> 网格尺寸（<b>决定报表骨架</b>）</td></tr>
+<tr><td><code>cells[]</code></td><td><span class="tag opt">可选</span></td><td>格子数组：内容（<code>text</code>/<code>expr</code>）+ 样式 + 结构（合并/扩展）</td></tr>
+<tr><td><code>datasets[]</code></td><td><span class="tag opt">可选</span></td><td>数据源（<code>sql</code> 或 <code>file</code> 之一）；表达式里 <code>ds1.xxx</code> 的来源</td></tr>
+<tr><td><code>params[]</code></td><td><span class="tag opt">可选</span></td><td>参数声明（渲染时给值）；<code>@名</code> 在表达式里引用</td></tr>
+<tr><td><code>row_props[]</code></td><td><span class="tag opt">可选</span></td><td><code>{row, height?, break_page?}</code> 行属性（height 单位 <b>mm</b>）</td></tr>
+<tr><td><code>col_props[]</code></td><td><span class="tag opt">可选</span></td><td><code>{col, width?}</code> 列属性（width 单位 <b>mm</b>）</td></tr>
+<tr><td><code>print_setup</code></td><td><span class="tag opt">可选</span></td><td>打印设置 16 字段（纸张/边距/分页/缩放/版面/打印布尔）</td></tr>
+</table>
+
+
+<h3>1.2 <code>grid</code>（网格尺寸）</h3>
+<p>报表骨架 = <code>{rows, cols}</code>。<code>cells[]</code> 的坐标、<code>row_props/col_props</code>
+的下标都必须在 1..=rows/cols 内。⚠ <b>缩小 grid 前必须校验越界</b> —— 既有声明（含合并矩形）
+越界 ⇒ 服务端 400；前端面板显式报错（含首个越界位置），不静默截断。</p>
+
+<h3>1.3 <code>cells[]</code>（格子：内容 + 样式 + 结构）</h3>
+
+<table class="grid">
+<tr><th>字段</th><th>类型</th><th>语义</th></tr>
+<tr><td><code>row</code> / <code>col</code></td><td>整数 <span class="tag req">必填</span></td>
+<td>坐标 <b>1 起</b>（1..=<code>grid.rows/cols</code>）—— ⚠ 快照输出是 0 起，别混</td></tr>
+<tr><td><code>text</code></td><td>字符串</td><td>静态文本；与 <code>expr</code> <b>互斥</b></td></tr>
+<tr><td><code>expr</code></td><td>字符串</td><td>值表达式（如 <code>ds1.select(region)</code>、<code>@topN</code>、<code>B2*2</code>）</td></tr>
+<tr><td><code>bold / italic / underline / font_name / font_size / fore_color / back_color</code></td>
+<td>—</td><td>7 个样式字段（逐字段独立：给了才改，不打回缺省）</td></tr>
+<tr><td><code>border</code></td><td>对象</td><td>四边 <code>{left?,right?,top?,bottom?}</code>，线型 5 种（none/dotted/dashed/solid/double）</td></tr>
+<tr><td><code>format</code></td><td>字符串</td><td>数字格式（如 <code>"#,##0.00"</code>）</td></tr>
+<tr><td><code>indent / rotation</code></td><td>数字</td><td>缩进（≥0）/ 旋转角（度，≥0）</td></tr>
+<tr><td><code>extend_mode</code></td><td>枚举</td><td><code>"vertical"</code>(18) / <code>"horizontal"</code>(19)；缺省 16（运行时自动升竖向）</td></tr>
+<tr><td><code>merge</code></td><td>对象</td><td><code>{rows, cols}</code> 合并矩形（锚点格声明）</td></tr>
+<tr><td><code>merge_same</code></td><td>枚举</td><td><code>"vertical"</code>(98)/<code>"horizontal"</code>(99) 同值合并</td></tr>
+</table>
+
+
+<div class="callout red"><b>三条硬约束（写错就 400，不猜）</b>
+<ol style="margin:6px 0 0; padding-left:20px;">
+<li><b>坐标 1 起</b>：<code>grid</code> 与全部 <code>cells/row_props/col_props</code> 用逻辑坐标；
+快照输出与 xlsx 读回是 0 起 —— 差一格不报错，只是落到隔壁格。</li>
+<li><b><code>text</code> 与 <code>expr</code> 互斥</b>：都给报错；都缺 = 空白格（合法：合并锚点/占位）。</li>
+<li><b>合并矩形内的非锚点槽不得带内容</b>：带 <code>text/expr</code> 报错；空壳容忍
+（Univer 导出会把矩形内每个槽都列出来，这是自然形态）。声明顺序无关（两趟解析）。</li>
+</ol></div>
+
+
+<h3>1.4 <code>datasets[]</code>（数据源）</h3>
+<p>每条给 <code>sql</code> 或 <code>file</code> <b>之一</b>（互斥）：</p>
+<table class="grid">
+<tr><th>形态</th><th>字段</th><th>要点</th></tr>
+<tr><td><code>sql</code></td><td><code>{dsn, sql}</code></td>
+<td><code>dsn</code> 是连接名（服务端 <code>serve --datasources</code> 注册，凭据不进模板）；<code>sql</code> 查询语句</td></tr>
+<tr><td><code>file</code></td><td><code>{file_name, encoding?}</code></td>
+<td>CSV 文件；<code>file_name</code> 须与渲染时上传的文件名逐字一致；<code>encoding</code> 缺省 GBK</td></tr>
+</table>
+<p>数据集名（<code>name</code>）就是表达式里 <code>ds1.select(...)</code> 的前缀。
+重名只告警不拦截（服务端口径）。</p>
+
+<h3>1.5 <code>params[]</code>（参数）</h3>
+<p>每条 <code>{name, data_type, default?, kind?, description?}</code>：<code>kind: "dynamic"</code>
+= 渲染时必须给值（<code>is_static=false</code>）；静态参数有默认值。
+⚠ <b>声明 ≠ 给值</b>：渲染时未传的动态参数会 <b>400</b>（点名缺失参数名），不是静默取 null。
+前端「另存为」后按 <code>GET /reports/{id}/meta</code> 刷新表单，动态行标「动态」。</p>
+
+<h3>1.6 <code>row_props[]</code> / <code>col_props[]</code>（行列属性）</h3>
+<p><code>{row, height?, break_page?}</code> / <code>{col, width?}</code>。<code>height/width</code>
+单位是 <b>mm</b>（与 .rpx 一致：缺省行高 8mm、列宽 25mm）；服务端按 96dpi 换算成 px
+（8mm→30.24px、25mm→94.49px）。字符串形态的 height 契约允许（数字→字面量、字符串→当表达式透传）。</p>
+
+<h3>1.7 <code>print_setup</code>（打印设置 16 字段）</h3>
+<p>纸张（<code>paper_width/height</code>，缺省 A4 210×297mm）、四边距（19/19/25/25mm）、
+<code>row_num_per_page</code>（20）、<code>copy_count</code>（1）、<code>zoom_scale</code>（100）、
+<code>table_column_num/layout_rows/layout_cols</code>（1）、4 个打印布尔（缺省 false）。
+未声明 = 契约缺省（不显式设也生效）。</p>
+
+<h2>2. 三个递进实例（从简到全）</h2>
+
+<h3>2.1 纯样式（无数据源）</h3>
+<pre class="json">{
+  <span class="jkey">&quot;version&quot;</span>: <span class="jnum">1</span>,
+  <span class="jkey">&quot;grid&quot;</span>: {
+    <span class="jkey">&quot;rows&quot;</span>: <span class="jnum">3</span>,
+    <span class="jkey">&quot;cols&quot;</span>: <span class="jnum">2</span>
+  },
+  <span class="jkey">&quot;cells&quot;</span>: [
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;样式演示&quot;</span>,
+      <span class="jkey">&quot;bold&quot;</span>: <span class="jkw">true</span>,
+      <span class="jkey">&quot;fore_color&quot;</span>: <span class="jstr">&quot;#FF0000&quot;</span>,
+      <span class="jkey">&quot;font_size&quot;</span>: <span class="jnum">18</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;普通格&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;斜体格&quot;</span>,
+      <span class="jkey">&quot;italic&quot;</span>: <span class="jkw">true</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">3</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;末行&quot;</span>
+    }
+  ]
+}</pre>
+
+<h3>2.2 参数化 + 合并表头 + 行列属性</h3>
+<pre class="json">{
+  <span class="jkey">&quot;version&quot;</span>: <span class="jnum">1</span>,
+  <span class="jkey">&quot;grid&quot;</span>: {
+    <span class="jkey">&quot;rows&quot;</span>: <span class="jnum">3</span>,
+    <span class="jkey">&quot;cols&quot;</span>: <span class="jnum">2</span>
+  },
+  <span class="jkey">&quot;cells&quot;</span>: [
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;参数化报表演示&quot;</span>,
+      <span class="jkey">&quot;merge&quot;</span>: {
+        <span class="jkey">&quot;rows&quot;</span>: <span class="jnum">1</span>,
+        <span class="jkey">&quot;cols&quot;</span>: <span class="jnum">2</span>
+      },
+      <span class="jkey">&quot;h_align&quot;</span>: <span class="jstr">&quot;center&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;Top N&quot;</span>,
+      <span class="jkey">&quot;h_align&quot;</span>: <span class="jstr">&quot;right&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;expr&quot;</span>: <span class="jstr">&quot;@topN&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">3</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;区域&quot;</span>,
+      <span class="jkey">&quot;h_align&quot;</span>: <span class="jstr">&quot;right&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">3</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;expr&quot;</span>: <span class="jstr">&quot;@region&quot;</span>
+    }
+  ],
+  <span class="jkey">&quot;row_props&quot;</span>: [
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;height&quot;</span>: <span class="jnum">26</span>
+    }
+  ],
+  <span class="jkey">&quot;col_props&quot;</span>: [
+    {
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;width&quot;</span>: <span class="jnum">18</span>
+    },
+    {
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;width&quot;</span>: <span class="jnum">24</span>
+    }
+  ],
+  <span class="jkey">&quot;params&quot;</span>: [
+    {
+      <span class="jkey">&quot;name&quot;</span>: <span class="jstr">&quot;topN&quot;</span>,
+      <span class="jkey">&quot;data_type&quot;</span>: <span class="jstr">&quot;int&quot;</span>,
+      <span class="jkey">&quot;default&quot;</span>: <span class="jstr">&quot;10&quot;</span>,
+      <span class="jkey">&quot;description&quot;</span>: <span class="jstr">&quot;取前 N 名&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;name&quot;</span>: <span class="jstr">&quot;region&quot;</span>,
+      <span class="jkey">&quot;data_type&quot;</span>: <span class="jstr">&quot;string&quot;</span>,
+      <span class="jkey">&quot;kind&quot;</span>: <span class="jstr">&quot;dynamic&quot;</span>,
+      <span class="jkey">&quot;description&quot;</span>: <span class="jstr">&quot;区域（渲染时提供）&quot;</span>
+    }
+  ]
+}</pre>
+
+<h3>2.3 数据 + 纵向扩展 + 合计聚合（完整形态）</h3>
+<pre class="json">{
+  <span class="jkey">&quot;version&quot;</span>: <span class="jnum">1</span>,
+  <span class="jkey">&quot;grid&quot;</span>: {
+    <span class="jkey">&quot;rows&quot;</span>: <span class="jnum">4</span>,
+    <span class="jkey">&quot;cols&quot;</span>: <span class="jnum">2</span>
+  },
+  <span class="jkey">&quot;cells&quot;</span>: [
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;员工工资表&quot;</span>,
+      <span class="jkey">&quot;bold&quot;</span>: <span class="jkw">true</span>,
+      <span class="jkey">&quot;font_size&quot;</span>: <span class="jnum">16</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;姓名&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;工资&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">3</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;expr&quot;</span>: <span class="jstr">&quot;ds1.select(name)&quot;</span>,
+      <span class="jkey">&quot;extend_mode&quot;</span>: <span class="jstr">&quot;vertical&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">3</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;expr&quot;</span>: <span class="jstr">&quot;ds1.select(salary)&quot;</span>,
+      <span class="jkey">&quot;extend_mode&quot;</span>: <span class="jstr">&quot;vertical&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">4</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">1</span>,
+      <span class="jkey">&quot;text&quot;</span>: <span class="jstr">&quot;合计&quot;</span>
+    },
+    {
+      <span class="jkey">&quot;row&quot;</span>: <span class="jnum">4</span>,
+      <span class="jkey">&quot;col&quot;</span>: <span class="jnum">2</span>,
+      <span class="jkey">&quot;expr&quot;</span>: <span class="jstr">&quot;ds1.sum(salary)&quot;</span>
+    }
+  ],
+  <span class="jkey">&quot;datasets&quot;</span>: [
+    {
+      <span class="jkey">&quot;name&quot;</span>: <span class="jstr">&quot;ds1&quot;</span>,
+      <span class="jkey">&quot;sql&quot;</span>: {
+        <span class="jkey">&quot;dsn&quot;</span>: <span class="jstr">&quot;demo&quot;</span>,
+        <span class="jkey">&quot;sql&quot;</span>: <span class="jstr">&quot;SELECT name, salary FROM emp ORDER BY id&quot;</span>
+      }
+    }
+  ]
+}</pre>
+<p>三格的差别就是「设定」的递增：2.1 只有样式；2.2 加参数、合并、行列属性；
+2.3 加数据源、扩展模式与聚合表达式。</p>
+
+<h2>3. 如何在前端设（Web 设计器）</h2>
+
+<h3>3.1 页面结构</h3>
+<p>顶栏（文件选择 + 渲染 / 另存为 / <b>导出 JSON</b>）· 参数表单 · <b>右侧六个停靠面板</b>
+（样式/属性/行列/参数/数据集/报表设置）· 状态栏 · Univer 画布容器。
+「导出 JSON」按钮在无 .json 源时置灰（能力边界可见，而不是点了才报错）。</p>
+
+<h3>3.2 六个面板与补丁语义</h3>
+
+<table class="grid">
+<tr><th>面板（右侧停靠）</th><th>覆盖字段</th><th>补丁方式</th><th>读方向</th></tr>
+<tr><td><b>样式</b></td><td>字体族/字号/颜色/粗斜下划线（7 字段）</td>
+<td>逐字段补丁，改回缺省 ⇒ <b>删键</b></td><td>Univer 活态 + JSON 缺省</td></tr>
+<tr><td><b>属性</b></td><td>边框四边 / 数字格式 / 旋转</td>
+<td>逐键补丁（边框 4 边各自独立）</td><td><b>定义 JSON</b>（快照不含这三项）</td></tr>
+<tr><td><b>行列</b></td><td><code>row_props/col_props</code> + <code>grid</code></td>
+<td>改行高只动该行 <code>height</code>；条目无属性 ⇒ 删整条；grid 缩小先校验越界</td>
+<td>定义 JSON（mm 显示，96dpi 落地画布）</td></tr>
+<tr><td><b>参数</b></td><td><code>params[]</code> 声明 + 渲染时给值</td>
+<td>入库后按 <code>/meta</code> 整体刷新表单</td><td>服务端声明（权威）</td></tr>
+<tr><td><b>数据集</b></td><td><code>datasets[]</code></td>
+<td><b>整条替换</b>（面板编辑的是完整一条，旧键整体作废）</td><td>定义 JSON</td></tr>
+<tr><td><b>报表设置</b></td><td><code>print_setup</code> 16 字段</td>
+<td>逐键补丁，缺省即删键；未声明显示<b>契约缺省</b></td><td>定义 JSON</td></tr>
+</table>
+<p>画布本身 = 内容编辑：直接改单元格 ⇒ <code>SheetValueChanged</code> 事件 ⇒ 只补改过的那一格
+（<code>designer.ts</code> 的四条契约前置错误：越界 / 合并内非锚点 / expr 覆盖 / 网格边界）。</p>
+
+
+<h3>3.3 完整闭环（六步）</h3>
+
+<table class="grid">
+<tr><th>步</th><th>操作</th><th>背后发生什么</th></tr>
+<tr><td><span class="step-num">1</span></td><td>选文件（<code>.json</code> 或 <code>.rpx</code> + CSV）→ 点「渲染」</td>
+<td><code>POST /api/render</code>（multipart）拿快照上画布；<b>同时读定义 JSON 文本持有</b>
+（只有 .json 有；.rpx 是二进制，编辑面不可用并显式告知）</td></tr>
+<tr><td><span class="step-num">2</span></td><td>右侧六面板设定样式/属性/行列/参数/数据集/报表设置</td>
+<td>每个面板的改动逐键/整条补丁进持有的 JSON（补丁不丢的唯一保证：<b>始终持有原始定义</b>）</td></tr>
+<tr><td><span class="step-num">3</span></td><td>画布上直接编辑单元格内容</td>
+<td><code>SheetValueChanged</code> → <code>applyValueEdit</code> → 只补这一格；越界/覆盖 expr 等失败显式上屏</td></tr>
+<tr><td><span class="step-num">4</span></td><td>点「渲染」</td>
+<td>用<b>当前持有的 def</b> 重渲染（刷新画布，补丁不丢）—— 不是重新读文件</td></tr>
+<tr><td><span class="step-num">5</span></td><td>点「另存为」</td>
+<td><code>POST /reports</code>（字段名 <code>file</code>）入库拿 id → 按 <code>/meta</code> 刷新参数表单</td></tr>
+<tr><td><span class="step-num">6</span></td><td>点「导出 JSON」</td>
+<td><code>downloadDefJson</code> 下载定义文件（无 .json 源时按钮置灰）——编辑面的唯一出口</td></tr>
+</table>
+
+
+<h3>3.4 为什么「持有原始 JSON 打补丁」</h3>
+<div class="callout amber"><b>快照有损</b>：服务端 <code>style_json</code> 只暴露 9 个字段
+（bl/it/ul/ff/fs/cl/bg/ht/vt）；边框/format/indent/rotation/extend_mode/print_setup
+<b>不在快照里</b>。⇒ 拿 Univer 当前状态<b>重建</b> JSON 会把这些静默抹掉。
+正确形态：渲染时读定义 JSON 文本<b>持有</b>，所有编辑只对持有的那份打补丁
+（纯函数、只动该动的键、改回缺省删键、幂等）。同理，内容编辑<b>只跟事件只补一格</b>：
+整体回灌会把 <code>"0123"</code> 这类值被 Univer 按数值归一化，没碰过的格也被改坏。</div>
+
+<h2>4. 从零设定一张工资表（端到端配方）</h2>
+<table class="grid">
+<tr><th>步</th><th>定义 JSON 侧</th><th>前端操作</th></tr>
+<tr><td>1</td><td><code>grid: 3×2</code>；表头两格 <code>text</code></td><td>新建/选 JSON 文件渲染</td></tr>
+<tr><td>2</td><td><code>datasets[0]</code>：<code>{name:"ds1", sql:{dsn:"demo", sql:"SELECT name, salary FROM emp ORDER BY id"}}</code></td>
+<td>数据集面板新增一条（校验镜像服务端：dsn/sql 必填）</td></tr>
+<tr><td>3</td><td>两格 <code>expr: "ds1.select(name/salary)"</code> + <code>extend_mode:"vertical"</code></td>
+<td>画布直接输入表达式；属性面板设扩展模式</td></tr>
+<tr><td>4</td><td>末行 <code>expr: "ds1.sum(salary)"</code></td><td>画布输入聚合表达式</td></tr>
+<tr><td>5</td><td>（可选）标题格 <code>bold/font_size</code>；行高 <code>row_props</code></td>
+<td>样式面板 / 行列面板</td></tr>
+<tr><td>6</td><td>—</td><td>「渲染」验证 → 「另存为」入库 →「导出 JSON」拿回文件</td></tr>
+</table>
+<p>判定依据：<code>open_bytes(to_bytes(build(json))) == build(json)</code> —— 定义 JSON 经
+服务端解析 → .rpx 写回 → 重解析必须<b>逐字节相等</b>（往返判据，服务端测试
+<code>definition_roundtrip.rs</code> 同一条）。</p>
+
+<div class="callout green"><b>证据口径</b>：本文字段表逐条取自 <code>docs/report-def-json.md</code>
+§3.1–3.6/§4.x 与 <code>crates/rpx-server/src/reportdef/</code> 实现；前端流程取自
+<code>web/src/App.tsx</code> + <code>panes.tsx</code> + 六个面板模块；实例 JSON 逐字取自夹具。</div>
+
+</div>
+</body>
+</html>

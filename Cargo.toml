@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/rpx-core", "crates/rpx-cli", "crates/rpx-engine", "crates/rpx-export", "crates/rpx-server", "crates/rpx-ds"]
+members = ["crates/rpx-core", "crates/rpx-cli", "crates/rpx-runtime", "crates/rpx-engine", "crates/rpx-export", "crates/rpx-server", "crates/rpx-ds"]
 resolver = "2"
 
 [workspace.package]

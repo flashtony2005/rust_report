@@ -32,6 +32,8 @@ impl SubValue {
 /// 计算态的一格。
 #[derive(Debug, Clone, PartialEq)]
 pub struct CalcCell {
+    /// 本实例真实模板出处。与夹具 `src` 的同坐标查询口径分开。
+    pub origin: (i32, i32),
     /// 计算态行号（1 起）。
     pub row: i32,
     /// 计算态列号（1 起）。
@@ -71,6 +73,7 @@ impl CalcCell {
     /// 一个没有来源信息、没有显示值、没有 head 的格。
     pub fn bare(row: i32, col: i32, value: Value) -> Self {
         Self {
+            origin: (row, col),
             row,
             col,
             value,
@@ -85,6 +88,7 @@ impl CalcCell {
     /// 一个"只有显示值"的格 —— `value` 为 null 但 `disp_value` 非空（`engine_disp` 的形态）。
     pub fn display_only(row: i32, col: i32, disp_value: String) -> Self {
         Self {
+            origin: (row, col),
             row,
             col,
             value: Value::Null,
@@ -174,6 +178,13 @@ impl MergedCell {
 /// 计算态网格（`expected.json` 的 `calculated` 段 + `merged` 段 + `pagination` 段）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct CalcGrid {
+    pub print_styles: std::collections::BTreeMap<(i32, i32), crate::pager::style::PrintStyle>,
+    pub print_options: crate::pager::options::PrintOptions,
+    /// 计算完成后的打印设置，含动态每页行数。
+    pub print_setup: rpx_core::print_setup::PrintSetup,
+    /// 已按各宿主实例的分组作用域计算的数据图形。
+    pub graphics: Vec<crate::graphics::Graphic>,
+    pub page_background: Option<String>,
     /// 数据行数（不含表头行，与 `expected.json` 的 `calculated.rows` 同口径）。
     pub rows: i32,
     /// 数据列数。
@@ -205,6 +216,10 @@ pub struct CalcGrid {
     pub col_widths: Vec<f32>,
     /// 计算态每行的 `rowType`（`-90` = 分组头；`-91` = 普通）。
     pub row_types: Vec<i8>,
+    /// 分组表头级别，扩展后仍按模板继承。
+    pub row_group_levels: Vec<i8>,
+    /// 数据列与左右表头的类型。
+    pub col_types: Vec<i8>,
     /// 计算态每行是否可见（模板值由扩展行头继承，属性 key 2 可覆盖）。
     pub row_visible: Vec<bool>,
     /// 每行是否在其后强制分页（key 13 / RowCell.breakPage）。
@@ -236,6 +251,11 @@ impl CalcGrid {
     /// 新建空网格（单页、无几何）。
     pub fn new(rows: i32, cols: i32) -> Self {
         Self {
+            graphics: Vec::new(),
+            print_styles: Default::default(),
+            print_options: Default::default(),
+            print_setup: rpx_core::print_setup::PrintSetup::default_values(),
+            page_background: None,
             rows,
             cols,
             cells: Vec::new(),
@@ -245,6 +265,8 @@ impl CalcGrid {
             row_heights: Vec::new(),
             col_widths: Vec::new(),
             row_types: Vec::new(),
+            row_group_levels: Vec::new(),
+            col_types: Vec::new(),
             row_visible: Vec::new(),
             row_break_page: Vec::new(),
             row_break_column: Vec::new(),

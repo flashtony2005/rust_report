@@ -58,6 +58,7 @@ mod json;
 mod num;
 mod pagination;
 mod val;
+pub use val::render_value;
 
 /// 与 `engine_*.expected.json` 同 schema 的**顶层文档**：`calculated` + `pagination` + `merged`。
 ///

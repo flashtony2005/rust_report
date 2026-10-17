@@ -93,23 +93,39 @@ fn a_computed_offset_expression_is_accepted() {
 
 #[test]
 fn bare_offset_without_a_column_is_refused_at_eval_time() {
-    // O7：产品返回 DataSet 对象（无实用对拍形态）。新设计（parse_bp 后缀分流）：
-    // 裸 `ds1[2]` 无 `.列` 后缀 ⇒ 落 Index（Move/Offset 形态）⇒ eval 显式报错，
-    // 不猜。`A1[2]` 同路径（既有口径不变）。
+    // O7：产品返回 DataSet 对象（无实用对拍形态）。M7-8 起「格号 + `[...]`」统一
+    // 走 `Expr::Coord`（坐标），所以裸 `ds1[2]` 在求值期报 **UnknownCell{"ds1"}**
+    // —— 显式失败，不猜（`ds1` 不是引擎矩阵里的格号）。
     let e = parse("ds1[2]").unwrap();
+    assert!(matches!(e, crate::expr::Expr::Coord { .. }), "应为坐标节点");
     let mut f = Fake::new();
     f.push_ds(probe_ds());
     let err = evaluate(&e, &mut f).unwrap_err();
     assert!(
-        err.to_string().contains("Move/Offset"),
-        "应报 Move/Offset 不支持，实得：{err}"
+        err.to_string().contains("ds1"),
+        "应点名 ds1 不是格号，实得：{err}"
     );
 }
 
 #[test]
-fn cell_id_with_bracket_still_takes_the_move_path() {
-    // 行为不变：`A1[2]` 是 Move/Offset 形态，eval 仍报 UnsupportedExpr
+fn cell_id_with_bracket_is_a_coordinate_against_the_engine_matrix() {
+    // M7-8 行为变更：`A1[2]` 不再落 Move/Offset 兜底，而是**坐标**。
+    // 假网格里没有 A1 ⇒ 求值报 UnknownCell（显式失败；有真网格时按层次坐标解析）。
     let e = parse("A1[2]").unwrap();
+    assert!(matches!(e, crate::expr::Expr::Coord { .. }), "应为坐标节点");
+    let mut f = Fake::new();
+    let err = evaluate(&e, &mut f).unwrap_err();
+    assert!(err.to_string().contains("A1"), "{err}");
+}
+
+/// `[...]` 挂在**非格号**左操作数上时仍走 `Expr::Index` 兜底（`Move`/`Offset` 未实现）。
+#[test]
+fn parenthesised_postfix_keeps_the_move_stub() {
+    let e = parse("(1+2)[1]").unwrap();
+    assert!(
+        matches!(e, crate::expr::Expr::Index { .. }),
+        "非格号左操作数 ⇒ Move/Offset 兜底形态"
+    );
     let mut f = Fake::new();
     let err = evaluate(&e, &mut f).unwrap_err();
     assert!(err.to_string().contains("Move/Offset"), "{err}");

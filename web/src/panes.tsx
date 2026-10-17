@@ -24,9 +24,8 @@ import {
   rowBreakPage,
   rowHeightMm,
 } from './rowcol'
-import { datasetSummary, datasetsOf, type DatasetInput } from './datasets'
 import { PRINT_SETUP_DEFAULTS } from './reportsetup'
-import type { ParamRow } from './report'
+import TemplateParameters from './TemplateParameters'
 import type { ReportDef } from './designer'
 
 /** W2-3：边框四边的中文标签（原 App.tsx 常量，随属性块搬迁）。 */
@@ -96,15 +95,7 @@ export type PaneApi = {
   gridDraft: { rows: number; cols: number }
   setGridDraft: (fn: (g: { rows: number; cols: number }) => { rows: number; cols: number }) => void
   onGridResize: () => void
-  // 参数（W1-2）
-  params: ParamRow[]
-  setParams: (fn: (rows: ParamRow[]) => ParamRow[]) => void
-  setRow: (i: number, patch: Partial<ParamRow>) => void
-  // 数据集（W2-5）
-  dsDraft: DatasetInput
-  setDsDraft: (fn: (d: DatasetInput) => DatasetInput) => void
-  onDatasetAdd: () => void
-  onDatasetRemove: (i: number) => void
+  onParametersChange: (def: ReportDef) => void
   // 报表设置（W3-1）
   setupPanel: Record<keyof typeof PRINT_SETUP_DEFAULTS, number | boolean>
   onSetupChange: (field: keyof typeof PRINT_SETUP_DEFAULTS, value: number | boolean) => void
@@ -158,7 +149,7 @@ function Pane({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** 右侧停靠属性面板本体。 */
-export default function SidePanes({ api }: { api: PaneApi }) {
+export default function SidePanes({ api, cellEditor, datasetEditor }: { api: PaneApi; cellEditor: ReactNode; datasetEditor: ReactNode }) {
   return (
     <div
       data-testid="side-panes"
@@ -170,6 +161,8 @@ export default function SidePanes({ api }: { api: PaneApi }) {
         background: '#fff',
       }}
     >
+      {cellEditor}
+      {datasetEditor}
       <Pane title="样式">
 
         <span style={{ color: 'var(--rpx-fg-muted)' }}>样式</span>
@@ -474,275 +467,7 @@ export default function SidePanes({ api }: { api: PaneApi }) {
         ) : null}
       </Pane>
       <Pane title="报表参数">
-
-        <span style={{ color: 'var(--rpx-fg-muted)', marginRight: 8 }}>
-          报表参数（未登记的参数服务端会显式报错）
-        </span>
-        {api.params.map((row, i) => (
-          <span
-            key={i}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 10 }}
-          >
-            <input
-              placeholder="参数名"
-              value={row.name}
-              onChange={(e) => api.setRow(i, { name: e.target.value })}
-              style={{
-                width: 110,
-                fontSize: 13,
-                padding: '3px 6px',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-              }}
-            />
-            <input
-              placeholder="值"
-              value={row.value}
-              onChange={(e) => api.setRow(i, { value: e.target.value })}
-              style={{
-                width: 130,
-                fontSize: 13,
-                padding: '3px 6px',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-              }}
-            />
-            {/* 动态/属性参数标注（W1-2）：值须渲染时由用户或上游提供。 */}
-            {row.dynamic ? (
-              <span
-                title="动态参数：is_static=false，渲染时须提供值"
-                style={{
-                  fontSize: 11,
-                  padding: '1px 6px',
-                  borderRadius: 8,
-                  border: '1px solid var(--rpx-accent)',
-                  color: 'var(--rpx-accent)',
-                }}
-              >
-                动态
-              </span>
-            ) : null}
-            <button
-              aria-label="删除参数"
-              title="删除参数"
-              onClick={() => api.setParams((rows) => rows.filter((_, j) => j !== i))}
-              style={{
-                width: 22,
-                height: 22,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-                background: '#fff',
-                cursor: 'pointer',
-              }}
-            >
-              {/* 删除图标：内联 SVG（16px，统一描边） */}
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M4 4l8 8M12 4l-8 8"
-                  stroke="var(--rpx-danger)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </span>
-        ))}
-        <button
-          onClick={() => api.setParams((rows) => [...rows, { name: '', value: '' }])}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            fontSize: 13,
-            padding: '3px 10px',
-            border: '1px solid var(--rpx-border)',
-            borderRadius: 4,
-            background: '#fff',
-            color: 'var(--rpx-fg)',
-            cursor: 'pointer',
-          }}
-        >
-          {/* 添加图标：内联 SVG（16px，统一描边） */}
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M8 3v10M3 8h10"
-              stroke="var(--rpx-accent)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-          添加参数
-        </button>
-      </Pane>
-      <Pane title="数据集">
-
-        <span style={{ color: 'var(--rpx-fg-muted)' }}>数据集</span>
-        {(api.def ? datasetsOf(api.def) : []).map((d, i) => (
-          <span
-            key={i}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 4 }}
-          >
-            <span
-              title={datasetSummary(d)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '2px 8px',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-                background: '#fff',
-              }}
-            >
-              <b style={{ fontWeight: 600 }}>{d.name ?? '（无名）'}</b>
-              <span style={{ color: 'var(--rpx-fg-muted)' }}>{datasetSummary(d)}</span>
-            </span>
-            <button
-              aria-label={`删除数据集 ${d.name ?? i + 1}`}
-              title="删除该数据集"
-              onClick={() => api.onDatasetRemove(i)}
-              style={{
-                width: 20,
-                height: 20,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid var(--rpx-border)',
-                borderRadius: 4,
-                background: '#fff',
-                cursor: api.panelDisabled ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M4 4l8 8M12 4l-8 8"
-                  stroke="var(--rpx-danger)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </span>
-        ))}
-        {/* 添加行：name + 类型（文件/SQL）+ 按类型的字段。 */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <input
-            placeholder="数据集名（可空）"
-            value={api.dsDraft.name ?? ''}
-            disabled={api.panelDisabled}
-            onChange={(e) => api.setDsDraft((d) => ({ ...d, name: e.target.value }))}
-            style={{ ...panelInputStyle, width: 110 }}
-          />
-          <select
-            value={api.dsDraft.file !== undefined ? 'file' : 'sql'}
-            disabled={api.panelDisabled}
-            title="数据集类型：文件（CSV）或 SQL"
-            onChange={(e) =>
-              api.setDsDraft((d) =>
-                e.target.value === 'file'
-                  ? { name: d.name, file: { file_name: '', encoding: 'GBK' } }
-                  : { name: d.name, sql: { dsn: '', sql: '' } },
-              )
-            }
-            style={panelInputStyle}
-          >
-            <option value="file">文件</option>
-            <option value="sql">SQL</option>
-          </select>
-          {api.dsDraft.file !== undefined ? (
-            <>
-              <input
-                placeholder="CSV 文件名（须与上传一致）"
-                value={api.dsDraft.file.file_name}
-                disabled={api.panelDisabled}
-                onChange={(e) =>
-                  api.setDsDraft((d) => ({
-                    ...d,
-                    file: { ...d.file!, file_name: e.target.value },
-                  }))
-                }
-                style={{ ...panelInputStyle, width: 170 }}
-              />
-              <select
-                value={api.dsDraft.file.encoding ?? 'GBK'}
-                disabled={api.panelDisabled}
-                title="CSV 编码（缺省 GBK）"
-                onChange={(e) =>
-                  api.setDsDraft((d) => ({
-                    ...d,
-                    file: { file_name: d.file!.file_name, encoding: e.target.value },
-                  }))
-                }
-                style={panelInputStyle}
-              >
-                <option value="GBK">GBK</option>
-                <option value="UTF-8">UTF-8</option>
-              </select>
-            </>
-          ) : (
-            <>
-              <input
-                placeholder="数据源名 dsn"
-                value={api.dsDraft.sql?.dsn ?? ''}
-                disabled={api.panelDisabled}
-                onChange={(e) =>
-                  api.setDsDraft((d) => ({
-                    ...d,
-                    sql: { dsn: e.target.value, sql: d.sql?.sql ?? '' },
-                  }))
-                }
-                style={{ ...panelInputStyle, width: 110 }}
-              />
-              <input
-                placeholder="SQL 语句"
-                value={api.dsDraft.sql?.sql ?? ''}
-                disabled={api.panelDisabled}
-                onChange={(e) =>
-                  api.setDsDraft((d) => ({
-                    ...d,
-                    sql: { dsn: d.sql?.dsn ?? '', sql: e.target.value },
-                  }))
-                }
-                style={{ ...panelInputStyle, width: 190 }}
-              />
-            </>
-          )}
-          <button
-            onClick={api.onDatasetAdd}
-            disabled={api.panelDisabled}
-            title="把草稿追加进定义 JSON 的 datasets[]"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 13,
-              padding: '3px 10px',
-              border: '1px solid var(--rpx-border)',
-              borderRadius: 4,
-              background: '#fff',
-              color: api.panelDisabled ? 'var(--rpx-fg-muted)' : 'var(--rpx-fg)',
-              cursor: api.panelDisabled ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M8 3v10M3 8h10"
-                stroke="var(--rpx-accent)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            添加
-          </button>
-        </span>
-        {api.panelDisabled ? (
-          <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
-            仅定义 JSON（.json）报表源可改
-          </span>
-        ) : null}
+        <TemplateParameters def={api.def} disabled={api.panelDisabled} onChange={api.onParametersChange} />
       </Pane>
       <Pane title="报表设置">
 

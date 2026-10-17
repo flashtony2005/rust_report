@@ -1,0 +1,170 @@
+{
+  "grid": {
+    "rows": 4,
+    "cols": 5
+  },
+  "datasets": [
+    {
+      "name": "ds1",
+      "file": {
+        "file_name": "sales.csv",
+        "encoding": "UTF-8"
+      }
+    }
+  ],
+  "macros": {
+    "amountColumn": "ds1.amount"
+  },
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "text": "区域销售 · 分组图形与打印",
+      "merge": {
+        "rows": 1,
+        "cols": 5
+      },
+      "font_size": 18,
+      "bold": true
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "text": "区域",
+      "bold": true
+    },
+    {
+      "row": 2,
+      "col": 2,
+      "text": "城市",
+      "bold": true
+    },
+    {
+      "row": 2,
+      "col": 3,
+      "text": "金额",
+      "bold": true
+    },
+    {
+      "row": 2,
+      "col": 4,
+      "text": "组内排名",
+      "bold": true
+    },
+    {
+      "row": 2,
+      "col": 5,
+      "text": "销售分布",
+      "bold": true
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "expr": "ds1.group(department)"
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "expr": "ds1.select(item)"
+    },
+    {
+      "row": 3,
+      "col": 3,
+      "expr": "${amountColumn}"
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "expr": "count(C3[A3]{C3>$C3})+1"
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "left_head": "A3",
+      "data_type": "chart",
+      "chart": {
+        "type": "column",
+        "title": "=A3",
+        "categories": "=B3{}",
+        "series": [
+          {
+            "name": "金额",
+            "values": "=C3{}"
+          }
+        ],
+        "width": 270,
+        "height": 180,
+        "appearance": {
+          "colors": [
+            "#4d6b88"
+          ],
+          "legend": "none",
+          "margins": [
+            35,
+            15,
+            20,
+            20
+          ]
+        }
+      }
+    },
+    {
+      "row": 4,
+      "col": 1,
+      "text": "合计"
+    },
+    {
+      "row": 4,
+      "col": 3,
+      "expr": "sum(C3{})"
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "type": "title",
+      "height": 10
+    },
+    {
+      "row": 2,
+      "type": "table_header",
+      "height": 7
+    },
+    {
+      "row": 4,
+      "type": "table_footer",
+      "height": 8
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 16
+    },
+    {
+      "col": 2,
+      "width": 16
+    },
+    {
+      "col": 3,
+      "width": 16
+    },
+    {
+      "col": 4,
+      "width": 20
+    },
+    {
+      "col": 5,
+      "width": 72
+    }
+  ],
+  "print_setup": {
+    "pager_style": "rows",
+    "row_num_per_page": 3
+  },
+  "printing": {
+    "border_width": 0.4,
+    "border_color": "#CBD2D9",
+    "auto_size": true
+  }
+}

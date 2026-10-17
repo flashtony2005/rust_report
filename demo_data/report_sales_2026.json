@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "grid": { "rows": 6, "cols": 7 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "2026 年度区域销售综合报表", "merge": { "rows": 1, "cols": 7 }, "bold": true, "font_size": 16, "h_align": "center", "fore_color": "#1F4E79", "back_color": "#DCE6F1" },
+
+    { "row": 2, "col": 1, "text": "报表年度", "bold": true, "h_align": "right" },
+    { "row": 2, "col": 2, "expr": "@year" },
+    { "row": 2, "col": 3, "text": "区域", "bold": true, "h_align": "right" },
+    { "row": 2, "col": 4, "expr": "@area" },
+    { "row": 2, "col": 5, "text": "币种", "bold": true, "h_align": "right" },
+    { "row": 2, "col": 6, "text": "人民币（元）" },
+    { "row": 2, "col": 7, "text": "制表：演示数据" },
+
+    { "row": 3, "col": 1, "text": "区域", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 2, "text": "员工编号", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 3, "text": "姓名", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 4, "text": "产品", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 5, "text": "季度", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 6, "text": "数量", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 7, "text": "金额（元）", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+
+    { "row": 4, "col": 1, "expr": "ds1.select(region)", "extend_mode": "vertical", "merge_same": "vertical" },
+    { "row": 4, "col": 2, "expr": "ds1.select(emp_id)", "extend_mode": "vertical", "merge_same": "vertical" },
+    { "row": 4, "col": 3, "expr": "ds1.select(name)", "extend_mode": "vertical", "merge_same": "vertical" },
+    { "row": 4, "col": 4, "expr": "ds1.select(product)", "extend_mode": "vertical" },
+    { "row": 4, "col": 5, "expr": "ds1.select(quarter)", "extend_mode": "vertical", "h_align": "center" },
+    { "row": 4, "col": 6, "expr": "ds1.select(qty)", "extend_mode": "vertical", "format": "#,##0" },
+    { "row": 4, "col": 7, "expr": "ds1.select(amount)", "extend_mode": "vertical", "format": "#,##0.00" },
+
+    { "row": 5, "col": 1, "text": "合计", "bold": true, "h_align": "center", "merge": { "rows": 1, "cols": 5 }, "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 5, "col": 6, "expr": "ds1.sum(qty)", "bold": true, "h_align": "center", "format": "#,##0", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 5, "col": 7, "expr": "ds1.sum(amount)", "bold": true, "h_align": "center", "format": "#,##0.00", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+
+    { "row": 6, "col": 1, "text": "平均每笔", "bold": true, "h_align": "center", "merge": { "rows": 1, "cols": 5 }, "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 6, "col": 6, "expr": "ds1.avg(qty)", "bold": true, "h_align": "center", "format": "#,##0.00", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 6, "col": 7, "expr": "ds1.avg(amount)", "bold": true, "h_align": "center", "format": "#,##0.00", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } }
+  ],
+  "datasets": [
+    {
+      "name": "ds1",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT e.region AS region, e.id AS emp_id, e.name AS name, s.product AS product, s.quarter AS quarter, s.qty AS qty, s.amount AS amount FROM emp e JOIN sales s ON s.emp_id = e.id ORDER BY e.region_order, e.id, s.product, s.quarter"
+      }
+    }
+  ],
+  "params": [
+    { "name": "year", "data_type": "int", "default": "2026", "description": "报表年度" },
+    { "name": "area", "data_type": "string", "kind": "dynamic", "default": "全部区域", "description": "区域（渲染时由参数表单提供；本演示模板不参与过滤，仅展示）" }
+  ],
+  "row_props": [
+    { "row": 1, "height": 36 },
+    { "row": 3, "height": 24 }
+  ],
+  "col_props": [
+    { "col": 1, "width": 10 },
+    { "col": 2, "width": 10 },
+    { "col": 3, "width": 12 },
+    { "col": 4, "width": 14 },
+    { "col": 5, "width": 8 },
+    { "col": 6, "width": 10 },
+    { "col": 7, "width": 14 }
+  ],
+  "print_setup": {
+    "paper_width": 210,
+    "paper_height": 297,
+    "left_margin": 19,
+    "right_margin": 19,
+    "top_margin": 25,
+    "bottom_margin": 25,
+    "row_num_per_page": 40,
+    "copy_count": 1,
+    "zoom_scale": 100
+  }
+}

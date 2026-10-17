@@ -49,8 +49,8 @@
 //!    `fltExp` 与 `selectExp`，多写的参数**静默失效**（探针 T1 的
 //!    num/去重/降序变体实证）。
 
-mod decode;
-mod rows;
+pub(crate) mod decode;
+pub(crate) mod rows;
 
 use crate::error::{EngineError, Result};
 use crate::expr::ast::{Call, Expr};
@@ -77,7 +77,7 @@ pub(super) fn missing(dsn: &str) -> EngineError {
 /// `ds.getCurrentData(colNo)`。本仓的 [`Expr::Unknown`] 不携带 ds 信息
 /// （独立出现会被 `evaluate` 拒绝，`eval.rs:179`）⇒ 递归改写成
 /// [`Expr::DsColumn`]：Row 态取值与 `getCurrentData` 逐字等价
-/// （`dsfn::ds_column` 与 `dsfn::ds_current_data` 同一实现路径）；
+/// （`dsfn::ds_column` 是统一实现路径）；
 /// Root 态走产品 currentRow 光标（`DataSet.java:395-410`，见
 /// `dsfn::root_current_data`）。
 ///
@@ -99,18 +99,35 @@ pub(super) fn bind_ds(e: &Expr, dsn: &str) -> Expr {
             lhs: Box::new(bind_ds(lhs, dsn)),
             rhs: Box::new(bind_ds(rhs, dsn)),
         },
+        // 普通函数共享外层数据集；限定调用由自己的参数树绑定，不能穿透。
+        Expr::Call(call) if call.qualifier.is_none() => {
+            let mut call = call.clone();
+            call.args = call.args.iter().map(|arg| bind_ds(arg, dsn)).collect();
+            Expr::Call(call)
+        }
+        Expr::ValueList { kind, items } => Expr::ValueList {
+            kind: *kind,
+            items: items.iter().map(|item| bind_ds(item, dsn)).collect(),
+        },
         other => other.clone(),
     }
 }
 
 /// 绑定数据集后求值（产品「参数树整体带 ds」的统一入口）。
-pub(super) fn eval_bound(e: &Expr, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Value> {
+pub(crate) fn eval_bound(e: &Expr, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Value> {
     evaluate(&bind_ds(e, dsn), ctx)
 }
 
 /// `ds.select(...)` 主入口（`DSSelect.calculate`，`:27-209`）。
 pub(crate) fn ds_select(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Value> {
-    let sel: SelectArgs = decode(c, ctx)?;
+    let saved = ctx.ds(dsn).ok_or_else(|| missing(dsn))?.current;
+    let result = select(c, dsn, ctx);
+    ctx.ds(dsn).ok_or_else(|| missing(dsn))?.set_current(saved);
+    result
+}
+
+fn select(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Value> {
+    let sel: SelectArgs = decode(c, ctx, 4)?;
     let opt = c.option.as_deref().unwrap_or("");
     // `option` 含 `r`(114) ⇒ 跳过 Row 分支强制走 Root（`:146-158`）
     let force_root = opt.contains('r');
@@ -162,11 +179,14 @@ pub(crate) fn ds_select(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Va
     }
 
     // ── Root 态（`:155-208`）──
-    let n = {
+    let mut idx = {
         let set = ctx.ds(dsn).ok_or_else(|| missing(dsn))?;
-        set.rows.len()
+        if force_root {
+            (0..set.rows.len()).collect()
+        } else {
+            set.current_rows()
+        }
     };
-    let mut idx: Vec<usize> = (0..n).collect();
 
     // filter（`Group.filter:201-263`）。⛔ 只实现**逐行 test** 路径；
     // `option` 含 `b`(98) 且条件是「本数据集列 == 外部值」的 Equals/And 树时
@@ -248,8 +268,10 @@ pub(crate) fn ds_select(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Va
     // size / num 逻辑（`:172-208`）
     let size = idx.len();
     if size == 0 {
-        // `getNullRow()`：空 List 在格侧只清值（`cell_eval/extend.rs:100-103`），
-        // 无 DsValue 身份可钉 ⇒ 不记旁路。
+        // 空选择仍有 NullRow 身份；否则整片克隆会继承上一片的真实记录。
+        if let Some(ds) = ctx.ds_index(dsn) {
+            ctx.note_ds_row(ds, NULL_ROW_NOTE);
+        }
         return Ok(Value::Null);
     }
     if size == 1 || sel.num == 1 {

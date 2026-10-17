@@ -196,11 +196,21 @@ impl EvalCtx for CalcCtx {
     }
 
     fn note_ds_row(&mut self, ds: usize, row: usize) {
-        self.note_row = Some((ds, row));
+        self.note_row = Some((ds, crate::expr::ds::DsCur::Row(row)));
     }
 
     fn note_ds_list(&mut self, ds: usize, rows: &[usize]) {
-        self.note_list = Some((ds, rows.to_vec()));
+        self.note_list = Some((
+            ds,
+            rows.iter()
+                .copied()
+                .map(crate::expr::ds::DsCur::Row)
+                .collect(),
+        ));
+    }
+
+    fn note_ds_members(&mut self, ds: usize, members: &[crate::expr::ds::DsCur]) {
+        self.note_list = Some((ds, members.to_vec()));
     }
 
     fn clear_ds_notes(&mut self) {
@@ -208,11 +218,11 @@ impl EvalCtx for CalcCtx {
         self.clear_notes();
     }
 
-    fn ds_row_note(&self) -> Option<(usize, usize)> {
+    fn ds_row_note(&self) -> Option<(usize, crate::expr::ds::DsCur)> {
         self.note_row
     }
 
-    fn ds_list_note(&self) -> Option<(usize, Vec<usize>)> {
+    fn ds_list_note(&self) -> Option<(usize, Vec<crate::expr::ds::DsCur>)> {
         self.note_list.clone()
     }
 }

@@ -174,7 +174,11 @@ fn expr_has_ds_call(e: &Expr) -> bool {
         Expr::Unary { rhs, .. } => expr_has_ds_call(rhs),
         Expr::Binary { lhs, rhs, .. } => expr_has_ds_call(lhs) || expr_has_ds_call(rhs),
         Expr::ValueList { items, .. } => items.iter().any(expr_has_ds_call),
-        Expr::Select { arg } => expr_has_ds_call(arg),
+        Expr::Select { target, arg } => {
+            target.as_deref().is_some_and(expr_has_ds_call) || expr_has_ds_call(arg)
+        }
+        // `Cellx[...]`（Move）：左操作数是格号 ⇒ 恒 false；`[...]` 内容不建模
+        Expr::Coord { .. } => false,
         _ => false,
     }
 }

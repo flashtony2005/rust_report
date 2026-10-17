@@ -21,4 +21,15 @@ rpx-server axum
 rpx-server tokio
 rpx-ds sqlx
 rpx-ds tokio
+rpx-ds calamine
+rpx-ds csv
 rpx-export rust_xlsxwriter
+rpx-export base64
+
+rpx-runtime serde_json
+rpx-runtime sha2
+rpx-runtime time
+rpx-runtime json-patch
+rpx-cli clap
+rpx-cli serde_json
+rpx-cli tokio

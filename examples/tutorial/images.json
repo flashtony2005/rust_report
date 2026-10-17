@@ -1,0 +1,63 @@
+{
+  "grid": {
+    "rows": 3,
+    "cols": 2
+  },
+  "background_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAIAAAABc2X6AAABJklEQVR4nO3YsQ3CAAwFUe8/FFOwAA0NLQPQR0maa87iJLdPOrd/Hs/3zb0+35vbaGddMbSXD2uLoT1/2FwM7cnD8mJojw/7i6GddcXQzrpiaGddMbSzrhjaWVcM7d3DzmJoLx/WFkN7/rC5GNqTh+XF0B4f9hdDO+uKoZ11xdDOumJoZ10xtHcTj7MY2jYtfTG0bVr6YmjbtPTF0LZp6YuhbdPSF0PbpqUvhrZNS18MbZuWvhjaNi19MbRtWvpiaNu09MXQtmnpi6Ft09IXQ9umpS+Gtk1LXwxtm5a+GNo2LX0xtG1a+mJo27T0xdC2aemLoW3T0hdD26alL4a2TUtfDG2blr4Y2jYtfTG0bVr6YmjbtPTF0LZp6YuhbdPSF0P7d5vWD8FIP9B75cu3AAAAAElFTkSuQmCC",
+  "print_setup": {
+    "pager_style": "none",
+    "back_graph_printed": true
+  },
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "text": "页面背景与单元格图片"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "text": "单元格背景",
+      "data_type": "cell_background",
+      "image": {
+        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAIAAAABc2X6AAABJklEQVR4nO3YsQ3CAAwFUe8/FFOwAA0NLQPQR0maa87iJLdPOrd/Hs/3zb0+35vbaGddMbSXD2uLoT1/2FwM7cnD8mJojw/7i6GddcXQzrpiaGddMbSzrhjaWVcM7d3DzmJoLx/WFkN7/rC5GNqTh+XF0B4f9hdDO+uKoZ11xdDOumJoZ10xtHcTj7MY2jYtfTG0bVr6YmjbtPTF0LZp6YuhbdPSF0PbpqUvhrZNS18MbZuWvhjaNi19MbRtWvpiaNu09MXQtmnpi6Ft09IXQ9umpS+Gtk1LXwxtm5a+GNo2LX0xtG1a+mJo27T0xdC2aemLoW3T0hdD26alL4a2TUtfDG2blr4Y2jYtfTG0bVr6YmjbtPTF0LZp6YuhbdPSF0P7d5vWD8FIP9B75cu3AAAAAElFTkSuQmCC",
+        "width": 180,
+        "height": 80
+      }
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "data_type": "image",
+      "image": {
+        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAIAAAABc2X6AAABJklEQVR4nO3YsQ3CAAwFUe8/FFOwAA0NLQPQR0maa87iJLdPOrd/Hs/3zb0+35vbaGddMbSXD2uLoT1/2FwM7cnD8mJojw/7i6GddcXQzrpiaGddMbSzrhjaWVcM7d3DzmJoLx/WFkN7/rC5GNqTh+XF0B4f9hdDO+uKoZ11xdDOumJoZ10xtHcTj7MY2jYtfTG0bVr6YmjbtPTF0LZp6YuhbdPSF0PbpqUvhrZNS18MbZuWvhjaNi19MbRtWvpiaNu09MXQtmnpi6Ft09IXQ9umpS+Gtk1LXwxtm5a+GNo2LX0xtG1a+mJo27T0xdC2aemLoW3T0hdD26alL4a2TUtfDG2blr4Y2jYtfTG0bVr6YmjbtPTF0LZp6YuhbdPSF0P7d5vWD8FIP9B75cu3AAAAAElFTkSuQmCC",
+        "width": 140,
+        "height": 100
+      }
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 30
+    },
+    {
+      "row": 2,
+      "height": 30
+    },
+    {
+      "row": 3,
+      "height": 30
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 60
+    },
+    {
+      "col": 2,
+      "width": 60
+    }
+  ]
+}

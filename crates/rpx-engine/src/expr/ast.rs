@@ -25,7 +25,8 @@
 //! | [`Expr::DsColumn`] | `DSVariable extends Node` | 继承 `Node.java:82-84`（false） |
 //! | [`Expr::Unknown`] | `UnknownSymbol extends Node` | 继承 `Node.java:82-84`（false），但 `isDSFunction()=true`（`:39-41`） |
 //! | [`Expr::ValueList`] | `ValueList extends Function` | `ValueList.java:30-32`（**自己**重写） |
-//! | [`Expr::Select`] | `Select extends SpecialFunction` | `SpecialFunction.java:27-32` 读 **`left`**，而 `left` 几乎恒 null ⇒ **恒 false** |
+//! | [`Expr::Select`] | `Select extends SpecialFunction` | `SpecialFunction.java:27-32` 读 **`left`**（= 本切片的 `target`） |
+//! | [`Expr::Coord`] | `Move extends SpecialFunction` | 同上；`left` 是 CSVariable ⇒ 恒 false |
 //! | [`Expr::Index`] | `Move`/`DSOffset`/`Offset` | 同上，读 `left`；本切片的 `target` 就是 `left` |
 //! | [`Expr::Call`] | `Function` / `DSFunction` | 见 [`CallKind::is_extend`]（`Function` **未**重写） |
 //! | [`Expr::Unary`] / [`Expr::Binary`] | `Operator`（前缀/中缀） | `Operator.java:51-56`，**`Link` 例外** |
@@ -47,6 +48,7 @@
 
 use crate::value::Value;
 
+use super::coord::Coord;
 use super::names::CallKind;
 
 /// 一个表达式节点。
@@ -101,13 +103,42 @@ pub enum Expr {
         /// 顶层切出的子表达式（供求值期使用；本切片不解释语义）。
         items: Vec<Expr>,
     },
-    /// `{...}` 单元格选择。`Select`（`Select.java:21`）。
+    /// `{...}` 单元格选择 / 格集条件。`Select`（`Select.java:21`）。
     ///
     /// ⚠ `arg` 是花括号里的**参数**（产品：`Expression.java:132` 的 `setParameter`），
-    /// **不是** `SpecialFunction.left`。`is_extend()` 不读它 —— 见 [`Expr::is_extend`]。
+    /// **不是** `SpecialFunction.left`；`target` 才是 `left`。
+    ///
+    /// # 两个位置（M7-8 补）
+    ///
+    /// | 写法 | `target` | 语义 |
+    /// |------|----------|------|
+    /// | `{cond}`（表达式开头） | `None` | 产品的 `left == null` ⇒ `is_extend()` 恒 false |
+    /// | `Cellx{}` / `Cellx[坐标]{}` | `Some(前驱)` | 格集：前驱界定的**管辖范围**内全部 `Cellx` 实例 |
+    /// | `Cellx{cond}` | `Some(前驱)` | 上者再按 `cond` 过滤 |
+    ///
+    /// ⛔ **记号是 `[坐标]{条件}`，不是 `{坐标}[条件]`**：2010 年的
+    /// `报表引擎设计.md` §四 把两对括号写反了（写成 `Cellx{00}[EXP]`），
+    /// 而产品与官方教程一致用 `[坐标]{条件}`（`061_pm137.html` 的
+    /// `` =count(B2[`0]{B2>$B2})+1 ``、`m2-engine-design.md` 的优先级表
+    /// `Select{…}`=17 后缀）。**以产品为准**，见 [`super::coord`] 模块文档。
     Select {
-        /// `{...}` 内层表达式（产品的 `param`）。
+        /// `{...}` 前面的操作数（产品的 `SpecialFunction.left`）。前缀位置 ⇒ `None`。
+        target: Option<Box<Expr>>,
+        /// `{...}` 内层表达式（产品的 `param`）；空 `{}` ⇒ [`Expr::Const`]`(Null)`。
         arg: Box<Expr>,
+    },
+    /// `Cellx[...]` —— 层次坐标 / 位移坐标 / 根坐标（产品 `Move`，`Move.java:54`）。
+    ///
+    /// `is_extend()` 取 `left.isExtended()`；本仓 `target` 只是格号字符串，
+    /// 而格号的 `CSVariable.isExtended()` **恒 false**（`CSVariable.java:379-381`）
+    /// ⇒ 本变体恒 false（与产品等价，不是近似）。
+    ///
+    /// 记号与语义见 [`super::coord`] 模块文档。
+    Coord {
+        /// 目标格号原文（如 `C2`）。
+        target: String,
+        /// `[...]` 里解析出的坐标。
+        spec: Box<Coord>,
     },
     /// 后缀 `(...)` / `[...]` 挂在某个表达式上。`Offset` / `Move` / `DSOffset`
     /// （都 `extends SpecialFunction`）。`is_extend()` 只看 `target`（= 产品的 `left`）。
@@ -348,15 +379,16 @@ impl Expr {
             //   （SpecialFunction.java:27-32；super 是 Function，**未重写** ⇒ Node 的 false）
             //
             // ⛔ `Select` 的 `left` **不是**花括号里的表达式（`Expression.java:131-134`
-            //    只 setParameter）。`left` 只能由通用 `Expression.java:445` 的
-            //    `node.setLeft(right)` 填上，且要求前驱节点优先级 ≥ 17（`Select.java:26`）。
-            //    常规写法下前驱是 CSVariable / Function / 运算符（isExtended 全 false）
-            //    或压根没有前驱 ⇒ **恒 false**。
-            //    ⚠ 未覆盖：形如 `[1,2]{x}` 的相邻原子（前驱是 ValueList(19)、isExtended=true）
-            //    会让产品判 true，本切片仍判 false。零夹具覆盖，§13.5 已登记。
-            Expr::Select { .. } => false,
+            //    只 setParameter），而是**前驱**——由通用 `Expression.java:445` 的
+            //    `node.setLeft(right)` 填上。M7-8 起本仓把它建模成 `target`，
+            //    于是判定变成 `target.is_extend()`，**比原先的"恒 false"更贴源码**：
+            //    `C2{}` 仍是 false（CSVariable 恒 false，`CSVariable.java:379-381`），
+            //    但 `ds1.select(x){}` 这类前驱本身可扩展的写法会判 true（原先错判 false）。
+            Expr::Select { target, .. } => target.as_ref().is_some_and(|t| t.is_extend()),
             // Move / DSOffset / Offset 的 `left` 就是本切片的 `target`（前一个表达式）
             Expr::Index { target, .. } => target.is_extend(),
+            // Move（`Cellx[...]`）：`left` 是 CSVariable ⇒ 恒 false（见变体文档）
+            Expr::Coord { .. } => false,
             // ds[i].列：DSVariable 未覆写 isExtended（`DSVariable.java` 继承 Node）
             // ⇒ false（探针 O1 实测 extend=17，见变体文档）
             Expr::DsOffsetColumn { .. } => false,

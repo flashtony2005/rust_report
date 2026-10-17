@@ -46,7 +46,7 @@
 //! 的行为一致（产品那条路会抛，本项目不会走到）。
 
 use crate::arena::CellId;
-use crate::calc::ds_current::{DsCurrentHost, DsInstance, DsSpot, HeadPairTracker, ROOT_ROW};
+use crate::calc::ds_current::{DsCurrentHost, DsInstance, DsSpot, HeadPairTracker};
 use crate::error::Result;
 use crate::expr::ds::{DataSet, DsCur};
 use crate::heads::HeadState;
@@ -79,9 +79,9 @@ pub struct CalcCtx {
     /// `_$24`：state 8 级联失效队列。
     fail_queue: Vec<CellId>,
     /// DS 旁路：本次求值的"最终结果是一行"记录（`(ds 下标, 行号)`）。
-    note_row: Option<(usize, usize)>,
+    note_row: Option<(usize, DsCur)>,
     /// DS 旁路：本次求值的"最终结果是全量行"记录。
-    note_list: Option<(usize, Vec<usize>)>,
+    note_list: Option<(usize, Vec<DsCur>)>,
 }
 
 impl CalcCtx {
@@ -131,7 +131,7 @@ impl CalcCtx {
     /// 把 `spots[i]` 投影进 `ds[i].current`（见模块文档的"镜像"一节）。
     fn mirror(&mut self, i: usize) {
         let cur = match self.spots[i].value {
-            Some(v) if !v.is_root() => DsCur::Row(v.row),
+            Some(v) => v.current,
             _ => DsCur::Root,
         };
         if let Some(set) = self.ds.get_mut(i) {
@@ -277,20 +277,28 @@ impl DsCurrentHost for CalcCtx {
     }
 
     fn ds_root(&self, ds: usize) -> DsInstance {
-        DsInstance { ds, row: ROOT_ROW }
+        DsInstance::root(ds)
     }
 
     fn ds_null_row(&self, ds: usize) -> DsInstance {
         DsInstance::new(ds, crate::calc::ds_current::NULL_ROW)
     }
 
-    fn ds_row_cross(&self, ds: usize, recv: DsInstance, other: DsInstance) -> Result<DsInstance> {
-        // ⛔ 只移植 `Row.cross`（`Row.java:68-79`）。`Group.cross`（阈值化集合运算）
-        // **未移植** —— 12 个夹具里 `cross` 的接收者恒是 Row：接收者非 null 说明它被
-        // `setDSCurrentLeftHead` 写过，而那里写的 `_$4` 恒是 `DsValue` 行实例
-        // （`ExtExtendCell.java:251-258`），根 Group 是由 `setDSCurrent`（"只填空"、
-        // `:572-574`）写的、`is_left_top` 为 false，进不了本函数。
-        crate::calc::ds_current::row_cross_default(self, ds, recv, other)
+    fn ds_row_cross(
+        &mut self,
+        ds: usize,
+        recv: DsInstance,
+        other: DsInstance,
+    ) -> Result<DsInstance> {
+        let set = &mut self.ds[ds];
+        let left = set.rows_of(recv.current);
+        let right = set.rows_of(other.current);
+        let rows: Vec<_> = left.into_iter().filter(|r| right.contains(r)).collect();
+        Ok(match rows.as_slice() {
+            [] => DsInstance::new(ds, crate::calc::ds_current::NULL_ROW),
+            [row] => DsInstance::new(ds, *row),
+            _ => DsInstance::member(ds, DsCur::Group(set.intern_group(rows))),
+        })
     }
 
     fn tracker_set_changed(&mut self, changed: bool) {

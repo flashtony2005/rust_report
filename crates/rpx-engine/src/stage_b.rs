@@ -39,6 +39,7 @@ use crate::error::{EngineError, Result};
 use crate::extend::{cell_role_of, CellRole, ExtendMode};
 use crate::heads::{find_left_head, find_top_head, normalize_heads, HeadCell, HeadState};
 use crate::literal::{literal_value, parse_string, parses_string_literal};
+use crate::macros::MacroTable;
 use crate::params::ParamTable;
 use crate::stage_a::StageA;
 use crate::value::Value;
@@ -74,15 +75,34 @@ pub struct StageB {
     pub unmodeled_literals: usize,
 }
 
+/// 跑完阶段 B（`prepareCalculate(ctx, true)`）—— **无宏表**版本。
+///
+/// 等价 [`prepare_calculate_with`] + [`MacroTable::EMPTY`]：模板里出现 `${名}`/`%{名}`
+/// 会在建树期报 [`EngineError::UnknownMacro`]（显式失败，与 `@名` 未登记同一条纪律）。
+pub fn prepare_calculate(rd: &ReportDefine, params: &ParamTable) -> Result<StageB> {
+    prepare_calculate_with(rd, params, &MacroTable::EMPTY)
+}
+
 /// 跑完阶段 B（`prepareCalculate(ctx, true)`）。
 ///
 /// `params` 是报表参数值表（M3-01）：`checkExtend` 的 `expression.isExtend()` 与
 /// 执行树落盘（`engine.expression`）都**整树重建**表达式，参数值必须在建树期可得
 /// （与产品同为建树期内联 `Constant(值)`，见 [`crate::params`]）。
-pub fn prepare_calculate(rd: &ReportDefine, params: &ParamTable) -> Result<StageB> {
+///
+/// `macros` 是报表宏表（M7-8）：宏是**没有数据类型的字符串**，替换发生在
+/// **建表达式之前**（`MacroResolver2.replaceMacros` 在 `new Expression(...)` 之前一行，
+/// `docs/m2-engine-design.md:1585`）⇒ 本函数在**两个**建树点之前先跑
+/// [`crate::macros::substitute`]：单元格表达式（本函数第 1 段）与属性表达式
+/// （[`build_grid`] 的 `exp_map`）。**落点在建树之前**是契约，不是实现细节 ——
+/// 词法层不认识 `${`，替换晚了等于没做。
+pub fn prepare_calculate_with(
+    rd: &ReportDefine,
+    params: &ParamTable,
+    macros: &MacroTable,
+) -> Result<StageB> {
     let a = StageA::build(rd);
     let (rows, cols) = (a.calc.row_size(), a.calc.col_size());
-    let mut g = build_grid(rd, &a)?;
+    let mut g = build_grid(rd, &a, macros)?;
     let mut roles = vec![CellRole::Literal; g.cells.len()];
     let mut has_expr = vec![false; g.cells.len()];
     let mut expressed = 0usize;
@@ -102,6 +122,18 @@ pub fn prepare_calculate(rd: &ReportDefine, params: &ParamTable) -> Result<Stage
             if expr.is_some() {
                 expressed += 1;
             }
+            // ⛔ 宏替换**必须先做一次、两处共用**：产品在这一段的顺序是
+            // `replaceMacros` → `new Expression(...)` → `isExtend()`
+            // （`ExtNormalCell.java:498-510`），而本段有**两个**建树点 ——
+            // [`cell_role_of`]（内部问 `is_extend`）与下面的 `parse_with`。
+            // 只给后者加宏，前者会拿 `${m}` 直接抛语法错
+            // （**实测踩过**：`macros_wiring_tests` 的三条判据同时红，
+            //   报的是「期望 `[`，实际是 `{`」这种与真实原因无关的错）。
+            let expanded = match expr {
+                Some(src) => Some(crate::macros::substitute(src, macros)?),
+                None => None,
+            };
+            let expr = expanded.as_deref();
             let role = cell_role_of(expr, declared, tpl.cell_type, params)?;
             roles[id.0 as usize] = role;
             has_expr[id.0 as usize] = expr.is_some();
@@ -247,7 +279,7 @@ fn declared_of_code(code: i8) -> ExtendMode {
 /// ⛔ 为什么要按 arena 顺序而不是自己扫模板：`HeadState::push` 的 id 就是插入序，
 /// 而阶段 A 的 id 也是插入序；同序重建后 `CellId(i)` 在两边指同一格，
 /// 免得再维护一张映射表（映射表一旦漏项就是静默错位）。
-fn build_grid(rd: &ReportDefine, a: &StageA) -> Result<HeadState> {
+fn build_grid(rd: &ReportDefine, a: &StageA, macros: &MacroTable) -> Result<HeadState> {
     let mut g = HeadState::new();
     let mut i = 0u32;
     while let Some(cc) = a.calc.cell(CellId(i)) {
@@ -255,15 +287,19 @@ fn build_grid(rd: &ReportDefine, a: &StageA) -> Result<HeadState> {
         let mut hc = HeadCell::new(row, col, 16, row_type_at(rd, row));
         if row > 0 && col == 0 {
             if let Some(rc) = rd.row_cells.get(row as usize - 1) {
-                hc.rt.property_exprs = property_expressions(rc.exp_map.as_deref(), |key| {
-                    matches!(key, 1 | 2 | 7 | 13 | 15)
-                })?;
+                hc.rt.property_exprs = property_expressions(
+                    rc.exp_map.as_deref(),
+                    |key| matches!(key, 1 | 2 | 7 | 13 | 15),
+                    macros,
+                )?;
             }
         } else if row == 0 && col > 0 {
             if let Some(cc) = rd.col_cells.get(col as usize - 1) {
-                hc.rt.property_exprs = property_expressions(cc.exp_map.as_deref(), |key| {
-                    matches!(key, 11 | 12 | 13 | 15)
-                })?;
+                hc.rt.property_exprs = property_expressions(
+                    cc.exp_map.as_deref(),
+                    |key| matches!(key, 11 | 12 | 13 | 15),
+                    macros,
+                )?;
             }
         }
         if row == 0 && col == 0 {
@@ -275,9 +311,11 @@ fn build_grid(rd: &ReportDefine, a: &StageA) -> Result<HeadState> {
         }
         if row >= 1 && col >= 1 {
             if let Some(tpl) = rd.cell_at(row as usize, col as usize) {
-                hc.rt.property_exprs = property_expressions(tpl.exp_map.as_deref(), |key| {
-                    !matches!(key, CELL_EXPR_PROP | 41 | 49)
-                })?;
+                hc.rt.property_exprs = property_expressions(
+                    tpl.exp_map.as_deref(),
+                    |key| !matches!(key, CELL_EXPR_PROP | 41 | 49),
+                    macros,
+                )?;
                 hc.extend = declared_of(tpl).code(); // 声明值，第 2 段才改写
                 hc.declared_left = tpl.left_head.clone();
                 hc.declared_top = tpl.top_head.clone();
@@ -321,6 +359,7 @@ fn build_grid(rd: &ReportDefine, a: &StageA) -> Result<HeadState> {
 fn property_expressions(
     map: Option<&[(u8, ObjValue)]>,
     include: impl Fn(u8) -> bool,
+    macros: &MacroTable,
 ) -> Result<Vec<(u8, crate::expr::Expr)>> {
     let mut out = Vec::new();
     for (key, value) in map.into_iter().flatten() {
@@ -332,7 +371,9 @@ fn property_expressions(
                 expr: format!("属性表达式 key {key} 不是字符串：{value:?}"),
             });
         };
-        out.push((*key, crate::expr::parse(source)?));
+        // 与单元格表达式同一个落点口径：宏替换在建树**之前**。
+        let expanded = crate::macros::substitute(source, macros)?;
+        out.push((*key, crate::expr::parse(&expanded)?));
     }
     Ok(out)
 }

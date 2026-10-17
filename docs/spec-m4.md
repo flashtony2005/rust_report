@@ -71,10 +71,37 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 | `defaultRowHeight`    | `30`（≈8mm，`def::ROW_HEIGHT`）              | mm→px：`mm/25.4*96`（96dpi 近似，§7 声明的近似）                     |
 | `defaultColumnWidth`  | `94`（≈25mm，`def::COL_WIDTH`）             | 同上                                                        |
 | `showGridlines`       | `1`                                       | v1 无边框样式，先开网格线保可读性（联调后可调）                                 |
+| `freeze`             | `{xSplit,ySplit,startRow,startColumn}`     | 计算态连续表头前缀，见 §4.2.1；Univer 原生消费 |
 | `cellData`            | `{ "r":{"c": <ICellData>} }`              | 由 `grid.cells` 过滤 `is_emitted()`，坐标 **1 起 → 0 起**（`r-1`,`c-1`） |
 | `mergeData`           | `[{startRow,startColumn,endRow,endColumn}]` | 由 `grid.merged` **去重取锚点**（§4.4）；0 起坐标                        |
 | `rowData`             | `{ "r":{"h": <px>} }`                     | `grid.row_heights[r]`（已按扩展铺开）＋ mm→px                         |
 | `columnData`          | `{ "c":{"w": <px>} }`                     | `grid.col_widths[c]` ＋ mm→px                                   |
+
+#### 4.2.1 浏览冻结（2026-10-17）
+
+由 `snapshot/freeze.rs` 从当前 `CalcGrid` 生成 Univer `IFreeze`，直接放入工作表的
+`freeze` 字段。Web 运行结果通过 `createWorkbook(snapshot)` 交给 Univer，不需要另外设置冻结。
+
+* 行：只取 `row_types` 从索引 0 开始连续的 `page_header`（-93）、`title`（-96）、
+  `table_header`（-95）；页眉只有位于这个连续前缀时才参与。
+* 列：只取 `col_types` 从索引 0 开始连续的 `left_header`（-80）。
+* 遇到任何其他类型立即停止；分组头、页脚、正文之后的表头不延长冻结范围。
+  计数以扩展后的计算态行列为准，且不得超过 `grid.rows/cols`，不包含工作表滚动余量。
+* `ySplit` / `xSplit` 是冻结行数 / 列数；冻结从索引 0 开始，故
+  `startRow=ySplit`、`startColumn=xSplit`。无冻结的轴使用 `split=0`、`start=-1`；
+  无表头或区带信息缺失时两轴均如此。
+* 隐藏行列仍占索引，与 `cellData`、`mergeData`、`rowData/columnData.hd` 一致。
+  不能先过滤隐藏行列再计数，隐藏的正文也不能连接其前后的表头。
+* 单页和多页均在 `pager::project_page` 后按页内区带计算；各页重复或省略标题、表头时，
+  冻结范围随该页实际前缀变化，不使用全局偏移或 `row_range/col_range` 推算。
+  冻结只增加浏览元数据，不改变值、样式、合并区或分页结果。
+
+核对：本地 `web/node_modules/@univerjs/core/lib/types/sheets/typedef.d.ts` 的
+`IWorksheetData.freeze` / `IFreeze`（Univer 1.0.4），以及官方仓库
+`dream-num/univer` 的 `packages/core/src/sheets/worksheet.ts`（`getFreeze`）、
+`sheet-snapshot-utils.ts`（未冻结轴 `0/-1`）、
+`packages/sheets-ui/src/controllers/render-controllers/freeze.render-controller.ts`
+（将 `startRow/startColumn` 与 `ySplit/xSplit` 交给原生视口）。
 
 ### 4.3 单元格级（`ICellData` / `IStyleData` v1 映射表）
 
@@ -94,7 +121,8 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 | `bg`      | `Cell.back_color`（ARGB int）                | 同上；⚠ **默认白 `0xFFFFFFFF` 也写出**（财政报表底色显式更稳，待联调确认）                                           |
 | `ht`      | `Cell.h_align`                            | 数字枚举：`-48→1(left)` `-47→2(center)` `-46→3(right)` `-45→4(justified)` `-44→6(distributed)`（`format-contract.md` 注 3） |
 | `vt`      | `Cell.v_align`                            | `-32→1(top)` `-31→2(middle)` `-30→3(bottom)`                                              |
-| — 其他      | 边框（`bd`）/ 数字格式（`n`）/ 旋转（`tr`）/ 缩进          | **v1 不做**（后置；边框编码已备查 `format-contract.md` 注 2）                                           |
+| `n` | `Cell.format` | `{ "pattern": "0.00%" }`；数字原值不变，画布和打印使用相同格式 |
+| — 其他      | 边框（`bd`）/ 旋转（`tr`）/ 缩进          | **v1 不做**（后置；边框编码已备查 `format-contract.md` 注 2）                                           |
 
 #### 4.3.1 值映射（`Value` → `v`）
 
@@ -173,6 +201,7 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 | `sheetOrder` | **顺序即页序**（Univer 底部 tab 即翻页；M4-05 的交付形态） |
 | `cellData`/`rowData`/`columnData` | 页内坐标 = 全局 − 页偏移（0 起，与 §4.2 同规）；页首区带/分组头副本因页间 `row_range` 重叠**自然每页重现**（与产品每页独立矩阵同观感） |
 | `rowCount`/`columnCount` | 页尺寸 + 余量（同 §4.2 规则） |
+| `freeze` | 使用该页投影后连续表头前缀，坐标与本页 `cellData` / `rowData` / `columnData` 一致（§4.2.1） |
 | `mergeData` | **跨页合并拆分 = 产品语义已实现**（2026-10-15，源码实锤 `SimplePager.java:1624-1638` 行向 / `:2316-2335` 列向）：全局块 × 页矩形求交；锚点在页外（延续页）时在交叠区左上角**注入克隆锚点**（值/样式取原锚点格——产品 `deepClone` 的快照等价物），上页块自然裁到页末。退化分支（文本高于整页整块搬移 / 标题行 `rt==-90`）仍带账（无夹具基准） |
 | 顶层 `pagination` | 保留（§4.5 观测块，不因多 sheet 退役） |
 

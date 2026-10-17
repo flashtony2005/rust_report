@@ -83,6 +83,8 @@
 | `indent` | 数字 | ✖ | 缩进（≥0，缺省 `0`；§4.7） |
 | `rotation` | 数字 | ✖ | 旋转角，度（≥0，缺省 `0`；§4.7） |
 | `extend_mode` | 枚举 | ✖ | 扩展模式（§4.7） |
+| `left_head` | 字符串 | ✖ | **声明式左主格**：格号或根记法 `` `0 ``（§4.8） |
+| `top_head` | 字符串 | ✖ | **声明式上主格**：格号或根记法 `` `0 ``（§4.8） |
 | `merge` | 对象 | ✖ | 合并矩形 `{rows, cols}`（§4.2） |
 | `merge_same` | 枚举 | ✖ | 同值合并（§4.2） |
 
@@ -111,17 +113,26 @@
 | --- | --- | --- | --- |
 | `name` | 字符串 | ✖ | **数据集名**——表达式里的 `ds1.select(...)` 用的就是它 |
 | `sql` | 对象 | ✖ | `{ "dsn": "…", "sql": "SELECT …" }` |
-| `file` | 对象 | ✖ | `{ "file_name": "…", "encoding": "UTF-8"? }` |
+| `file` | 对象 | ✖ | `{ "file_name": "…", "encoding": "UTF-8", "delimiter": ",", "sheet_name": "预算" }`；后三项可选 |
 
 * `name` 缺省时，文件数据集退化为**文件名**，SQL 数据集退化为 `<unnamed-sql>`
   （`rpx-engine/src/dataset.rs::load_datasets_full` 的口径）。
-* `file.encoding` 缺省 = `GBK`；显式 `UTF-8`/`UTF8` 走 `std::str::from_utf8`。
-* ⚠ **CSV 分隔符硬编码 TAB**（引擎 `parse_csv` 用 `split('\t')`）——`FileDataSetConfig`
-  的 `seperator` 槽**当前不被读取**，故 `build.rs` 按引擎**实际行为**声明 TAB，
-  避免模板里写着一个假值。
+* 同一份报表可以声明任意多个文件数据集及 SQL 数据集，所有有效 `name` 必须唯一；重名会使运行失败。
+* Excel：按文件扩展名识别 `.xlsx/.xls/.xlsm/.xlsb/.ods`，由 `calamine` 读取。
+  `file.sheet_name` 选择工作表，缺省使用第一张。同一工作簿可声明为多个数据集，分别选择工作表。
+  工作表已用区域的首行作为列名，列名不得为空或重复；保留数字、布尔、文本和空值，日期转换为 ISO 文本。
+  公式只读取文件内缓存的值，不执行 Excel 公式；无缓存公式和 Excel 错误值会明确报错。
+* CSV/TSV：`file.encoding` 缺省 `GBK`，可显式给 `UTF-8`/`UTF8`；
+  `file.delimiter` 缺省 TAB（`"\t"`），标准逗号 CSV 显式给 `","`。
+  分隔符必须是一个 ASCII 字符，且不能是引号或换行；支持引号内逗号、双引号转义和换行。
+  首行列名必须非空且唯一，每行字段数必须一致；空字段为 null，数字及 true/false 按标量识别。
+  文本编号如需保留前导零，使用 Excel 文本列；CSV 当前会将数字文本推断为数字。
 * `file.file_name` 必须与 multipart 上传的 `dataset` 字段文件名**逐字一致**
   （`docs/spec-m3.md` §3.2 主链路 ①）。
 * SQL 数据集的连接由 server 编排层注入（`--datasources`），模板只存 `dsn` 引用。
+  不同 SQL 数据集可以引用不同 `dsn`，无需将多库数据预先搬进同一个数据库。
+
+完整混合来源模板见 `examples/r-model/mixed-data-sources.json`，执行和展示方式见 `examples/r-model/README.md`。
 
 ### 3.4 `row_props[]` / `col_props[]`（可选）
 
@@ -166,7 +177,8 @@
 | `right_margin` | 数字 | 19 | 毫米，≥0 |
 | `top_margin` | 数字 | 25 | 毫米，≥0 |
 | `bottom_margin` | 数字 | 25 | 毫米，≥0 |
-| `row_num_per_page` | 整数 | 20 | 每页行数（分页器直接用它） |
+| `pager_style` | `none` / `rows` / `paper` | `paper` | 不分页 / 按行 / 按纸 |
+| `row_num_per_page` | 正整数或 `=表达式` 字符串 | 20 | `rows` 模式的每栏数据行数；表达式在根上下文求值 |
 | `copy_count` | 整数 | 1 | 打印份数 |
 | `zoom_scale` | 整数 | 100 | 缩放百分比 |
 | `table_column_num` | 整数 | 1 | 分栏数 |
@@ -180,9 +192,24 @@
 
 * `print_setup` 缺省或 `{}` ⇒ **全部走契约默认值**（合法）。
 * ⚠ **未知字段与「已知但不开放」的字段一律 400**：`paper` / `orient` /
-  `pager_style` / `h_align` / `v_align` / `zoom_mode` / `layout` / 各 `*_mode`
+  `h_align` / `v_align` / `zoom_mode` / `layout` / 各 `*_mode`
   给了会**显式报错**，不会静默接受后丢弃 —— 后者正是「前端以为设了、实际没生效」
   的失败形态（理由见 §4.7）。
+
+### 3.7 `macros`（可选，2026-10-17 补，M7-8）
+
+| JSON | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `macros` | 对象 | ✖ | 宏名 → **字符串**值。缺省 `{}` |
+
+**形态是对象，不是数组** —— 与 `params[]` **刻意不同**：参数有 5 个槽
+（类型/默认值/说明…）非数组装不下；宏只有"名字"和"值"两样，而值就是
+「没有数据类型的字符串」（`报表引擎设计.md` §二 #7）⇒ 对象才是它的自然形状。
+形状跟着语义走，不是不一致。
+
+值的类型**必须是字符串**：`{"n": 3}` 显式 400，**不偷偷 `to_string`** ——
+与 `params[].default` 同一条纪律（`3.0` / `true` 的文本形态有歧义，让写的人
+自己决定）。语义见 §4.9。
 
 ## 4. 语义与构造纪律
 
@@ -367,10 +394,93 @@ JSON params[] ──parse──▶ ReportDefine.params
 ⚠ 横向扩展（19）会把**列结构本身放大 N 倍**（契约 §… 的扩展矩阵），
 且 19 与 16/18 **同行**时不增列（竖向扩展已把该行登记为可扩展行）。
 
+#### 声明式主格（`left_head` / `top_head`）
+
+| JSON | `Cell` 槽 | 类型 | 缺省 | 界 |
+| --- | --- | --- | --- | --- |
+| `left_head` | `left_head: Option<String>` | 格号或根字符串 | `null` | `` `0 `` 或 `^[A-Za-z]{1,3}[0-9]+$`，非根格必须存在 |
+| `top_head` | `top_head: Option<String>` | 格号或根字符串 | `null` | 同上 |
+
+**语义**：把该格的左主格 / 上主格**人为指定**为给定格，**跳过引擎的自动上溯**
+（`ExtCellSet._$3` 分支 B / `_$2` 分支 B），直接走**分支 A**
+（`ExtCellSet.java:633-647` / `:670-684`，本仓 `rpx-engine/src/heads/find.rs`）。
+
+- **两槽独立**：一格可以**同时**有左主格与上主格 —— 交叉表正是靠这个（行维 + 列维各一条链）。
+- **教程依据**（`008_jcbb14`「组表头重复」）给的就是一条**整链**人为接起来的主格：
+  `A3.左主格=B3`、`B3.左主格=A2`、`C4.左主格=B3`、`A5.左主格=A2` …… 缺一格链就断。
+- **产品侧的三条硬约束**（教程 `dpkz101`「人为改变主格规则」）—— 分工见下表，
+  **不是**「一律交给引擎」：
+
+  | 约束 | 拦在哪一层 | 理由 |
+  | --- | --- | --- |
+  | ① 左主格必须是纵向扩展格、上主格必须是横向扩展格 | **装载层**（`reportdef/heads.rs`） | 引擎分支 A **不查方向** |
+  | ② 不允许循环（A→B→C→A ⇒ 报表无法计算） | **引擎**（`heads/find.rs` 分支 A） | 产品原码即报错：`isLeftHeadOf` **自含** ⇒ 命中即成环 |
+  | ③ 横向扩展格不允许有左主格、纵向扩展格不允许有上主格 | **装载层**（同上） | 同 ① |
+
+  **为什么 ①/③ 必须由装载层拦（实测，2026-10-17）**：违反 ①/③ 的六种形态在
+  引擎侧**全部静默通过**，且**渲染成功**——只是主格链与预期不同，值悄悄算错：
+
+  ```
+  [接受] ③ 自横向扩展格 + left_head        ⇒ 渲染成功（cellData 行数 2）
+  [接受] ③ 自纵向扩展格 + top_head         ⇒ 渲染成功（cellData 行数 6）
+  [接受] ① left_head 指向横向扩展格        ⇒ 渲染成功（cellData 行数 2）
+  [接受] ① top_head 指向纵向扩展格         ⇒ 渲染成功（cellData 行数 6）
+  [拒绝] ② A2.left_head=B2, B2.left_head=A2 ⇒ left head 自声明成环
+  ```
+
+  产品里拦 ①/③ 的是**设计器**（「设置无效」是设计期判定，引擎原码照单全收），
+  而本契约就是本仓的设计期格式 ⇒ 校验放装载层，引擎与产品逐行同形。
+  错误消息带 JSON 路径与教程出处：
+
+  ```
+  $.cells[1].left_head：本格声明为横向扩展（extend_mode="horizontal"），
+  横向扩展格不允许有左主格 —— 教程《多片扩展》人为改变主格规则 ③
+  $.cells[1].left_head：左主格 C1 声明为横向扩展（extend_mode="horizontal"），
+  但左主格必须是纵向扩展格 —— 教程《多片扩展》人为改变主格规则 ①
+  ```
+
+  ⛔ **已声明的边界：只查「显式声明」了方向的主格**。格的**生效**方向不是声明值
+  —— 声明 `16`（缺省）的格由运行期拓扑改写成 17/18/19
+  （`rpx-engine/src/extend.rs::topology_default`）。所以：
+
+  - **③ 是完备的**：一格声明了非根 `left_head` 就说明它没被改写成 19
+    （拓扑给 19 的唯一条件是 `left == cell00 && top != cell00`，而声明了左主格的格
+    `left != cell00`）⇒「自横向 + 左主格」只能来自**显式**声明 19，装载层必能判出；
+  - **① 不完备**：主格若没声明方向（16），它的生效方向取决于运行期改写 ⇒ 装载层
+    不可判。这条边界**照产品**（引擎分支 A 同样不查方向），由测试
+    `an_undeclared_master_direction_is_not_checked_at_load` 钉住，**不假装已覆盖**。
+
+**扩展行为本身**（主格扩展 ⇒ 附属格被复制、同级格被拉大）由
+`crates/rpx-server/tests/multipiece.rs` 五组判据钉死，含教程 `dpkz101` 例 10.6.1 的
+「多片扩展」（人为把一整片格的左主格指向同一主格）与「主格可以在右（下）边」两条原话。
+
+⛔ **打错格号在引擎侧是静默的**：`find.rs` 分支 A 写的是 `if !head.is_none()` ——
+地址解析不到格**不报错**，直接落回分支 B 的自动推导，于是「打错一个格号」与
+「压根没声明」在引擎侧**完全同形**。装载层因此在**全部格落盘之后**做一趟存在性校验
+（`reportdef/heads.rs` 第三趟），把这种情况变成带 JSON 路径的显式错误：
+
+```
+$.cells[4].top_head：格 Z9 不存在（网格 3×3）—— 声明式主格必须指向真实存在的格
+```
+
+**存在性口径与引擎矩阵 `_$25` 对齐**：**锚点格**与**合并延续槽**都算存在
+（`stage_b/merge_alias.rs` 对延续槽有登记）。
+
+**显式根主格**使用唯一记法 `` `0 ``：`"left_head":"`0"` / `"top_head":"`0"`。
+省略字段表示自动上溯；显式根表示在这一轴停止上溯，静态合计和独立分片因此不会被邻近主格带动。
+根不代表一个真实扩展格，方向约束只对非根目标生效：横向格允许左主格设根，纵向格允许上主格设根。
+该值通过 JSON 装载、RPX 保存读取、引擎找主格及 Web 编辑保存完整往返。
+测试见 `crates/rpx-server/tests/root_heads.rs` 与 `crates/rpx-engine/tests/root_heads.rs`。
+
+**实测效果**（`demo_data/report_month_quarter_2026.json`）：小计表头 `C2` 声明
+`"top_head": "B1"` 后，季度表头的 xlsx 合并区从 `B1:E1`（4 列，吞掉小计列）
+变成 **`B1:D1`（3 列）**，与参考图一致；`verify_month_quarter.py` 16 项数值全绿。
+
 #### 打印设置：为什么不开放全部 33 槽
 
 附件 D 给了全部 33 槽的**类型与默认值**，但**没给码表**：`paper`、`orient`、
-`pagerStyle`、`hAlign`、`vAlign`、`zoomMode`、`layout` 及各 `*_mode` 都是裸字节码。
+`hAlign`、`vAlign`、`zoomMode`、`layout` 及各 `*_mode` 都是裸字节码。
+`pager_style` 已按教程开放 `none` / `rows` / `paper`；打印矩阵使用下文独立的 `printing` 命名契约。
 夹具实证同样只有默认值 —— `tests/fixtures/` 里出现过的只有 `"paper":9` 与
 `"orientation":1`，**没有任何夹具带横向版或其他纸张码**。
 
@@ -397,6 +507,212 @@ JSON ──parse──▶ ReportDefine ──to_bytes──▶ .rpx 字节 ─�
 ⚠ **往返相等抓不到「两边一致地错」**：把 `dashed` 的码从 82 改成 83，往返照样绿
 （解析写 83、读侧读回 83）。所以**另有写死期望值的判据**钉住每个槽的具体取值 ——
 两类判据互补，缺一不可（已用故障注入实证：码表对调 ⇒ 只有写死期望值那条红）。
+
+### 4.9 宏（2026-10-17 补，M7-8）
+
+**记号两个都收**，各有出处：
+
+| 记号 | 出处 |
+| --- | --- |
+| `${名}` | 产品：`SQLDataSetFactory.createDataSetM` 的「宏 `${...}` 替换 → `?` 占位参数求值」（`tests/fixtures/RUNLOG.md` §34.1） |
+| `%{名}` | 2010 设计文档原文「引用方法为 `%{宏变量名}`」（`报表引擎设计.md` §二 #7 / §五） |
+
+**语义**：宏是**没有数据类型的字符串**，替换的是**宏变量所占的位置**，可放在
+**任何位置**（单元格值、表达式、数据集定义、单元格属性表达式）。
+
+**时机是契约，不是实现细节**：替换发生在**建表达式之前**
+（`MacroResolver2.replaceMacros(expr, ctx)` 在 `new Expression(...)` 之前一行，
+`docs/m2-engine-design.md` §13.0）⇒ 词法层根本不认识 `${`，替换晚了只会得到
+一条与真实原因无关的语法错。
+
+**四个落点**（都在"建树之前"这一条上）：
+
+| 落点 | 位置 |
+| --- | --- |
+| 单元格表达式 | `rpx-engine` 阶段 B 第 1 段，`cell_role_of` 与 `parse_with` **共用一次**替换 |
+| 属性表达式（行/列/格 `expMap`） | `rpx-engine` 阶段 B 的 `property_expressions` |
+| 数据集 SQL 文本 | `rpx-server` 的 `prefetch_sql`（发给库的那一份） |
+| 图形 JS 模板 | **不在本契约内** —— 见下方"四个易混物" |
+
+**三条规则**（每条都有单测 + 故障注入）：
+
+1. **递归展开**：宏值里可以再引用宏（`a = "${b}-1"`），一直替换到没有引用为止。
+2. **未登记 ⇒ 显式报错**（`unknown macro: ${名}`）—— 与 `@名` 未登记报
+   `unknown parameter` 同一条纪律。静默留着 `${x}` 会让它在词法层被拆成
+   `$` + `{x}`，报出一个与真实原因无关的语法错。
+3. **成环 ⇒ 显式报错**：引用栈检测环，最多嵌套 64 层；独立宏引用的数量不受 64 限制。
+
+空表仍扫描引用：没有登记的 `${名}` / `%{名}` 一律报 `unknown macro`。
+
+#### 四个易混物（记号或名字相近，语义无关）
+
+| 机制 | 记号 | 谁处理 |
+| --- | --- | --- |
+| **宏** | `${名}` / `%{名}` | 本契约（建树前**文本替换**） |
+| 参数 | `@名` | 建树期**内联成常量**（§4.6） |
+| 宏参数 | `@@名` | 同上，且**不查** `isParamName`（`Expression.java:183-186`） |
+| 第三方图形 JS 模板参数 | `${参数名}` | **图形模板生成器**（三个固定参数 `id`/`width`/`height`），与报表表达式链无关 |
+
+⛔ 最后一行与宏**记号完全相同**但是两套东西：那是 JS 侧的插值，发生在生成 JS
+的阶段。本契约的替换**不碰图形模板**。
+
+#### RPX 保存与读取
+
+本项目通过现有 `custom_properties` 槽保存 `rust_report.macro.<名称>`。
+`build()`、`build_full()` 和 `POST /reports` 产出的 RPX 都保留这些宏；
+`open_report_full()` 与引擎计算入口均读取它们。显式传入的同名宏覆盖报表保存值。
+产品私有 `MacroMetaData` 仍原样保留字节，未转换为本项目宏表；这不是 Java 产品宏格式互操作承诺。
+
+### 4.10 教程坐标与格集
+
+```text
+C2[A2:2,B2:1]       从远到近定位主格链，序号从 1 起
+C2[1]              第一个实例
+C2[-1]             相对当前实例向上偏移
+C2[`0]{}           根下的全部实例
+C2[A2]{C2>$C2}     当前 A2 组内过滤，$C2 保留外层基准
+&C2                所属 C2 实例在当前父组内的序号
+seq(C2)            同一模板格的全局实例序号
+sum(C2*D2,B2{})    在 B2 格集上下文中汇总计算列
+```
+
+`[]` 是坐标，`{}` 是条件，不能交换。空 `{}` 的管辖范围取决于公式所在格的主格链。
+条件过滤、计算列聚合和嵌套数据集选择在退出时恢复外层当前格与数据集指针。
+`count`、`to`、`int`、`value`、惰性 `if` / `ifn` 支持教程的排名、累积和补空行组合。
+`to` 端点为 i32，最多生成 1,048,576 项；毫秒时间戳数组请用 `list(...)`。
+
+#### 多源分片的数据集公式
+
+```text
+sales.group(year(ordered_at);year(ordered_at):1)
+sales.group(month(ordered_at);month(ordered_at):1)
+products.group(category,category!=null;category:1)
+sales.sum(qty*price,product_id in products.select(product_id))
+sales.sum(qty*price,employee_id==B8 and product_id in products.select(product_id))
+sum(C5{C5>300})
+```
+
+`in` 按值判定成员；标量右值作为单成员参与比较，左侧为集合时要求每个成员都属于右侧（子集）。
+空集合不包含标量，集合内重复值不会重复计算左侧记录。数组左值的 all 子集语义（空数组为真）是本项目明确采用的约定。
+`ds.sum(表达式,条件)` 先在当前数据集分片中筛选，再累加表达式；省略条件保留单参数语义。
+嵌套的另一数据集选择拥有自己的字段绑定，退出后恢复原数据集当前行。
+`group` 支持分号后的排序表达式及 `:1` 升序 / `:-1` 降序，也支持先过滤再分组。
+组内记录保留原始行号，来源记录不连续时，附属格仍能在正确子集内统计。
+本轮支持主体和排序两段；第三段分号的组后聚合排序尚未实现，显式报错。
+
+`year` / `month` 接受合法 `yyyy-MM-dd` 日期或带时间的日期字符串，空值返回空；
+支持空格或 `T` 时间分隔、1–9 位小数秒（`.` 或 `:`）、`Z` 或 `±HH:mm` 时区后缀；
+非法日期、类型或选项显式报错，不自动补造日期。日期函数提取输入中的年月，不转换时区。
+没有事实的 `ds.sum` 保留空值语义；需要数值 0 的交叉格应明确写 `ifn(...,0)`。
+综合可运行定义见 `examples/r-model/multisource-slicing.json`。
+
+### 4.11 教程打印契约
+
+`row_props[].type` 可选 `page_header`、`title`、`table_header`、`data`、
+`group_header`、`table_footer`、`tail_title`、`page_footer`。
+`group_header` 可设 `group_level`（1..20）；`col_props[].type` 可选
+`left_header`、`data`、`right_header`。这些值写入已有 RPX 行列类型槽。
+行列 `visible`、`break_page` 和行 `break_column` 支持布尔或表达式。
+`break_page` / `break_column` 表示该行列之后，只有按纸分页时生效。
+
+```json
+{
+  "print_setup": {
+    "pager_style": "rows", "row_num_per_page": "=@rows", "table_column_num": 2
+  },
+  "group_breaks": [{"cell": "A3", "when": "=A3=='华东'"}],
+  "printing": {"column_gap": 8, "header_x": "every", "title_y": "first"}
+}
+```
+
+`group_breaks` 在纵向扩展格的每个实例上下文求值，断点是组的最后明细行。
+多栏先向下排、再向右排；手动分页跳到下一张纸，分栏符移到下一栏。
+多栏不允许隐藏行，分栏数 1..16。表头每栏重复；组头是否跨栏重复由
+`column_repeated_group_header` 决定。页眉、标题、页脚和尾标题使用整页宽度。
+
+13 条打印规则对应如下：
+
+| 规则 | JSON 字段与行为 |
+| --- | --- |
+| 空行填充 | `print_setup.blank_line_filled`，按纸分页时补足剩余高度 |
+| 自动适应 | `printing.auto_size`，默认 true；图形按宿主跨度扩展行列，预览文字按宽度缩字，Excel 使用 shrink |
+| 横向拆页 | `printing.horizontal_split`，默认 true |
+| 纵向拆页 | `printing.vertical_split`，默认 true |
+| 数字折行 | `printing.wrap_numbers`，默认 false |
+| 零值空白 | `printing.zero_as_blank`，只改变页副本的显示值 |
+| 空字段输出 | `printing.output_empty`，默认 false；保留空字段；`empty_value` 可指定占位文本 |
+| 套打 | `print_setup.back_graph_printed`，启用页面背景图打印；配合 `pager_style:"none"` |
+| 边框线宽 | `printing.border_width`，pt，默认 0；显式单元格边框优先 |
+| 边框颜色 | `printing.border_color`，`#RRGGBB`，默认黑色 |
+| 多栏 | `print_setup.table_column_num` 大于 1 |
+| 栏距 | `printing.column_gap`，mm，默认 5 |
+| 页末空隙 | `printing.end_space`：`none` / `last` / `average` / `proportional`，默认 none |
+
+默认值是本项目契约，未声称与所有产品版本一致。
+
+打印矩阵：`header_y`（页眉页脚）、`title_y` 可选 `first` / `every`；
+`header_x`、`title_x` 可选 `first` / `every` / `first_slice` / `every_slice`。
+整幅模式在每个横向页呈现完整内容；slice 模式使用该页的数据列映射。
+合并标题保留整幅。`row_header_every` 默认 true、`row_footer_every` 默认 false，
+`column_header_every` / `column_footer_every` 默认 true。
+
+单元格 `stretch_when_paged` 和 `split` 是布尔值，写入已有 RPX 位标志。
+整幅区带优先伸缩指定列，没有指定时调整最右列；固定部分比页宽还大时按比例缩放。
+`split:false` 的连续合并块整体移页，超大块独占一页；`split:true` 允许跨页拆分。
+预览提供镜像打印和浏览器打印/PDF。`POST /export` 的 `fmt=print-xlsx`
+按同一引擎页映射导出，每页一张工作表。
+
+### 4.12 图形与 ECharts 模板
+
+```json
+{
+  "row": 3, "col": 5, "left_head": "A3", "data_type": "chart",
+  "chart": {
+    "type": "column", "title": "=A3", "categories": "=B3{}",
+    "series": [{"name": "金额", "values": "=C3{}"}],
+    "width": 320, "height": 180,
+    "appearance": {"colors": ["#4D6B88"], "legend": "bottom"}
+  }
+}
+```
+
+每个实际宿主实例分别绑定主格/数据集作用域，隐藏格仍可作为绑定数据。
+分类和数值绑定以 `=` 开头；标题、系列名是普通文本，也可用 `=` 表达式。
+系列长度必须与分类数一致；饼图与仪表盘仅接受一个系列，饼图不接受负数。
+
+28 种 `chart.type`：
+
+```text
+column column_3d clustered_column_3d stacked_column stacked_column_3d
+pie pie_3d line curve line_3d area area_3d bar clustered_bar_3d
+stacked_bar stacked_bar_3d scatter column_line dual_line time_series
+state_timeline gantt gauge gauge_3d radar milestone error_bar range
+```
+
+`gantt` / `state_timeline` / `milestone` 改用 `tasks:{categories,starts,ends,states}`
+表达式绑定，不能同时声明 `categories` / `series`；里程碑可省 ends。
+时间使用有限毫秒时间戳或浏览器能解析的日期字符串，开始不得晚于结束。
+时间字符串有效性在浏览器呈现时校验；数值时间倒序在引擎报错。
+`error_bar` / `range` 使用两个系列分别作为下界/上界，可带第三个中心值系列。
+
+`appearance` 可选 `colors`、`legend`（top/bottom/left/right/none）、`background`、
+`margins`（上右下左 px）、`pie_rotation`、`pie_depth`。
+三维图使用固定斜投影 SVG 几何，饼图有挤出侧面；支持打印，不提供交互旋转。
+
+页面背景用顶层 `background_image`；格背景用 `data_type:"cell_background"`；
+图片内容用 `data_type:"image"`。后二者使用 `image:{source,width,height}`，source
+可为图片 data URI 或 `=表达式`。支持 PNG/JPEG/GIF/BMP，验证实际图片字节。
+
+`data_type:"echarts"` 使用 `echarts:{template,params,width,height}`：template
+为 option JSON 文本，`${参数名}` 用表达式结果的 JSON 字面量单次替换。
+`data_type:"echarts_js"` 使用同一配置，但 template 是 JS 函数体，可 `return option`
+或调用传入的 `chart`、`container`、`width`、`height`。固定参数 `${id}`（chart）、
+`${width}`、`${height}` 不能被用户覆盖。JS 在 sandbox iframe 中运行，本地 ECharts
+运行时支持 formatter 函数，执行错误在预览显示。
+
+宏、打印扩展和图形定义使用各自命名空间的 RPX 自定义属性，不改产品私有图形记录。
+图形集示例在 `examples/tutorial/chart-gallery.json`。原生打印 Excel 支持常见二维图；
+自定义模板、三维图、任务/区间图和打印背景使用浏览器 PDF，Excel 出口明确返回错误。
 
 ## 5. 完整示例
 
@@ -440,7 +756,7 @@ JSON ──parse──▶ ReportDefine ──to_bytes──▶ .rpx 字节 ─�
 | 字段 | 内容 |
 | --- | --- |
 | `report` | **JSON 定义字节**（文件名任意，如 `def.json`；`open_report` 按内容识别） |
-| `dataset` | 数据集 CSV（`filename` 必须等于 `file.file_name`） |
+| `dataset` | 数据集 Excel / CSV / TSV（`filename` 必须等于 `file.file_name`） |
 | `params` | 参数 JSON（本契约 v1 不支持参数**声明**，见 §7；但引擎既有参数机制不受影响） |
 
 资产库入口 `POST /reports`（见 `docs/spec-m3.md` 的 M3-04 行）另有一处差别：
@@ -505,22 +821,19 @@ JSON 定义经 `parse::build → rpx_core::to_bytes` 转成 `.rpx`，两者都�
 
 ### 7.2 未支持（v1 范围之外）
 
-* **打印设置的码表字段**（`paper` / `orient` / `pager_style` / `h_align` / `v_align` /
+* **打印设置的码表字段**（`paper` / `orient` / `h_align` / `v_align` /
   `zoom_mode` / `layout` / 各 `*_mode`）—— 契约附件 D 未给码表、夹具只有默认值
   ⇒ 按「不猜」纪律不设命名枚举（横竖版用 `paper_width`/`paper_height` 互换，§4.7）。
 * 超链接、批注、`cell_graph`（图表）、子报表、`to_excel_mode` / `adjust_size_mode` /
   对角线（`diagonal_*`）、`extend_area` 显式声明。
   （单元格样式 7 字段 = M7-3 §3.2/§4.5；**参数声明** = M7-4 §3.5/§4.6；
   **边框 / 数字格式 / 缩进 / 旋转 / `extend_mode`** = M7-5 §3.2/§4.7；
-  **打印设置（语义明确子集）** = M7-6 §3.6/§4.7。）
-* `cell_graph`（图表）、超链接、批注、子报表；
-* 在线设计器（`web/` 侧）——Univer 目前仍是**纯渲染终端**（`docs/spec-m4.md` §1），
-  在它上面做「定格式」是**新阶段**。**已立 spec**：`docs/spec-m7-web.md`
-  （2026-10-16）。其**准入条件是 W0（前端可验证性地基：装依赖 + vitest + 新 gate G9）**
-  —— 本机 `web/` 无 `node_modules`、`package.json` 无测试运行器 ⇒ 前端改动目前
-  **无机器判据**，与「判据有效性一律用故障注入证明」冲突。W0 未绿之前不进 W1/W2。
-
-这些按同一模式加（`parse.rs` 加字段 + `build.rs` 加装配）。
+  **打印设置（语义明确子集）** = M7-6 §3.6/§4.7；
+  **声明式主格 `left_head`/`top_head`** = M7-7 §3.2/§4.8；
+  **主格/附属格 的扩展与三条硬约束** = M7-9 §4.8。）
+* 产品私有 `cell_graph` 记录的语义互操作；本项目图形走 §4.12 的独立契约。
+* `pno()` / `pcount()`、页统计区与 Java 字体测量布局的逐像素对拍。
+* 子报表、报表组、钻取、折叠、流式大报表属于教程的其他章节，本轮不扩展这些子系统。
 
 ## 8. 变更记录
 
@@ -532,3 +845,6 @@ JSON 定义经 `parse::build → rpx_core::to_bytes` 转成 `.rpx`，两者都�
 | 2026-10-16 | M7-4 参数声明：新增 §3.5 `params[]` 字段表、§4.6（`DT_*` 码表 + `kind` 三态 + 验证闭环）、§7.2 把「参数声明」从未支持列表移除。实现 `reportdef/params.rs`。 |
 | 2026-10-16 | M7-5 单元格属性扩展：§3.2 加 `border`/`format`/`indent`/`rotation`/`extend_mode`、§4.7 加边框线型码表与「模型往返」判据、§7.2 把「边框/数字格式/缩进/旋转/extend_mode」从未支持列表移除。实现 `reportdef/cellprops.rs`。 |
 | 2026-10-16 | M7-6 打印设置覆盖：新增 §3.6 `print_setup`（17 个语义明确字段）、§4.7 加「为什么不开放全部 33 槽」的理由、§7.2 把未开放字段改为「码表未给 ⇒ 不猜」。实现 `reportdef/printsetup.rs`。 |
+| 2026-10-17 | M7-7 声明式主格：§3.2 加 `left_head`/`top_head`、新增 §4.8（语义 + 三条产品约束 + 存在性校验口径 + `` `0 `` 为何不开）、§7.2 登记。实现 `reportdef/cellprops.rs` 的 `parse_cell_address` 与 `reportdef/parse.rs` 的**第三趟存在性校验**（把引擎分支 A 的静默落空变成显式错误）。实测：季度表头合并区 `B1:E1` → `B1:D1`。 |
+| 2026-10-17 | M7-9 主格/附属格 的扩展闭合：§4.8 把「三条硬约束」从「不代引擎校验」改写为**分工表**（② 引擎拦、①③ 装载层拦），并新增**实测**证据（六种违反形态原本全部静默通过）与**已声明边界**（只查显式声明的方向）。实现 `reportdef/heads.rs`（第三趟校验迁入 + ①③ 判定）。新增端到端判据 `tests/multipiece.rs` 五组（多片扩展 / 对照组拉大 / 缺省右附属格 / 主格在右下 / 三条约束），含教程 `dpkz101` 例 10.6.1 与「主格可以在右（下）边」两条原话。判据：10 条单测 + 5 条集成 + 5 条故障注入。 |
+| 2026-10-17 | M7-8 宏：新增 §3.7 `macros`（对象形态 + 值必须字符串）、§4.9（两个记号 `${}`/`%{}` 的出处 + 替换时机是契约 + 四个落点 + 三条规则 + 四个易混物 + **不落 .rpx 的已声明边界**）。实现 `rpx-engine/src/macros.rs`（纯函数 `substitute`）、`stage_b` 两个建树点的替换、`reportdef/macros.rs` 与 `open_report_full`；服务面 `calculate_full` + `prefetch_sql` 的 SQL 文本替换。判据：16 条单测 + 6 条故障注入全过。 |

@@ -50,7 +50,7 @@ use crate::expr::ds::DataSet;
 use crate::expr::eval::EvalCtx;
 use crate::extend::ExtendMode;
 use crate::params::ParamTable;
-use crate::stage_b::prepare_calculate;
+use crate::stage_b::prepare_calculate_with;
 use crate::value::Value;
 
 /// 引擎主入口：模板 + 数据集 → 计算态网格。
@@ -71,14 +71,32 @@ pub fn calculate(rd: &ReportDefine, ds: &[DataSet]) -> Result<CalcGrid> {
 /// 一张 `HeadState` 只跑一次（`prepareCalculate` 的改写不可逆，`ctx.rs` 文档）；
 /// 重入守卫 `_$14 <= 4` 在本形态下天然成立（每次新建 ctx，state 从 0 起）。
 pub fn calculate_with(rd: &ReportDefine, ds: &[DataSet], params: &ParamTable) -> Result<CalcGrid> {
-    // 分页支持性守卫（`spec-m2.md` §6.2 带账项 + M3-06 补齐项）：`pagerStyle != 2` /
-    // 多栏配置 / 列区带下，本实现的分页会**静默**按 `pagerStyle==2` 单栏全数据列
-    // 分支算（`pager::ensure_supported` 等守卫）。放最前：输入校验失败不跑计算。
-    // ⛔ 换行回填（-64/-56）**没有静态守卫**——`-64` 是普通格默认类型，任何模板
-    // 都有；核对结论见 `pager/guard.rs` 尾注与 `spec-m3.md` §8。
+    calculate_full(rd, ds, params, &crate::macros::MacroTable::EMPTY)
+}
+
+/// 引擎主入口（**全输入**形态）：参数表 + 宏表。
+///
+/// `macros` 是报表宏表（M7-8）。宏是"没有数据类型的字符串"，替换发生在**建表达式
+/// 之前**（`MacroResolver2.replaceMacros` 在 `new Expression(...)` 之前一行，
+/// `docs/m2-engine-design.md:1585`）⇒ 由 [`prepare_calculate_with`] 在两个建树点
+/// 之前跑 [`crate::macros::substitute`]：单元格表达式与属性表达式。
+///
+/// ⛔ 宏替换**不覆盖 SQL 文本**：数据集 SQL 在本函数**之外**取数（服务面
+/// `prefetch_sql`），它的宏替换由调用方在发 SQL 之前做 —— 见
+/// [`crate::macros`] 模块文档的"可放任何位置"那条。
+pub fn calculate_full(
+    rd: &ReportDefine,
+    ds: &[DataSet],
+    params: &ParamTable,
+    macros: &crate::macros::MacroTable,
+) -> Result<CalcGrid> {
+    let mut table = crate::macros::MacroTable::from_report(rd);
+    table.overlay(macros);
+    let macros = &table;
+    // 输入校验先于扩展；模板分页与探针分页分别保留其观测口径。
     crate::pager::ensure_supported(&rd.print_setup)?;
     crate::pager::ensure_data_columns(rd)?;
-    let sb = prepare_calculate(rd, params)?;
+    let sb = prepare_calculate_with(rd, params, macros)?;
     let mut ctx = CalcCtx::new(sb.grid, ds.to_vec());
     run_orchestration(&mut ctx)?;
     // 合并两趟。产品在 `SimplePager.createPages()` 里调（`:133-134` 单页 / `:180-190` 多页），
@@ -92,6 +110,14 @@ pub fn calculate_with(rd: &ReportDefine, ds: &[DataSet], params: &ParamTable) ->
     crate::merge::merge_same(&mut ctx.grid);
     crate::merge::merge_null(&mut ctx.grid);
     let (mut out, areas) = export_grid(&ctx, rd);
+    super::print_config::apply(&mut ctx, rd, &mut out, params, macros)?;
+    out.graphics = crate::graphics::collect(&mut ctx, rd, params, macros)?;
+    super::print_config::fit_graphics(&mut out);
+    out.page_background = rd
+        .custom_properties
+        .iter()
+        .find(|(key, _)| key == crate::graphics::BACKGROUND)
+        .and_then(|(_, value)| value.clone());
     // 分页（M2-11）：`SimplePager.createPages()` 的探针口径（595×842pt、1 栏）。
     let pg = crate::pager::paginate(
         &out,
@@ -270,6 +296,7 @@ fn export_grid(
                 continue; // `v == null && dv == null ⇒ 不落盘`（:51-53）
             }
             let mut cell = CalcCell::bare(r, c, h.value.clone());
+            cell.origin = (h.src_row, h.src_col);
             cell.disp_value = disp;
             // left_head / top_head：head **目标**的模板出处（`headJson:129-134`）。
             if h.left_head.is_some() {
@@ -314,9 +341,9 @@ fn export_grid(
 ///
 /// 产品分页时读的是 `report.getRowCell(calcRow)` —— 扩展后的报表**已经**把模板行
 /// `insertRows` 复制成计算态行，所以行高天然跟着走。本 crate 的 `ReportDefine` 不随扩展
-/// 改写，故改用 [`HeadCell::src_row`] / [`HeadCell::src_col`]（**模板出处**）反查：
-/// 每个计算态行取该行任一格的 `src_row`，再到模板取 `row_height` / `row_type`。
-/// 行级属性在一行内恒定，所以"任一格"是安全的（`by_pos` 的遍历序无关）。
+/// 改写，故按扩展后轴头格的 [`HeadCell::src_row`] / [`HeadCell::src_col`]
+/// （**模板出处**）反查模板。轴头 `(r,0)` / `(0,c)` 随扩展克隆，保留独立行列属性；
+/// 正文合并延续槽共享锚点，不能用其出处推断所在行列的属性。
 ///
 /// # 兜底
 ///
@@ -333,14 +360,16 @@ fn fill_geometry(ctx: &CalcCtx, rd: &ReportDefine, out: &mut CalcGrid) {
     let mut row_src: Vec<Option<i32>> = vec![None; row_size];
     let mut row_ty: Vec<Option<i8>> = vec![None; row_size];
     let mut col_src: Vec<Option<i32>> = vec![None; col_size];
-    for (&(r, c), &id) in ctx.grid.by_pos.iter() {
-        let h = &ctx.grid.cells[id.0 as usize];
-        if r >= 1 && (r as usize) < row_size && row_src[r as usize].is_none() {
-            row_src[r as usize] = Some(h.src_row);
-            row_ty[r as usize] = Some(h.row_type);
+    for r in 1..row_size {
+        if let Some(&id) = ctx.grid.by_pos.get(&(r as i32, 0)) {
+            let h = &ctx.grid.cells[id.0 as usize];
+            row_src[r] = Some(h.src_row);
+            row_ty[r] = Some(h.row_type);
         }
-        if c >= 1 && (c as usize) < col_size && col_src[c as usize].is_none() {
-            col_src[c as usize] = Some(h.src_col);
+    }
+    for (c, source) in col_src.iter_mut().enumerate().skip(1) {
+        if let Some(&id) = ctx.grid.by_pos.get(&(0, c as i32)) {
+            *source = Some(ctx.grid.cells[id.0 as usize].src_col);
         }
     }
     let mut last_h = 0.0f32;
@@ -390,6 +419,8 @@ fn fill_geometry(ctx: &CalcCtx, rd: &ReportDefine, out: &mut CalcGrid) {
             .unwrap_or(last_row_adjust_height);
         out.row_heights.push(h);
         out.row_types.push(t);
+        out.row_group_levels
+            .push(template.map_or(1, |rc| rc.group_header_level));
         out.row_visible.push(row_visible);
         out.row_break_page.push(row_break_page);
         out.row_break_column.push(row_break_column);
@@ -441,6 +472,7 @@ fn fill_geometry(ctx: &CalcCtx, rd: &ReportDefine, out: &mut CalcGrid) {
             .or_else(|| template.map(|cc| cc.break_column))
             .unwrap_or(last_col_break_column);
         out.col_widths.push(w);
+        out.col_types.push(template.map_or(-79, |cc| cc.col_type));
         out.col_visible.push(col_visible);
         out.col_break_page.push(col_break_page);
         out.col_break_column.push(col_break_column);

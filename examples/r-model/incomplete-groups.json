@@ -1,0 +1,325 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 8,
+    "cols": 4
+  },
+  "datasets": [
+    {
+      "name": "stock",
+      "file": {
+        "file_name": "inventory.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    },
+    {
+      "name": "bands",
+      "file": {
+        "file_name": "sources.xlsx",
+        "encoding": "UTF-8",
+        "sheet_name": "价格段"
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 18,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "商品价格分段统计 · 不完全分组",
+      "merge": {
+        "rows": 1,
+        "cols": 4
+      },
+      "bold": true,
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "Excel 定义分段及顺序；边界使用左闭右开，负价格事实保留在原始数据但不进入任何价格段。",
+      "merge": {
+        "rows": 1,
+        "cols": 4
+      },
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "产品类别",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "merge": {
+        "rows": 2,
+        "cols": 1
+      }
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "horizontal",
+      "expr": "bands.select(label)",
+      "h_align": "center",
+      "format": "0",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "merge": {
+        "rows": 1,
+        "cols": 3
+      }
+    },
+    {
+      "row": 4,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "B3",
+      "text": "产品种类",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "B3",
+      "text": "库存量",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "B3",
+      "text": "订购量",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 5,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "expr": "stock.group(category)",
+      "h_align": "left",
+      "format": "0"
+    },
+    {
+      "row": 5,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "top_head": "B3",
+      "expr": "count(stock.select(sku,price>=bands.low and (bands.unbounded or price<bands.high)))",
+      "h_align": "right",
+      "format": "0"
+    },
+    {
+      "row": 5,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "top_head": "B3",
+      "expr": "sum(stock.select(stock,price>=bands.low and (bands.unbounded or price<bands.high)))",
+      "h_align": "right",
+      "format": "0"
+    },
+    {
+      "row": 5,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A5",
+      "top_head": "B3",
+      "expr": "sum(stock.select(orders,price>=bands.low and (bands.unbounded or price<bands.high)))",
+      "h_align": "right",
+      "format": "0"
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "各段合计",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "B3",
+      "expr": "count(stock.select(sku,price>=bands.low and (bands.unbounded or price<bands.high)))",
+      "h_align": "right",
+      "format": "0",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "B3",
+      "expr": "sum(stock.select(stock,price>=bands.low and (bands.unbounded or price<bands.high)))",
+      "h_align": "right",
+      "format": "0",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "B3",
+      "expr": "sum(stock.select(orders,price>=bands.low and (bands.unbounded or price<bands.high)))",
+      "h_align": "right",
+      "format": "0",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 7,
+      "col": 1,
+      "text": "未纳入价格段的记录数（负价格）",
+      "merge": {
+        "rows": 1,
+        "cols": 4
+      },
+      "font_size": 10,
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 8,
+      "col": 1,
+      "expr": "count(stock.select(sku,price<0))",
+      "font_size": 12,
+      "bold": true,
+      "format": "0"
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 12
+    },
+    {
+      "row": 2,
+      "height": 9
+    },
+    {
+      "row": 3,
+      "height": 8
+    },
+    {
+      "row": 4,
+      "height": 8
+    },
+    {
+      "row": 5,
+      "height": 8
+    },
+    {
+      "row": 6,
+      "height": 8
+    },
+    {
+      "row": 7,
+      "height": 8
+    },
+    {
+      "row": 8,
+      "height": 8
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 32
+    },
+    {
+      "col": 2,
+      "width": 32
+    },
+    {
+      "col": 3,
+      "width": 29
+    },
+    {
+      "col": 4,
+      "width": 29
+    }
+  ],
+  "print_setup": {
+    "paper_width": 420,
+    "paper_height": 297,
+    "left_margin": 10,
+    "right_margin": 10,
+    "top_margin": 10,
+    "bottom_margin": 10
+  },
+  "printing": {
+    "horizontal_split": false,
+    "vertical_split": false,
+    "border_width": 0.5,
+    "border_color": "#CBD5E1"
+  }
+}

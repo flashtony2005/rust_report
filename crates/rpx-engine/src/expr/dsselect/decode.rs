@@ -17,25 +17,25 @@ use super::eval_bound;
 /// 点名产品消息键（与 `classify::err` 同策略）。
 fn param_err(key: &str, detail: &str) -> EngineError {
     EngineError::UnsupportedExpr {
-        expr: format!("select {key}: {detail}"),
+        expr: format!("数据集函数 {key}: {detail}"),
     }
 }
 
 /// 解码后的 select 参数（`DSSelect.java:36-145` 的逐字段对应物）。
-pub(super) struct SelectArgs {
+pub(crate) struct SelectArgs {
     /// 选列表达式（`selectExp`，必填）。
-    pub(super) select_exp: Expr,
+    pub(crate) select_exp: Expr,
     /// 过滤表达式（`fltExp`，可空）。
-    pub(super) flt_exp: Option<Expr>,
+    pub(crate) flt_exp: Option<Expr>,
     /// 限量（`num`；**-1 = 不限**，产品初值 `:40`）。
-    pub(super) num: i32,
+    pub(crate) num: i32,
     /// 去重表达式（`distinctExp`，可空）。
-    pub(super) distinct_exp: Option<Expr>,
+    pub(crate) distinct_exp: Option<Expr>,
     /// `:` 次序（`order`；>0 升 / <0 降 / 0 不排序）。
-    pub(super) order: i32,
+    pub(crate) order: i32,
     /// `;` 多排序键（`sortExps`）与逐键降序标记（`isDescs`）。
-    pub(super) sort_exps: Vec<Expr>,
-    pub(super) is_descs: Vec<bool>,
+    pub(crate) sort_exps: Vec<Expr>,
+    pub(crate) is_descs: Vec<bool>,
 }
 
 /// `IParam.getLeafExpression()` 的安全版：产品对**非叶子**节点调它是**抛
@@ -129,7 +129,7 @@ fn as_param_int(v: &Value) -> Result<i32> {
 }
 
 /// 参数矩阵解码（`DSSelect.java:36-145`）。
-pub(super) fn decode(c: &Call, ctx: &mut dyn EvalCtx) -> Result<SelectArgs> {
+pub(crate) fn decode(c: &Call, ctx: &mut dyn EvalCtx, max_args: usize) -> Result<SelectArgs> {
     let dsn = c.qualifier.as_deref().unwrap_or_default();
     // `this.param == null` ⇒ missingParam（`:32-35`）。DS 调用空参数串时
     // `build_param` 返回 None（`ParamParser.java:39-41`）。
@@ -200,8 +200,8 @@ pub(super) fn decode(c: &Call, ctx: &mut dyn EvalCtx) -> Result<SelectArgs> {
         // `,` 层：选列(+次序) + 过滤 + 限量 + 去重（`:90-145`）
         ParamKind::Comma => {
             let sub_size = p.sub_size();
-            if sub_size > 4 {
-                return Err(param_err("invalidParam", "参数段数 > 4"));
+            if sub_size > max_args {
+                return Err(param_err("invalidParam", &format!("参数段数 > {max_args}")));
             }
             let sub0 = p
                 .sub(0)

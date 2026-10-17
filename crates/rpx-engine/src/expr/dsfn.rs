@@ -48,7 +48,7 @@ pub(crate) fn ds_column(ctx: &mut dyn EvalCtx, ds: &str, col: &str) -> Result<Va
             .and_then(|r| r.get(idx))
             .cloned()
             .unwrap_or(Value::Null),
-        DsCur::Root => root_current_data(set, idx),
+        DsCur::Root | DsCur::Group(_) => root_current_data(set, idx),
     })
 }
 
@@ -64,8 +64,9 @@ pub(crate) fn ds_column(ctx: &mut dyn EvalCtx, ds: &str, col: &str) -> Result<Va
 /// M5-01 实证出口：`ds2.select(item:item)` 的次序表达式在产品里求值为
 /// 首行 `item`（Text）⇒ `paramTypeError`（`DSSelect.java:83-87`）。
 fn root_current_data(set: &crate::expr::ds::DataSet, idx: usize) -> Value {
-    set.rows
+    set.current_rows()
         .first()
+        .and_then(|&i| set.rows.get(i))
         .and_then(|r| r.get(idx))
         .cloned()
         .unwrap_or(Value::Null)
@@ -119,12 +120,13 @@ pub(crate) fn ds_offset_column(
             .cloned()
             .unwrap_or(Value::Null),
         // Root 态：第 i 行（1 起），越界 ⇒ Null（不报错）
-        DsCur::Root => {
-            if i < 1 || i as usize > set.rows.len() {
+        DsCur::Root | DsCur::Group(_) => {
+            let rows = set.current_rows();
+            if i < 1 || i as usize > rows.len() {
                 Value::Null
             } else {
                 set.rows
-                    .get(i as usize - 1)
+                    .get(rows[i as usize - 1])
                     .and_then(|row| row.get(idx))
                     .cloned()
                     .unwrap_or(Value::Null)
@@ -254,35 +256,7 @@ pub(crate) fn min_list(list: &[Value]) -> Result<Value> {
 /// DS 调用参数的求值：裸列名（`Unknown`）绑定到**本调用**的数据集
 /// （`UnknownSymbol.setDS` 的语义）；其余表达式原样求值。
 pub(crate) fn eval_ds_arg(arg: &Expr, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Value> {
-    match arg {
-        Expr::Unknown(col) => ds_current_data(ctx, dsn, col),
-        other => super::eval::evaluate(other, ctx),
-    }
-}
-
-/// `DataSet.getCurrentData(colNo)`：当前 DsValue 的该列数据。
-/// Row 态 → 当前行该列；Root 态 → 同 [`ds_column`] 的首行口径
-/// （`UnknownSymbol.setDS` 与 `DSVariable.calculate` 走同一条
-/// `getCurrentData`，产品两侧不分叉）。
-pub(crate) fn ds_current_data(ctx: &mut dyn EvalCtx, dsn: &str, col: &str) -> Result<Value> {
-    let idx = {
-        let set = ctx.ds(dsn).ok_or_else(|| EngineError::MissingDataset {
-            name: dsn.to_string(),
-        })?;
-        set.col_index(col).ok_or_else(|| EngineError::UnknownCell {
-            id: format!("{dsn}.{col}"),
-        })?
-    };
-    let set = ctx.ds(dsn).expect("上面刚取到");
-    Ok(match set.current {
-        DsCur::Row(i) => set
-            .rows
-            .get(i)
-            .and_then(|r| r.get(idx))
-            .cloned()
-            .unwrap_or(Value::Null),
-        DsCur::Root => root_current_data(set, idx),
-    })
+    super::dsselect::eval_bound(arg, dsn, ctx)
 }
 
 /// DS 函数（`ds.名(...)`）：select / sum / count。
@@ -303,14 +277,8 @@ pub(crate) fn ds_call(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Valu
     match (c.name.as_str(), is_row, c.args.len()) {
         // DSSelect 全形态（M5-01）：参数矩阵 + Row/Root 双态，见 dsselect 模块文档
         ("select", _, _) => super::dsselect::ds_select(c, dsn, ctx),
-        // DSSum Row 态（`DSSum.java:41-47`）：同 select 的 Row 路径
-        ("sum", true, 1) => {
-            let v = eval_ds_arg(&c.args[0], dsn, ctx)?;
-            row_path(dsn, v, ctx)
-        }
-        // DSSum Root 态：全量和（`DSSum.java:50-61`）。⛔ 返回**标量**
-        // （聚合值或 `Double(0.0)`），不是 Row 也不是 List ⇒ 不记旁路。
-        ("sum", false, 1) => sum_list(eval_rows(dsn, &c.args[0], ctx)?),
+        ("group", _, _) => super::dsgroup::group(c, dsn, ctx),
+        ("sum", _, _) => ds_sum(c, dsn, ctx),
         // ── M2-12：avg / max / min。Row 态与 sum 同形（`return cur;`），
         //    Root 态各自聚合（`Average.calculate:100-125` / `Max:100-121` /
         //    `Min:100-121`；三个 DS 包装类在 reportlite 树里**不存在**
@@ -329,12 +297,68 @@ pub(crate) fn ds_call(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Valu
         // DSCount Root 态：行数（夹具 ds2.count() → 3）
         ("count", false, 0) => {
             let set = ctx.ds(dsn).expect("上面刚取到");
-            Ok(Value::Int(set.rows.len() as i32))
+            Ok(Value::Int(set.current_rows().len() as i32))
+        }
+        ("count", true, 0) => {
+            let set = ctx.ds(dsn).expect("上面刚取到");
+            Ok(Value::Int(i32::from(set.current_row_checked().is_some())))
         }
         (name, _, n) => Err(EngineError::UnsupportedExpr {
             expr: format!("{dsn}.{name} 该形态未支持（{n} 参数）"),
         }),
     }
+}
+
+/// 条件求和使用当前行/组；`@r` 显式转根组，退出（含错误）恢复指针。
+fn ds_sum(c: &Call, dsn: &str, ctx: &mut dyn EvalCtx) -> Result<Value> {
+    use super::{ast::ParamKind, dsselect::eval_bound, num::as_bool};
+    if !matches!(
+        (c.param_kind, c.args.len()),
+        (ParamKind::Leaf, 1) | (ParamKind::Comma, 2)
+    ) {
+        return Err(EngineError::UnsupportedExpr {
+            expr: format!("{dsn}.sum：需要求和表达式和可选过滤条件"),
+        });
+    }
+    let (saved, rows) = {
+        let set = ctx.ds(dsn).expect("ds_call 已检查数据集");
+        let rows = if c.option.as_deref().unwrap_or("").contains('r') {
+            (0..set.rows.len()).collect()
+        } else {
+            set.current_rows()
+        };
+        (set.current, rows)
+    };
+    let is_row = matches!(saved, DsCur::Row(_)) && !c.option.as_deref().unwrap_or("").contains('r');
+    let result = (|| {
+        let mut values = Vec::with_capacity(rows.len());
+        for row in rows {
+            ctx.ds(dsn)
+                .expect("数据集存在")
+                .set_current(DsCur::Row(row));
+            if let Some(filter) = c.args.get(1) {
+                if !as_bool(&eval_bound(filter, dsn, ctx)?)? {
+                    continue;
+                }
+            }
+            values.push(eval_bound(&c.args[0], dsn, ctx)?);
+        }
+        if is_row {
+            match values.pop() {
+                Some(v) => row_path(dsn, v, ctx),
+                None => {
+                    if let Some(ds) = ctx.ds_index(dsn) {
+                        ctx.note_ds_row(ds, NULL_ROW_NOTE);
+                    }
+                    Ok(Value::Null)
+                }
+            }
+        } else {
+            sum_list(values)
+        }
+    })();
+    ctx.ds(dsn).expect("数据集存在").set_current(saved);
+    result
 }
 
 /// Row 态 DS 调用的公共尾段（`DSSelect.java:148-153` / `DSSum.java:41-47` 同形）：
@@ -368,20 +392,20 @@ pub(crate) fn row_path(dsn: &str, v: Value, ctx: &mut dyn EvalCtx) -> Result<Val
 /// `Group.evaluateRows`：逐行把 ds 指针切到该行求值（`Row.java:97-110` 的循环
 /// 形态；`Row.evaluate` 的"保存 → setCurrent → finally 恢复"展开成外层循环）。
 pub(crate) fn eval_rows(dsn: &str, col_expr: &Expr, ctx: &mut dyn EvalCtx) -> Result<Vec<Value>> {
-    let (n, saved) = {
+    let (rows, saved) = {
         let set = ctx.ds(dsn).ok_or_else(|| EngineError::MissingDataset {
             name: dsn.to_string(),
         })?;
-        (set.rows.len(), set.current)
+        (set.current_rows(), set.current)
     };
-    let mut out = Vec::with_capacity(n);
-    for i in 0..n {
-        {
-            let set = ctx.ds(dsn).expect("上面刚取到");
-            set.set_current(DsCur::Row(i));
+    let result = (|| {
+        let mut out = Vec::with_capacity(rows.len());
+        for i in rows {
+            ctx.ds(dsn).expect("上面刚取到").set_current(DsCur::Row(i));
+            out.push(eval_ds_arg(col_expr, dsn, ctx)?);
         }
-        out.push(eval_ds_arg(col_expr, dsn, ctx)?);
-    }
+        Ok(out)
+    })();
     ctx.ds(dsn).expect("上面刚取到").set_current(saved);
-    Ok(out)
+    result
 }

@@ -6,7 +6,7 @@
 //! 语义与出处见父模块的模块文档。
 
 use crate::arena::CellId;
-use crate::expr::eval::NULL_ROW_NOTE;
+use crate::expr::{ds::DsCur, eval::NULL_ROW_NOTE};
 
 /// `getNullRow()`（`DataSet.java:82`）：值全空的哨兵行（`Row.cross` 的失败返回）。
 pub const NULL_ROW: usize = usize::MAX;
@@ -17,47 +17,48 @@ pub const NULL_ROW: usize = usize::MAX;
 /// 漂移会让空行身份静默变成真实行（或反向）。
 const _: () = assert!(NULL_ROW == NULL_ROW_NOTE);
 
-/// 根 Group（`ds.getRootGroup()`，`DataSet.java:344-352`）的哨兵行号。
-///
-/// Java 用 `DsValue` 的两个**子类**（`Row` / `Group`）区分"某一行"与"全量"；
-/// 本 crate 的 [`DsInstance`] 只有一个 `row`，故给根 Group 留一个不与任何真实行
-/// 相撞的哨兵。⛔ 必须区别于 [`NULL_ROW`]：前者是"有 current，但是全量"，
-/// 后者是"没有 current"（`getCurrent() == null`）—— `setDSCurrent` 的"只填空"
-/// 判的就是后者（`ExtCellSet.java:572` 的 `group != null` ⇒ 跳过）。
-pub const ROOT_ROW: usize = usize::MAX - 1;
-
 /// `_$4`：一个扩展格"当前代表的那个 `DsValue` 实例"。
 ///
-/// `ds` 是数据集的稳定下标；`row` 是它在该数据集里的行号（[`NULL_ROW`] = 空行）。
+/// `ds` 是数据集的稳定下标；`current` 是行、组或根；行号 [`NULL_ROW`] 表示空行。
 /// 产品的 `DsValue` 还带一个求值缓存（`row.setValue(...)`），本 crate 里对应
 /// [`crate::expr::DataSet::selected`]。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DsInstance {
     /// 数据集下标（调用方维护 name → 下标的映射）。
     pub ds: usize,
-    /// 行号（0 起；[`NULL_ROW`] 表示 `getNullRow()`）。
-    pub row: usize,
+    /// 当前行或组的稳定身份。
+    pub current: DsCur,
 }
 
 impl DsInstance {
     /// 一行实例。
     pub fn new(ds: usize, row: usize) -> Self {
-        DsInstance { ds, row }
+        DsInstance {
+            ds,
+            current: DsCur::Row(row),
+        }
+    }
+
+    pub fn member(ds: usize, current: DsCur) -> Self {
+        Self { ds, current }
     }
 
     /// 该数据集的根 Group（全量）。
     pub fn root(ds: usize) -> Self {
-        DsInstance { ds, row: ROOT_ROW }
+        DsInstance {
+            ds,
+            current: DsCur::Root,
+        }
     }
 
     /// 是否是根 Group。
     pub fn is_root(&self) -> bool {
-        self.row == ROOT_ROW
+        self.current == DsCur::Root
     }
 
     /// 是否是真的某一行（不是根、也不是空行）。
     pub fn is_real_row(&self) -> bool {
-        self.row != ROOT_ROW && self.row != NULL_ROW
+        matches!(self.current, DsCur::Row(row) if row != NULL_ROW)
     }
 }
 

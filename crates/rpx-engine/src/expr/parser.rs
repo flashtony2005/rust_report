@@ -42,7 +42,7 @@ use crate::error::Result;
 use crate::params::ParamTable;
 use crate::value::Value;
 
-use super::ast::{Expr, UnOp};
+use super::ast::{Expr, ParamKind, UnOp};
 use super::atom::unary;
 use super::classify::{err, infix};
 use super::lexer::lex;
@@ -129,10 +129,10 @@ impl<'a> Parser<'a> {
                 }
                 Tok::LBracket if POSTFIX_BP >= min_bp => {
                     self.bump();
-                    // 下标内容**建模**（M5 带账⑤：旧版 take_group 丢弃 ⇒
-                    // `ds[i].列` 无从实现）
-                    let index = self.parse_bp(0)?;
-                    self.expect(Tok::RBracket)?;
+                    // ⛔ 下标内容**不能先当表达式解析**：坐标里的 `;`（纵展链与横伸链的
+                    //    分隔符）不是中缀运算符，`parse_bp` 会在它前面停下。
+                    //    先取 token 片段，再按后缀形态分流（`.列` / 坐标 / 旧 Move 形态）。
+                    let inner = self.take_group(Tok::RBracket)?;
                     // `.列` 后缀 ⇒ `ds[i].列`（DSOffset + DSMember 合成节点）。
                     // `.` 不是分隔符 ⇒ 后缀粘在 word 上（lexer scanId）。
                     // ⚠ 与产品**有意偏差**：产品按 left 求值结果分派
@@ -141,6 +141,7 @@ impl<'a> Parser<'a> {
                     if let Tok::Word(c) = self.peek().clone() {
                         if c.starts_with('.') && c.len() > 1 {
                             self.bump();
+                            let index = parse_tokens_with(inner, self.params)?;
                             // ds 名从 target 取（CellRef 的暂定 id / Unknown 的词）
                             let ds = match &lhs {
                                 Expr::CellRef { id, .. } => id.clone(),
@@ -159,11 +160,30 @@ impl<'a> Parser<'a> {
                             continue;
                         }
                     }
-                    // 无 `.列` 后缀 ⇒ Move/Offset 形态（eval 报 UnsupportedExpr）
+                    // 格号 + 坐标 ⇒ `Move`（层次坐标 / 位移坐标 / 根坐标）。
+                    // ⚠ 顺序：`.列` 分支必须在前面 —— `ds1` 形态上也是格号
+                    // （`is_cell_id("ds1")` 为真），先判坐标会把 `ds1[2].qty` 吞掉。
+                    if let Expr::CellRef { id, .. } = &lhs {
+                        let target = id.clone();
+                        let spec = super::coord::parse_coord(inner)?;
+                        lhs = Expr::Coord {
+                            target,
+                            spec: Box::new(spec),
+                        };
+                        continue;
+                    }
+                    // 其余 ⇒ Move/Offset 形态（eval 报 UnsupportedExpr）
                     lhs = Expr::Index {
                         target: Box::new(lhs),
-                        index: Box::new(index),
+                        index: Box::new(parse_tokens_with(inner, self.params)?),
                     };
+                }
+                // 后缀 `{...}`（`Select`，优先级 17）—— M7-8 补：
+                // 教程的格集/条件记号 `Cellx[坐标]{条件}`（`058_fzhz128`），
+                // 2010 设计文档把它写成 `Cellx{坐标}[条件]`（**写反了**，见 `coord.rs`）。
+                Tok::LBrace if POSTFIX_BP >= min_bp => {
+                    self.bump();
+                    lhs = self.parse_brace_after(lhs)?;
                 }
                 t => {
                     let Some((op, bp)) = infix(t) else { break };
@@ -211,9 +231,14 @@ impl<'a> Parser<'a> {
             // `(` 在原子位置是**分组**（Expression.java:302-317：preNode 为空或运算符时不起 Offset）
             Tok::LParen => {
                 self.bump();
-                let e = self.parse_bp(0)?;
-                self.expect(Tok::RParen)?;
-                Ok(e)
+                let inner = self.take_group(Tok::RParen)?;
+                // 成员列表 `(a,b)` 复用参数树的顶层切分；普通分组保留 Pratt 绑定力。
+                if super::classify::top_level_kind(inner) == ParamKind::Comma || inner.is_empty() {
+                    let (kind, items) = super::call::parse_params(inner, self.params)?;
+                    Ok(Expr::ValueList { kind, items })
+                } else {
+                    parse_tokens_with(inner, self.params)
+                }
             }
             Tok::LBracket => self.parse_value_list(),
             Tok::LBrace => self.parse_select(),

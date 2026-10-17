@@ -7,7 +7,7 @@
  *    都不给、dsn/sql/file_name 缺失各自显式报错（错误口径对齐服务端语义）。
  * 2. **增/删/改**（`applyDatasetAdd` / `Remove` / `Update`）—— 下标定位、
  *    越界显式报错、Update 是整条替换（否则删不掉 dsn）、未知键不无端保留。
- * 3. **重名告警不拦截**（`parse.rs` 无重名校验已核源码 ⇒ 前端不比服务端严）。
+ * 3. **重名显式拒绝**（执行端与编辑端均要求有效数据集名称唯一）。
  * 4. **纯函数性** + 读方向（`datasetsOf` / `datasetSummary`）。
  */
 import { describe, expect, it } from 'vitest'
@@ -77,6 +77,14 @@ describe('校验：镜像 parse_dataset', () => {
 // ---------------------------------------------------------------------------
 
 describe('增删改', () => {
+  it('多工作表与 CSV 分隔符在编辑、保存后保留', () => {
+    let def = applyDatasetAdd(baseDef(), { name: 'budget', file: { file_name: 'sources.xlsx', sheet_name: '预算' } }).def!
+    def = applyDatasetAdd(def, { name: 'refunds', file: { file_name: 'refunds.csv', delimiter: ',', encoding: 'UTF-8' } }).def!
+    const updated = applyDatasetUpdate(def, 0, { ...datasetsOf(def)[0], name: 'plan' }).def!
+    expect(datasetsOf(updated)[0].file?.sheet_name).toBe('预算')
+    expect(datasetsOf(updated)[1].file?.delimiter).toBe(',')
+    expect(applyDatasetAdd(updated, { file: { file_name: 'bad.csv', delimiter: '||' } }).error).toContain('分隔符')
+  })
   it('Add：追加并保留其余 JSON', () => {
     const def: ReportDef = { ...baseDef(), params: [{ name: 'p', data_type: 'int' }] }
     const r = applyDatasetAdd(def, sqlDs())
@@ -128,24 +136,23 @@ describe('增删改', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 3. 重名：告警不拦截
+// 3. 重名：显式拒绝
 // ---------------------------------------------------------------------------
 
-describe('重名告警', () => {
-  it('Add 重名 ⇒ 有告警但仍成功', () => {
+describe('重名拒绝', () => {
+  it('Add 重名 ⇒ 拒绝', () => {
     let def = applyDatasetAdd(baseDef(), sqlDs()).def!
     const r = applyDatasetAdd(def, sqlDs())
-    expect(r.error).toBeUndefined()
-    expect(r.def?.datasets).toHaveLength(2)
-    expect(r.warnings.join()).toContain('重复')
+    expect(r.error).toContain('重复')
+    expect(r.def).toBeUndefined()
   })
 
-  it('Update 改成与别条重名 ⇒ 告警；不重名 ⇒ 无告警', () => {
+  it('Update 改成与别条重名 ⇒ 拒绝；不重名 ⇒ 成功', () => {
     let def = applyDatasetAdd(baseDef(), sqlDs()).def!
     def = applyDatasetAdd(def, fileDs()).def!
     const r = applyDatasetUpdate(def, 1, { name: 'ds1', file: { file_name: 'b.csv' } })
-    expect(r.error).toBeUndefined()
-    expect(r.warnings.join()).toContain('重复')
+    expect(r.error).toContain('重复')
+    expect(r.def).toBeUndefined()
     const ok = applyDatasetUpdate(def, 1, { name: 'f2', file: { file_name: 'b.csv' } })
     expect(ok.warnings.join()).not.toContain('重复')
   })

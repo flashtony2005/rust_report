@@ -114,8 +114,10 @@ pub mod eval;
 pub mod expr;
 pub mod ext_algo;
 pub mod extend;
+pub mod graphics;
 pub mod heads;
 pub mod literal;
+pub mod macros;
 pub mod main_cell;
 pub mod merge;
 pub mod pager;
@@ -127,7 +129,7 @@ pub mod value;
 pub use arena::{
     CalcCell, CalcGrid, CalcMatrix, CellId, EngineMatrix, MergedCell, SourceRef, SubValue,
 };
-pub use calc::{calculate, calculate_with};
+pub use calc::{calculate, calculate_full, calculate_with};
 pub use calc::{DsInstance, HeadPairTracker};
 pub use error::{EngineError, Result};
 pub use eval::{run_channels, state as eval_state, Flow, SchedGrid, Suspend};
@@ -139,14 +141,17 @@ pub use extend::{
 };
 pub use heads::{find_left_head, find_top_head, normalize_heads, HeadGrid};
 pub use literal::{decimal_to_string, literal_value};
+pub use macros::{substitute as substitute_macros, MacroTable};
 pub use main_cell::MainCell;
 pub use merge::{merge_null, merge_same};
 pub use pager::{paginate, PageInfo, Pagination};
 pub use params::ParamTable;
 pub use stage_a::{StageA, ROW_TYPE_GROUP_HEADER};
-pub use stage_b::{cell_expression, prepare_calculate, StageB};
+pub use stage_b::{cell_expression, prepare_calculate, prepare_calculate_with, StageB};
 pub use value::Value;
 
+#[cfg(test)]
+mod macros_wiring_tests;
 #[cfg(test)]
 mod stage_a_tests;
 #[cfg(test)]
