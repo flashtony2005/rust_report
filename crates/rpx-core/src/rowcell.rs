@@ -5,9 +5,14 @@
 //! breakColumn, adjustRowH。
 //! 证据：RowCell.java:350-376(写) / :381-402(读)。
 
+#[cfg(feature = "legacy-rpx")]
 use crate::error::Result;
-use crate::props::{def, row};
-use crate::reader::{ObjValue, RecordReader};
+use crate::props::def;
+#[cfg(feature = "legacy-rpx")]
+use crate::props::row;
+use crate::reader::ObjValue;
+#[cfg(feature = "legacy-rpx")]
+use crate::reader::RecordReader;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RowCell {
@@ -26,6 +31,7 @@ pub struct RowCell {
 
 impl RowCell {
     /// 从 readRecord 切出的记录体解析；None = 空槽（size<=0）。
+    #[cfg(feature = "legacy-rpx")]
     pub fn read(slice: &[u8]) -> Result<Option<Self>> {
         let mut r = RecordReader::new(slice);
         let row_type = r

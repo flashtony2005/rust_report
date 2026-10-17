@@ -10,16 +10,23 @@
 
 /// ParamMetaData 记录体：int16 个数 + 逐条 readRecord(Param)（ParamMetaData.java:156-169）。
 /// 合并区铺满与参数表展开在 `report_fill` 子模块。
+#[cfg(feature = "legacy-rpx")]
 mod report_fill;
 
+#[cfg(feature = "legacy-rpx")]
 use self::report_fill::{fill_merge, read_params};
 use crate::cell::Cell;
 use crate::colcell::ColCell;
-use crate::dataset::{read_data_set_meta, DataSetEntry};
+#[cfg(feature = "legacy-rpx")]
+use crate::dataset::read_data_set_meta;
+use crate::dataset::DataSetEntry;
+#[cfg(feature = "legacy-rpx")]
 use crate::error::{Result, RpxError};
 use crate::param::Param;
 use crate::print_setup::PrintSetup;
-use crate::reader::{ObjValue, RecordReader};
+use crate::reader::ObjValue;
+#[cfg(feature = "legacy-rpx")]
+use crate::reader::RecordReader;
 use crate::rowcell::RowCell;
 
 /// 网格单元格引用：索引进 ReportDefine::store（合并区各处共享同一 id）。
@@ -88,6 +95,7 @@ pub struct ReportDefine {
 
 impl ReportDefine {
     /// 从 payload（ReportDefine.serialize() 的字节）装载。
+    #[cfg(feature = "legacy-rpx")]
     pub fn fill(payload: &[u8]) -> Result<Self> {
         let mut r = RecordReader::new(payload);
         let p = |step: u16, what: &'static str| RpxError::prop(step, what);

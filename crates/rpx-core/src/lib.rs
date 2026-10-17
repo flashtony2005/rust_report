@@ -11,6 +11,7 @@ pub mod colcell;
 pub mod dataset;
 pub mod error;
 pub mod javautf;
+pub mod objvalue;
 pub mod param;
 pub mod print_setup;
 pub mod props;
@@ -19,16 +20,21 @@ pub mod report;
 pub mod rowcell;
 pub mod rowset;
 pub mod value;
+#[cfg(feature = "legacy-rpx")]
 pub mod writer;
 
 pub use error::{Result, RpxError};
 pub use report::{CellId, MergedArea, ReportDefine, ScalarTail};
+#[cfg(feature = "legacy-rpx")]
 pub use writer::to_bytes;
 
+#[cfg(feature = "legacy-rpx")]
 pub(crate) const MAGIC: [u8; 4] = [82, 81, 81, 82];
+#[cfg(feature = "legacy-rpx")]
 pub(crate) const FOOTER: [u8; 8] = [82, 81, 81, 82, 82, 81, 81, 82];
 
 /// 主入口：从任意 Read 源解析 .rpx。
+#[cfg(feature = "legacy-rpx")]
 pub fn open<R: std::io::Read>(mut r: R) -> Result<ReportDefine> {
     let mut buf = Vec::new();
     r.read_to_end(&mut buf)?;
@@ -36,6 +42,7 @@ pub fn open<R: std::io::Read>(mut r: R) -> Result<ReportDefine> {
 }
 
 /// 主入口（字节版）：校验文件层后装载 payload。
+#[cfg(feature = "legacy-rpx")]
 pub fn open_bytes(buf: &[u8]) -> Result<ReportDefine> {
     if buf.len() < 8 {
         return Err(RpxError::Truncated { ctx: "file header" });

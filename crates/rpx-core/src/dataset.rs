@@ -12,7 +12,9 @@
 //!   （FileDataSetConfig.java:42-44），需按类名映射。
 //!   尾段多组为 available() 守卫（老文件兼容），本批夹具由新 writer 产出必含。
 
+#[cfg(feature = "legacy-rpx")]
 use crate::error::{Result, RpxError};
+#[cfg(feature = "legacy-rpx")]
 use crate::reader::RecordReader;
 
 /// `*DataSetConfig.getFactoryClass()` 的常量返回值（类名 → 工厂类名映射）。
@@ -28,6 +30,7 @@ pub fn factory_class_for(class_name: &str) -> Option<&'static str> {
     }
 }
 
+#[cfg(feature = "legacy-rpx")]
 fn read_string_list(r: &mut RecordReader) -> Result<Option<Vec<Option<String>>>> {
     let n = r.read_i16()?;
     if n <= 0 {
@@ -40,6 +43,7 @@ fn read_string_list(r: &mut RecordReader) -> Result<Option<Vec<Option<String>>>>
     Ok(Some(v))
 }
 
+#[cfg(feature = "legacy-rpx")]
 fn read_i32_list(r: &mut RecordReader) -> Result<Option<Vec<i32>>> {
     let n = r.read_i16()?;
     if n <= 0 {
@@ -53,6 +57,7 @@ fn read_i32_list(r: &mut RecordReader) -> Result<Option<Vec<i32>>> {
 }
 
 /// DataSetConfig 基类 6 槽（DataSetConfig.java:108-117 写 / :120-128 读）。
+#[cfg(feature = "legacy-rpx")]
 pub(crate) struct BaseConfig {
     name: Option<String>,
     data_source_name: Option<String>,
@@ -62,6 +67,7 @@ pub(crate) struct BaseConfig {
     no_data_prompt: bool,
 }
 
+#[cfg(feature = "legacy-rpx")]
 pub(crate) fn parse_base(blob: Option<&[u8]>) -> Result<BaseConfig> {
     let Some(slice) = blob else {
         return Ok(BaseConfig {
@@ -114,6 +120,7 @@ pub struct FileDataSetConfig {
 }
 
 impl FileDataSetConfig {
+    #[cfg(feature = "legacy-rpx")]
     fn read(slice: &[u8]) -> Result<Self> {
         let mut r = RecordReader::new(slice);
         let p = |slot: u16, what: &'static str| RpxError::prop(slot, what);
@@ -219,6 +226,7 @@ pub struct SqlDataSetConfig {
 }
 
 impl SqlDataSetConfig {
+    #[cfg(feature = "legacy-rpx")]
     fn read(slice: &[u8]) -> Result<Self> {
         let mut r = RecordReader::new(slice);
         let p = |slot: u16, what: &'static str| RpxError::prop(slot, what);
@@ -280,6 +288,7 @@ pub struct DataSetEntry {
 }
 
 /// 从 DataSetMetaData 切出的记录体解析整表。
+#[cfg(feature = "legacy-rpx")]
 pub fn read_data_set_meta(slice: &[u8]) -> Result<Vec<DataSetEntry>> {
     let mut r = RecordReader::new(slice);
     let count = r
@@ -325,7 +334,7 @@ pub fn read_data_set_meta(slice: &[u8]) -> Result<Vec<DataSetEntry>> {
     Ok(out)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-rpx"))]
 mod tests {
     use std::fs::File;
     use std::path::Path;

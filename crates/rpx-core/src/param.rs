@@ -5,7 +5,9 @@
 //! ParamMetaData 外层 = int16 个数 + 逐条 readRecord(Param)（ParamMetaData.java:156-169）。
 //! 证据：Param.java:113-126(写) / :129-141(读)。
 
+#[cfg(feature = "legacy-rpx")]
 use crate::error::{Result, RpxError};
+#[cfg(feature = "legacy-rpx")]
 use crate::reader::RecordReader;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,6 +20,7 @@ pub struct Param {
 }
 
 impl Param {
+    #[cfg(feature = "legacy-rpx")]
     pub fn read(slice: &[u8]) -> Result<Self> {
         let mut r = RecordReader::new(slice);
         let p = |slot: u16, what: &'static str| RpxError::prop(slot, what);

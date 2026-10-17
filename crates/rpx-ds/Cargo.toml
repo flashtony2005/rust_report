@@ -5,7 +5,7 @@ edition.workspace = true
 description = "ReportLite data-source layer (M3-03): SQL via AnyPool -> materialized RowSet"
 
 [dependencies]
-rpx-core = { path = "../rpx-core" }
+rpx-core = { path = "../rpx-core", default-features = false }
 calamine = "0.36"
 csv = "1.4"
 sqlx = { version = "0.9", default-features = false, features = [

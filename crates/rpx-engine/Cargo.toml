@@ -5,4 +5,8 @@ edition.workspace = true
 description = "ReportLite calculated-state engine (extension / evaluation / merge / pagination), pure std, zero dependencies"
 
 [dependencies]
-rpx-core = { path = "../rpx-core" }
+rpx-core = { path = "../rpx-core", default-features = false }
+
+[dev-dependencies]
+# engine 契约测试直接读 .rpx 夹具；库本身只依赖零依赖类型。
+rpx-core = { path = "../rpx-core", features = ["legacy-rpx"] }

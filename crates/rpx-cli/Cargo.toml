@@ -7,11 +7,11 @@ name = "rpx"
 path = "src/main.rs"
 [features]
 default = ["legacy-rpx"]
-legacy-rpx = ["rpx-runtime/legacy-rpx"]
+legacy-rpx = ["rpx-runtime/legacy-rpx", "rpx-core/legacy-rpx"]
 
 [dependencies]
 rpx-runtime = { path = "../rpx-runtime", default-features = false }
-rpx-core = { path = "../rpx-core" }
+rpx-core = { path = "../rpx-core", default-features = false }
 clap = { version = "4", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

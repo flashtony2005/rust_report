@@ -14,9 +14,13 @@
 
 pub mod cell_defaults;
 
+#[cfg(feature = "legacy-rpx")]
 use crate::error::{Result, RpxError};
+#[cfg(feature = "legacy-rpx")]
 use crate::props::{cell, def, normalize_style};
-use crate::reader::{ObjValue, RecordReader};
+use crate::reader::ObjValue;
+#[cfg(feature = "legacy-rpx")]
+use crate::reader::RecordReader;
 
 /// 合并区/扩展区：4×int32 大端，流内顺序 r1(beginRow), r2(endRow), c1(beginCol), c2(endCol)。
 /// 证据：Area.java:126-142。
@@ -29,6 +33,7 @@ pub struct Area {
 }
 
 impl Area {
+    #[cfg(feature = "legacy-rpx")]
     fn read(slot: usize) -> impl FnOnce(&[u8]) -> Result<Option<Area>> {
         move |slice: &[u8]| {
             let mut r = RecordReader::new(slice);
@@ -115,6 +120,7 @@ pub struct Cell {
 
 impl Cell {
     /// 从 readRecord 切出的记录体解析；None = 空槽（合并非锚点 = int32 -1）。
+    #[cfg(feature = "legacy-rpx")]
     pub fn read(slice: &[u8]) -> Result<Option<Self>> {
         let mut r = RecordReader::new(slice);
         let p = |slot: usize, what: &'static str| RpxError::prop(slot as u16, what);

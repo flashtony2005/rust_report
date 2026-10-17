@@ -5,7 +5,9 @@
 //! 32+33 共同守卫），老文件可能缺，按默认值缺省。
 //! 证据：PrintSetup.java:1027-1062(写) / :1066-1105(读)，默认值 :134-166。
 
+#[cfg(feature = "legacy-rpx")]
 use crate::error::{Result, RpxError};
+#[cfg(feature = "legacy-rpx")]
 use crate::reader::RecordReader;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,6 +88,7 @@ impl PrintSetup {
         }
     }
 
+    #[cfg(feature = "legacy-rpx")]
     pub fn read(slice: &[u8]) -> Result<Self> {
         let mut r = RecordReader::new(slice);
         let p = |slot: u16, what: &'static str| RpxError::prop(slot, what);

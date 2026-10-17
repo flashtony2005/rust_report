@@ -1,6 +1,6 @@
 # ADR 0001 — JSON 成为规范报表格式，`.rpx` 降级为 legacy 适配器
 
-- 状态：**Accepted — Phase 0/1/2 完成；Phase 3 已开始（legacy-rpx feature 边界）**
+- 状态：**Accepted — Phase 0/1/2 完成；Phase 3 进行中（runtime/CLI + rpx-core feature 边界已落地）**
 - 日期：2026-10-17
 - 决策范围：报表定义格式、`rpx-core`/`rpx-runtime` 边界、CLI/Web/Server 的输入输出
 - 关联文档：
@@ -187,8 +187,10 @@
 
 - `rpx-runtime` / `rpx-cli` 增加 `legacy-rpx` feature（默认开启，保持兼容）。
 - `format`、`report import-rpx`、`template compile`、`.rpx` reader 分支都受 feature 控制；`cargo check -p rpx-cli --no-default-features` 通过，JSON-only 构建不暴露 legacy 命令。
+- `rpx-core` 拆分完成：`writer`、`open/open_bytes`、`fill`、`Cell/RowCell/ColCell/Param/PrintSetup/DataSet` 读方法、`RecordReader` 都受 `legacy-rpx` 控制；`ObjValue` 移到独立模块，JSON-only 仍可用。
+- no-default 的 runtime/CLI 依赖图不再启用 `rpx-core/legacy-rpx`；core 的二进制测试用 `required-features` 隔离。
 - `scripts/json_only_smoke.sh` 在 no-default 构建上跑 validate → run → result inspect → library/preset → report run；CI 同步执行。
-- 剩余：把默认 feature 关闭、`rpx-core` 二进制读写拆分、结构性编辑 overlay。
+- 剩余：默认关闭 `legacy-rpx`、结构性编辑 overlay。
 
 任务：
 

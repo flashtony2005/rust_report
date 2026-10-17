@@ -8,49 +8,22 @@
 //! - A.5 readObject = 1 字节标签字典（M1 子集）
 //! - A.6 available() = 当前切片剩余字节数
 
+#[cfg(feature = "legacy-rpx")]
 use crate::error::{Result, RpxError};
+#[cfg(feature = "legacy-rpx")]
 use crate::javautf;
 
-/// readObject 标签字典解出的值（M1 子集，附件 A.5）。
-#[derive(Debug, Clone, PartialEq)]
-pub enum ObjValue {
-    Null,
-    Str(String),
-    Int(i32),
-    Long(i64),
-    Double(f64),
-    Float(f32),
-    Bool(bool),
-    Byte(i8),
-    Short(i16),
-    /// 标签 2：int32 scale + 大端补码 unscaled 字节（M1 透传不转 decimal）
-    BigDecimal {
-        scale: i32,
-        unscaled: Vec<u8>,
-    },
-    /// 标签 7
-    BigInteger(Vec<u8>),
-    /// 标签 8
-    Bytes(Vec<u8>),
-    /// 标签 3/31/32/33：java.util.Date / sql.Timestamp / sql.Time / sql.Date，毫秒
-    Millis {
-        tag: i8,
-        millis: i64,
-    },
-    /// 标签 0：IRecord 多态，M1 只留类名与原始字节
-    Obj {
-        class_name: Option<String>,
-        raw: Vec<u8>,
-    },
-}
+pub use crate::objvalue::ObjValue;
 
 /// 切片读取器。每个 readRecord 子记录用 `sub(slice)` 派生独立实例，
 /// 因此 remaining() 只反映当前切片（附件 A.4/A.6）。
+#[cfg(feature = "legacy-rpx")]
 pub struct RecordReader<'a> {
     buf: &'a [u8],
     pos: usize,
 }
 
+#[cfg(feature = "legacy-rpx")]
 impl<'a> RecordReader<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
         Self { buf, pos: 0 }
@@ -220,7 +193,7 @@ impl<'a> RecordReader<'a> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-rpx"))]
 mod tests {
     use super::{ObjValue, RecordReader};
 

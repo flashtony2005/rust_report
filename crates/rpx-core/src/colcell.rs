@@ -4,9 +4,14 @@
 //! notes(readString), OIS blob, breakColumn。
 //! 证据：ColCell.java:295-319(写) / :324-343(读)。
 
+#[cfg(feature = "legacy-rpx")]
 use crate::error::Result;
-use crate::props::{col, def};
-use crate::reader::{ObjValue, RecordReader};
+#[cfg(feature = "legacy-rpx")]
+use crate::props::col;
+use crate::props::def;
+use crate::reader::ObjValue;
+#[cfg(feature = "legacy-rpx")]
+use crate::reader::RecordReader;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColCell {
@@ -21,6 +26,7 @@ pub struct ColCell {
 }
 
 impl ColCell {
+    #[cfg(feature = "legacy-rpx")]
     pub fn read(slice: &[u8]) -> Result<Option<Self>> {
         let mut r = RecordReader::new(slice);
         let col_type = r

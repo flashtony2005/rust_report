@@ -28,9 +28,11 @@ pub enum RpxError {
 }
 
 impl RpxError {
+    #[cfg(feature = "legacy-rpx")]
     pub(crate) fn truncated(ctx: &'static str) -> Self {
         RpxError::Truncated { ctx }
     }
+    #[cfg(feature = "legacy-rpx")]
     pub(crate) fn prop(slot: u16, detail: &'static str) -> Self {
         RpxError::PropertyCode { slot, detail }
     }
