@@ -543,7 +543,7 @@ rpx result inspect /tmp/rpx-complex/template.json
 - 它返回的是静态 JSON：版本、支持格式、`offline:true`、`authentication:not_required`；不检查库是否可写、数据源配置是否可连、`node_modules`/Web 是否可用、`print-xlsx` 的已知限制。
 - 已补：`doctor --library` 检查库版本/可写，`--datasources` 只检查 JSON 形状与 URL scheme，不连接；输出 `checks` 与 `legacy_rpx` 能力位。
 
-#### P2-2：帮助文本过于简陋
+#### P2-2：帮助文本过于简陋（已补）
 
 - `rpx template --help`、`rpx report --help` 的子命令全是空白描述；`rpx run --help` 的参数也没有一句说明。
 - 对一个「给 agent 用」的 CLI，`--help` 是第一发现入口；建议在 `args.rs` 给每个 `Command`/`Args` 加 `///` 文档、`value_name`、示例。

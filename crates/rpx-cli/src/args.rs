@@ -21,29 +21,37 @@ pub struct Cli {
 }
 #[derive(Args, Default)]
 pub struct Page {
+    /// 每页条数（1..=500）
     #[arg(long,default_value_t=50,value_parser=clap::value_parser!(u16).range(1..=500))]
     pub limit: u16,
+    /// 起始偏移
     #[arg(long, default_value_t = 0)]
     pub offset: usize,
 }
 #[derive(Args)]
 pub struct Inputs {
+    /// 文件数据集所在目录
     #[arg(long)]
     pub data_dir: Option<PathBuf>,
+    /// 参数 JSON 文件；`-` 表示 stdin
     #[arg(long)]
     pub params_file: Option<PathBuf>,
+    /// 数据源注册表（只读取配置）
     #[arg(long)]
     pub datasources: Option<PathBuf>,
+    /// 导出格式，可重复
     #[arg(long="export",value_parser=["csv","xlsx","print-xlsx"])]
     pub exports: Vec<String>,
 }
 #[derive(Args)]
 pub struct Library {
+    /// 目录库根路径
     #[arg(long)]
     pub library: PathBuf,
 }
 #[derive(Subcommand)]
 pub enum Command {
+    /// 环境与能力自检
     Doctor {
         /// 检查目录库是否可读可写
         #[arg(long)]
@@ -52,43 +60,54 @@ pub enum Command {
         #[arg(long)]
         datasources: Option<PathBuf>,
     },
+    /// 输出内置 JSON schema
     Schema {
         #[arg(value_parser=["template"])]
         kind: String,
     },
+    /// 模板查看、校验、创建与补丁
     Template {
         #[command(subcommand)]
         command: Template,
     },
     #[cfg(feature = "legacy-rpx")]
+    /// legacy .rpx ↔ JSON 迁移
     Format {
         #[command(subcommand)]
         command: FormatCommand,
     },
+    /// 直接运行一个 JSON 模板
     Run {
+        /// JSON 模板路径
         #[arg(value_parser=source_path)]
         file: PathBuf,
+        /// 结果与产物目录
         #[arg(long)]
         out_dir: PathBuf,
         #[command(flatten)]
         inputs: Inputs,
     },
+    /// 查询固定结果
     Result {
         #[command(subcommand)]
         command: ResultCommand,
     },
+    /// 数据源/数据集检查
     Dataset {
         #[command(subcommand)]
         command: Dataset,
     },
+    /// 内置函数与示例
     Catalog {
         #[command(subcommand)]
         command: Catalog,
     },
+    /// 目录库初始化
     Library {
         #[command(subcommand)]
         command: LibraryCommand,
     },
+    /// 目录库中的报表生命周期
     Report {
         #[command(subcommand)]
         command: Report,
@@ -133,6 +152,7 @@ pub enum FormatCommand {
 }
 #[derive(Subcommand)]
 pub enum Template {
+    /// 查看模板摘要/单个单元格
     Inspect {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -141,18 +161,21 @@ pub enum Template {
         #[command(flatten)]
         page: Page,
     },
+    /// 离线校验模板
     Validate {
         #[arg(value_parser=source_path)]
         file: PathBuf,
         #[arg(long)]
         params_file: Option<PathBuf>,
     },
+    /// 从内置示例创建模板包
     Create {
         #[arg(long)]
         example: String,
         #[arg(long)]
         out_dir: PathBuf,
     },
+    /// 应用 RFC 6902 补丁
     Patch {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -164,6 +187,7 @@ pub enum Template {
         dry_run: bool,
     },
     #[cfg(feature = "legacy-rpx")]
+    /// 编译为 legacy .rpx
     Compile {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -173,6 +197,7 @@ pub enum Template {
 }
 #[derive(Subcommand)]
 pub enum ResultCommand {
+    /// 分页/按区域查看 result.json
     Inspect {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -186,6 +211,7 @@ pub enum ResultCommand {
 }
 #[derive(Subcommand)]
 pub enum Dataset {
+    /// 预览文件/SQL 数据集
     Inspect {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -201,16 +227,19 @@ pub enum Dataset {
 }
 #[derive(Subcommand)]
 pub enum Catalog {
+    /// 列出内置函数
     Functions {
         #[arg(long)]
         name: Option<String>,
         #[command(flatten)]
         page: Page,
     },
+    /// 列出内置示例
     Examples,
 }
 #[derive(Subcommand)]
 pub enum LibraryCommand {
+    /// 初始化目录库
     Init {
         dir: PathBuf,
         #[arg(long)]
@@ -219,6 +248,7 @@ pub enum LibraryCommand {
 }
 #[derive(Subcommand)]
 pub enum Report {
+    /// 列出报表
     List {
         #[command(flatten)]
         library: Library,
@@ -229,11 +259,13 @@ pub enum Report {
         #[command(flatten)]
         page: Page,
     },
+    /// 查看报表源码与状态
     Show {
         id: String,
         #[command(flatten)]
         library: Library,
     },
+    /// 查看运行历史
     Runs {
         id: String,
         #[command(flatten)]
@@ -241,6 +273,7 @@ pub enum Report {
         #[command(flatten)]
         page: Page,
     },
+    /// 复制报表
     Copy {
         id: String,
         #[arg(long = "as")]
@@ -248,6 +281,7 @@ pub enum Report {
         #[command(flatten)]
         library: Library,
     },
+    /// 应用 RFC 6902 补丁
     Patch {
         id: String,
         #[arg(long)]
@@ -259,11 +293,13 @@ pub enum Report {
         #[command(flatten)]
         library: Library,
     },
+    /// 离线校验模板
     Validate {
         id: String,
         #[command(flatten)]
         library: Library,
     },
+    /// 运行库内报表
     Run {
         id: String,
         #[arg(long)]
@@ -273,6 +309,7 @@ pub enum Report {
         #[command(flatten)]
         inputs: Inputs,
     },
+    /// 更新名称/描述
     Update {
         id: String,
         #[arg(long)]
@@ -284,6 +321,7 @@ pub enum Report {
         #[command(flatten)]
         library: Library,
     },
+    /// 从 JSON 定义创建报表
     ImportJson {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -297,6 +335,7 @@ pub enum Report {
         library: Library,
     },
     #[cfg(feature = "legacy-rpx")]
+    /// 从 legacy .rpx 创建报表
     ImportRpx {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -309,6 +348,7 @@ pub enum Report {
         #[command(flatten)]
         library: Library,
     },
+    /// 删除报表（必须带修订）
     Delete {
         id: String,
         #[arg(long)]
@@ -316,6 +356,7 @@ pub enum Report {
         #[command(flatten)]
         library: Library,
     },
+    /// 清理旧运行记录
     Prune {
         id: String,
         #[arg(long,default_value_t=10,value_parser=clap::value_parser!(u16).range(1..=500))]
