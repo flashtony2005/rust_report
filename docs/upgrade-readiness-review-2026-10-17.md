@@ -744,7 +744,7 @@ target/debug/rpx report show complex-master --library /tmp/lib | head -c 100
 | CLI 入口/参数 | `crates/rpx-cli/src/main.rs`、`args.rs`、`commands.rs` |
 | 运行编排 | `crates/rpx-runtime/src/run.rs`、`execution.rs`、`data.rs` |
 | 目录库/修订 | `crates/rpx-runtime/src/library.rs`、`library/manage.rs`、`files.rs` |
-| 定义 JSON | `crates/rpx-runtime/src/reportdef/*`、`template.schema.json` |
+| 定义 JSON | `crates/rpx-format/src/reportdef/*`、`rpx-format/src/template.schema.json` |
 | 引擎主链 | `crates/rpx-engine/src/stage_a.rs`、`stage_b.rs`、`ext_algo/`、`eval/`、`merge/`、`pager/` |
 | 表达式 | `crates/rpx-engine/src/expr/*`、`crates/rpx-engine/src/expr/names.rs` |
 | 数据源 | `crates/rpx-ds/src/file_source.rs`、`sql_source.rs`、`dialect.rs` |

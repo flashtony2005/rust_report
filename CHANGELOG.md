@@ -2,6 +2,15 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.4.0-format-crate — 2026-10-17
+
+### Changed
+
+- 抽离 `rpx-format`：JSON 定义 parse/build、`definition::strict` 与 template schema 的唯一入口。
+- `rpx-runtime` 通过 re-export 保持 `rpx_runtime::reportdef` / `definition` 兼容。
+- `rpx-format` 默认不依赖 `.rpx` 二进制；`legacy-rpx` feature 仅用于 `.rpx` 入口。
+- G5/G8 登记新 crate；JSON-only 构建、734 测试与 e2e 保持通过。
+
 ## v0.3.0-json-migration — 2026-10-17
 
 ### Added

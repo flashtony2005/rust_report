@@ -34,3 +34,5 @@ rpx-runtime json-patch
 rpx-cli clap
 rpx-cli serde_json
 rpx-cli tokio
+
+rpx-format serde_json

@@ -1,6 +1,6 @@
 //! 单元格样式（定义 JSON → 模板格）：字体 / 字号 / 粗斜下划线 / 前景背景色。
 //!
-//! 与 [`crate::snapshot::style`]（模板格 → Univer `IStyleData`）互为**逆**：那边读
+//! 与运行时的 `snapshot::style`（模板格 → Univer `IStyleData`）互为**逆**：那边读
 //! `Cell` 出 `ff`/`fs`/`bl`/`it`/`ul`/`cl`/`bg`，这边把 JSON 写进 `Cell`。因此端到端
 //! 判据天然闭环 —— **JSON 写进去的样式必须原样出现在 `/render` 快照里**（映射表见
 //! `docs/spec-m4.md` §4.3，字段表见 `docs/report-def-json.md` §3.2）。
@@ -71,7 +71,7 @@ fn set_flag(cell: &mut Cell, mask: u16, on: bool) {
 /// `"#RRGGBB"` → ARGB int（alpha 固定 `FF`）。
 ///
 /// 只认 **6 位十六进制**（大小写均可）—— 这正是 `/render` 快照回吐的形态
-/// （[`crate::snapshot::style::argb_hex`] 取低 24 位），两边严格互逆。
+/// （`snapshot::style::argb_hex` 取低 24 位），两边严格互逆。
 /// 带 alpha 的 8 位形态是 v1 范围之外（契约 §7.2），未知形态**显式报错不猜**。
 ///
 /// `pub(super)`：边框的 `color` 槽（`cellprops.rs`）共用同一个解析器 ——
@@ -97,7 +97,9 @@ pub(super) fn parse_color(s: &str, path: &str) -> Result<i32, DefError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::snapshot::style::argb_hex;
+    fn argb_hex(c: i32) -> String {
+        format!("#{:06X}", (c as u32) & 0x00FF_FFFF)
+    }
     use rpx_core::props::def;
 
     fn apply(json: &str) -> Cell {

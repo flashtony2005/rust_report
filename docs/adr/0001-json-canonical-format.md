@@ -1,6 +1,6 @@
 # ADR 0001 — JSON 成为规范报表格式，`.rpx` 降级为 legacy 适配器
 
-- 状态：**Accepted — Phase 0/1/2 完成；Phase 3 feature 边界完成（默认切换留 v2.0）**
+- 状态：**Accepted — Phase 0/1/2/3 完成；Phase 4 `rpx-format` 抽离完成**
 - 日期：2026-10-17
 - 决策范围：报表定义格式、`rpx-core`/`rpx-runtime` 边界、CLI/Web/Server 的输入输出
 - 关联文档：
@@ -302,6 +302,21 @@
 
 ---
 
+### Phase 4 — `rpx-format` 抽离（2026-10-17 完成）
+
+**目标**：让 JSON 解析/构建只有一个入口，runtime 不再维护第二套 `reportdef`。
+
+已完成：
+
+- 新 crate `crates/rpx-format`，包含 `reportdef` parse/build、`definition::strict` 与 template schema。
+- `rpx-runtime` 通过 `pub use rpx_format::reportdef::*` 保留旧路径；`definition` re-export `strict/schema`。
+- `rpx-format` 默认无 `.rpx` 二进制依赖；`legacy-rpx` feature 仅用于 `.rpx` 入口。
+- G5/G8 登记新 crate；JSON-only 构建与 734 测试保持绿。
+
+仍未做（v2.0）：
+
+- 引擎/运行时测试全面切 JSON；默认关闭 `legacy-rpx`；`.rpxpkg`/schema v2。
+
 ## 9. 决策记录
 
 - 2026-10-17：提出 ADR；建议采纳选项 B。
@@ -312,7 +327,7 @@
   - Phase 1 收口：23/23 引擎夹具用 JSON 投影完成 `calculated`/`pagination`/`merged` 对拍；`engine_merge` 的合并延续独立格已用快照 overlay 还原。
 - Phase 2：字段级 `format/overlay.rs` 已实现（编辑后的 preserve JSON 可写出）；`format normalize`；`template create` / `library init --presets` 写 v1；23/23 引擎夹具 JSON 对拍。
 - 结构性编辑：默认拒绝；`format to-rpx --allow-structural` 可显式接受，只保证坐标不变的重叠区。
-- Phase 3（feature 边界）完成：默认仍开启 `legacy-rpx` 以保留 v1.x 兼容窗口；默认关闭与 `rpx-format` 抽离列入 v2.0。
+- Phase 3（feature 边界）完成；Phase 4 `rpx-format` 抽离完成。默认仍开启 `legacy-rpx` 以保留 v1.x 兼容窗口。
 - 评审通过条件：
   1. 确认“JSON canonical + RPX legacy”是目标；
   2. 确认 Phase 0 的 baseline/CI 是前置；

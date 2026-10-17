@@ -3,7 +3,6 @@ use super::{
     DefError,
 };
 use rpx_core::reader::ObjValue;
-#[cfg(feature = "legacy-rpx")]
 use serde_json::json;
 use serde_json::Value as J;
 
@@ -92,7 +91,6 @@ pub fn decode(v: &J, path: &str) -> Result<ObjValue, DefError> {
         _ => return Err(bad()),
     })
 }
-#[cfg(feature = "legacy-rpx")]
 pub fn encode(v: &ObjValue) -> Option<J> {
     let (t, value) = match v {
         ObjValue::Null => ("null", J::Null),

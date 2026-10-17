@@ -43,8 +43,8 @@ rpx-server     只读库 API
 - 新 crate：`crates/rpx-format`。
 - 依赖：`rpx-core`、`serde_json`、`sha2`、`base64`。
 - `rpx-engine` 不依赖它，保持零依赖。
-- `rpx-runtime` 不再自己维护一套 JSON 解析；`reportdef` 的 parse/build 迁到 `rpx-format`（Phase 2）。
-- Phase 1 可以先放在 `rpx_runtime::format`，API 不变；Phase 2 再抽 crate，避免一次性大搬迁。
+- `rpx-runtime` 不再自己维护一套 JSON 解析；`reportdef` 的 parse/build 已迁到 `rpx-format`（2026-10-17）。
+- 转换器仍在 `rpx_runtime::format`；JSON parse/build 已抽到 `rpx_format`，runtime 只做 re-export。
 
 ### 2.2 分层门禁
 
@@ -489,4 +489,4 @@ cargo test -p rpx-format --test fuzz_smoke
 2. 单文件包用 zip 还是 base64 JSON？建议 zip（见格式文档 §13）。
 3. `meta` 与 library manifest 的权威关系？建议库内 manifest 优先。
 4. `source_revision` 是否改成 canonical hash？建议暂不改，避免所有已有 If-Match 失效。
-5. 是否把 `reportdef` 整体抽到 `rpx-format`？建议 Phase 2 做，Phase 1 先复用 runtime 解析器。
+5. 是否把 `reportdef` 整体抽到 `rpx-format`？已于 2026-10-17 完成；runtime 只保留 re-export。

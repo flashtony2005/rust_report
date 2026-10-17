@@ -317,9 +317,12 @@ fn open_report_dispatches_by_content() {
     }
 
     // 有魔数但字节不完整 ⇒ 走 .rpx 读侧（Core 分支），不是 UnknownFormat。
-    match open_report(b"RQQR\x00\x00") {
-        Err(SourceError::Core(_)) => {}
-        other => panic!("应走 .rpx 读侧报 Core，实得 {other:?}"),
+    #[cfg(feature = "legacy-rpx")]
+    {
+        match open_report(b"RQQR\x00\x00") {
+            Err(SourceError::Core(_)) => {}
+            other => panic!("应走 .rpx 读侧报 Core，实得 {other:?}"),
+        }
     }
 
     // 定义 JSON 报错时是 Def 分支，且错误消息带 JSON 路径（前端据此定位）。

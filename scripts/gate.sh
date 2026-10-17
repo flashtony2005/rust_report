@@ -176,6 +176,9 @@ layer_out="$(awk '
   BEGIN {
     # allowed["crate dep"] = 1
     allowed["rpx-engine rpx-core"] = 1
+    allowed["rpx-format rpx-core"] = 1
+    allowed["rpx-format rpx-engine"] = 1
+    allowed["rpx-format rpx-export"] = 1
     allowed["rpx-ds rpx-core"] = 1
     allowed["rpx-cli rpx-core"] = 1
     allowed["rpx-cli rpx-engine"] = 1
@@ -187,6 +190,7 @@ layer_out="$(awk '
     # M6-01：导出面（受审层）吃已算完的 CalcGrid ⇒ 只依赖 engine，向下不溜。
     allowed["rpx-export rpx-engine"] = 1
     allowed["rpx-runtime rpx-core"] = 1
+    allowed["rpx-runtime rpx-format"] = 1
     allowed["rpx-runtime rpx-engine"] = 1
     allowed["rpx-runtime rpx-ds"] = 1
     allowed["rpx-runtime rpx-export"] = 1
@@ -195,6 +199,7 @@ layer_out="$(awk '
     known["rpx-runtime"] = 1
     known["rpx-core"] = 1; known["rpx-engine"] = 1; known["rpx-ds"] = 1
     known["rpx-cli"] = 1; known["rpx-server"] = 1; known["rpx-export"] = 1
+    known["rpx-format"] = 1
   }
   FNR == 1 {
     crate = FILENAME

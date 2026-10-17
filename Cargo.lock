@@ -1158,7 +1158,7 @@ dependencies = [
 
 [[package]]
 name = "rpx-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "clap",
  "rpx-core",
@@ -1169,11 +1169,11 @@ dependencies = [
 
 [[package]]
 name = "rpx-core"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "rpx-ds"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "calamine",
  "csv",
@@ -1184,14 +1184,14 @@ dependencies = [
 
 [[package]]
 name = "rpx-engine"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "rpx-core",
 ]
 
 [[package]]
 name = "rpx-export"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64",
  "calamine",
@@ -1201,8 +1201,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpx-format"
+version = "0.4.0"
+dependencies = [
+ "rpx-core",
+ "rpx-engine",
+ "rpx-export",
+ "serde_json",
+]
+
+[[package]]
 name = "rpx-runtime"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64",
  "calamine",
@@ -1211,6 +1221,7 @@ dependencies = [
  "rpx-ds",
  "rpx-engine",
  "rpx-export",
+ "rpx-format",
  "serde_json",
  "sha2 0.10.9",
  "time",
@@ -1220,7 +1231,7 @@ dependencies = [
 
 [[package]]
 name = "rpx-server"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axum",
  "rpx-core",
