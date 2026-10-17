@@ -230,13 +230,25 @@ pub fn list(
 ) -> Result<J> {
     let _guard = lock(root)?;
     let mut items = Vec::new();
+    let mut diagnostics = Vec::new();
     for entry in fs::read_dir(root)? {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
         if !entry.path().join("manifest.json").is_file() || name.starts_with('.') {
             continue;
         }
-        let c = capture(root, &name)?;
+        let c = match capture(root, &name) {
+            Ok(c) => c,
+            Err(e) => {
+                diagnostics.push(json!({
+                    "severity": "warning",
+                    "code": e.diagnostic["code"].clone(),
+                    "report": name,
+                    "message": e.diagnostic["message"].clone(),
+                }));
+                continue;
+            }
+        };
         if query.is_some_and(|q| {
             !c.manifest
                 .to_string()
@@ -252,12 +264,25 @@ pub fn list(
         }) {
             continue;
         }
-        let mut value = show_captured(root, &name, &c)?;
+        let mut value = match show_captured(root, &name, &c) {
+            Ok(value) => value,
+            Err(e) => {
+                diagnostics.push(json!({
+                    "severity": "warning",
+                    "code": e.diagnostic["code"].clone(),
+                    "report": name,
+                    "message": e.diagnostic["message"].clone(),
+                }));
+                continue;
+            }
+        };
         value.as_object_mut().unwrap().remove("template");
         items.push(value);
     }
     items.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
-    files::page(&items, limit, offset)
+    let mut page = files::page(&items, limit, offset)?;
+    page["diagnostics"] = json!(diagnostics);
+    Ok(page)
 }
 pub fn save(root: &Path, name: &str, expected: &str, template: &J, dry: bool) -> Result<J> {
     definition::validate(template, None)?;

@@ -22,7 +22,7 @@
 
 use rpx_core::rowset::RowSet;
 use rpx_core::value::Value;
-use sqlx::{Column, Row, TypeInfo, ValueRef};
+use sqlx::{Column, Executor, Row, SqlSafeStr, Statement, TypeInfo, ValueRef};
 
 /// 取数错误。具体到可定位（渲染期报错兜底是蓝图口径，错误文本就是给用户的）。
 #[derive(Debug)]
@@ -94,13 +94,21 @@ impl SqlSource {
     /// 执行模板 SQL 并物化。列名取结果集表头（SQL 数据集的列 = 查询产物，
     /// 与产品 SQL 数据集语义一致），行值经 [`any_cell`] 收敛到 `Value`。
     pub async fn fetch_sql(&self, sql: &str) -> Result<RowSet, DsError> {
+        // `fetch_all` 在没有行时拿不到列元数据；单独 prepare 一次取 statement.columns()。
+        let cols = {
+            let mut conn = self.pool.acquire().await?;
+            let statement = conn
+                .prepare(sqlx::AssertSqlSafe(sql.to_owned()).into_sql_str())
+                .await?;
+            statement
+                .columns()
+                .iter()
+                .map(|c| c.name().to_string())
+                .collect::<Vec<_>>()
+        };
         let rows: Vec<sqlx::any::AnyRow> = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()))
             .fetch_all(&self.pool)
             .await?;
-        let cols: Vec<String> = rows
-            .first()
-            .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect())
-            .unwrap_or_default();
         let mut out = Vec::with_capacity(rows.len());
         for row in &rows {
             let mut vals = Vec::with_capacity(cols.len());
@@ -225,6 +233,21 @@ mod tests {
             rs.rows[1],
             vec![Long(2), Text("East".into()), Long(200), Null, Long(0)]
         );
+    }
+
+    /// 空结果集仍保留列名；不能因为 `rows.first()` 为 None 就把 `cols` 清空。
+    #[tokio::test]
+    async fn empty_result_keeps_columns() {
+        let src = SqlSource::connect("sqlite::memory:").await.unwrap();
+        src.fetch_sql("CREATE TABLE empty_t (id INTEGER, region TEXT)")
+            .await
+            .unwrap();
+        let rs = src
+            .fetch_sql("SELECT id, region FROM empty_t WHERE 0")
+            .await
+            .unwrap();
+        assert_eq!(rs.cols, ["id", "region"]);
+        assert!(rs.rows.is_empty());
     }
 
     /// 换库只换 URL 的反面：未知 scheme 显式报错（不猜、不静默）。

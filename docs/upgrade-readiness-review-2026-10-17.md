@@ -32,7 +32,7 @@
 > **2026-10-17 开发更新（JSON canonical 实施后）**
 >
 > - 已完成：baseline/tag、CI、JSON v1 reader/schema、`rpx format` 四条命令、40/40 RPX Preserve、23/23 引擎夹具 JSON 对拍、字段级 overlay、`format normalize`、v1 preset。
-> - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射。
+> - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`report list` 隔离坏包并返回 `diagnostics`；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射。
 > - 已修：`chart-gallery` 的 3D 图表、`images` 的打印背景 → `print-xlsx` 仍会失败，但只记 warning，不再拖垮 result/workbook/其他导出。
 > 当前最该做的不是重写，而是：**先提交并冻结一个可复现基线，再用一组真实失败场景把 CLI 边界补齐，最后把文档和 CI 分成「当前架构」与「历史里程碑」两套。**
 
@@ -392,11 +392,11 @@
 | `format normalize` | ✅ | ✅ | ✅ | v0/v1 → v1 标记 |
 | `run` | ✅ | ✅ | ✅ | 文件模式、SQL、参数、导出、运行记录 |
 | `result inspect` | ✅ | ✅ | ✅ | range/origin/分页正常；**错误文件校验缺失** |
-| `dataset inspect` | ✅ | ✅ | ✅ | CSV/Excel/SQL 都能取；**空 SQL 结果列名为空** |
+| `dataset inspect` | ✅ | ✅ | ✅ | CSV/Excel/SQL 都能取；空 SQL 结果保留列名 |
 | `catalog functions` | ✅ | ✅ | ✅ | 只列 20 个已实现函数，诚实 |
 | `catalog examples` | ✅ | ✅ | ✅ | 5 个 preset |
 | `library init` | ✅ | ✅ | ✅ | `--presets`、暂存目录、`.gitignore` |
-| `report list` | ✅ | ✅ | ✅ | query/tag/分页；**一个坏包会让整表失败** |
+| `report list` | ✅ | ✅ | ✅ | query/tag/分页；坏包跳过并进 `diagnostics` |
 | `report show` | ✅ | ✅ | ✅ | manifest/template/revision/result_state |
 | `report runs` | ✅ | ✅ | ✅ | 运行记录/分页；**时间字符串排序有 bug** |
 | `report copy` | ✅ | ✅ | ✅ | 目录复制、manifest id 改写 |
@@ -517,13 +517,14 @@ rpx result inspect /tmp/rpx-complex/template.json
 - 这不是实现 bug（默认值有文档），但**是 CLI 的可用性缺陷**：最常见的 UTF-8/逗号 CSV 会静默产出错误数据。
 - 建议：`dataset inspect` 在「`.csv` 且未显式 delimiter」时检查是否只有 1 列并提示；在「未显式 encoding」且字节是合法 UTF-8 且含非 ASCII 时提示「可能是 UTF-8，需显式声明」；`agent-cli.md` 把两个默认值写到显眼位置。
 
-#### P1-7：SQL 空结果集丢列名
+#### P1-7：SQL 空结果集丢列名（已修）
 
 - `fetch_sql` 从 `rows.first()` 取列名；查询返回 0 行时 `cols=[]`。
 - 实测 `dataset inspect` 对 `WHERE 1=0` 返回 `columns: []`，但 `ok:true`。
 - 位置：`crates/rpx-ds/src/sql_source.rs:96-103`。
 - 影响：空结果报表无法得到列结构；下游按列名绑定的公式/诊断会退化成「未知列」。
-- 修法：用 `sqlx` 的 describe/列元数据（或 `LIMIT 0` 预查询）取列名，而不是依赖首行。
+- 修法：用 `sqlx` 的 prepare/statement 元数据取列名，而不是依赖首行。
+- 2026-10-17 已修：`fetch_sql` 先用 `prepare` 取列，再执行查询；新增空结果回归测试。
 
 #### P1-8：HTTP 非 JSON 错误破坏 Web 错误处理
 
@@ -624,7 +625,7 @@ GET  /reports/{id}/runs/{run}/artifacts/{name}
 | R8 | P1 | 一个坏包阻塞整个 `report list` | `library.rs:222-228` 实测 | 多 agent 共享库可用性风险 |
 | R9 | P1 | 错误文案是 Rust Debug | `execution.rs:175-178` 实测 | 难读、不稳定、无法给 agent 可靠修复提示 |
 | R10 | P1 | 默认 GBK+TAB 静默误读 | `parse.rs:379`、`encoding.rs:54-68`；UTF-8/逗号 CSV 实测 mojibake/单列 | 最常见 CSV 直接产出错误数据 |
-| R11 | P1 | SQL 空结果丢列名 | `sql_source.rs:96-103` 实测 | 空报表列结构不可用 |
+| R11 | 已修 | SQL 空结果列名已保留 | `sql_source.rs` | 空报表列结构可用 |
 | R12 | P1 | HTTP 非 JSON 错误 / Web `.json()` | `http.rs:77-96`、`library-api.ts:12-16` 实测 | Web 错误处理退化 |
 | R13 | P1 | 无 CI / gate 非 hermetic | 无 `.github/`；本沙箱 G2/G3/G9 因环境红 | 升级回归无法自动守住 |
 | R14 | P1 | workbook 大 Long/Decimal 精度损失 | `snapshot/value.rs:23-40` 实测 9007199254740993 → JS 不可保真 | Web 显示与 result.json 不一致 |

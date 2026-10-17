@@ -218,3 +218,17 @@ async fn typed_result_preserves_large_integers_decimal_scales_and_display_only()
     let imported = import::convert(&rpx_core::to_bytes(&rd).unwrap()).unwrap();
     assert_eq!(definition::parse(&imported).unwrap().0, rd);
 }
+
+#[test]
+fn list_skips_a_corrupt_package_with_a_diagnostic() {
+    let temp = Temp::new();
+    library::init(&temp.0, false).unwrap();
+    let broken = temp.0.join("broken");
+    std::fs::create_dir(&broken).unwrap();
+    std::fs::write(broken.join("manifest.json"), b"{not json").unwrap();
+    let page = library::list(&temp.0, None, None, 10, 0).unwrap();
+    assert_eq!(page["total"], 0);
+    assert_eq!(page["diagnostics"][0]["report"], "broken");
+    assert_eq!(page["diagnostics"][0]["code"], "JSON_INVALID");
+    assert_eq!(page["items"].as_array().unwrap().len(), 0);
+}

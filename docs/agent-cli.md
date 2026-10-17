@@ -79,6 +79,7 @@ rpx format normalize template.json --out template-v1.json
 ```sh
 rpx library init ./reports --presets
 rpx report list --library ./reports --tag 经营分析
+# 损坏包不会阻塞整表；data.diagnostics 列出被跳过的包
 rpx report copy complex-master --as monthly --library ./reports
 rpx report show monthly --library ./reports
 revision=$(rpx report show monthly --library ./reports | jq -r '.data.revision')
