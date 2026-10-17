@@ -99,6 +99,127 @@ pub fn update(
     files::atomic_json(&root.join(name).join("manifest.json"), &c.manifest)?;
     show_captured(root, name, &capture(root, name)?)
 }
+fn dependencies(rd: &rpx_core::ReportDefine, data: Option<&Path>) -> Vec<J> {
+    let mut dependencies = Vec::new();
+    for d in &rd.datasets {
+        if let Some(f) = &d.file {
+            let n = f.file_name.as_deref().unwrap_or("");
+            let found = data.is_some_and(|p| p.join(n).is_file());
+            dependencies.push(json!({"file":n,"available":found}));
+        }
+    }
+    dependencies
+}
+
+fn copy_dependencies(staged: &Path, data: &Path, dependencies: &[J]) -> Result<()> {
+    for d in dependencies {
+        if d["available"] == true {
+            let n = d["file"].as_str().unwrap();
+            let dest = files::relative(&staged.join("data"), n)?;
+            fs::create_dir_all(dest.parent().unwrap())?;
+            fs::copy(data.join(n), dest)?;
+        }
+    }
+    Ok(())
+}
+
+/// 从普通 JSON 定义创建库内报表（JSON-native 入口）。
+pub fn import_json(
+    root: &Path,
+    file: &Path,
+    name: &str,
+    data: Option<&Path>,
+    dry: bool,
+) -> Result<J> {
+    id(name)?;
+    let template = crate::format::normalize(&files::read_json(file)?)?;
+    let (rd, _) = definition::parse(&template)?;
+    let dependencies = dependencies(&rd, data);
+    if dry {
+        return Ok(json!({"dry_run":true,"template":template,"dependencies":dependencies}));
+    }
+    let _guard = lock(root)?;
+    if root.join(name).exists() {
+        return Err(Error::new(6, "ID_EXISTS", "library", name));
+    }
+    let staged = root.join(format!(".{}.pending", files::unique()));
+    fs::create_dir(&staged)?;
+    let result = (|| {
+        fs::create_dir(staged.join("data"))?;
+        files::create(
+            &staged.join("template.json"),
+            &files::json_bytes(&template)?,
+        )?;
+        files::create(
+            &staged.join("manifest.json"),
+            &files::json_bytes(
+                &json!({"version":1,"id":name,"name":name,"description":"JSON import","tags":[],"template":"template.json","data_dir":"data"}),
+            )?,
+        )?;
+        if let Some(data) = data {
+            copy_dependencies(&staged, data, &dependencies)?;
+        }
+        fs::rename(&staged, root.join(name))?;
+        let mut value = show_captured(root, name, &capture(root, name)?)?;
+        value["dependencies"] = json!(dependencies);
+        Ok(value)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_dir_all(staged);
+    }
+    result
+}
+
+/// 删除整份报表包；要求显式 revision，避免 agent 误删。
+pub fn delete(root: &Path, name: &str, expected: &str) -> Result<J> {
+    let _guard = lock(root)?;
+    let c = capture(root, name)?;
+    matches(&c.source.revision, expected)?;
+    let staged = root.join(format!(".{}.deleting-{}", name, files::unique()));
+    fs::rename(root.join(name), &staged)?;
+    if let Err(e) = fs::remove_dir_all(&staged) {
+        return Err(Error::new(6, "IO_ERROR", "library", e));
+    }
+    Ok(json!({"deleted":name}))
+}
+
+/// 保留最近 `keep` 次运行，删除更早的 `.runs/<id>/<run-id>`。
+pub fn prune(root: &Path, name: &str, keep: usize) -> Result<J> {
+    id(name)?;
+    if keep == 0 {
+        return Err(Error::new(2, "USAGE", "arguments", "keep 必须 >= 1"));
+    }
+    let _guard = lock(root)?;
+    capture(root, name)?;
+    let dir = root.join(".runs").join(name);
+    if !dir.exists() {
+        return Ok(json!({"pruned":0,"kept":0}));
+    }
+    let mut entries: Vec<(String, String)> = Vec::new();
+    for entry in fs::read_dir(&dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let run_id = entry.file_name().to_string_lossy().into_owned();
+        let record = files::read_json(&entry.path().join("run.json"))?;
+        entries.push((
+            run_id,
+            record["started_at"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+        ));
+    }
+    entries.sort_by_key(|a| std::cmp::Reverse(timestamp_key(&a.1)));
+    let mut pruned = 0;
+    for (run_id, _) in entries.iter().skip(keep) {
+        fs::remove_dir_all(dir.join(run_id))?;
+        pruned += 1;
+    }
+    Ok(json!({"pruned":pruned,"kept":entries.len().saturating_sub(pruned)}))
+}
+
 #[cfg(feature = "legacy-rpx")]
 pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bool) -> Result<J> {
     id(name)?;
@@ -113,14 +234,7 @@ pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bo
     let template = converted.document;
     let warnings = converted.warnings;
     let (rd, _) = definition::parse(&template)?;
-    let mut dependencies = Vec::new();
-    for d in &rd.datasets {
-        if let Some(f) = &d.file {
-            let n = f.file_name.as_deref().unwrap_or("");
-            let found = data.is_some_and(|p| p.join(n).is_file());
-            dependencies.push(json!({"file":n,"available":found}));
-        }
-    }
+    let dependencies = dependencies(&rd, data);
     if dry {
         return Ok(json!({
             "dry_run":true,
@@ -148,14 +262,7 @@ pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bo
             )?,
         )?;
         if let Some(data) = data {
-            for d in &dependencies {
-                if d["available"] == true {
-                    let n = d["file"].as_str().unwrap();
-                    let dest = files::relative(&staged.join("data"), n)?;
-                    fs::create_dir_all(dest.parent().unwrap())?;
-                    fs::copy(data.join(n), dest)?;
-                }
-            }
+            copy_dependencies(&staged, data, &dependencies)?;
         }
         fs::rename(&staged, root.join(name))?;
         let mut value = show_captured(root, name, &capture(root, name)?)?;

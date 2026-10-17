@@ -89,12 +89,17 @@ revision=$(rpx report show monthly --library ./reports | jq -r '.data.revision')
 rpx report validate monthly --library ./reports
 rpx report run monthly --library ./reports --if-match "$revision" --export xlsx
 rpx report runs monthly --library ./reports --limit 5
+rpx report import-json template.json --id new-report --library ./reports
+rpx report delete new-report --library ./reports --if-match "$revision"
+rpx report prune monthly --library ./reports --keep 10
 ```
 
 清单字段：version、id、name、description、tags、template、data_dir、可选 params_file。
 包内路径相对该报表目录。源码修订覆盖清单、模板和默认参数的路径与字节，使用 SHA-256。
 实际数据和命令行覆盖参数单独记录；同修订不表示数据仍是最新的。
 用 `report update ID --library DIR --if-match REV --name NAME --description TEXT` 修改元信息。
+`report import-json` 直接把 JSON 定义放入库（自动补 v1 标记）；`report delete` 要求 `--if-match`，
+`report prune` 只保留最近 N 次运行。
 
 CLI 与 Web 在同一个跨进程文件锁内核对修订。冲突返回 REVISION_CONFLICT，不自动重试。
 初始化、复制、导入经暂存目录发布；补丁在副本上校验后原子替换。
@@ -111,10 +116,10 @@ rpx report import-rpx external.rpx --id external --library ./reports --dry-run
 rpx report import-rpx external.rpx --id external --library ./reports --data-dir ./data
 ```
 
-先解析 RPX，映射公开语义字段，再用 JSON 重新构建并逐字段比较。
-已覆盖的字面量、公式、显式主格、合并、样式、行列属性、参数、文件/SQL 数据集和打印配置保留。
-未知宏记录、子报表、私有图形记录、非默认未映射属性返回 RPX_IMPORT_UNSUPPORTED 和具体位置。
-不会把二进制塞进 JSON，也不会丢字段后报告成功；源 RPX 保持原样。
+`report import-rpx` 走 Preserve 迁移：v1 未建模字段保存在 `extensions.rpx.legacy` 快照中，
+因此 40/40 产品 `.rpx` 可导入；返回 `warnings` 指出需要后续处理的字段。
+编辑后可 `format to-rpx` 原样回写（未编辑）或经字段级 overlay 写出（已编辑，不保证字节相等）。
+源 RPX 保持只读；不会静默丢字段。
 日期字面量可保留定义，现有引擎尚不能计算日期对象，执行校验会明确拒绝；日期字符串可供 year/month 使用。
 缺少数据文件时导入分析列出依赖，不能把包视作已具备所有运行输入。
 

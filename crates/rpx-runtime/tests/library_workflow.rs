@@ -278,3 +278,45 @@ fn import_rpx_writes_a_preserved_json_package() {
     assert!(template["extensions"]["rpx.legacy"].is_object());
     assert!(library::show(&temp.0, "external-merge").is_ok());
 }
+
+#[test]
+fn import_json_create_delete_and_prune() {
+    let temp = Temp::new();
+    library::init(&temp.0, false).unwrap();
+    let source = temp.0.join("source.json");
+    std::fs::write(
+        &source,
+        serde_json::to_vec(&json!({
+            "grid":{"rows":1,"cols":1},
+            "cells":[{"row":1,"col":1,"text":"hello"}]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let value = library::import_json(&temp.0, &source, "json-report", None, false).unwrap();
+    let revision = value["revision"].as_str().unwrap().to_string();
+    assert_eq!(value["template"]["format_version"], 1);
+    assert_eq!(value["manifest"]["name"], "json-report");
+
+    let runs = temp.0.join(".runs/json-report");
+    for (id, at) in [
+        ("a", "2026-10-17T11:00:00Z"),
+        ("b", "2026-10-17T11:00:01Z"),
+        ("c", "2026-10-17T11:00:02Z"),
+    ] {
+        std::fs::create_dir_all(runs.join(id)).unwrap();
+        std::fs::write(
+            runs.join(id).join("run.json"),
+            serde_json::to_vec(&json!({"run_id":id,"started_at":at,"status":"succeeded"})).unwrap(),
+        )
+        .unwrap();
+    }
+    let pruned = library::prune(&temp.0, "json-report", 1).unwrap();
+    assert_eq!(pruned["pruned"], 2);
+    assert!(runs.join("c").exists());
+    assert!(!runs.join("a").exists());
+
+    library::delete(&temp.0, "json-report", &revision).unwrap();
+    assert!(library::show(&temp.0, "json-report").is_err());
+    assert!(!temp.0.join("json-report").exists());
+}

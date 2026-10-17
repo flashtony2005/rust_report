@@ -222,3 +222,35 @@ fn result_inspect_rejects_a_template_definition() {
     assert_eq!(code, 3, "{value}");
     assert_eq!(value["error"]["code"], json!("RESULT_INVALID"));
 }
+
+#[test]
+fn report_import_json_and_delete_wire_the_library() {
+    let temp = Temp::new();
+    let lib = temp.path("lib");
+    let (code, value, _) = invoke(&["library", "init", &lib]);
+    assert_eq!(code, 0, "{value}");
+    let (code, value, _) = invoke(&[
+        "report",
+        "import-json",
+        &format_fixture("minimal-v0.json"),
+        "--id",
+        "json-one",
+        "--library",
+        &lib,
+    ]);
+    assert_eq!(code, 0, "{value}");
+    let revision = value["data"]["revision"].as_str().unwrap().to_string();
+    assert_eq!(value["data"]["template"]["format_version"], 1);
+    let (code, value, _) = invoke(&[
+        "report",
+        "delete",
+        "json-one",
+        "--if-match",
+        &revision,
+        "--library",
+        &lib,
+    ]);
+    assert_eq!(code, 0, "{value}");
+    let (code, value, _) = invoke(&["report", "show", "json-one", "--library", &lib]);
+    assert_eq!(code, 6, "{value}");
+}

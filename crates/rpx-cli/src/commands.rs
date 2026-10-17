@@ -213,6 +213,23 @@ async fn report(command: Report) -> Result<J> {
             name.as_deref(),
             description.as_deref(),
         ),
+        Report::ImportJson {
+            file,
+            id,
+            data_dir,
+            dry_run,
+            library: lib,
+        } => library::import_json(&lib.library, &file, &id, data_dir.as_deref(), dry_run),
+        Report::Delete {
+            id,
+            if_match,
+            library: lib,
+        } => library::delete(&lib.library, &id, &if_match),
+        Report::Prune {
+            id,
+            keep,
+            library: lib,
+        } => library::prune(&lib.library, &id, usize::from(keep)),
         #[cfg(feature = "legacy-rpx")]
         Report::ImportRpx {
             file,

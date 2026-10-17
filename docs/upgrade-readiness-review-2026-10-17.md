@@ -18,7 +18,7 @@
 | 算法忠实度 | 9.0 | 对产品引擎的移植非常认真：夹具、tripwire、显式不支持出口都在 |
 | 算法可演进性 | 6.5 | 高度依赖 Java 反编译语义与外部夹具生成链，升级产品版本的成本高 |
 | 实现质量 | 8.0 | 无 `todo!`/`unimplemented!`，测试量大，clippy/fmt 干净；仍有健壮性与平台化缺口 |
-| CLI 功能面 | 8.5 | 文档列出的 27 个命令全部存在，主流程实测可跑通 |
+| CLI 功能面 | 8.5 | 文档列出的 30 个命令全部存在，主流程实测可跑通 |
 | CLI 健壮性 | 6.0 | `print-xlsx`、`import-rpx`、断管、错误文件校验、运行记录排序存在真实缺陷 |
 | 文档 | 7.0 | 规格密度罕见地高，但**当前态与历史态混在一起**，多处路径/端点已失效 |
 | 发布与运维 | 4.5 | 核心成果尚未提交、无 CI、无 LICENSE/MSRV、无生产部署形态 |
@@ -83,7 +83,7 @@
 | `rpx-core` | 4,851 | 1,586 | 3,265 | `.rpx` 二进制读写 |
 | `rpx-export` | 1,717 | 840 | 877 | CSV / XLSX / 打印 XLSX |
 | `rpx-server` | 1,089 | 144 | 945 | 8 个 HTTP 端点 |
-| `rpx-cli` | 1,257 | 578 | 679 | 27 个 CLI 命令 |
+| `rpx-cli` | 1,409 | 648 | 761 | 30 个 CLI 命令 |
 | `rpx-ds` | 787 | 218 | 569 | CSV/Excel/SQL 数据源 |
 | **合计** | **52,908** | **18,743** | **34,165** | |
 
@@ -405,6 +405,9 @@
 | `report run` | ✅ | ✅ | ✅ | 修订校验、库内 `.runs`、导出 |
 | `report update` | ✅ | ✅ | ✅ | 改 name/description，带 If-Match |
 | `report import-rpx` | ✅ | ✅ | ✅ | 40/40 产品 `.rpx` 经 Preserve 快照导入 |
+| `report import-json` | ✅ | ✅ | ✅ | JSON → v1 库包 |
+| `report delete` | ✅ | ✅ | ✅ | 需要 `--if-match` |
+| `report prune` | ✅ | ✅ | ✅ | 保留最近 N 次运行 |
 
 ### 5.3 实测成功路径
 
@@ -545,7 +548,7 @@ rpx result inspect /tmp/rpx-complex/template.json
 - `rpx template --help`、`rpx report --help` 的子命令全是空白描述；`rpx run --help` 的参数也没有一句说明。
 - 对一个「给 agent 用」的 CLI，`--help` 是第一发现入口；建议在 `args.rs` 给每个 `Command`/`Args` 加 `///` 文档、`value_name`、示例。
 
-#### P2-3：没有「从 JSON 创建库内报表」的直接命令
+#### P2-3：没有「从 JSON 创建库内报表」的直接命令（已补）
 
 - 当前只能：`template create/copy` → `template compile` → `report import-rpx`，或者先 `report copy` 再 patch。
 - `import-rpx` 对产品 `.rpx` 又不可用，导致「agent 生成一份全新 JSON 报表放进库」的路径很绕。
@@ -556,7 +559,7 @@ rpx result inspect /tmp/rpx-complex/template.json
 - `print-xlsx` 的错误提示反复说「请使用图形与打印预览保存 PDF」，但 CLI 没有 PDF 出口；只有 Web 的 `window.print()`。
 - 如果 PDF 是产品能力，应在 CLI/服务端补；如果不是，错误文案不应引导到一个 CLI 做不到的动作。
 
-#### P2-5：运行记录/产物没有保留策略，也没有删除命令
+#### P2-5：运行记录/产物没有保留策略，也没有删除命令（已补）
 
 - `.runs` 会持续增长；每次包含 source、inputs、workbook、导出。多 agent 长跑会占满磁盘。
 - 建议：`report prune --keep N/--older-than` + 库级配额 + 文档。
@@ -565,7 +568,7 @@ rpx result inspect /tmp/rpx-complex/template.json
 
 | 问题 | 判定 |
 | --- | --- |
-| 命令是否实现？ | **是，27/27** |
+| 命令是否实现？ | **是，30/30** |
 | 主流程是否可用？ | **是**（创建、校验、运行、查询、库、修订、导入自产 RPX） |
 | 是否达到可交付？ | **否**：`print-xlsx` 边界、`import-rpx` 覆盖、断管、错误文件校验、时间排序、错误文案 |
 | 最该先修的三件事 | `print-xlsx` 的「失败不拖垮运行」；`import-rpx` 的承诺与语料；断管/错误文件/时间排序三个小修 |
@@ -632,7 +635,7 @@ GET  /reports/{id}/runs/{run}/artifacts/{name}
 | R13 | P1 | 无 CI / gate 非 hermetic | 无 `.github/`；本沙箱 G2/G3/G9 因环境红 | 升级回归无法自动守住 |
 | R14 | P1 | workbook 大 Long/Decimal 精度损失 | `snapshot/value.rs:23-40` 实测 9007199254740993 → JS 不可保真 | Web 显示与 result.json 不一致 |
 | R15 | P2 | `rpx-runtime` 过大 | 6.7k 生产行，职责 7+ 类 | 后续功能继续堆叠，测试/审查成本上升 |
-| R16 | P2 | 无创建/删除/prune/PDF | CLI 命令面缺口 | 报表生命周期不完整 |
+| R16 | 部分修复 | 已补 import-json/delete/prune；PDF 仍未做 | CLI 命令面 | 生命周期基本完整 |
 | R17 | P2 | Web 无 E2E 门禁 | G9 只 build+vitest | 真实浏览器/API 集成回归无自动保护 |
 | R18 | P2 | 无 LICENSE/MSRV/发布元数据 | 无 `LICENSE*`；`Cargo.toml` 无 `rust-version` | 对外分发/合作/合规受阻 |
 | R19 | P2 | 无性能/内存/大报表限制 | `fetch_all`、整文件读入；无 benchmark | 大报表可能 OOM/超时 |

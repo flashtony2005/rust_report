@@ -274,6 +274,18 @@ pub enum Report {
         #[command(flatten)]
         library: Library,
     },
+    ImportJson {
+        #[arg(value_parser=source_path)]
+        file: PathBuf,
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+        #[arg(long)]
+        dry_run: bool,
+        #[command(flatten)]
+        library: Library,
+    },
     #[cfg(feature = "legacy-rpx")]
     ImportRpx {
         #[arg(value_parser=source_path)]
@@ -284,6 +296,20 @@ pub enum Report {
         data_dir: Option<PathBuf>,
         #[arg(long)]
         dry_run: bool,
+        #[command(flatten)]
+        library: Library,
+    },
+    Delete {
+        id: String,
+        #[arg(long)]
+        if_match: String,
+        #[command(flatten)]
+        library: Library,
+    },
+    Prune {
+        id: String,
+        #[arg(long,default_value_t=10,value_parser=clap::value_parser!(u16).range(1..=500))]
+        keep: u16,
         #[command(flatten)]
         library: Library,
     },
@@ -326,8 +352,11 @@ impl Command {
                 Report::Validate { .. } => "report.validate",
                 Report::Run { .. } => "report.run",
                 Report::Update { .. } => "report.update",
+                Report::ImportJson { .. } => "report.import-json",
                 #[cfg(feature = "legacy-rpx")]
                 Report::ImportRpx { .. } => "report.import-rpx",
+                Report::Delete { .. } => "report.delete",
+                Report::Prune { .. } => "report.prune",
             },
         }
     }
