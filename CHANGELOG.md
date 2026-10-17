@@ -2,6 +2,15 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.9.0-json-settings — 2026-10-17
+
+### Added
+
+- JSON-only 决策 ADR：`docs/adr/0002-json-canonical-rpx-frozen.md`。
+- `print_setup.paper`（A4/A3/A5/Letter）与 `print_setup.orientation`（portrait/landscape）作者糖。
+- paper/orientation 映射到宽高，不写裸 `orient` 码；与显式宽高冲突时显式报错。
+- schema 与文档同步；新增 parser 回归测试。
+
 ## v0.8.0-wp1-wp2 — 2026-10-17
 
 ### Added

@@ -474,7 +474,23 @@
         "full_screen_preview": {},
         "blank_line_filled": {},
         "virtual_printer": {},
-        "pager_style": {}
+        "pager_style": {},
+        "paper": {
+          "type": "string",
+          "enum": [
+            "A4",
+            "A3",
+            "A5",
+            "Letter"
+          ]
+        },
+        "orientation": {
+          "type": "string",
+          "enum": [
+            "portrait",
+            "landscape"
+          ]
+        }
       },
       "required": [],
       "additionalProperties": false

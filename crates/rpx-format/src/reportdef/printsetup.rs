@@ -60,9 +60,7 @@ const BOOL_FIELDS: &[&str] = &[
 /// ⇒ 按「不猜」纪律不设命名枚举。列出来是为了给**精确的错误消息**（「未开放」
 /// 与「字段名拼错」是两种不同的错，前端排错方式不同）。
 const KNOWN_UNEXPOSED: &[&str] = &[
-    "paper",
     "orient",
-    "orientation",
     "h_align",
     "v_align",
     "zoom_mode",
@@ -85,7 +83,7 @@ fn exposed_fields() -> Vec<&'static str> {
     v.extend_from_slice(I32_FIELDS);
     v.extend_from_slice(F32_FIELDS);
     v.extend_from_slice(BOOL_FIELDS);
-    v.extend(["virtual_printer", "pager_style"]);
+    v.extend(["paper", "orientation", "virtual_printer", "pager_style"]);
     v
 }
 
@@ -121,6 +119,46 @@ pub(super) fn apply_print_setup(
         }
     }
 
+    if o.contains_key("paper") && (o.contains_key("paper_width") || o.contains_key("paper_height"))
+    {
+        return Err(err(
+            "$.print_setup.paper",
+            "paper 不能与 paper_width/paper_height 同时使用",
+        ));
+    }
+    if let Some(paper) = opt_str(o, "paper", path)? {
+        let (w, h) = match paper {
+            "A4" => (210.0, 297.0),
+            "A3" => (297.0, 420.0),
+            "A5" => (148.0, 210.0),
+            "Letter" => (215.9, 279.4),
+            _ => return Err(err("$.print_setup.paper", "可选 A4 / A3 / A5 / Letter")),
+        };
+        ps.paper = 256;
+        ps.paper_width = w;
+        ps.paper_height = h;
+    }
+    if let Some(orientation) = opt_str(o, "orientation", path)? {
+        match orientation {
+            "portrait" => {
+                if ps.paper_width > ps.paper_height {
+                    std::mem::swap(&mut ps.paper_width, &mut ps.paper_height);
+                }
+            }
+            "landscape" => {
+                if ps.paper_width < ps.paper_height {
+                    std::mem::swap(&mut ps.paper_width, &mut ps.paper_height);
+                }
+            }
+            _ => {
+                return Err(err(
+                    "$.print_setup.orientation",
+                    "可选 portrait / landscape",
+                ))
+            }
+        }
+        ps.paper = 256;
+    }
     if let Some(mode) = opt_str(o, "pager_style", path)? {
         ps.pager_style = match mode {
             "none" => 0,
@@ -348,9 +386,7 @@ mod tests {
     #[test]
     fn unexposed_fields_are_refused_loudly() {
         for name in [
-            "paper",
             "orient",
-            "orientation",
             "h_align",
             "v_align",
             "zoom_mode",
@@ -370,5 +406,44 @@ mod tests {
             );
             assert!(msg.contains("未开放"), "错误消息应说明原因：{msg}");
         }
+    }
+}
+
+#[cfg(test)]
+mod paper_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn apply(value: J) -> PrintSetup {
+        let root = value.as_object().unwrap().clone();
+        let mut ps = PrintSetup::default_values();
+        apply_print_setup(&mut ps, &root).unwrap();
+        ps
+    }
+
+    #[test]
+    fn paper_and_orientation_are_authoring_sugar() {
+        let ps = apply(json!({"print_setup":{"paper":"A3","orientation":"landscape"}}));
+        assert_eq!(ps.paper, 256);
+        assert_eq!((ps.paper_width, ps.paper_height), (420.0, 297.0));
+        let ps = apply(json!({"print_setup":{"paper":"A4","orientation":"landscape"}}));
+        assert_eq!((ps.paper_width, ps.paper_height), (297.0, 210.0));
+        let ps = apply(json!({"print_setup":{"orientation":"portrait"}}));
+        assert_eq!((ps.paper_width, ps.paper_height), (210.0, 297.0));
+    }
+
+    #[test]
+    fn paper_rejects_unknown_and_conflicting_forms() {
+        let root = json!({"print_setup":{"paper":"B5"}})
+            .as_object()
+            .unwrap()
+            .clone();
+        let mut ps = PrintSetup::default_values();
+        assert!(apply_print_setup(&mut ps, &root).is_err());
+        let root = json!({"print_setup":{"paper":"A4","paper_width":210.0}})
+            .as_object()
+            .unwrap()
+            .clone();
+        assert!(apply_print_setup(&mut ps, &root).is_err());
     }
 }

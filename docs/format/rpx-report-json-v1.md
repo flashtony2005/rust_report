@@ -281,7 +281,7 @@ v1 不引入 `required`/`enum`/`min`/`max`；这些属于校验层，不要混�
 
 v1 保持当前顶层字段名，避免一次性重排：
 
-- `print_setup`：当前开放字段（`zoom_scale`、`table_column_num`、`layout_rows`、`layout_cols`、`row_num_per_page`、`copy_count`、`paper_width`、`paper_height`、四边距、`back_graph_printed`、`column_repeated_group_header`、`full_screen_preview`、`blank_line_filled`、`pager_style`、`virtual_printer`）。
+- `print_setup`：当前开放字段（`paper`、`orientation`、`zoom_scale`、`table_column_num`、`layout_rows`、`layout_cols`、`row_num_per_page`、`copy_count`、`paper_width`、`paper_height`、四边距、`back_graph_printed`、`column_repeated_group_header`、`full_screen_preview`、`blank_line_filled`、`pager_style`、`virtual_printer`）。
 - `printing`：`auto_size`、`hidden` 等打印选项。
 - `group_breaks`：`{cell, when}`。
 - `background_image`：data URI 或 null。

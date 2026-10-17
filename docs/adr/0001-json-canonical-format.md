@@ -8,6 +8,7 @@
   - 转换器：`docs/format/rpx-core-json-converter.md`
   - legacy 退役：`docs/format/rpx-legacy-retirement.md`
   - v2.0 工作计划：`docs/v2.0-work-plan.md`
+  - JSON-only / RPX frozen：`docs/adr/0002-json-canonical-rpx-frozen.md`
   - 现状审计：`docs/upgrade-readiness-review-2026-10-17.md`
 
 ---

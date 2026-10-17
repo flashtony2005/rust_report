@@ -204,7 +204,7 @@ fn print_setup_lands_on_the_expected_slots() {
 /// **不开放的字段不得被静默接受**（否则「前端以为设了 orient、实际没生效」）。
 #[test]
 fn unexposed_print_setup_fields_are_refused_loudly() {
-    for name in ["paper", "orient", "orientation", "h_align", "column_mode"] {
+    for name in ["orient", "h_align", "v_align", "column_mode"] {
         let def =
             format!(r#"{{"version":1,"grid":{{"rows":1,"cols":1}},"print_setup":{{"{name}":1}}}}"#);
         let e = reportdef::build(&def).unwrap_err();

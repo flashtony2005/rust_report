@@ -173,6 +173,8 @@
 
 | 字段 | 类型 | 缺省 | 备注 |
 | --- | --- | --- | --- |
+| `paper` | `A4` / `A3` / `A5` / `Letter` | 不设 | 命名纸张；设置后 `paper_width/height` 自动填值 |
+| `orientation` | `portrait` / `landscape` | `portrait` | 命名方向；只交换宽高，不写裸 `orient` 码 |
 | `paper_width` | 数字 | 210 | 毫米；**横向版 = 与 `paper_height` 互换** |
 | `paper_height` | 数字 | 297 | 毫米 |
 | `left_margin` | 数字 | 19 | 毫米，≥0 |
@@ -480,18 +482,19 @@ $.cells[4].top_head：格 Z9 不存在（网格 3×3）—— 声明式主格必
 
 #### 打印设置：为什么不开放全部 33 槽
 
-附件 D 给了全部 33 槽的**类型与默认值**，但**没给码表**：`paper`、`orient`、
+附件 D 给了全部 33 槽的**类型与默认值**，但**没给码表**：`orient`、
 `hAlign`、`vAlign`、`zoomMode`、`layout` 及各 `*_mode` 都是裸字节码。
 `pager_style` 已按教程开放 `none` / `rows` / `paper`；打印矩阵使用下文独立的 `printing` 命名契约。
 夹具实证同样只有默认值 —— `tests/fixtures/` 里出现过的只有 `"paper":9` 与
 `"orientation":1`，**没有任何夹具带横向版或其他纸张码**。
 
-⇒ 按「不猜」纪律（§6.1），这些字段**不开放命名枚举**：给 `orient` 猜一个
-`"landscape" → 2` 就是在零证据下定契约，而一旦猜错，前端写出的模板会在 Java 侧
-**静默按错的版式渲染**。需要横竖版时**互换 `paper_width` / `paper_height`** ——
-这两个是裸数值槽，语义无歧义，且分页器按它们算页宽页高。
+⇒ 按「不猜」纪律（§6.1），裸码字段**不开放**：给 `orient` 猜一个
+`"landscape" → 2` 就是在零证据下定契约。
 
-给了未开放字段 ⇒ **400 显式报错**，不静默丢弃。
+但 **JSON 是唯一演进面**，因此提供两个语义明确的作者糖：
+`paper`（A4/A3/A5/Letter）填 `paper_width/height`，`orientation` 只交换宽高，
+内部置 `paper=256`；不写 `orient` 裸码。需要自定义尺寸时继续用
+`paper_width/paper_height`。给了未开放字段 ⇒ **400 显式报错**，不静默丢弃。
 
 #### 判据：模型往返（为什么不是快照读回）
 
@@ -823,9 +826,9 @@ JSON 定义经 `parse::build → rpx_core::to_bytes` 转成 `.rpx`，两者都�
 
 ### 7.2 未支持（v1 范围之外）
 
-* **打印设置的码表字段**（`paper` / `orient` / `h_align` / `v_align` /
-  `zoom_mode` / `layout` / 各 `*_mode`）—— 契约附件 D 未给码表、夹具只有默认值
-  ⇒ 按「不猜」纪律不设命名枚举（横竖版用 `paper_width`/`paper_height` 互换，§4.7）。
+* **打印设置的裸码字段**（`orient` / `h_align` / `v_align` /
+  `zoom_mode` / `layout` / 各 `*_mode`）—— 契约附件 D 未给码表
+  ⇒ 不设命名枚举；`paper`/`orientation` 是语义作者糖，映射到宽高，不写裸码。
 * 超链接、批注、`cell_graph`（图表）、子报表、`to_excel_mode` / `adjust_size_mode` /
   对角线（`diagonal_*`）、`extend_area` 显式声明。
   （单元格样式 7 字段 = M7-3 §3.2/§4.5；**参数声明** = M7-4 §3.5/§4.6；
@@ -847,6 +850,7 @@ JSON 定义经 `parse::build → rpx_core::to_bytes` 转成 `.rpx`，两者都�
 | 2026-10-16 | M7-4 参数声明：新增 §3.5 `params[]` 字段表、§4.6（`DT_*` 码表 + `kind` 三态 + 验证闭环）、§7.2 把「参数声明」从未支持列表移除。实现 `reportdef/params.rs`。 |
 | 2026-10-16 | M7-5 单元格属性扩展：§3.2 加 `border`/`format`/`indent`/`rotation`/`extend_mode`、§4.7 加边框线型码表与「模型往返」判据、§7.2 把「边框/数字格式/缩进/旋转/extend_mode」从未支持列表移除。实现 `reportdef/cellprops.rs`。 |
 | 2026-10-16 | M7-6 打印设置覆盖：新增 §3.6 `print_setup`（17 个语义明确字段）、§4.7 加「为什么不开放全部 33 槽」的理由、§7.2 把未开放字段改为「码表未给 ⇒ 不猜」。实现 `reportdef/printsetup.rs`。 |
+| 2026-10-17 | JSON-only 策略：新增 `paper` / `orientation` 作者糖；裸码字段仍不开放。 |
 | 2026-10-17 | M7-7 声明式主格：§3.2 加 `left_head`/`top_head`、新增 §4.8（语义 + 三条产品约束 + 存在性校验口径 + `` `0 `` 为何不开）、§7.2 登记。实现 `reportdef/cellprops.rs` 的 `parse_cell_address` 与 `reportdef/parse.rs` 的**第三趟存在性校验**（把引擎分支 A 的静默落空变成显式错误）。实测：季度表头合并区 `B1:E1` → `B1:D1`。 |
 | 2026-10-17 | M7-9 主格/附属格 的扩展闭合：§4.8 把「三条硬约束」从「不代引擎校验」改写为**分工表**（② 引擎拦、①③ 装载层拦），并新增**实测**证据（六种违反形态原本全部静默通过）与**已声明边界**（只查显式声明的方向）。实现 `reportdef/heads.rs`（第三趟校验迁入 + ①③ 判定）。新增端到端判据 `tests/multipiece.rs` 五组（多片扩展 / 对照组拉大 / 缺省右附属格 / 主格在右下 / 三条约束），含教程 `dpkz101` 例 10.6.1 与「主格可以在右（下）边」两条原话。判据：10 条单测 + 5 条集成 + 5 条故障注入。 |
 | 2026-10-17 | M7-8 宏：新增 §3.7 `macros`（对象形态 + 值必须字符串）、§4.9（两个记号 `${}`/`%{}` 的出处 + 替换时机是契约 + 四个落点 + 三条规则 + 四个易混物 + **不落 .rpx 的已声明边界**）。实现 `rpx-engine/src/macros.rs`（纯函数 `substitute`）、`stage_b` 两个建树点的替换、`reportdef/macros.rs` 与 `open_report_full`；服务面 `calculate_full` + `prefetch_sql` 的 SQL 文本替换。判据：16 条单测 + 6 条故障注入全过。 |
