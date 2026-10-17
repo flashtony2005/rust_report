@@ -1,9 +1,9 @@
 [package]
 name = "rpx-runtime"
-version = "0.6.0"
+version = "0.7.0"
 edition.workspace = true
 [features]
-default = ["legacy-rpx"]
+default = []
 legacy-rpx = ["rpx-model/legacy-rpx", "rpx-format/legacy-rpx"]
 
 [dependencies]

@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! 教程 dcjcbb93：两层行头 × 两层列头，及交换两轴后的对称性。
 use rpx_engine::{arena::CalcGrid, expr::ds::DataSet, value::Value};
 use serde_json::json;

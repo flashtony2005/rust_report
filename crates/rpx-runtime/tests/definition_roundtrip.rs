@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! 定义 JSON 的**模型往返**判据（M7-5 / M7-6）。
 //!
 //! 为什么不是快照读回：`snapshot::style::style_json` 只暴露 9 个字段

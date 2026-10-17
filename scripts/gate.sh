@@ -45,7 +45,7 @@ run_gate G2 "clippy -D warnings (all targets)" \
 
 # ---- G3 测试 -------------------------------------------------------------
 run_gate G3 "cargo test --no-fail-fast" \
-  bash -c 'cargo test --workspace --no-fail-fast && cargo test -p rpx-cli --features legacy-rpx --test format_cli --test input_workflow' 
+  bash -c 'cargo test --workspace --no-fail-fast && cargo test -p rpx-runtime --features legacy-rpx && cargo test -p rpx-cli --features legacy-rpx --test format_cli --test input_workflow' 
 
 # ---- G4 每 .rs ≤ 300 行 --------------------------------------------------
 # ---- G4 每个 .rs <= 500 行 -------------------------------------------------

@@ -52,6 +52,7 @@ fn number(sheet: &J, row: usize, col: usize) -> f64 {
         .unwrap_or_else(|| panic!("缺少数值格 ({row},{col})"))
 }
 
+#[cfg(feature = "legacy-rpx")]
 #[tokio::test]
 async fn saved_rpx_preserves_roots_sources_slices_and_empty_order_totals() {
     let (mut req, registry) = fixture().await;

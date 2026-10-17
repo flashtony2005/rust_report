@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! 分片公式从 JSON 经二进制往返到真实扩展网格；数据故意乱序、非连续。
 use rpx_engine::{arena::CalcGrid, expr::DataSet, value::Value};
 use serde_json::{json, Value as Json};

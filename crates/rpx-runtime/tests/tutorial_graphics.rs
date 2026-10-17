@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 use rpx_engine::{expr::DataSet, graphics::GraphicContent, value::Value};
 use serde_json::{json, Value as J};
 

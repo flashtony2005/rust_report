@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! M7-8 宏（定义 JSON 顶层 `macros` 块）的端到端判据 —— **真 socket + 真 multipart**。
 //!
 //! # 为什么单独一份（不并进 `reportdef_http.rs`）

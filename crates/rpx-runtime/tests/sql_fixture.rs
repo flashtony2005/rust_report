@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! `engine_sql` 金仓真机对拍（`spec-m3.md` M3-03 的 SQL 数据集链路清偿）。
 //!
 //! # 门控协议（同 `rpx-ds` 的 `tests/smoke_pg.rs`）

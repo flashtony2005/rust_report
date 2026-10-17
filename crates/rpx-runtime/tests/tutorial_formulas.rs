@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! 教程原式从 JSON 装载到扩展网格的回归；期望值手工计算。
 use rpx_engine::{arena::CalcGrid, value::Value};
 use serde_json::json;

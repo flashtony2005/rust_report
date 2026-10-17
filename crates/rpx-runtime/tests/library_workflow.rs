@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 use rpx_runtime::{definition, files, import, library, reportdef, run};
 use serde_json::json;
 use std::{fs, path::PathBuf};

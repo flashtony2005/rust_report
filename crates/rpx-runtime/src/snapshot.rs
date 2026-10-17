@@ -31,7 +31,7 @@ mod paged;
 pub(crate) mod style;
 pub(crate) mod value;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-rpx"))]
 mod tests;
 
 /// 生成快照 JSON 文本（`IWorkbookData`；紧凑输出，调试用 `python -m json.tool`）。

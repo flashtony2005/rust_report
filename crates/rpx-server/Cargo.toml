@@ -1,9 +1,9 @@
 [package]
 name = "rpx-server"
-version = "0.6.0"
+version = "0.7.0"
 edition.workspace = true
 [dependencies]
-rpx-runtime = { path = "../rpx-runtime" }
+rpx-runtime = { path = "../rpx-runtime", default-features = false }
 axum = "0.8"
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }

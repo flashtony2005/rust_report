@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! 教程根主格：JSON 声明、方向约束、真实扩展和 RPX 往返。
 use rpx_core::{open_bytes, to_bytes, ReportDefine};
 use rpx_engine::{arena::CalcGrid, expr::ds::DataSet, Value};
@@ -260,6 +261,7 @@ fn a_root_on_one_axis_does_not_hide_a_cycle_on_the_other() {
     }
 }
 
+#[cfg(feature = "legacy-rpx")]
 #[test]
 fn json_and_rpx_render_the_same_rooted_and_automatic_results() {
     for horizontal in [false, true] {

@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! Phase 1 migration corpus: every product `.rpx` must survive the v1
 //! Preserve path, and the raw snapshot must round-trip byte-for-byte.
 

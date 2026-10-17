@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 //! Phase 2 gate: the same engine fixtures must calculate from the committed
 //! JSON definitions, not from their original `.rpx` bytes at test time.
 

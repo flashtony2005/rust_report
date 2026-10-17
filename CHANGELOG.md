@@ -2,6 +2,15 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.7.0-v2-defaults — 2026-10-17
+
+### Changed
+
+- `rpx-runtime` 与 `rpx-server` 默认改为 JSON-only；默认构建不再启用 `legacy-rpx`。
+- 默认 `cargo tree` 不含 `rpx-core`，也不含 `rpx-model/legacy-rpx`。
+- `.rpx` 运行时/集成测试改为显式 feature；gate 额外跑 legacy runtime + CLI 测试。
+- 默认 `rpx` 仍是 JSON-only；legacy 安装继续使用 `make install-local-legacy`。
+
 ## v0.6.0-json-cli-default — 2026-10-17
 
 ### Changed

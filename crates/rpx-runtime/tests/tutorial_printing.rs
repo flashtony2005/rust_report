@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-rpx")]
 use rpx_engine::{
     arena::CalcGrid,
     pager::{paginate_with_setup, project_page},

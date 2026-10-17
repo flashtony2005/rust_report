@@ -3,20 +3,21 @@
 > 状态：Phase 3 feature 边界已完成（2026-10-17）；默认切换安排在 v2.0。
 > 关联：[ADR 0001](../adr/0001-json-canonical-format.md)、[JSON v1 格式](rpx-report-json-v1.md)、[转换器](rpx-core-json-converter.md)。
 
-## 1. 当前默认（v0.6+）
+## 1. 当前默认（v0.7+）
 
-- `rpx-cli` 默认 **JSON-only**：不暴露 `format` / `template compile` / `report import-rpx`。
+- `rpx-cli` / `rpx-runtime` / `rpx-server` 默认 **JSON-only**。
 - `rpx-model` 默认不编译 `.rpx` reader/writer。
-- `rpx-runtime` 作为库仍默认开启 `legacy-rpx`（server/旧调用方兼容）；CLI 依赖图通过
-  `default-features = false` 关闭它。
-- 需要 legacy CLI 时：
+- 默认 CLI 不暴露 `format` / `template compile` / `report import-rpx`。
+- 需要 legacy 时：
 
 ```sh
 cargo build -p rpx-cli --features legacy-rpx
+cargo test -p rpx-runtime --features legacy-rpx
 make install-local-legacy
 ```
 
 - 默认二进制仍可读 JSON、运行、导出、管理目录库。
+- 默认 `cargo tree` 不含 `rpx-core`，也不启用 `legacy-rpx`。
 
 ## 2. JSON-only 构建
 
