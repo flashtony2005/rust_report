@@ -1,6 +1,6 @@
 # `rpx-core → JSON` 无损转换器 — 接口与迁移测试清单
 
-> 状态：**设计提案，尚未实现**
+> 状态：**Phase 1 已实现（迁移快照模式）；逐字段 legacy 覆盖待 Phase 2**
 > 上游格式：`docs/format/rpx-report-json-v1.md`
 > 决策：`docs/adr/0001-json-canonical-format.md`
 > 本文里的“无损”有严格分层，不是一句口号；见 §1。
@@ -14,11 +14,11 @@
 | L0 | 语法无损 | JSON 可解析、schema 通过 | 是 |
 | L1 | **语义无损** | `JSON → ReportDefine` 与原始 `ReportDefine` 逐字段相等 | **是（默认）** |
 | L2 | 字节无损 | `to_bytes(JSON→model) == 原始 .rpx` | **仅对已知确定性夹具**（当前 37 个） |
-| L3 | 未建模字段保留 | 无法映射到 v1 的字段进入 `extensions["rpx.legacy"]` | **是（Preserve 模式）** |
+| L3 | 未建模字段保留 | 无法映射到 v1 的字段由 `extensions["rpx.legacy"]` 原始快照承载 | **是（Preserve 模式，快照级）** |
 
 因此：
 
-- **迁移默认 = L1 + L3**：所有 `ReportDefine` 字段不丢，无法映射的进 legacy 舱。
+- **迁移默认 = L1 + L3**：所有 `ReportDefine` 字段不丢；Phase 1 用原始 `.rpx` 快照承载未建模字段（不是逐字段覆盖）。
 - **L2 不是对所有产品文件的承诺**：writer 的规范化可能改变字节；当前 `to_bytes` 对 37 个夹具逐字节复现，`verify --bytes` 只应把这 37 个当硬基线。
 - “Strict 模式”只承诺 L1；遇到未建模字段直接失败，不静默丢。
 - “Drop 模式”只用于“渲染不需要 legacy”的场景，必须显式开启并输出 warning。
@@ -151,7 +151,7 @@ pub fn model_to_json(rd: &ReportDefine, opts: &ConvertOptions) -> Result<Convert
 /// v1 / v0 JSON → ReportDefine；忽略 extensions["rpx.legacy"]。
 pub fn json_to_model(doc: &J) -> Result<ReportDefine>;
 
-/// v1 / v0 JSON → .rpx bytes；Preserve 模式下应用 legacy 舱。
+/// v1 / v0 JSON → .rpx bytes；Preserve 且未编辑时返回原始快照，编辑后报 LEGACY_READ_ONLY。
 pub fn json_to_rpx(doc: &J, opts: &ConvertOptions) -> Result<Vec<u8>>;
 
 /// 迁移验收：读 → JSON → 模型/字节 → 再读，比较。
@@ -164,12 +164,12 @@ pub fn verify(bytes: &[u8], opts: &ConvertOptions) -> Result<VerifyReport>;
 |---|---|---|
 | `rpx_to_json` | Preserve 时写入 | 迁移/导出 |
 | `json_to_model` | 忽略 | runtime/渲染/校验 |
-| `json_to_rpx` | Preserve 时应用 | 回写 legacy |
-| `verify` | Preserve 时应用 | 测试/交付验证 |
+| `json_to_rpx` | Preserve 时校验快照哈希；未编辑则原样返回，编辑则拒绝 | 回写/验收 |
+| `verify` | Preserve 时使用快照 | 测试/交付验证 |
 
 - `json_to_model` 必须忽略未知 `extensions`，否则 Web 加一个 vendor 扩展就会让运行失败。
-- `json_to_rpx` 在 `PreserveLegacy` 下读取 `extensions["rpx.legacy"]`；在 `Strict` 下若存在该键，报 `LEGACY_PRESENT_IN_STRICT`。
-- `json_to_rpx` 若发现 legacy 与显式字段冲突，报 `LEGACY_CONFLICT`，不静默选一边。
+- `json_to_rpx` 在 `PreserveLegacy` 下读取 `extensions["rpx.legacy"]`：`modeled_sha256` 一致则原样返回原始字节；不一致（即 JSON 被编辑）则报 `LEGACY_READ_ONLY`。这是 Phase 1 的迁移边界，不是长期编辑面。
+- 逐字段 `LEGACY_CONFLICT` / `LEGACY_ORPHAN` 属于 Phase 2 的字段级 legacy 覆盖；Phase 1 用快照哈希避免静默丢失。
 - `rpx_to_json` 在 `Strict` 下遇到任一未建模字段就失败；错误必须带 JSON Pointer。
 
 ### 3.2 错误码
@@ -178,9 +178,9 @@ pub fn verify(bytes: &[u8], opts: &ConvertOptions) -> Result<VerifyReport>;
 |---|---|---:|
 | `FORMAT_VERSION_UNSUPPORTED` | reader 不支持该 `format_version` | 3 |
 | `UNSUPPORTED_FIELD` | Strict 模式下有未建模字段 | 3 |
-| `LEGACY_CONFLICT` | legacy 与显式字段冲突 | 3 |
-| `LEGACY_ORPHAN` | legacy key 找不到对应格/数据集 | 3 |
-| `LEGACY_PRESENT_IN_STRICT` | Strict 模式输入包含 legacy | 3 |
+| `LEGACY_READ_ONLY` | Preserve 快照存在但可建模字段被编辑 | 3 |
+| `LEGACY_CONFLICT` | 字段级 legacy 与显式字段冲突（Phase 2） | 3 |
+| `LEGACY_ORPHAN` | 字段级 legacy key 找不到宿主（Phase 2） | 3 |
 | `ROUNDTRIP_MISMATCH` | verify 的 L1/L2 不成立 | 3 |
 | `INVALID_JSON` / `INVALID_MODEL` | 输入不合法 | 3 |
 | `SIZE_LIMIT` | 超出网格/文件上限 | 3 |
@@ -196,38 +196,41 @@ pub fn verify(bytes: &[u8], opts: &ConvertOptions) -> Result<VerifyReport>;
 bytes
   → rpx_core::open_bytes
   → ReportDefine
-  → v1::build_modeled(rd)
-  → legacy::extract(rd)             # 只收“v1 无表达”的字段
-  → 按 ConvertMode 处理 legacy
-  → 补 format / format_version / schema / source_sha256
-  → schema validate
-  → json_to_model + legacy::apply（若有）→ 断言 L1 == 原始 ReportDefine
+  → modeled::document(rd)           # v1 可表达字段 + warnings
+  → 按 ConvertMode 处理：
+      Strict   : 任一 warning → FORMAT_UNSUPPORTED_FIELD
+      Drop     : 丢弃未建模字段，输出 warnings
+      Preserve : 把原始 bytes 放进 extensions.rpx.legacy（含 modeled_sha256）
+  → 补 format / format_version / schema
+  → definition::parse 回读验证
   → Converted
 ```
 
 关键点：
 
 - `rpx_core::open_bytes` 是唯一解析入口；不要复制字段读取逻辑。
-- `v1::build_modeled` 只写 v1 有字段的槽；`legacy::extract` 负责未建模槽。
-- 先回读再返回：如果 L1 不成立，返回 `ROUNDTRIP_MISMATCH`，不产出“看起来成功”的 JSON。
-  ⛔ 不能只用 `json_to_model` 做回读：它按设计忽略 legacy，必须再 `legacy::apply` 后才与原始 `ReportDefine` 可比。
+- `modeled::document` 只写 v1 有字段的槽；无法表达的字段进入 warnings，Preserve 由原始快照兜底。
+- 先回读再返回：`definition::parse` 必须接受产物，否则转换失败；不产出“看起来成功”的 JSON。
+- Phase 1 的 L1 由 `json_to_rpx` 的原始快照保证；逐字段 L1 比较在 Phase 2 字段级 legacy 落地后补。
 - `source_sha256` 是对原始 bytes 的哈希，便于追溯；不是完整性校验门。
 
 ### 4.2 `JSON → .rpx`
 
 ```text
 doc
+  → 若 Preserve 且存在快照：
+        modeled_sha256(doc) == snapshot.modeled_sha256 ?
+          → 返回 snapshot.bytes
+          → 否则 LEGACY_READ_ONLY
   → json_to_model(doc)              # v0/v1；忽略 legacy
-  → validate_model(rd)
-  → 若 Preserve 且存在 legacy：legacy::apply(&mut rd, doc)
   → validate_model(rd)
   → rpx_core::to_bytes(rd)
   → （可选）open_bytes(bytes) 断言模型相等
 ```
 
 - `json_to_model` 与 `rpx_to_json` 共用同一套 JSON 字段表。
-- `legacy::apply` 只填“v1 没有的字段”；已有字段不覆盖。
-- 写回后再次 `validate_model`，防止 legacy 把模型改成非法状态。
+- Phase 1 不把快照字段合并回模型；快照只用于“未编辑时原样回写”。
+- 写回后再次 `validate_model`，防止 JSON 改动产生非法模型。
 
 ### 4.3 `verify`
 
@@ -346,6 +349,8 @@ json_sha256 = sha256(canonical(json))
 
 ## 6. legacy 舱的 key 设计
 
+**Phase 1 实现是单个原始快照**（`format` / `encoding` / `sha256` / `modeled_sha256` / `data`）；下面这份地址/名字映射是 Phase 2 的逐字段 legacy 目标。
+
 不要用数组下标，用稳定标识：
 
 ```json
@@ -425,9 +430,9 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
 | T01 | v1 schema 自检 | `tests/fixtures/format/*.json` | 所有 golden 通过 schema；未知字段被拒 |
 | T02 | v0 兼容读 | 当前 `examples/tutorial/*.json` | 无 `format` 也能 `json_to_model` |
 | T03 | v1 读写 | 新增最小 v1 文档 | `json_to_model` / `model_to_json` 往返 L1 |
-| T04 | **15 个引擎夹具 JSON 化** | `tests/fixtures/engine_*.rpx` → JSON | `engine_grid_compare` 用 JSON 输入仍逐格全绿 |
-| T05 | **40 个 RPX Preserve** | `tests/fixtures/*.rpx` | 40/40 `rpx_to_json` 成功，`legacy_entries` 有记录 |
-| T06 | **37 个字节往返** | 已知 37 个 | `verify --bytes` 37/37 `bytes_equal=true` |
+| T04 | **23 个引擎夹具 JSON 化** | `tests/fixtures/engine_*.rpx` → JSON | Phase 1：23/23 可被 `json_to_model` 解析，rows/cols/datasets/params 与原始一致；Phase 2：`engine_grid_compare` 用 JSON 输入仍逐格全绿 |
+| T05 | **40 个 RPX Preserve** | `tests/fixtures/*.rpx` | 40/40 `rpx_to_json` 成功，`legacy=true` 且有原始快照 |
+| T06 | **字节往返** | 40 个 + 历史 37 个 | Preserve 快照：40/40 `bytes_equal=true`；native writer：37/37（Phase 2 门禁） |
 | T07 | 40 个语义往返 | 40 个 | 40/40 `model_equal=true` |
 | T08 | 单元格未建模字段 | 含 diagonal/extend_area/ois_blob 的夹具 | legacy 保留，回写后 `ReportDefine` 相等 |
 | T09 | 行/列未建模字段 | 含 notes/exp_map/ois_blob 的夹具 | 同上 |
@@ -435,7 +440,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
 | T11 | 数据集高级槽 | `colList`/`filter`/`beginRow` 等 | legacy 保留，L1 相等 |
 | T12 | print_setup 全槽 | `paper`/`orient` 等 | legacy 保留，L1 相等 |
 | T13 | `ObjValue` 未建模类型 | BigInteger/Millis/Obj/Bytes | 标签编码，L1 相等；未知标签显式失败 |
-| T14 | legacy 冲突/孤儿 | 手工构造 | `LEGACY_CONFLICT` / `LEGACY_ORPHAN`，不静默 |
+| T14 | 快照编辑保护 | 手工编辑 preserve JSON | 未编辑时 `bytes_equal=true`；编辑后 `LEGACY_READ_ONLY`，不静默 |
 | T15 | 规范化/确定性 | 同语义不同 key 顺序/空白 | canonical JSON 相同；`source_revision` 仍按原始字节 |
 | T16 | fuzz/鲁棒性 | 随机 JSON + 随机 RPX bytes | 无 panic；错误有 pointer；大小上限 |
 | T17 | CLI 契约 | 真实二进制 | `format to-json/to-rpx/verify/check` 的 0/3/6 退出码与 JSON envelope |
@@ -450,7 +455,7 @@ rpx report import-rpx legacy.rpx --id legacy --library ./reports
   - 必须先实现本文的 `rpx_to_json`（直接走 `ReportDefine`，不经过 import 的严格 `compare`）；
   - T05/T07 是 Phase 1 的硬门禁，未过不得进入 Phase 2。
 - 当前 37 个字节往返是 `rpx_core::to_bytes` 的既有证据（`docs/report-def-json.md:8-9`），T06 应复用同一夹具集。
-- 当前 15 个引擎夹具的输入是 `.rpx`（`crates/rpx-engine/tests/engine_grid_compare.rs:5`）；T04 需要生成 JSON 输入并保留 `.rpx` 作为对照，直到 Phase 2。
+- 当前 23 个引擎夹具的输入是 `.rpx`（`crates/rpx-engine/tests/engine_grid_compare.rs:5` 的 `all_names()`）；T04 在 Phase 1 只验证 JSON 可解析与尺寸/数据集/参数一致，逐格对拍留到 Phase 2。
 
 ---
 
@@ -463,7 +468,7 @@ cargo test -p rpx-format
 cargo test -p rpx-format --test legacy_corpus
 # 3) 37 个字节往返
 cargo test -p rpx-format --test byte_roundtrip -- --nocapture
-# 4) 15 个引擎夹具 JSON 化
+# 4) 23 个引擎夹具 JSON 化
 cargo test -p rpx-engine --test engine_grid_compare
 # 5) CLI 真实进程
 cargo test -p rpx-cli --test format_cli

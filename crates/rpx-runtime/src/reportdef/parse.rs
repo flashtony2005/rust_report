@@ -34,6 +34,11 @@ use super::DefError;
 /// 定义 JSON 的当前版本（`version` 字段；缺省视为 1）。
 pub const VERSION: u64 = 1;
 
+/// JSON 报表格式标识（v1 起）。
+pub const FORMAT: &str = "rpx-report";
+/// JSON 报表格式版本（v1 起）。
+pub const FORMAT_VERSION: u64 = 1;
+
 /// SQL 数据集配置类名（`factory_class_for` 的键，见 `rpx-core/src/dataset.rs`）。
 const CLASS_SQL: &str = "com.raqsoft.reportl.usermodel.SQLDataSetConfig";
 /// 文件数据集配置类名。
@@ -49,6 +54,7 @@ pub fn build_full(text: &str) -> Result<(ReportDefine, rpx_engine::MacroTable), 
     let root: J = serde_json::from_str(text).map_err(|e| DefError::Json(e.to_string()))?;
     crate::definition::strict(&root)?;
     let root = obj(&root, "$")?;
+    super::format::validate(root)?;
 
     // `version` 可选；给定了就必须是本实现支持的版本（未知版本不猜）。
     if let Some(v) = root.get("version") {

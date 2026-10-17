@@ -6,6 +6,7 @@ pub mod error;
 pub mod execution;
 pub mod files;
 pub mod form;
+pub mod format;
 pub mod gallery;
 pub mod import;
 pub mod library;

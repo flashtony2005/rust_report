@@ -1204,6 +1204,7 @@ dependencies = [
 name = "rpx-runtime"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "calamine",
  "json-patch",
  "rpx-core",

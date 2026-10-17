@@ -1,0 +1,26 @@
+{
+  "format": "rpx-report",
+  "format_version": 1,
+  "schema": "rpx-report/v1",
+  "grid": {
+    "rows": 1,
+    "cols": 1
+  },
+  "meta": {
+    "title": "minimal v1",
+    "description": "JSON format v1 fixture",
+    "tags": ["format", "golden"]
+  },
+  "extensions": {
+    "x-test": {
+      "fixture": "minimal-v1"
+    }
+  },
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "text": "format v1"
+    }
+  ]
+}

@@ -1,0 +1,498 @@
+{
+  "$comment": "Design proposal for RPX Report JSON v1; runtime reader support is additive (Phase 0).",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rpx-report/v1",
+  "type": "object",
+  "required": [
+    "format",
+    "format_version",
+    "grid"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "rpx-report"
+    },
+    "format_version": {
+      "const": 1
+    },
+    "schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "meta": {
+      "$ref": "#/$defs/meta"
+    },
+    "grid": {
+      "type": "object",
+      "required": [
+        "rows",
+        "cols"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cols": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "cells": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cell"
+      }
+    },
+    "row_props": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/row_prop"
+      }
+    },
+    "col_props": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/col_prop"
+      }
+    },
+    "datasets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dataset"
+      }
+    },
+    "params": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/param"
+      }
+    },
+    "print_setup": {
+      "type": "object"
+    },
+    "printing": {
+      "type": "object"
+    },
+    "group_breaks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "cell",
+          "when"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "cell": {
+            "type": "string"
+          },
+          "when": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "background_image": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "macros": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "extensions": {
+      "$ref": "#/$defs/extensions"
+    }
+  },
+  "$defs": {
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(rpx\\.|x-)"
+      },
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "required": [
+        "row",
+        "col"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "row": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "col": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "literal": {
+          "type": "object",
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "value": {}
+          }
+        },
+        "disp_value": {
+          "type": "string"
+        },
+        "data_type": {
+          "type": "string"
+        },
+        "h_align": {
+          "enum": [
+            "left",
+            "center",
+            "right",
+            "justify",
+            "distribute"
+          ]
+        },
+        "v_align": {
+          "enum": [
+            "top",
+            "middle",
+            "bottom"
+          ]
+        },
+        "font_name": {
+          "type": "string"
+        },
+        "font_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bold": {
+          "type": "boolean"
+        },
+        "italic": {
+          "type": "boolean"
+        },
+        "underline": {
+          "type": "boolean"
+        },
+        "fore_color": {
+          "type": "string"
+        },
+        "back_color": {
+          "type": "string"
+        },
+        "border": {
+          "type": "object"
+        },
+        "format": {
+          "type": "string"
+        },
+        "indent": {
+          "type": "number",
+          "minimum": 0
+        },
+        "rotation": {
+          "type": "number",
+          "minimum": 0
+        },
+        "extend_mode": {
+          "enum": [
+            "default",
+            "none",
+            "vertical",
+            "horizontal"
+          ]
+        },
+        "left_head": {
+          "type": "string"
+        },
+        "top_head": {
+          "type": "string"
+        },
+        "merge": {
+          "type": "object",
+          "required": [
+            "rows",
+            "cols"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "rows": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "cols": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "merge_same": {
+          "enum": [
+            "vertical",
+            "horizontal",
+            "both"
+          ]
+        },
+        "split": {
+          "type": "boolean"
+        },
+        "stretch_when_paged": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object"
+        },
+        "chart": {
+          "type": "object"
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        }
+      }
+    },
+    "row_prop": {
+      "type": "object",
+      "required": [
+        "row"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "row": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "enum": [
+            "page_header",
+            "title",
+            "table_header",
+            "data",
+            "group_header",
+            "table_footer",
+            "tail_title",
+            "page_footer"
+          ]
+        },
+        "height": {},
+        "visible": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "break_page": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "break_column": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "adjust_height": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "group_level": {
+          "type": "integer"
+        }
+      }
+    },
+    "col_prop": {
+      "type": "object",
+      "required": [
+        "col"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "col": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "enum": [
+            "left_header",
+            "data",
+            "right_header"
+          ]
+        },
+        "width": {},
+        "visible": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "break_page": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "break_column": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        }
+      }
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "file": {
+          "type": "object",
+          "required": [
+            "file_name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "file_name": {
+              "type": "string"
+            },
+            "encoding": {
+              "type": "string"
+            },
+            "delimiter": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1
+            },
+            "sheet_name": {
+              "type": "string"
+            }
+          }
+        },
+        "sql": {
+          "type": "object",
+          "required": [
+            "dsn",
+            "sql"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "dsn": {
+              "type": "string"
+            },
+            "sql": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "file"
+          ],
+          "not": {
+            "required": [
+              "sql"
+            ]
+          }
+        },
+        {
+          "required": [
+            "sql"
+          ],
+          "not": {
+            "required": [
+              "file"
+            ]
+          }
+        }
+      ]
+    },
+    "param": {
+      "type": "object",
+      "required": [
+        "name",
+        "data_type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "data_type": {
+          "enum": [
+            "int",
+            "long",
+            "short",
+            "float",
+            "double",
+            "bigdecimal",
+            "string",
+            "bool",
+            "int[]",
+            "string[]"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "static",
+            "dynamic",
+            "attribute"
+          ]
+        },
+        "default": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

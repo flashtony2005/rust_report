@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 1,
+    "cols": 1
+  },
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "text": "legacy v0"
+    }
+  ]
+}

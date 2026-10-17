@@ -18,7 +18,7 @@
 | 算法忠实度 | 9.0 | 对产品引擎的移植非常认真：夹具、tripwire、显式不支持出口都在 |
 | 算法可演进性 | 6.5 | 高度依赖 Java 反编译语义与外部夹具生成链，升级产品版本的成本高 |
 | 实现质量 | 8.0 | 无 `todo!`/`unimplemented!`，测试量大，clippy/fmt 干净；仍有健壮性与平台化缺口 |
-| CLI 功能面 | 8.5 | 文档列出的 22 个命令全部存在，主流程实测可跑通 |
+| CLI 功能面 | 8.5 | 文档列出的 26 个命令全部存在，主流程实测可跑通 |
 | CLI 健壮性 | 6.0 | `print-xlsx`、`import-rpx`、断管、错误文件校验、运行记录排序存在真实缺陷 |
 | 文档 | 7.0 | 规格密度罕见地高，但**当前态与历史态混在一起**，多处路径/端点已失效 |
 | 发布与运维 | 4.5 | 核心成果尚未提交、无 CI、无 LICENSE/MSRV、无生产部署形态 |
@@ -36,10 +36,10 @@
    `rpx-core` / `rpx-engine` 保持零第三方依赖，`rpx-ds` / `rpx-export` / `rpx-runtime` / `rpx-cli` / `rpx-server` 分层明确；`scripts/gate.sh` 的 G5（依赖白名单）和 G8（crate 分层矩阵）不是纸面约定，而是会失败的检查。
 
 2. **算法质量是项目最强的资产。**
-   `rpx-engine` 约 2.1 万行生产代码、421 个测试属性，主对拍链路对 15 个产品夹具逐格比较且**不再设夹具级豁免**；合并、分页、属性表达式、中文排序、BigDecimal、GBK 都有专门证据。代码里没有 `todo!`/`unimplemented!`，不支持的能力基本都显式报错。
+   `rpx-engine` 约 2.1 万行生产代码、421 个测试属性，主对拍链路对 23 个产品夹具逐格比较且**不再设夹具级豁免**；合并、分页、属性表达式、中文排序、BigDecimal、GBK 都有专门证据。代码里没有 `todo!`/`unimplemented!`，不支持的能力基本都显式报错。
 
 3. **CLI 确实实现了，而且不是「壳」。**
-   22 个文档命令全部存在；`crates/rpx-cli/tests` 用真实二进制进程测试了创建、校验、运行、查询、修订冲突、补丁原子性、stdin、RPX 导入等关键路径；`scripts/e2e_smoke.sh` 也验证了 CLI + HTTP 的完整闭环。
+   26 个文档命令全部存在（含新增的 4 个 `format` 迁移命令）；`crates/rpx-cli/tests` 用真实二进制进程测试了创建、校验、运行、查询、修订冲突、补丁原子性、stdin、RPX 导入等关键路径；`scripts/e2e_smoke.sh` 也验证了 CLI + HTTP 的完整闭环。
    但实测发现 **一组会让真实用户/agent 直接失败或误判的边界缺陷**（见 §5），所以不能把「命令存在」当成「功能完成」。
 
 4. **当前成果没有进入 Git，这是升级前最大的单点风险。**
@@ -77,7 +77,7 @@
 | `rpx-core` | 4,851 | 1,586 | 3,265 | `.rpx` 二进制读写 |
 | `rpx-export` | 1,717 | 840 | 877 | CSV / XLSX / 打印 XLSX |
 | `rpx-server` | 1,089 | 144 | 945 | 8 个 HTTP 端点 |
-| `rpx-cli` | 953 | 392 | 561 | 22 个 CLI 命令 |
+| `rpx-cli` | 953 | 392 | 561 | 26 个 CLI 命令 |
 | `rpx-ds` | 787 | 218 | 569 | CSV/Excel/SQL 数据源 |
 | **合计** | **52,908** | **18,743** | **34,165** | |
 
@@ -196,7 +196,7 @@
 
 这条链路的质量证据：
 
-- `crates/rpx-engine/tests/engine_grid_compare.rs` 对 15 个夹具做值/类型/`disp_value`/`source` 六子字段/`sub_values`/`left_head`/`top_head`/网格尺寸/合并跨度/分页的逐项比较，**已移除夹具级豁免**。
+- `crates/rpx-engine/tests/engine_grid_compare.rs` 对 23 个夹具做值/类型/`disp_value`/`source` 六子字段/`sub_values`/`left_head`/`top_head`/网格尺寸/合并跨度/分页的逐项比较，**已移除夹具级豁免**。
 - 反向控制：先断言未变异夹具干净，再断言变异必被报出并精确定位；这是「判据有牙齿」的证明，而不是「测试通过了」。
 - `engine_cycle` 的循环引用链 `"B2-C2-B2-C2"` 与产品一致；`engine_collate` 用 34 条公式钉住中文排序（含码点序与产品序相反的例子）。
 - `literal/decimal.rs` 复刻 `BigDecimal.toString`，并用 JRE8/JDK21 两份 oracle 验证「换 JVM 结果一致」。
@@ -363,7 +363,7 @@
 
 ### 5.1 结论先说
 
-**文档列出的 22 个命令全部实现，且主流程真实可跑；但 5 个边界缺陷会让真实使用失败或误判。**
+**文档列出的 26 个命令全部实现，且主流程真实可跑；但仍有一组边界缺陷会让真实使用失败或误判。**
 所以答案是：
 
 > **CLI 功能「已实现」，但还不能说「已交付」。**
@@ -378,7 +378,11 @@
 | `template validate` | ✅ | ✅ | ✅ | 支持 `--params-file -`、deferred 列表 |
 | `template create` | ✅ | ✅ | ✅ | 5 个 preset 可写；目录已存在会报错 |
 | `template patch` | ✅ | ✅ | ✅ | RFC 6902、dry-run、stdin、原子写 |
-| `template compile` | ✅ | ✅ | ✅ | JSON → `.rpx`，可被 import 回读 |
+| `template compile` | ✅ | ✅ | ✅ | JSON → `.rpx`，legacy 入口 |
+| `format to-json` | ✅ | ✅ | ✅ | RPX → JSON v1；preserve 带原始快照 |
+| `format to-rpx` | ✅ | ✅ | ✅ | 未编辑快照原样回写；编辑后 `LEGACY_READ_ONLY` |
+| `format verify` | ✅ | ✅ | ✅ | 40/40 Preserve + 快照字节往返已实测 |
+| `format check` | ✅ | ✅ | ✅ | v1/v0 reader 校验 |
 | `run` | ✅ | ✅ | ✅ | 文件模式、SQL、参数、导出、运行记录 |
 | `result inspect` | ✅ | ✅ | ✅ | range/origin/分页正常；**错误文件校验缺失** |
 | `dataset inspect` | ✅ | ✅ | ✅ | CSV/Excel/SQL 都能取；**空 SQL 结果列名为空** |
@@ -549,7 +553,7 @@ rpx result inspect /tmp/rpx-complex/template.json
 
 | 问题 | 判定 |
 | --- | --- |
-| 命令是否实现？ | **是，22/22** |
+| 命令是否实现？ | **是，26/26** |
 | 主流程是否可用？ | **是**（创建、校验、运行、查询、库、修订、导入自产 RPX） |
 | 是否达到可交付？ | **否**：`print-xlsx` 边界、`import-rpx` 覆盖、断管、错误文件校验、时间排序、错误文案 |
 | 最该先修的三件事 | `print-xlsx` 的「失败不拖垮运行」；`import-rpx` 的承诺与语料；断管/错误文件/时间排序三个小修 |

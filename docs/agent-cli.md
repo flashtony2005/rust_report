@@ -44,6 +44,28 @@ Excel 支持 `sheet_name`；CSV/TSV 使用定义中的 delimiter、encoding；�
 `template inspect --cell` 使用模板地址；`result inspect --range` 使用计算结果地址；`--origin` 使用模板出处。
 主格未声明时返回 inferred_at_run；显式 `left_head`/`top_head` 原样保留，`` `0 `` 表示显式根。
 
+## 格式迁移（RPX legacy）
+
+JSON v1 是日常格式；`.rpx` 只通过显式 legacy 命令进出：
+
+```sh
+# 先验收：读 → JSON → 模型/字节 → 再读
+rpx format verify external.rpx --mode preserve
+
+# 迁移：保留原始 RPX 字节快照（extensions.rpx.legacy）
+rpx format to-json external.rpx --out external.json --mode preserve
+
+# 未编辑快照时原样回写；编辑了可建模字段会报 LEGACY_READ_ONLY
+rpx format to-rpx external.json --out external.rpx --mode preserve
+
+# 只检查 JSON 能否被当前 reader 接受
+rpx format check external.json
+```
+
+- `preserve` 是迁移默认；`strict` 遇到 v1 尚不能表达的字段会显式失败；`drop` 只用于渲染。
+- `extensions.rpx.legacy` 是迁移快照，不是长期编辑面。编辑后要导出，先移除该扩展（接受未建模字段不可表达）或等待 Phase 2 字段级覆盖。
+- `template compile` 与 `report import-rpx` 保留，但属于 legacy 入口；日常用 `format` + 原生 JSON。
+
 ## 目录模板库
 
 ```sh

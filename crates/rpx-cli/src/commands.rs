@@ -2,7 +2,7 @@ use crate::args::*;
 use rpx_runtime::{
     catalog, definition,
     error::{Error, Result},
-    files, library, result, run,
+    files, format as rpx_format, library, result, run,
 };
 use serde_json::{json, Value as J};
 use std::{io::Read, path::Path};
@@ -36,10 +36,11 @@ fn inputs(inputs: Inputs) -> Result<run::Options> {
 pub async fn execute(command: Command) -> Result<J> {
     match command {
         Command::Doctor => Ok(
-            json!({"version":env!("CARGO_PKG_VERSION"),"protocol_version":1,"offline":true,"authentication":"not_required","definition":"JSON v1","datasources":["CSV","TSV","Excel","SQLite","PostgreSQL","MySQL"],"exports":["csv","xlsx","print-xlsx"],"web_executes_engine":false}),
+            json!({"version":env!("CARGO_PKG_VERSION"),"protocol_version":1,"offline":true,"authentication":"not_required","definition":"JSON v1","json_format":"rpx-report/v1","legacy":"rpx-rpx-v1","datasources":["CSV","TSV","Excel","SQLite","PostgreSQL","MySQL"],"exports":["csv","xlsx","print-xlsx"],"web_executes_engine":false}),
         ),
         Command::Schema { .. } => Ok(json!({"schema":definition::schema()})),
         Command::Template { command } => template(command),
+        Command::Format { command } => format_command(command),
         Command::Run {
             file,
             out_dir,
@@ -212,6 +213,76 @@ async fn report(command: Report) -> Result<J> {
             dry_run,
             library: lib,
         } => library::import(&lib.library, &file, &id, data_dir.as_deref(), dry_run),
+    }
+}
+
+fn format_mode(value: &str) -> Result<rpx_format::Mode> {
+    Ok(match value {
+        "strict" => rpx_format::Mode::Strict,
+        "preserve" => rpx_format::Mode::PreserveLegacy,
+        "drop" => rpx_format::Mode::DropLegacy,
+        _ => {
+            return Err(Error::new(
+                2,
+                "USAGE",
+                "arguments",
+                "mode 可选 strict / preserve / drop",
+            ))
+        }
+    })
+}
+
+fn format_command(command: FormatCommand) -> Result<J> {
+    match command {
+        FormatCommand::ToJson { file, out, mode } => {
+            let bytes = std::fs::read(&file)?;
+            let converted = rpx_format::rpx_to_json(
+                &bytes,
+                rpx_format::Options {
+                    mode: format_mode(&mode)?,
+                },
+            )?;
+            let out = files::absolute(&out)?;
+            files::create(&out, &files::json_bytes(&converted.document)?)?;
+            Ok(json!({
+                "out": out,
+                "legacy": converted.legacy,
+                "warnings": converted.warnings,
+            }))
+        }
+        FormatCommand::ToRpx { file, out, mode } => {
+            let document = read(&file)?;
+            let bytes = rpx_format::json_to_rpx(
+                &document,
+                rpx_format::Options {
+                    mode: format_mode(&mode)?,
+                },
+            )?;
+            let out = files::absolute(&out)?;
+            files::create(&out, &bytes)?;
+            Ok(json!({"out": out}))
+        }
+        FormatCommand::Verify { file, mode } => {
+            let bytes = std::fs::read(&file)?;
+            let report = rpx_format::verify(
+                &bytes,
+                rpx_format::Options {
+                    mode: format_mode(&mode)?,
+                },
+            )?;
+            Ok(json!({
+                "model_equal": report.model_equal,
+                "bytes_equal": report.bytes_equal,
+                "legacy": report.legacy,
+                "source_sha256": report.source_sha256,
+                "json_sha256": report.json_sha256,
+            }))
+        }
+        FormatCommand::Check { file } => {
+            let document = read(&file)?;
+            definition::parse(&document)?;
+            Ok(json!({"valid": true}))
+        }
     }
 }
 

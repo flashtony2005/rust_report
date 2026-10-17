@@ -1,0 +1,13 @@
+{
+  "format": "rpx-report",
+  "format_version": 1,
+  "grid": {
+    "rows": 1,
+    "cols": 1
+  },
+  "extensions": {
+    "acme": {
+      "vendor": "acme"
+    }
+  }
+}

@@ -1,9 +1,10 @@
 # RPX Report JSON — Format v1（设计稿）
 
-> 状态：**设计提案，尚未实现**
+> 状态：**Phase 0 reader 已实现；Phase 1 迁移快照已实现；v2 尚未实现**
 > 目标：把当前“事实上的 JSON 定义”升级为**有明确 `format_version`、兼容策略和扩展位的规范格式**。
 > 关联决策：`docs/adr/0001-json-canonical-format.md`
 > 关联转换器：`docs/format/rpx-core-json-converter.md`
+> 机器可读 schema：[rpx-report-v1.schema.json](rpx-report-v1.schema.json)（设计骨架）
 > 本文不改变现有 `.rpx` 二进制格式；`.rpx` 在本设计中降级为 legacy 适配器。
 
 ---
@@ -291,53 +292,35 @@ v1 保持当前顶层字段名，避免一次性重排：
 
 ## 9. `extensions["rpx.legacy"]`
 
-这是转换器的“无损舱”，不是用户编辑面：
+这是转换器的“无损舱”，不是用户编辑面。**Phase 1 的实现形态是原始 RPX 快照**：
 
 ```json
 {
   "extensions": {
     "rpx.legacy": {
       "format": "rpx-rpx-v1",
-      "source_sha256": "…",
-      "report": {
-        "exp_map": "base64:…",
-        "scalars": "base64:…",
-        "macro_meta": "base64:…",
-        "sub_report_meta": "base64:…",
-        "back_graph_config": "base64:…",
-        "export_config": "base64:…",
-        "custom_properties": [["key", "value"]]
-      },
-      "cells": {
-        "C6": {
-          "diagonal_style": 0,
-          "diagonal_color": 0,
-          "diagonal_width": 0.0,
-          "extend_area": null,
-          "to_excel_mode": 0,
-          "adjust_size_mode": 0,
-          "cell_obj": null,
-          "hyperlink": null,
-          "hyperlink_window": null,
-          "exp_map": "base64:…",
-          "cell_type": 0,
-          "notes": null,
-          "ois_blob": "base64:…",
-          "cell_graph_config": "base64:…",
-          "under_line_style": 0,
-          "cell_style_name": null,
-          "merge_null": 0,
-          "merge_same_mode": 118,
-          "merge_null_mode": 0,
-          "extra_bit_flags": 0
-        }
-      },
-      "row_props": { "3": { "notes": null, "ois_blob": "base64:…", "exp_map": "base64:…" } },
-      "col_props": { "2": { "ois_blob": "base64:…", "exp_map": "base64:…" } },
-      "datasets": { "ds1": { "colList": null, "filter": null, "beginRow": null } },
-      "print_setup": { "paper": 9, "orient": 1 }
+      "encoding": "base64",
+      "sha256": "…",
+      "modeled_sha256": "…",
+      "data": "…"
     }
   }
+}
+```
+
+- `data` 是原始 `.rpx` 字节的 base64；`sha256` 是原始字节哈希。
+- `modeled_sha256` 是“会进入 `ReportDefine` 的可建模字段”的规范化哈希；不包含 `meta`/`extensions`。
+- `json_to_rpx` 在快照存在且 `modeled_sha256` 未变化时原样返回原字节；一旦可建模字段被编辑，返回 `LEGACY_READ_ONLY`，要求先移除快照再导出。**不会静默丢弃未建模字段。**
+
+Phase 2 可以把原始快照升级为以下**逐字段 legacy 舱**（迁移期间也可保留给需要细粒度编辑的场景）：
+
+```json
+"rpx.legacy": {
+  "format": "rpx-rpx-v1",
+  "cells": { "C6": { "diagonal_style": 0, "ois_blob": "base64:…" } },
+  "row_props": { "3": { "notes": null } },
+  "datasets": { "ds1": { "filter": null } },
+  "print_setup": { "paper": 9 }
 }
 ```
 
@@ -345,8 +328,7 @@ v1 保持当前顶层字段名，避免一次性重排：
 
 - 用**地址/名字**（`C6`、`ds1`、行号/列号）做 key，不用数组下标，避免重排后错位。
 - 可用结构化 JSON 表达的用结构化；纯字节（OIS/未知 blob）用 `"base64:…"`。
-- `source_sha256` 只用于追溯，不阻止编辑；写回时重新计算。
-- 读侧如果发现 legacy 与显式字段冲突，报 `LEGACY_CONFLICT`，不静默选择。
+- 读侧如果发现 legacy 与显式字段冲突，报 `LEGACY_CONFLICT`，不静默选择（字段级 legacy 落地时）。
 
 ---
 

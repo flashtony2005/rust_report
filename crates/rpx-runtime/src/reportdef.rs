@@ -54,6 +54,7 @@ mod bands;
 mod build;
 mod cellprops;
 mod chart;
+mod format;
 mod graphics;
 mod heads;
 mod json;
@@ -73,7 +74,7 @@ pub use build::{
     blank_cell, expr_cell, text_cell, Builder, KEY_COL_WIDTH, KEY_ROW_BREAK_PAGE, KEY_ROW_HEIGHT,
     KEY_VALUE, MERGE_SAME_BOTH, MERGE_SAME_HORIZONTAL, MERGE_SAME_VERTICAL,
 };
-pub use parse::{build, VERSION};
+pub use parse::{build, FORMAT, FORMAT_VERSION, VERSION};
 
 /// 定义 JSON 不合法。
 #[derive(Debug)]

@@ -1,6 +1,6 @@
 # ADR 0001 — JSON 成为规范报表格式，`.rpx` 降级为 legacy 适配器
 
-- 状态：**Proposed（待评审）**
+- 状态：**Accepted — Phase 0 完成，Phase 1 进行中（2026-10-17）**
 - 日期：2026-10-17
 - 决策范围：报表定义格式、`rpx-core`/`rpx-runtime` 边界、CLI/Web/Server 的输入输出
 - 关联文档：
@@ -23,7 +23,7 @@
 
 1. **JSON 没有正式版本标记**：只有可选的 `version: 1`，无法区分“当前 JSON”“未来 JSON”“产品二进制派生 JSON”。
 2. **JSON 是 `ReportDefine` 的投影，不是独立规范**：大量产品字段无法表达，只能靠 import 的严格 compare 拒绝。
-3. **`.rpx` 仍是测试与迁移的中心**：15 个引擎夹具输入是 `.rpx`；37 个字节往返、40 个 RPX 夹具是核心证据；`import-rpx` 对 40 个产品夹具 0/40。
+3. **`.rpx` 仍是测试与迁移的中心**：23 个引擎夹具输入是 `.rpx`；37 个字节往返、40 个 RPX 夹具是核心证据；`import-rpx` 对 40 个产品夹具 0/40。
 4. **当前工作树未提交、无 CI**：任何格式升级都缺少可回滚基线和自动门禁。
 
 问题不是“要不要 JSON”——JSON 已经是日常格式。问题是：
@@ -77,7 +77,7 @@
 
 - 需要新增 `rpx-format`（或 runtime 内格式层）与转换器、schema、迁移测试。
 - 需要处理 JSON 版本兼容、legacy 冲突、孤儿字段。
-- 需要把 15 个引擎夹具的输入逐步 JSON 化，测试资产要迁移。
+- 需要把 23 个引擎夹具的输入逐步 JSON 化，测试资产要迁移。
 - 文档需要一次“当前态/历史态”清理。
 
 ### 中性
@@ -104,7 +104,7 @@
 2. 加 CI：G1–G9 + `scripts/e2e_smoke.sh`；固定 `CARGO_TARGET_DIR`、Vitest `cacheDir`，让 gate 在干净环境可复现。
 3. 落地格式文档与 schema：`docs/format/rpx-report-json-v1.md` + `rpx-report-v1.schema.json`。
 4. reader 先支持 v0/v1：接受无 marker 的 v0；遇到 v1 校验 `format`/`format_version`；writer 暂不改变。
-5. 建立 JSON golden corpus（至少 15 个引擎夹具的语义输入）。
+5. 建立 JSON golden corpus（至少 23 个引擎夹具的语义输入）。
 6. 文档加“当前架构 / 历史里程碑”索引；给过期规格加横幅。
 
 交付物：
@@ -146,7 +146,7 @@
    - print_setup 未开放槽；
    - `ObjValue` 未建模类型。
 4. 实现 CLI：`rpx format to-json` / `to-rpx` / `verify` / `check`。
-5. 把 40 个 `.rpx` 跑通 Preserve；37 个字节往返；15 个引擎夹具 JSON 化对照。
+5. 把 40 个 `.rpx` 跑通 Preserve；40/40 快照字节往返；23 个引擎夹具 JSON 化对照（Phase 1 解析/尺寸，Phase 2 逐格）。
 6. 修 `import-rpx` 的边界或明确标注“只用于 legacy”，不要让用户 import 承担迁移。
 7. 建立迁移测试清单（`docs/format/rpx-core-json-converter.md` 的 T01–T20）。
 
@@ -155,7 +155,7 @@
 - 转换器 + CLI；
 - 40/40 Preserve 报告；
 - 37/37 字节报告；
-- 15/15 引擎 JSON 对照；
+- 23/23 引擎 JSON 可解析且尺寸/数据集/参数一致；
 - 迁移测试与差异清单。
 
 **门禁 G1**：
@@ -163,7 +163,7 @@
 - T05：40/40 `rpx_to_json` 成功（Preserve）；
 - T06：已知 37 个 `verify --bytes` 全过；
 - T07：40/40 `model_equal`；
-- T04：15 个引擎夹具用 JSON 输入仍逐格全绿；
+- T04：23/23 引擎夹具 JSON 可解析；逐格全绿是 Phase 2 门禁；
 - 任何 `UNSUPPORTED_FIELD` 都有 pointer + 处理决定（补映射或进 legacy），不允许静默丢弃；
 - CLI `format verify` 在 CI 可跑。
 
@@ -195,7 +195,7 @@
 **门禁 G2**：
 
 - 正常 CLI 路径不出现 `.rpx`（除 legacy 命令）；
-- 15 个引擎夹具全部由 JSON 输入驱动；
+- 23 个引擎夹具全部由 JSON 输入驱动；
 - 旧库可读，保存后 revision 行为符合预期；
 - v0 reader 仍可读；
 - Web 保存/读取往返不丢 `extensions`；
@@ -268,7 +268,7 @@
 | Preserve 转换成功率（40 夹具） | 40/40 |
 | 语义往返（40 夹具） | 40/40 `model_equal` |
 | 字节往返（37 已知） | 37/37 |
-| 引擎夹具 JSON 化 | 15/15 逐格全绿 |
+| 引擎夹具 JSON 化 | Phase 1：23/23 可解析；Phase 2：23/23 逐格全绿 |
 | Strict 模式的未支持字段 | 全部有明确错误与处理决定 |
 | CLI `format verify` CI 时长 | 在可接受预算内（建议 <2 min） |
 | 旧库迁移成功率 | 100%（dry-run 可回滚） |
@@ -278,11 +278,15 @@
 
 ## 9. 决策记录
 
-- 2026-10-17：提出 ADR；建议采纳选项 B；待评审。
+- 2026-10-17：提出 ADR；建议采纳选项 B。
+- 2026-10-17：采纳选项 B，开始实施。已完成：
+  - Phase 0：baseline commit `33c6b11` + tag `v0.2.0-baseline`；`.github/workflows/ci.yml`；`format` / `format_version` / `meta` / `extensions` reader；`tests/fixtures/format/` golden corpus；schema 文件。
+  - Phase 1（迁移快照模式）：`rpx_runtime::format` 的 `rpx_to_json` / `json_to_rpx` / `verify`；`rpx format to-json|to-rpx|verify|check`；40/40 产品 `.rpx` Preserve + 快照字节往返；23/23 引擎夹具 JSON 可解析与尺寸/数据集/参数一致。
+  - 待办：Phase 1 的 23/23 逐格计算对拍、字段级 legacy 覆盖；Phase 2 writer v1 与 JSON 默认测试输入。
 - 评审通过条件：
   1. 确认“JSON canonical + RPX legacy”是目标；
   2. 确认 Phase 0 的 baseline/CI 是前置；
-  3. 确认 Phase 1 的 40/40、37/37、15/15 是硬门禁；
+  3. 确认 Phase 1 的 40/40 Preserve、40/40 快照字节、23/23 JSON 可解析是硬门禁；
   4. 确认不重写引擎、不改 `ReportDefine` 内部模型。
 
 ---

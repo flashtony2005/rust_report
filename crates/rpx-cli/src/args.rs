@@ -53,6 +53,10 @@ pub enum Command {
         #[command(subcommand)]
         command: Template,
     },
+    Format {
+        #[command(subcommand)]
+        command: FormatCommand,
+    },
     Run {
         #[arg(value_parser=source_path)]
         file: PathBuf,
@@ -81,6 +85,33 @@ pub enum Command {
         #[command(subcommand)]
         command: Report,
     },
+}
+#[derive(Subcommand)]
+pub enum FormatCommand {
+    /// .rpx → JSON v1；preserve 会保留原始字节迁移快照
+    ToJson {
+        file: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long,default_value="preserve",value_parser=["strict","preserve","drop"])]
+        mode: String,
+    },
+    /// JSON v1 → .rpx；preserve 且未编辑时原样还回迁移快照
+    ToRpx {
+        file: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long,default_value="preserve",value_parser=["strict","preserve","drop"])]
+        mode: String,
+    },
+    /// 读 → JSON → 模型/字节 → 再读
+    Verify {
+        file: PathBuf,
+        #[arg(long,default_value="preserve",value_parser=["strict","preserve","drop"])]
+        mode: String,
+    },
+    /// 检查 JSON 定义是否可被当前 reader 接受
+    Check { file: PathBuf },
 }
 #[derive(Subcommand)]
 pub enum Template {
@@ -259,6 +290,12 @@ impl Command {
                 Template::Create { .. } => "template.create",
                 Template::Patch { .. } => "template.patch",
                 Template::Compile { .. } => "template.compile",
+            },
+            Self::Format { command } => match command {
+                FormatCommand::ToJson { .. } => "format.to-json",
+                FormatCommand::ToRpx { .. } => "format.to-rpx",
+                FormatCommand::Verify { .. } => "format.verify",
+                FormatCommand::Check { .. } => "format.check",
             },
             Self::Result { .. } => "result.inspect",
             Self::Dataset { .. } => "dataset.inspect",

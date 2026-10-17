@@ -28,6 +28,7 @@ rpx-export base64
 
 rpx-runtime serde_json
 rpx-runtime sha2
+rpx-runtime base64
 rpx-runtime time
 rpx-runtime json-patch
 rpx-cli clap

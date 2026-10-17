@@ -1,7 +1,9 @@
 # 契约 — 报表定义 JSON（M7-1）v1
 
 > 状态：**M7-1 落地基线**（2026-10-16）。实现位置
-> `crates/rpx-server/src/reportdef/`（`parse.rs` = 逐字段校验、`build.rs` = 装配）。
+> `crates/rpx-runtime/src/reportdef/`（`parse.rs` = 逐字段校验、`build.rs` = 装配）。
+> v1 格式标记（`format` / `format_version` / `meta` / `extensions`）见
+> `docs/format/rpx-report-json-v1.md`；当前 reader 已接受，writer 仍写 v0 形态。
 > 上游：M1–M6 已闭合；本契约是「**前端定报表格式**」这条路的入口。
 > 与 `.rpx` 的关系：**两条入口，一个出口**（§1）——JSON 定义与 `.rpx` 字节都产出
 > 同一个 `ReportDefine`，下游主链路**完全不分叉**。
@@ -45,7 +47,7 @@
 }
 ```
 
-未知的**顶层键**被忽略（JSON 是开放结构，前端框架可能塞注释字段）；但**已知键的
+未知的**顶层键**被拒绝（`extensions` 是唯一扩展位）；**已知键的
 非法取值一律显式报错**（§6）——「宽松接受 + 静默忽略」正是本仓反复踩过的失败形态。
 
 ## 3. 字段表

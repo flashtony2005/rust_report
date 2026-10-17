@@ -1,0 +1,17 @@
+{
+  "format": "rpx-report",
+  "format_version": 1,
+  "grid": {
+    "rows": 1,
+    "cols": 1
+  },
+  "extensions": {
+    "rpx.legacy": {
+      "format": "rpx-rpx-v1",
+      "source_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "x-acme": {
+      "vendor": "acme"
+    }
+  }
+}
