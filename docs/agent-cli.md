@@ -98,6 +98,8 @@ rpx report validate monthly --library ./reports
 rpx report run monthly --library ./reports --if-match "$revision" --export xlsx
 rpx report runs monthly --library ./reports --limit 5
 rpx report import-json template.json --id new-report --library ./reports
+rpx report migrate --library ./reports --dry-run
+rpx report migrate --library ./reports --backup
 rpx report delete new-report --library ./reports --if-match "$revision"
 rpx report prune monthly --library ./reports --keep 10
 ```
@@ -107,7 +109,8 @@ rpx report prune monthly --library ./reports --keep 10
 实际数据和命令行覆盖参数单独记录；同修订不表示数据仍是最新的。
 用 `report update ID --library DIR --if-match REV --name NAME --description TEXT` 修改元信息。
 `report import-json` 直接把 JSON 定义放入库（自动补 v1 标记）；`report delete` 要求 `--if-match`，
-`report prune` 只保留最近 N 次运行。
+`report prune` 只保留最近 N 次运行；`report migrate` 把库内 v0 JSON 模板规范化为 v1，
+`--backup` 在首次写入前复制 template/manifest，备份目录在返回值的 `data.backup`。
 
 CLI 与 Web 在同一个跨进程文件锁内核对修订。冲突返回 REVISION_CONFLICT，不自动重试。
 初始化、复制、导入经暂存目录发布；补丁在副本上校验后原子替换。

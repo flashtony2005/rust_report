@@ -13,7 +13,7 @@ use std::{
 mod manage;
 #[cfg(feature = "legacy-rpx")]
 pub use manage::import;
-pub use manage::{copy, delete, import_json, init, prune, update};
+pub use manage::{copy, delete, import_json, init, migrate, prune, update};
 
 pub fn id(value: &str) -> Result<()> {
     if value.is_empty()

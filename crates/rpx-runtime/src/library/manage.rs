@@ -220,6 +220,76 @@ pub fn prune(root: &Path, name: &str, keep: usize) -> Result<J> {
     Ok(json!({"pruned":pruned,"kept":entries.len().saturating_sub(pruned)}))
 }
 
+/// 把库内 v0 JSON 模板规范化为 v1；`backup` 可在首次写入前复制模板/清单。
+pub fn migrate(root: &Path, dry: bool, backup: bool) -> Result<J> {
+    let _guard = lock(root)?;
+    let mut scanned = 0;
+    let mut changed = 0;
+    let mut unchanged = 0;
+    let mut errors = Vec::new();
+    let mut backup_root: Option<PathBuf> = None;
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let id = entry.file_name().to_string_lossy().into_owned();
+        if id.starts_with('.') {
+            continue;
+        }
+        let dir = entry.path();
+        let manifest = dir.join("manifest.json");
+        let template = dir.join("template.json");
+        if !manifest.is_file() || !template.is_file() {
+            continue;
+        }
+        scanned += 1;
+        let before = match files::read_json(&template) {
+            Ok(v) => v,
+            Err(e) => {
+                errors.push(json!({"report":id,"code":"TEMPLATE_INVALID","detail":e.diagnostic}));
+                continue;
+            }
+        };
+        let after = match crate::format::normalize(&before) {
+            Ok(v) => v,
+            Err(e) => {
+                errors.push(json!({"report":id,"code":"TEMPLATE_INVALID","detail":e.diagnostic}));
+                continue;
+            }
+        };
+        if before == after {
+            unchanged += 1;
+            continue;
+        }
+        if dry {
+            changed += 1;
+            continue;
+        }
+        if backup && backup_root.is_none() {
+            let path = root
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(format!(".rpx-migration-backup-{}", files::unique()));
+            fs::create_dir_all(&path)?;
+            backup_root = Some(path);
+        }
+        if let Some(root) = &backup_root {
+            let dest = root.join(&id);
+            fs::create_dir_all(&dest)?;
+            fs::copy(&template, dest.join("template.json"))?;
+            fs::copy(&manifest, dest.join("manifest.json"))?;
+        }
+        files::atomic_json(&template, &after)?;
+        changed += 1;
+    }
+    Ok(json!({
+        "dry_run":dry,
+        "scanned":scanned,
+        "changed":changed,
+        "unchanged":unchanged,
+        "errors":errors,
+        "backup":backup_root.map(|p| files::absolute(&p)).transpose()?,
+    }))
+}
+
 #[cfg(feature = "legacy-rpx")]
 pub fn import(root: &Path, file: &Path, name: &str, data: Option<&Path>, dry: bool) -> Result<J> {
     id(name)?;

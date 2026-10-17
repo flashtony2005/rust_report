@@ -356,6 +356,16 @@ pub enum Report {
         #[command(flatten)]
         library: Library,
     },
+    /// 把库内 v0 JSON 模板迁移到 v1（可备份）
+    Migrate {
+        #[arg(long)]
+        dry_run: bool,
+        /// 首次写入前把 template/manifest 复制到库旁备份目录
+        #[arg(long)]
+        backup: bool,
+        #[command(flatten)]
+        library: Library,
+    },
     /// 清理旧运行记录
     Prune {
         id: String,
@@ -407,6 +417,7 @@ impl Command {
                 #[cfg(feature = "legacy-rpx")]
                 Report::ImportRpx { .. } => "report.import-rpx",
                 Report::Delete { .. } => "report.delete",
+                Report::Migrate { .. } => "report.migrate",
                 Report::Prune { .. } => "report.prune",
             },
         }

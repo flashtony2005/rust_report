@@ -54,6 +54,10 @@ rpx format to-rpx external.json --out external.rpx --mode preserve
 
 # 可选：把 RPX 直接放入目录库
 rpx report import-rpx external.rpx --id external --library ./reports
+
+# 库内 v0 JSON → v1（可备份/回滚）
+rpx report migrate --library ./reports --dry-run
+rpx report migrate --library ./reports --backup
 ```
 
 结构性编辑（增删行列）：

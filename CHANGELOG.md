@@ -2,6 +2,18 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.8.0-wp1-wp2 — 2026-10-17
+
+### Added
+
+- `rpx report migrate --library DIR [--dry-run] [--backup]`：库内 v0 JSON → v1，备份可回滚。
+- `scripts/legacy_tests.sh` 与独立 CI `legacy` job；默认 gate 只跑 JSON-only 路径。
+
+### Changed
+
+- `report migrate` 不依赖 `legacy-rpx`，默认构建即可使用。
+- 默认测试与 legacy 测试完全分离，避免 feature 漂移。
+
 ## v0.7.0-v2-defaults — 2026-10-17
 
 ### Changed

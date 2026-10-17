@@ -316,6 +316,11 @@ async fn report(command: Report) -> Result<J> {
             if_match,
             library: lib,
         } => library::delete(&lib.library, &id, &if_match),
+        Report::Migrate {
+            dry_run,
+            backup,
+            library: lib,
+        } => library::migrate(&lib.library, dry_run, backup),
         Report::Prune {
             id,
             keep,
