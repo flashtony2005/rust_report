@@ -187,6 +187,7 @@
 
 - `rpx-runtime` / `rpx-cli` 增加 `legacy-rpx` feature（默认开启，保持兼容）。
 - `format`、`report import-rpx`、`template compile`、`.rpx` reader 分支都受 feature 控制；`cargo check -p rpx-cli --no-default-features` 通过，JSON-only 构建不暴露 legacy 命令。
+- `scripts/json_only_smoke.sh` 在 no-default 构建上跑 validate → run → result inspect → library/preset → report run；CI 同步执行。
 - 剩余：把默认 feature 关闭、`rpx-core` 二进制读写拆分、结构性编辑 overlay。
 
 任务：
