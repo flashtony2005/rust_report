@@ -2,7 +2,7 @@
 
 - 状态：**Accepted**
 - 日期：2026-10-17
-- 关联：[ADR 0001](0001-json-canonical-format.md)、[legacy 退役指南](../format/rpx-legacy-retirement.md)、[v2.0 计划](../v2.0-work-plan.md)
+- 关联：[ADR 0001](0001-json-canonical-format.md)、[legacy 退役指南](../format/rpx-legacy-retirement.md)、[v2.0 计划](../v2.0-work-plan.md)、[JSON 设定覆盖](../format/json-settings-coverage.md)
 
 ## 背景
 
