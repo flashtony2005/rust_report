@@ -2,6 +2,15 @@
 
 本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
 
+## v0.13.0-web-auth — 2026-10-17
+
+### Added
+
+- 服务端可选 Bearer 鉴权：`--auth-token` / `RPX_AUTH_TOKEN`；`/health`、`/auth/status` 公开，`/reports*` 受保护。
+- Web 登录门（sessionStorage token、401 自动回登录）与 API Authorization 头。
+- Playwright auth E2E（需要/无需鉴权两条路径），独立 CI `web-e2e` job。
+- `docs/web-auth.md`。
+
 ## v0.12.0-sql-perf-pdf — 2026-10-17
 
 ### Added / Changed

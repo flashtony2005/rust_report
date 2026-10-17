@@ -90,3 +90,30 @@ jobs:
       - name: Run legacy tests
         shell: bash
         run: bash scripts/legacy_tests.sh
+
+  web-e2e:
+    name: Web auth Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run auth E2E
+        working-directory: web
+        run: npm run e2e

@@ -1,7 +1,8 @@
 //! Library JSON source editing and fixed run artifacts. No calculation handlers.
 use axum::{
-    extract::{rejection::JsonRejection, DefaultBodyLimit, Path, Query, State},
+    extract::{rejection::JsonRejection, DefaultBodyLimit, Extension, Path, Query, Request, State},
     http::{header, HeaderMap, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
@@ -13,9 +14,17 @@ use rpx_runtime::{
 use serde_json::{json, Value as J};
 use std::{collections::HashMap, path::PathBuf};
 
+/// 本地开发默认无鉴权；生产用 [`app_with_auth`]。
 pub fn app(root: PathBuf) -> Router {
-    Router::new()
+    app_with_auth(root, None)
+}
+
+/// Bearer token 鉴权。`/health` 与 `/auth/status` 始终公开。
+pub fn app_with_auth(root: PathBuf, token: Option<String>) -> Router {
+    let required = token.is_some();
+    let mut router = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/auth/status", get(auth_status))
         .route("/reports", get(list))
         .route("/reports/{id}", get(show))
         .route("/reports/{id}/template", axum::routing::put(save))
@@ -25,6 +34,44 @@ pub fn app(root: PathBuf) -> Router {
         .route("/reports/{id}/runs/{run}/artifacts/{name}", get(artifact))
         .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
         .with_state(root)
+        .layer(Extension(AuthRequired(required)));
+    if let Some(token) = token {
+        router = router.layer(middleware::from_fn_with_state(
+            AuthState(token),
+            require_auth,
+        ));
+    }
+    router
+}
+
+#[derive(Clone)]
+struct AuthState(String);
+#[derive(Clone, Copy)]
+struct AuthRequired(bool);
+
+async fn auth_status(Extension(AuthRequired(required)): Extension<AuthRequired>) -> Response {
+    Json(json!({"required": required})).into_response()
+}
+
+async fn require_auth(State(auth): State<AuthState>, request: Request, next: Next) -> Response {
+    let path = request.uri().path();
+    if path == "/health" || path == "/auth/status" {
+        return next.run(request).await;
+    }
+    let ok = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .is_some_and(|token| token == auth.0);
+    if ok {
+        return next.run(request).await;
+    }
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(json!({"error":{"code":"AUTH_REQUIRED","message":"需要 Authorization: Bearer <token>"}})),
+    )
+        .into_response()
 }
 fn response(value: Result<J>) -> Response {
     match value {

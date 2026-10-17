@@ -1170,7 +1170,7 @@ dependencies = [
 
 [[package]]
 name = "rpx-cli"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "clap",
  "rpx-model",
@@ -1181,7 +1181,7 @@ dependencies = [
 
 [[package]]
 name = "rpx-ds"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "calamine",
  "csv",
@@ -1193,7 +1193,7 @@ dependencies = [
 
 [[package]]
 name = "rpx-engine"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "base64",
  "rpx-format",
@@ -1203,7 +1203,7 @@ dependencies = [
 
 [[package]]
 name = "rpx-export"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "base64",
  "calamine",
@@ -1214,7 +1214,7 @@ dependencies = [
 
 [[package]]
 name = "rpx-format"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "rpx-engine",
  "rpx-export",
@@ -1224,11 +1224,11 @@ dependencies = [
 
 [[package]]
 name = "rpx-model"
-version = "0.12.0"
+version = "0.13.0"
 
 [[package]]
 name = "rpx-runtime"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "base64",
  "calamine",
@@ -1247,7 +1247,7 @@ dependencies = [
 
 [[package]]
 name = "rpx-server"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "axum",
  "rpx-ds",

@@ -180,3 +180,53 @@ async fn send_raw(addr: &str, path: &str, content_type: &str, body: &[u8]) -> (u
         .unwrap();
     (status, output[split + 4..].to_vec())
 }
+
+async fn send_get_with_auth(addr: &str, path: &str, token: Option<&str>) -> (u16, Vec<u8>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let auth = token
+        .map(|t| format!("Authorization: Bearer {t}\r\n"))
+        .unwrap_or_default();
+    let head = format!(
+        "GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n{auth}Content-Length: 0\r\n\r\n"
+    );
+    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    stream.write_all(head.as_bytes()).await.unwrap();
+    let mut output = Vec::new();
+    stream.read_to_end(&mut output).await.unwrap();
+    let split = output.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+    let status = String::from_utf8_lossy(&output[..split])
+        .split_whitespace()
+        .nth(1)
+        .unwrap()
+        .parse()
+        .unwrap();
+    (status, output[split + 4..].to_vec())
+}
+
+#[tokio::test]
+async fn bearer_auth_protects_reports_and_reports_status() {
+    let temp = Temp(std::env::temp_dir().join(format!("rpx-http-auth-{}", files::unique())));
+    library::init(&temp.0, false).unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap().to_string();
+    let app = rpx_server::http::app_with_auth(temp.0.clone(), Some("secret".into()));
+    let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+    let (status, bytes) = send_get_with_auth(&addr, "/auth/status", None).await;
+    assert_eq!(status, 200);
+    let value: J = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value["required"], true);
+
+    let (status, bytes) = send_get_with_auth(&addr, "/reports", None).await;
+    assert_eq!(status, 401);
+    let value: J = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value["error"]["code"], "AUTH_REQUIRED");
+
+    let (status, _) = send_get_with_auth(&addr, "/reports", Some("secret")).await;
+    assert_eq!(status, 200);
+    let (status, _) = send_get_with_auth(&addr, "/health", None).await;
+    assert_eq!(status, 200);
+
+    task.abort();
+}

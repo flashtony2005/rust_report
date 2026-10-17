@@ -13,6 +13,8 @@ revision=$(rpx report show complex-master --library ./reports | jq -r '.data.rev
 rpx report run complex-master --library ./reports --if-match "$revision" --export xlsx --export csv
 rpx format verify external.rpx --mode preserve
 cargo run --locked -p rpx-server -- serve --library ./reports
+# 启用 Bearer 鉴权时：
+# cargo run --locked -p rpx-server -- serve --library ./reports --auth-token "$TOKEN"
 npm run dev --prefix web
 ```
 
@@ -21,6 +23,6 @@ Web 开发服务默认 http://localhost:5288，API 默认 127.0.0.1:8090。
 源码变化后旧结果会保留，并标明所属修订。已有 RPX 使用显式 `format`/导入命令管理；v1 格式与迁移快照见
 [docs/format/rpx-report-json-v1.md](docs/format/rpx-report-json-v1.md)；legacy 退役计划见 [docs/format/rpx-legacy-retirement.md](docs/format/rpx-legacy-retirement.md)，v2.0 工作安排见 [docs/v2.0-work-plan.md](docs/v2.0-work-plan.md)；JSON-only / RPX frozen 决策见 [docs/adr/0002-json-canonical-rpx-frozen.md](docs/adr/0002-json-canonical-rpx-frozen.md)，设定覆盖见 [docs/format/json-settings-coverage.md](docs/format/json-settings-coverage.md)。
 
-[CLI 使用与错误协议](docs/agent-cli.md) · [设计](docs/agent-cli-design.md) · [Agent 配套技能](skills/rpx/SKILL.md)
+[CLI 使用与错误协议](docs/agent-cli.md) · [Web 鉴权](docs/web-auth.md) · [设计](docs/agent-cli-design.md) · [Agent 配套技能](skills/rpx/SKILL.md)
 
 要求 Rust 1.89+，安装的依赖版本以 Cargo.lock 为准。`make check` 运行全部项目检查。

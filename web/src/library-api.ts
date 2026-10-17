@@ -1,4 +1,5 @@
 import type { ReportDef } from './designer'
+import { AUTH_REQUIRED_EVENT, authToken } from './auth'
 export type RunRecord = {
   run_id: string; revision: string; status: string; started_at: string; finished_at: string | null
   artifacts: Record<string, string>; diagnostics: { message: string }[]; parameters?: unknown; source_files: string[]
@@ -10,9 +11,18 @@ export type ReportDetail = {
 }
 export class LibraryError extends Error { constructor(public status: number, message: string) { super(message) } }
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options)
-  const value = await response.json()
-  if (!response.ok) throw new LibraryError(response.status, value.error?.message ?? `HTTP ${response.status}`)
+  const token = authToken()
+  const headers = new Headers(options?.headers)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(url, { ...options, headers })
+  let value: any = null
+  try { value = await response.json() } catch { /* non-JSON error body */ }
+  if (!response.ok) {
+    if (response.status === 401) {
+      window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT))
+    }
+    throw new LibraryError(response.status, value?.error?.message ?? `HTTP ${response.status}`)
+  }
   return value as T
 }
 const base = (id: string) => `/api/reports/${encodeURIComponent(id)}`

@@ -63,3 +63,7 @@ Thumbs.db
 /.playwright-cli/
 /output/
 /web/public/report-gallery/
+
+# Playwright
+/web/test-results
+/web/playwright-report
