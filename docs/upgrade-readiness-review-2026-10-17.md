@@ -33,7 +33,7 @@
 >
 > - 已完成：baseline/tag、CI、JSON v1 reader/schema、`rpx format` 四条命令、40/40 RPX Preserve、23/23 引擎夹具 JSON 对拍、字段级 overlay、`format normalize`、v1 preset。
 > - 已修：断管（EPIPE）不再 panic；`result inspect` 拒绝模板文件；运行记录按补零时间排序；`print-xlsx` 的自定义 A3/A4/A5/Letter 纸张可映射。
-> - 仍在：`chart-gallery` 的 3D 图表、`images` 的打印背景 → `print-xlsx` 仍显式失败；导出失败目前仍会使整次 run failed（all-or-nothing 未改）。
+> - 已修：`chart-gallery` 的 3D 图表、`images` 的打印背景 → `print-xlsx` 仍会失败，但只记 warning，不再拖垮 result/workbook/其他导出。
 > 当前最该做的不是重写，而是：**先提交并冻结一个可复现基线，再用一组真实失败场景把 CLI 边界补齐，最后把文档和 CI 分成「当前架构」与「历史里程碑」两套。**
 
 ### 0.2 五条最重要的结论
@@ -432,6 +432,8 @@ rpx report update monthly --library /tmp/rpx-lib --if-match "$rev3" --name 月�
 
 #### P0-1：`print-xlsx` 在多个官方 preset 上直接失败，且会拖垮整次运行
 
+> **2026-10-17 已部分修复**：自定义 A3/A4/A5/Letter 纸张已映射；导出失败改为 warning，result/workbook/成功导出照常发布。3D 图表与打印背景仍显式失败。
+
 - 复现：
 
 ```sh
@@ -613,7 +615,7 @@ GET  /reports/{id}/runs/{run}/artifacts/{name}
 | ID | 严重度 | 风险 | 证据 | 升级影响 |
 | --- | :---: | --- | --- | --- |
 | R1 | **P0** | 当前成果未提交 | `git status`：30 D / 75 M / 68 ??；`rpx-runtime`、`examples`、README/Makefile/skills 均未跟踪 | 从 HEAD 升级会丢失整套新架构；干净克隆无法构建当前 runtime |
-| R2 | **P0** | `print-xlsx` 在 3/5 preset 上失败且拖垮运行 | `print_xlsx.rs:15-16`、`printsetup.rs:132-134`、`run.rs:151-181` | 用户请求打印导出会丢失已算好的 result/workbook |
+| R2 | P1 | `print-xlsx` 在 2/5 preset 上仍失败（3D 图表/背景），但只记 warning | `print_xlsx.rs`、`run.rs` | 用户得到结果但缺少打印文件 |
 | R3 | **P0** | `import-rpx` 对产品 `.rpx` 0/40 | 40 个 `tests/fixtures/*.rpx` 全失败；自产 5/5 成功 | 「已有 RPX 迁移」承诺不成立 |
 | R4 | **P0** | 文档当前态/历史态混杂 | 62 `/render`、25 `/export`、23 `/meta`、20 `reportdef/` 引用；`report-def-json` 实现路径已过期 | 升级时按错文档改代码，风险极高 |
 | R5 | P1 | 断管 panic 101 | `main.rs:36`、`commands.rs:227-236` 实测 | agent 管道使用不可靠 |

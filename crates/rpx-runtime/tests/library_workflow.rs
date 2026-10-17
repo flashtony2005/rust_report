@@ -134,16 +134,13 @@ fn all_bundled_examples_survive_explicit_rpx_to_json_conversion() {
 }
 
 #[tokio::test]
-async fn requested_export_failure_publishes_no_partial_artifacts() {
+async fn requested_export_failure_keeps_successful_artifacts() {
     let temp = Temp::new();
     library::init(&temp.0, true).unwrap();
     let detail = library::show(&temp.0, "images").unwrap();
     let revision = detail["revision"].as_str().unwrap();
-    let good = library::execute(&temp.0, "images", revision, &run::Options::default())
-        .await
-        .unwrap();
     // This template has a printable background unsupported by Excel. CSV is staged first.
-    let error = library::execute(
+    let run = library::execute(
         &temp.0,
         "images",
         revision,
@@ -153,21 +150,18 @@ async fn requested_export_failure_publishes_no_partial_artifacts() {
         },
     )
     .await
-    .unwrap_err();
-    assert_eq!(error.exit, 6);
-    assert_eq!(error.diagnostic["code"], "EXPORT_FAILED");
+    .unwrap();
+    assert_eq!(run["run"]["status"], "succeeded");
+    assert_eq!(run["run"]["diagnostics"][0]["code"], "EXPORT_FAILED");
+    assert!(run["run"]["artifacts"]["report.csv"].is_string());
+    assert!(run["run"]["artifacts"]["result.json"].is_string());
+    assert!(run["run"]["artifacts"].get("report-print.xlsx").is_none());
     let state = library::show(&temp.0, "images").unwrap();
-    assert_eq!(state["display_run_id"], good["run"]["run_id"]);
-    assert_eq!(state["latest_attempt"]["status"], "failed");
-    let failed = state["latest_attempt"]["run_id"].as_str().unwrap();
-    let dir = temp.0.join(".runs/images").join(failed);
-    assert!(!dir.join("artifacts").exists());
-    assert!(!dir.join(".artifacts").exists());
-    assert!(state["latest_attempt"]["artifacts"]
-        .as_object()
-        .unwrap()
-        .is_empty());
-    assert!(library::artifact(&temp.0, "images", failed, "report.csv").is_err());
+    assert_eq!(state["display_run_id"], run["run"]["run_id"]);
+    assert_eq!(state["latest_attempt"]["status"], "succeeded");
+    let run_id = run["run"]["run_id"].as_str().unwrap();
+    assert!(library::artifact(&temp.0, "images", run_id, "report.csv").is_ok());
+    assert!(library::artifact(&temp.0, "images", run_id, "report-print.xlsx").is_err());
 }
 
 #[test]

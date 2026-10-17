@@ -155,14 +155,14 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
     files::create(&staged.join("workbook.json"), workbook.as_bytes())?;
     let mut artifacts =
         json!({"result.json":"artifacts/result.json","workbook.json":"artifacts/workbook.json"});
+    let mut export_warnings = Vec::new();
     for kind in &options.exports {
-        let (name, bytes) = match kind.as_str() {
-            "csv" => ("report.csv", rpx_export::to_csv(&grid).into_bytes()),
-            "xlsx" => ("report.xlsx", rpx_export::to_xlsx(&grid)),
+        let (name, result): (&str, std::result::Result<Vec<u8>, String>) = match kind.as_str() {
+            "csv" => ("report.csv", Ok(rpx_export::to_csv(&grid).into_bytes())),
+            "xlsx" => ("report.xlsx", Ok(rpx_export::to_xlsx(&grid))),
             "print-xlsx" => (
                 "report-print.xlsx",
-                rpx_export::to_print_xlsx(&grid, &grid.print_setup)
-                    .map_err(|e| Error::new(6, "EXPORT_FAILED", "export", e))?,
+                rpx_export::to_print_xlsx(&grid, &grid.print_setup),
             ),
             _ => {
                 return Err(Error::new(
@@ -173,13 +173,25 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
                 ))
             }
         };
-        if !artifacts.as_object().unwrap().contains_key(name) {
-            files::create(&staged.join(name), &bytes)?;
-            artifacts[name] = json!(format!("artifacts/{name}"));
+        match result {
+            Ok(bytes) => {
+                if !artifacts.as_object().unwrap().contains_key(name) {
+                    files::create(&staged.join(name), &bytes)?;
+                    artifacts[name] = json!(format!("artifacts/{name}"));
+                }
+            }
+            Err(message) => export_warnings.push(json!({
+                "severity": "warning",
+                "code": "EXPORT_FAILED",
+                "stage": "export",
+                "format": kind,
+                "message": message,
+            })),
         }
     }
     fs::rename(staged, out.join("artifacts"))?;
     record["artifacts"] = artifacts;
+    record["diagnostics"] = json!(export_warnings);
     record["shape"] = json!({"rows":grid.rows,"cols":grid.cols,"pages":grid.page_count});
     Ok(())
 }

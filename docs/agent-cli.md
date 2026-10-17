@@ -124,7 +124,7 @@ long/decimal 用字符串保存精度。disp_value 是独立显示覆盖，不�
 每次运行写入 run.json、source/、inputs/params.json。成功后发布 artifacts/result.json、workbook.json 和明确请求的导出。
 run.json 记录 UTC 时间、引擎版本、源码修订、实际参数、输入文件 SHA-256、SQL 别名与查询摘要、诊断及产物索引。
 SQL 不保存连接凭据，也不声称数据库状态可完全重现。
-快照/导出失败时整体为 failed，暂存产物不发布；保留失败记录与上一次成功结果。
+快照失败时整体为 failed；单个导出失败只记录 warning（`EXPORT_FAILED`），已成功产物照常发布，缺失格式不生成；失败记录与上一次成功结果仍保留。
 
 结果值为 `{type,value}`；Long/Decimal 的 value 为字符串，List 递归保留类型。
 null、零、空文本、显示覆盖和合并槽单独表达。主格出处是模板地址。
