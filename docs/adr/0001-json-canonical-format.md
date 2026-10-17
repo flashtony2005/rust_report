@@ -305,6 +305,7 @@
 ## 9. 决策记录
 
 - 2026-10-17：提出 ADR；建议采纳选项 B。
+- 2026-10-17：v0.3.0-json-migration 检查点；Phase 3 feature 边界完成。
 - 2026-10-17：采纳选项 B，开始实施。已完成：
   - Phase 0：baseline commit `33c6b11` + tag `v0.2.0-baseline`；`.github/workflows/ci.yml`；`format` / `format_version` / `meta` / `extensions` reader；`tests/fixtures/format/` golden corpus；schema 文件。
   - Phase 1（迁移快照模式）：`rpx_runtime::format` 的 `rpx_to_json` / `json_to_rpx` / `verify`；`rpx format to-json|to-rpx|verify|check`；40/40 产品 `.rpx` Preserve + 快照字节往返；23/23 引擎夹具 JSON 投影逐格/逐段对拍。

@@ -1,0 +1,51 @@
+# Changelog
+
+本项目遵循“迁移检查点”式版本记录；不保证 SemVer 兼容性承诺之外的二进制格式稳定。
+
+## v0.3.0-json-migration — 2026-10-17
+
+### Added
+
+- JSON 报表定义 v1：`format` / `format_version` / `schema` / `meta` / 命名空间 `extensions`。
+- `rpx format`：`to-json` / `to-rpx` / `verify` / `check` / `normalize`。
+- RPX Preserve 迁移快照：40/40 产品 `.rpx` 可转换，未编辑时字节一致回写。
+- 字段级 legacy overlay：编辑后的 preserve JSON 可写出，未建模字段从快照合并。
+- `report import-rpx` 支持 40/40 产品 `.rpx`。
+- `report import-json` / `report delete` / `report prune`。
+- `rpx doctor --library/--datasources` 基础环境检查。
+- HTTP JSON rejection 统一返回 `error` envelope。
+- `--allow-structural`：含快照的结构性编辑 opt-in（只保证重叠区）。
+
+### Changed
+
+- CLI 命令数增至 30；帮助文本补齐子命令说明。
+- `report list` 跳过坏包并返回 `diagnostics`。
+- 单个导出失败只记 `EXPORT_FAILED` warning，不再拖垮 result/workbook。
+- `print-xlsx` 支持 A3/A4/A5/Letter 自定义纸张映射。
+
+### Fixed
+
+- stdout 断管不再 panic。
+- `result inspect` 拒绝模板文件和非结果 JSON。
+- 运行记录按补齐小数秒排序。
+- SQL 空结果集保留列名。
+- 默认参数/断管/命令错误路径不再产生 101 退出码。
+
+### Engineering
+
+- `legacy-rpx` Cargo feature：`rpx-core` / `rpx-runtime` / `rpx-cli` 可关闭 `.rpx` 二进制路径。
+- JSON-only 构建：`cargo check -p rpx-cli --no-default-features`。
+- `scripts/json_only_smoke.sh` 与 CI JSON-only job。
+- 23/23 引擎夹具 JSON 门禁；40/40 RPX Preserve 门禁；734 个测试。
+- CI：Rust gate G1–G9 + Web build/Vitest + e2e + JSON-only smoke。
+
+### Compatibility
+
+- v1.x 默认仍开启 `legacy-rpx`；默认关闭安排在 v2.0。
+- v2.0 计划：`rpx-format` 抽离、测试全面切 JSON、默认无 `.rpx`。
+- 迁移指南：`docs/format/rpx-legacy-retirement.md`。
+
+## v0.2.0-baseline — 2026-10-17
+
+- JSON-first 基线检查点。
+- 作为后续格式迁移的回滚点。
