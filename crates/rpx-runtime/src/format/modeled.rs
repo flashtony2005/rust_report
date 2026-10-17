@@ -241,7 +241,7 @@ fn cell_has_legacy(c: &Cell) -> bool {
         || c.hyperlink.is_some()
         || c.hyperlink_window.is_some()
         || c.exp_map.is_some()
-        || c.cell_type != 0
+        || c.cell_type != def::CELL_TYPE
         || c.notes.is_some()
         || c.cell_graph_config.is_some()
         || c.under_line_style != 0
