@@ -6,6 +6,7 @@ import type { PrintWorkbook } from './PrintPreview'
 import type { Graphic } from './graphics'
 import ChartView from './graphics/ChartView'
 import { artifact, type GalleryCatalog, type GalleryReport } from './gallery-data'
+import { fitColumns } from './fit-columns'
 import './gallery.css'
 
 const PrintPreview = lazy(() => import('./PrintPreview'))
@@ -22,18 +23,21 @@ function Result({ workbook }: { workbook: PrintWorkbook }) {
   const container = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
+  // 画布按模板列宽画，数字放不下就是一片 `####`（Excel 同款行为）。只读展示按
+  // 「看得清」加宽——快照本身不动，打印页数与 PDF 不受影响。
+  const display = useMemo(() => fitColumns(workbook), [workbook])
   useEffect(() => {
     if (!container.current) return
     setReady(false)
     const api = mountUniver(container.current, true)
-    try { api.createWorkbook(workbook as Parameters<typeof api.createWorkbook>[0])?.setEditable(false) }
+    try { api.createWorkbook(display as Parameters<typeof api.createWorkbook>[0])?.setEditable(false) }
     catch (error) { setError(String(error)) }
     if (api.getCurrentLifecycleStage() >= LifecycleStages.Steady) setReady(true)
     const lifecycle = api.addEvent(api.Event.LifeCycleChanged, ({ stage }) => {
       if (stage === LifecycleStages.Steady) setReady(true)
     })
     return () => { lifecycle.dispose(); api.dispose() }
-  }, [workbook])
+  }, [display])
   return <>{error && <p role="alert">{error}</p>}<div className="gallery-sheet" ref={container} aria-label="报表结果画布" aria-busy={!ready} /></>
 }
 
