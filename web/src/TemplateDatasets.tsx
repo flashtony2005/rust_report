@@ -33,8 +33,9 @@ export default function TemplateDatasets({ def, files, disabled, onChange, onFil
     onChange(result.def)
     reset()
   }
-  return <section className="template-pane" aria-label="数据源与数据集">
-    <h3>数据源与数据集</h3>
+  // 外框（section + h3）已由属性面板的分组头承担，这里只留字段体；
+  // 保留 .template-pane 是为了复用其表单样式，padding/border 用内联收掉。
+  return <div className="template-pane" aria-label="数据源与数据集" style={{ padding: 0, borderBottom: 'none', background: 'transparent' }}>
     <fieldset disabled={disabled || !def}>
       <label>上传 Excel / CSV / TSV<input aria-label="上传数据文件" type="file" multiple accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.tsv,.txt" onChange={e => {
         const selected = Array.from(e.target.files ?? [])
@@ -77,5 +78,5 @@ export default function TemplateDatasets({ def, files, disabled, onChange, onFil
         {(editing !== null || dirty) && <button onClick={reset}>取消编辑数据集</button>}</div>
       {dirty && <p role="status">数据集有未保存修改，请先添加、保存或取消编辑。</p>}
     </fieldset>
-  </section>
+  </div>
 }

@@ -1,3 +1,99 @@
+/* ==========================================================================
+   rpx 设计器界面骨架（重构版）
+   层级：菜单栏 → 主工具条 → 上下文条 → 画布 + 属性面板 → 底部抽屉 → 状态栏
+   ========================================================================== */
+
+.rpx-app{display:flex;flex-direction:column;height:100vh;font:13px system-ui,sans-serif;color:var(--rpx-fg);background:#fff}
+
+/* 主工具条：只放高频动作（新建/打开/保存/运行/预览/视图切换） */
+.rpx-toolbar{display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--rpx-border);background:var(--rpx-bg-muted);flex-wrap:wrap}
+.rpx-toolbar .tb{font:12px system-ui,sans-serif;padding:4px 11px;border:1px solid var(--rpx-border);border-radius:5px;background:#fff;color:var(--rpx-fg);cursor:pointer}
+.rpx-toolbar .tb:hover:not(:disabled){background:var(--rpx-bg-muted)}
+.rpx-toolbar .tb:disabled{opacity:.55;cursor:not-allowed}
+.rpx-toolbar .tb.primary{background:var(--rpx-accent);border-color:var(--rpx-accent);color:#fff;font-weight:600}
+.rpx-toolbar .tb.primary:hover:not(:disabled){background:#0860c4}
+.rpx-toolbar .sep{width:1px;height:18px;background:var(--rpx-border);margin:0 2px}
+
+/* 视图切换：设计 / 结果 分段控件 */
+.rpx-seg{display:inline-flex;border:1px solid var(--rpx-border);border-radius:5px;overflow:hidden;background:#fff}
+.rpx-seg button{font:12px system-ui,sans-serif;padding:4px 13px;border:0;background:transparent;color:var(--rpx-fg);cursor:pointer}
+.rpx-seg button+button{border-left:1px solid var(--rpx-border)}
+.rpx-seg button[aria-pressed=true]{background:var(--rpx-accent);color:#fff;font-weight:600}
+.rpx-seg button:disabled{opacity:.5;cursor:not-allowed}
+
+/* 上下文条：报表库 / 运行记录 / 修订 / 导出名 / 保存态 */
+.rpx-context{display:flex;align-items:center;gap:10px;padding:5px 12px;border-bottom:1px solid var(--rpx-border);background:#fff;flex-wrap:wrap;font-size:12px}
+.rpx-context > label{display:inline-flex;align-items:center;gap:5px;color:var(--rpx-fg-muted)}
+.rpx-context select,.rpx-context input{font:12px system-ui,sans-serif;padding:3px 6px;border:1px solid var(--rpx-border);border-radius:4px;color:var(--rpx-fg);background:#fff;max-width:210px;min-width:0}
+.rpx-meta{color:var(--rpx-fg-muted);font-size:11px}
+.rpx-spacer{flex:1}
+
+/* 保存态徽章 */
+.rpx-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2px 9px;border-radius:10px;border:1px solid var(--rpx-border);color:var(--rpx-fg-muted);background:var(--rpx-bg-muted);white-space:nowrap}
+.rpx-badge.ok{color:#1a7f37;background:#e9f5ee;border-color:#b7e0c4}
+.rpx-badge.warn{color:#9a6700;background:#fff5d9;border-color:#f0d590}
+
+/* 主体：画布 + 属性面板 */
+.rpx-main{display:flex;flex:1;min-height:0}
+.rpx-canvas{flex:1;min-width:0;min-height:0}
+
+/* 属性面板：双页签 + 分组 */
+.rpx-props{width:336px;min-width:336px;border-left:1px solid var(--rpx-border);display:flex;flex-direction:column;background:#fff;overflow:hidden}
+.rpx-props-tabs{display:flex;align-items:stretch;border-bottom:1px solid var(--rpx-border);background:var(--rpx-bg-muted)}
+.rpx-props-tabs button{font:12px system-ui,sans-serif;padding:7px 15px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--rpx-fg-muted);cursor:pointer}
+.rpx-props-tabs button[aria-selected=true]{color:var(--rpx-accent);border-bottom-color:var(--rpx-accent);background:#fff;font-weight:600}
+.rpx-props-tabs .addr{margin-left:auto;align-self:center;padding:0 12px;font:11px var(--rpx-font-mono,monospace);color:var(--rpx-accent)}
+.rpx-props-body{flex:1;overflow-y:auto;min-height:0}
+
+.rpx-group{padding:8px 12px 11px;border-bottom:1px solid var(--rpx-border);transition:background .25s}
+.rpx-group.flash{background:#f2f8ff}
+.rpx-group-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+.rpx-group-head h4{margin:0;font:11px/1.4 system-ui,sans-serif;font-weight:600;color:var(--rpx-fg-muted);letter-spacing:.04em}
+.rpx-group-head .act{display:inline-flex;gap:6px;align-items:center}
+
+/* 两列属性网格：左标签右控件，全组对齐 */
+.rpx-grid{display:grid;grid-template-columns:52px minmax(0,1fr);gap:6px 8px;align-items:center}
+.rpx-grid > .k{font-size:12px;color:var(--rpx-fg-muted)}
+.rpx-grid > .v{display:flex;align-items:center;gap:6px;min-width:0}
+.rpx-grid > .span2{grid-column:1 / -1}
+
+.rpx-in{font:12px system-ui,sans-serif;padding:3px 6px;border:1px solid var(--rpx-border);border-radius:4px;background:#fff;color:var(--rpx-fg);min-width:0;width:100%;box-sizing:border-box}
+.rpx-in.num{width:62px;flex:0 0 62px}
+.rpx-in.tiny{width:46px;flex:0 0 46px}
+.rpx-in:disabled{background:var(--rpx-bg-muted);color:var(--rpx-fg-muted)}
+.rpx-tog{width:26px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--rpx-border);border-radius:4px;background:#fff;color:var(--rpx-fg);cursor:pointer;font-size:12px;padding:0}
+.rpx-tog[aria-pressed=true]{background:var(--rpx-accent);border-color:var(--rpx-accent);color:#fff}
+.rpx-tog:disabled{cursor:not-allowed;opacity:.6}
+.rpx-swatch{width:28px;height:24px;padding:1px;border:1px solid var(--rpx-border);border-radius:4px;background:#fff;cursor:pointer}
+.rpx-btn{font:12px system-ui,sans-serif;padding:3px 10px;border:1px solid var(--rpx-border);border-radius:4px;background:#fff;color:var(--rpx-fg);cursor:pointer}
+.rpx-btn:hover:not(:disabled){background:var(--rpx-bg-muted)}
+.rpx-btn:disabled{color:var(--rpx-fg-muted);cursor:not-allowed}
+.rpx-btn.primary{background:var(--rpx-accent);border-color:var(--rpx-accent);color:#fff}
+.rpx-hint{font-size:11px;color:var(--rpx-fg-muted);line-height:1.55;margin:7px 0 0}
+.rpx-note{padding:10px 12px;font-size:12px;color:var(--rpx-fg-muted);line-height:1.6}
+
+/* 纵向表单：数据集这类字段长度差异大的块用列不用网格 */
+.rpx-stack{display:flex;flex-direction:column;gap:7px}
+.rpx-stack > label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--rpx-fg-muted)}
+.rpx-stack input,.rpx-stack select,.rpx-stack textarea{font:12px system-ui,sans-serif;padding:4px 6px;border:1px solid var(--rpx-border);border-radius:4px;background:#fff;color:var(--rpx-fg);box-sizing:border-box;width:100%}
+.rpx-stack textarea{resize:vertical;font-family:monospace}
+.rpx-actions{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}
+
+/* 底部抽屉：定义源码 / 运行诊断（替代夹在工具条之间的两个折叠块） */
+.rpx-drawer{border-top:1px solid var(--rpx-border);background:#fff}
+.rpx-drawer-head{display:flex;align-items:center;gap:4px;padding:3px 10px;background:var(--rpx-bg-muted)}
+.rpx-drawer-head button{font:12px system-ui,sans-serif;padding:3px 10px;border:0;border-radius:4px;background:transparent;color:var(--rpx-fg-muted);cursor:pointer}
+.rpx-drawer-head button[aria-selected=true]{background:#fff;color:var(--rpx-fg);font-weight:600;box-shadow:0 0 0 1px var(--rpx-border)}
+.rpx-drawer-body{height:220px;overflow:auto;padding:8px 12px;border-top:1px solid var(--rpx-border)}
+.rpx-drawer-body textarea{width:100%;height:130px;font:12px monospace;border:1px solid var(--rpx-border);border-radius:4px;padding:6px;box-sizing:border-box}
+
+/* 状态栏：消息 + 网格尺寸 + 选区 + 运行号 */
+.rpx-status{display:flex;align-items:center;gap:14px;padding:4px 12px;border-top:1px solid var(--rpx-border);background:var(--rpx-bg-muted);font-size:11px;color:var(--rpx-fg-muted);min-height:26px}
+.rpx-status .msg{color:var(--rpx-fg)}
+.rpx-status .msg.err{color:var(--rpx-danger)}
+.rpx-status code{font:11px monospace;color:var(--rpx-fg-muted)}
+
+/* 旧顶栏横条样式保留：数据集/参数等子组件仍在用 .template-* 类 */
 .template-pane{padding:12px;border-bottom:1px solid var(--rpx-border);font:13px system-ui,sans-serif;color:var(--rpx-fg);background:#fff}
 .template-pane h3{font-size:13px;margin:0 0 8px;display:flex;justify-content:space-between}
 .template-pane h3 span{font-family:monospace;color:var(--rpx-accent)}
@@ -7,11 +103,8 @@
 .template-pane input,.template-pane select,.template-pane textarea{box-sizing:border-box;min-width:0;width:100%;font:13px system-ui,sans-serif;color:inherit;background:#fff;border:1px solid var(--rpx-border);border-radius:4px;padding:6px 8px}
 .template-pane textarea{resize:vertical;font-family:monospace}
 .template-pair{display:flex;gap:10px}.template-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-.template-pane button,.template-toolbar button{font:inherit;border:1px solid var(--rpx-border);background:white;border-radius:4px;padding:5px 9px;cursor:pointer;color:inherit}
-.template-pane button:hover,.template-toolbar button:hover{background:var(--rpx-bg-muted)}
+.template-pane button{font:inherit;border:1px solid var(--rpx-border);background:white;border-radius:4px;padding:5px 9px;cursor:pointer;color:inherit}
+.template-pane button:hover{background:var(--rpx-bg-muted)}
 .template-pane button:disabled,.template-pane fieldset:disabled{opacity:.6;cursor:default}
-.template-pane :focus-visible,.template-toolbar :focus-visible{outline:2px solid var(--rpx-accent);outline-offset:2px}
+.template-pane :focus-visible,.rpx-app :focus-visible{outline:2px solid var(--rpx-accent);outline-offset:2px}
 .template-datasets{list-style:none;padding:0;margin:10px 0}.template-datasets li{border-top:1px solid var(--rpx-border);padding:8px 0;overflow-wrap:anywhere}
-.template-toolbar{display:flex;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--rpx-border);background:#fff;font:13px system-ui,sans-serif;flex-wrap:wrap}
-.template-toolbar button[aria-pressed=true]{background:#E8F1FA;color:#0969da;border-color:#0969da}
-.template-toolbar input{padding:5px 8px;border:1px solid var(--rpx-border);border-radius:4px;max-width:240px}

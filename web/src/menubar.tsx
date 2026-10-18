@@ -66,10 +66,15 @@ const itemStyle: CSSProperties = {
   background: 'transparent',
   color: 'var(--rpx-fg)',
   cursor: 'pointer',
+  // 菜单项一律不换行：长文案（如「放弃本地修改并读取共享源码」）会把行高
+  // 撑成两倍，把下拉框拉得参差不齐。
+  whiteSpace: 'nowrap',
 }
 
-/** 菜单栏：点击标签开下拉；点项执行并关闭；点别处/ESC 关闭。 */
-export default function MenuBar({ groups }: { groups: MenuGroup[] }) {
+/** 菜单栏：点击标签开下拉；点项执行并关闭；点别处/ESC 关闭。
+ *  `brand` 是栏右侧的产品名（旧版顶栏的「rpx 报表设计器」标题搬迁至此——
+ *  菜单占左、产品名占右，符合桌面 IDE 的习惯）。 */
+export default function MenuBar({ groups, brand }: { groups: MenuGroup[]; brand?: string }) {
   const [open, setOpen] = useState<number | null>(null)
   const [sub, setSub] = useState<number | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
@@ -222,6 +227,19 @@ export default function MenuBar({ groups }: { groups: MenuGroup[] }) {
           ) : null}
         </div>
       ))}
+      {brand ? (
+        <span
+          style={{
+            marginLeft: 'auto',
+            paddingRight: 6,
+            fontSize: 12,
+            color: 'var(--rpx-fg-muted)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {brand}
+        </span>
+      ) : null}
     </div>
   )
 }

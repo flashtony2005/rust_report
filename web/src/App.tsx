@@ -22,7 +22,13 @@ import {
 } from './report'
 import { listReports, getReport, getRuns, saveTemplate, loadWorkbook, artifactUrl, sourceUrl, LibraryError, type ReportDetail, type RunRecord } from './library-api'
 import MenuBar, { type MenuGroup } from './menubar'
-import SidePanes from './panes'
+import PropertiesPanel, {
+  GROUP_LABEL,
+  GROUP_TAB,
+  type FocusSignal,
+  type PaneGroupId,
+  type PaneTab,
+} from './PropertiesPanel'
 import DefinitionSource from './DefinitionSource'
 import type { PrintWorkbook } from './PrintPreview'
 const PrintPreview=lazy(()=>import('./PrintPreview'))
@@ -385,6 +391,31 @@ export default function App() {
   /** W3-5：右侧属性面板整体显隐（「视图」菜单；折叠是纯 UI，无判据含义）。 */
   const [sideVisible, setSideVisible] = useState(true)
 
+  /** 属性面板当前页签（单元格 / 报表）。 */
+  const [propsTab, setPropsTab] = useState<PaneTab>('cell')
+  /** 菜单/快捷键的分组跳转信号（`seq` 递增，保证同一分组连点两次也能重新定位）。 */
+  const [focusGroup, setFocusGroup] = useState<FocusSignal | null>(null)
+  const focusSeq = useRef(0)
+  /** 底部抽屉：定义源码 / 运行诊断（替代夹在工具条之间的两个折叠块）。 */
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerTab, setDrawerTab] = useState<'source' | 'runs'>('source')
+  /** 源码脏标记：ref 供判据使用，state 供抽屉头显示圆点。 */
+  const [jsonDirty, setJsonDirty] = useState(false)
+
+  /**
+   * 跳到右侧面板的某个分组：切页签 + 展开面板 + 滚进视野并高亮。
+   *
+   * 旧版「报表」菜单的六项全是 `setSideVisible(true)` + 一句状态文案，面板
+   * 纹丝不动 —— 用户点了只看到提示，分不清是没生效还是本来就那样。
+   */
+  const jumpToGroup = (group: PaneGroupId) => {
+    setSideVisible(true)
+    setPropsTab(GROUP_TAB[group])
+    focusSeq.current += 1
+    setFocusGroup({ id: group, seq: focusSeq.current })
+    setStatus(`已定位右侧「${GROUP_TAB[group] === 'cell' ? '单元格' : '报表'} · ${GROUP_LABEL[group]}」`)
+  }
+
   /** W2-5：调整网格（面板输入的值）。 */
   const onGridResize = async () => {
     const rows = Number(gridDraft.rows)
@@ -462,55 +493,67 @@ export default function App() {
       } else if (e.ctrlKey && e.key.toLowerCase() === 'b') {
         if (typing) return
         e.preventDefault()
-        setSideVisible(true)
-        setStatus('已定位右侧「报表设置」分区（报表属性 Ctrl+B）')
+        jumpToGroup('page')
       } else if (e.key === 'F11') {
         if (typing) return
         e.preventDefault()
-        setSideVisible(true)
-        setStatus('已定位右侧「数据集」分区（数据集 F11）')
+        jumpToGroup('datasets')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  /** W3-4：菜单全集。禁用的判据与顶栏按钮一致（无文件/无 def 时置灰）。 */
+  /**
+   * 菜单全集（重构版）。
+   *
+   * ## 与旧版的三处差别
+   *
+   * 1. **删掉重复项**：旧版「保存」与「另存为」都调同一个 `save()`（服务端只有
+   *    一个入库动作），「导出→定义 JSON」与顶栏「保存模板 JSON」也是同一件事。
+   *    现在每个动作只有一个入口，工具条只保留高频的 5 个按钮。
+   * 2. **「报表」菜单改成真跳转**：旧版六项全是 `setSideVisible(true)` + 状态文案，
+   *    面板不滚动不高亮。现在每项经 `jumpToGroup` 切页签、滚进视野并高亮分组。
+   * 3. **「视图」菜单承接面板/抽屉显隐**，工具条不再挂这类低频开关。
+   *
+   * ⛔ 未做（浏览器边界或定义 JSON 无槽，见 `docs/spec-m7-web.md` §W3-7）：
+   * 多报表连续页码、最近文件、退出、统计图/条形码/子报表、设置密码。
+   */
   const menuGroups: MenuGroup[] = [
     {
-      // 产品「文件(F)」对齐：新建/打开/保存/另存为/预览/导出→。
-      // ⛔ 未做（单文档 SPA 或浏览器沙箱边界，spec-m7-web §W3-7 对照表）：
-      // 新建报表组（多报表连续页码）、快速打开（=打开）、关闭/关闭全部、
-      // 最近文件/最近连接、退出。
       label: '文件',
       items: [
-        { label: '新建报表(N)\tCtrl+N', onPick: () => void newReport(), hint: '新建 12×8 模板，直接进入设计' },
-        { label: '打开报表(O)\tCtrl+O', onPick: openReport, hint: '选择 .rpx / .json（可同选 CSV）' },
-        { label: '打开数据集(D)', onPick: () => { setSideVisible(true); setStatus('右侧「数据集」分区：管理 datasets[] 引用') }, hint: '产品 F11 同款；Web 落在右侧面板' },
+        { label: '新建模板\tCtrl+N', onPick: () => void newReport(), hint: '新建 12×8 模板，直接进入设计' },
+        { label: '打开文件\tCtrl+O', onPick: openReport, hint: '选择 .json / .rpx 模板，或附带数据文件' },
+        { label: '报表实例库', onPick: () => { location.href = '/gallery.html' }, hint: '浏览已生成报表的实例画廊' },
         { sep: true },
-        { label: '保存(S)\tCtrl+S', onPick: () => void save(), disabled: !def, hint: '把打过补丁的定义 JSON 下载回本地' },
-        { label: '另存为(A)', onPick: () => void save(), disabled: !files.length && !def, hint: '保存当前编辑中的模板到服务端' },
-        { label: '查看结果(F9)', onPick: () => void render(), disabled: !files.length && !def, hint: '读取已保存结果' },
+        { label: '保存共享定义\tCtrl+S', onPick: () => void save(), disabled: !def, hint: '把当前定义提交为服务端共享修订' },
+        { label: '查看已保存结果\tF9', onPick: () => void render(), disabled: !saved && !files.length && !def, hint: '重新读取该运行的结果快照' },
         {
-          label: '导出(E)',
+          label: '导出',
           onPick: () => {},
           children: [
+            { label: '定义 JSON（.json）', onPick: exportJson, disabled: !def, hint: '导出打过补丁的定义 JSON 到本地' },
             { label: 'Excel（.xlsx）', onPick: () => void exportFile('xlsx'), disabled: !files.length && !def, hint: '下载该次运行已生成的 Excel' },
             { label: '打印版 Excel（.xlsx）', onPick: () => void exportFile('print-xlsx'), disabled: !files.length && !def },
             { label: 'CSV（.csv）', onPick: () => void exportFile('csv'), disabled: !files.length && !def, hint: '下载该次运行已生成的 CSV' },
-            { label: '定义 JSON（.json）', onPick: () => void save(), disabled: !def, hint: '导出打过补丁的定义 JSON' },
           ],
         },
+        { sep: true },
+        {
+          label: '放弃本地修改并读取共享源码',
+          onPick: () => { setCellPending(false); datasetDirtyRef.current = false; jsonDirtyRef.current = false; setJsonDirty(false); void refreshLibrary(saved?.id, true) },
+          disabled: !def,
+          hint: '丢弃未保存的本地改动，重新载入服务端共享定义',
+        },
+        { label: '刷新库与运行记录', onPick: () => void refreshLibrary(), hint: '重新拉取报表库与运行列表' },
       ],
     },
     {
-      // 产品「编辑(E)」对齐：⛔ 撤销/重做/剪贴板/搜索 = Univer 画布自带
-      // （再挂一层菜单会双触发，spec §W3-7）；⛔ 生成报表/向导新建 = 产品从
-      // 数据集反向生成模板，Web 设计器是正向（先模板后绑数据）。
       label: '编辑',
       items: [
         {
-          label: '插入(I)',
+          label: '插入',
           onPick: () => {},
           disabled: !def || view !== 'design',
           children: [
@@ -519,48 +562,68 @@ export default function App() {
           ],
         },
         {
-          label: '删除(D)',
+          label: '删除',
           onPick: () => {},
           disabled: !def || view !== 'design',
           children: [
-            { label: '删末行', onPick: deleteLastRow, hint: '行数 -1；末行有内容时显式报错（不静默错位）' },
-            { label: '删末列', onPick: deleteLastCol, hint: '列数 -1；末列有内容时显式报错' },
+            { label: '删除末行', onPick: deleteLastRow, hint: '行数 -1；末行有内容时显式报错（不静默错位）' },
+            { label: '删除末列', onPick: deleteLastCol, hint: '列数 -1；末列有内容时显式报错' },
           ],
         },
       ],
     },
     {
-      // 产品「报表(R)」对齐：参数/数据集/报表属性/行属性/列属性/边框设置。
-      // ⛔ 未做（定义 JSON 无槽或产品独有）：统计图、条形码、常用计算列、
-      // 表达式对话框、子报表、数据类型、图片、数据图层、设置密码。
-      label: '报表',
+      label: '视图',
       items: [
-        { label: '参数(A)', onPick: () => setSideVisible(true), hint: '右侧「报表参数」分区（/meta 声明）' },
-        { label: '数据集\tF11', onPick: () => { setSideVisible(true); setStatus('右侧「数据集」分区') }, hint: '产品 F11 同款' },
-        { label: '报表属性(B)\tCtrl+B', onPick: () => { setSideVisible(true); setStatus('右侧「报表设置」分区（纸张/边距/分页）') }, hint: '产品 Ctrl+B 同款' },
-        { label: '行属性(R)', onPick: () => setSideVisible(true), hint: '右侧「行列」分区（行高/断页）' },
-        { label: '列属性(C)', onPick: () => setSideVisible(true), hint: '右侧「行列」分区（列宽）' },
-        { label: '边框设置(K)', onPick: () => setSideVisible(true), hint: '右侧「属性」分区（四边边框/线型/色）' },
+        { label: '模板设计', onPick: () => showTemplate(), disabled: !def, hint: '回到可编辑的画布' },
+        {
+          label: '运行结果',
+          onPick: () => { if (printWorkbook && readyToLeaveCell()) attachSnapshot(printWorkbook, defRef.current, sourceKind ?? 'json') },
+          disabled: !printWorkbook,
+          hint: '切换到只读结果快照',
+        },
+        { sep: true },
+        { label: '单元格属性页', onPick: () => { setSideVisible(true); setPropsTab('cell') }, hint: '右侧面板切到「单元格」' },
+        { label: '报表属性页', onPick: () => { setSideVisible(true); setPropsTab('report') }, hint: '右侧面板切到「报表」' },
+        { label: sideVisible ? '隐藏属性面板' : '显示属性面板', onPick: () => setSideVisible(!sideVisible), hint: '画布空间紧张时收起' },
+        { sep: true },
+        {
+          label: drawerOpen ? '收起底部抽屉' : '展开底部抽屉',
+          onPick: () => setDrawerOpen(!drawerOpen),
+          hint: '定义源码与运行诊断（原为夹在工具条之间的两个折叠块）',
+        },
+        { label: '图形与打印预览', onPick: () => setShowPrint(true), disabled: !printWorkbook },
       ],
     },
     {
-      label: '视图',
+      label: '报表',
       items: [
-        {
-          label: sideVisible ? '隐藏右侧属性面板' : '显示右侧属性面板',
-          onPick: () => setSideVisible(!sideVisible),
-          hint: '画布空间紧张时收起（产品 IDE 同款停靠区）',
-        },
+        { label: `${GROUP_LABEL.content}`, onPick: () => jumpToGroup('content'), hint: '右侧「单元格 · 内容与主格」' },
+        { label: `${GROUP_LABEL.font}`, onPick: () => jumpToGroup('font'), hint: '右侧「单元格 · 字体」' },
+        { label: `${GROUP_LABEL.border}`, onPick: () => jumpToGroup('border'), hint: '右侧「单元格 · 边框与格式」' },
+        { label: `${GROUP_LABEL.rowcol}`, onPick: () => jumpToGroup('rowcol'), hint: '右侧「单元格 · 行列」' },
+        { sep: true },
+        { label: `${GROUP_LABEL.page}\tCtrl+B`, onPick: () => jumpToGroup('page'), hint: '纸张与边距' },
+        { label: `${GROUP_LABEL.paginate}`, onPick: () => jumpToGroup('paginate'), hint: '每页行数/份数/缩放/版面' },
+        { label: `${GROUP_LABEL.grid}`, onPick: () => jumpToGroup('grid'), hint: '网格行数与列数' },
+        { sep: true },
+        { label: `${GROUP_LABEL.params}`, onPick: () => jumpToGroup('params'), hint: '参数声明（/meta）' },
+        { label: `${GROUP_LABEL.datasets}\tF11`, onPick: () => jumpToGroup('datasets'), hint: '数据集引用与上传' },
       ],
     },
     {
       label: '帮助',
       items: [
         {
+          label: '快捷键',
+          onPick: () =>
+            setStatus('Ctrl+N 新建 · Ctrl+O 打开 · Ctrl+S 保存 · F9 查看结果 · Ctrl+B 页面设置 · F11 数据集；撤销/剪贴板由画布自带'),
+        },
+        {
           label: '关于',
           onPick: () =>
             setStatus(
-              'rpx Web 设计器 · 定义 JSON 通道（M7-W W1）+ 编辑面（W2-1~W2-5）+ 报表设置（W3-1）+ 产品菜单布局（W3-4/W3-7）；链路：/render → Univer 快照，/export → 文件字节',
+              'rpx Web 设计器 · 定义 JSON 通道（W1）+ 编辑面（W2）+ 报表设置（W3）；界面按「单元格 / 报表」双页签重组；链路：/render → Univer 快照，/export → 文件字节',
             ),
         },
       ],
@@ -943,7 +1006,7 @@ export default function App() {
   const pv: PanelStyle = panel ?? PANEL_DEFAULTS
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="rpx-app">
       <style>{`
         :root {
           --rpx-border: #d8dee4;
@@ -952,141 +1015,93 @@ export default function App() {
           --rpx-fg-muted: #57606a;
           --rpx-danger: #cf222e;
           --rpx-accent: #0969da;
+          --rpx-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
         }
       `}</style>
-      <header
-        style={{
-          padding: '8px 14px',
-          borderBottom: '1px solid var(--rpx-border)',
-          fontSize: 14,
-          fontFamily: 'system-ui, sans-serif',
-          color: 'var(--rpx-fg)',
-          background: 'var(--rpx-bg-muted)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <span>
-          rpx 报表设计器
-        </span>
-        <a href="/gallery.html" style={{ fontSize: 13 }}>报表实例库</a>
-        <input
-          type="file"
-          multiple
-          accept=".json"
-          onChange={(e) => { const selected = Array.from(e.target.files ?? []); e.target.value = ''; void openFiles(selected) }}
-          style={{ fontSize: 13 }}
-        />
-        <button
-          onClick={render}
-          style={{
-            fontSize: 13,
-            padding: '4px 14px',
-            border: '1px solid var(--rpx-border)',
-            borderRadius: 6,
-            background: 'var(--rpx-accent)',
-            color: '#fff',
-            cursor: 'pointer',
-          }}
-        >
-          查看保存的结果
-        </button>
-        {/* 「另存为」（W1-3）：入库拿 id，并按 `/meta` 刷新参数表单（W1-2）。 */}
-        <button
-          onClick={save}
-          style={{
-            fontSize: 13,
-            padding: '4px 14px',
-            border: '1px solid var(--rpx-border)',
-            borderRadius: 6,
-            background: '#fff',
-            color: 'var(--rpx-fg)',
-            cursor: 'pointer',
-          }}
-        >
-          保存共享定义
-        </button>
-        <button
-          onClick={exportJson}
-          disabled={!def}
-          title="把编辑后的定义 JSON 下载回本地（仅 .json 报表源可用）"
-          style={{
-            fontSize: 13,
-            padding: '4px 14px',
-            border: '1px solid var(--rpx-border)',
-            borderRadius: 6,
-            background: def ? '#fff' : 'var(--rpx-bg-muted)',
-            color: def ? 'var(--rpx-fg)' : 'var(--rpx-fg-muted)',
-            cursor: def ? 'pointer' : 'not-allowed',
-          }}
-        >
-          保存模板 JSON
-        </button>
-        {saved ? (
-          <span style={{ color: 'var(--rpx-fg-muted)', fontSize: 12 }}>
-            报表 {saved.id} · 草稿基于 {saved.revision.slice(0, 12)} · 当前共享 {sharedRevision.slice(0, 12)} · {draftChanged() ? '有本地草稿' : '已保存'}
-          </span>
-        ) : null}
-      </header>
-      {/* W3-4 菜单栏：产品式 IDE 菜单（文件/格式/报表/视图/帮助）。
-          与顶栏按钮**并存不重复**：按钮服务高频操作，菜单服务全量入口 +
-          面板显隐（右侧属性面板的开关只挂在菜单上）。 */}
-      <div className="template-toolbar">
-        <label>报表库 <select aria-label="报表库" value={saved?.id ?? ''} onChange={event => {
-          if (draftChanged() && defRef.current) { setStatus('请先保存共享定义或下载草稿，再切换报表'); return }
-          void refreshLibrary(event.target.value, true)
-        }}><option value="">选择报表</option>{reports.map(report => <option key={report.id} value={report.id}>{report.manifest.name}</option>)}</select></label>
-        <button onClick={() => void refreshLibrary()}>刷新库与结果</button>
-        <button disabled={!def} onClick={() => { setCellPending(false); datasetDirtyRef.current = false; jsonDirtyRef.current = false; void refreshLibrary(saved?.id, true) }}>放弃本地修改并读取共享源码</button>
-        <span>{saved?.result_state === 'older_revision' ? '结果对应旧修订' : saved?.result_state === 'current_revision' ? '已有同修订结果' : '尚未生成结果'}</span>
-        <label>运行记录 <select aria-label="运行记录" value={selectedRun} onChange={event => { setSelectedRun(event.target.value); setPrintWorkbook(null) }}>
-          <option value="">选择运行</option>{runs.map(run => <option key={run.run_id} value={run.run_id}>{run.status} · {run.run_id} · {run.revision.slice(0, 12)}</option>)}
-        </select></label>
-        {saved?.latest_attempt && <span>最近尝试：{saved.latest_attempt.status}</span>}
-      </div>
-      <DefinitionSource key={`source-${documentKey}`} value={def} onDirty={dirty => { jsonDirtyRef.current = dirty }} onApply={next => {
-        if (cellDirtyRef.current || datasetDirtyRef.current) { setStatus('请先应用或放弃侧栏修改，再应用 JSON 源码草稿'); return false }
-        showTemplate(next); setStatus('已应用 JSON 源码草稿，可保存共享定义'); return true
-      }} onError={message => setStatus(`源码修改失败：${message}`)} />
-      {selectedRun && <details style={{ padding: '0 14px' }}><summary>运行修订、实际参数与诊断</summary>
-        {saved && runs.find(run => run.run_id === selectedRun)?.source_files?.map(path => <a key={path} href={sourceUrl(saved.id, selectedRun, path)} target="_blank" rel="noreferrer" style={{ marginRight: 12 }}>查看当时源码 {path}</a>)}
-        <pre>{JSON.stringify(runs.find(run => run.run_id === selectedRun), null, 2)}</pre></details>}
-      <div className="template-toolbar">
-        <button onClick={() => void newReport()}>新建模板</button>
-        <button disabled={!def} aria-pressed={view === 'design'} onClick={() => showTemplate()}>模板设计</button>
-        <button disabled={!printWorkbook} aria-pressed={view === 'result'} onClick={() => { if (printWorkbook && readyToLeaveCell()) attachSnapshot(printWorkbook, defRef.current, sourceKind ?? 'json') }}>运行结果</button>
-        <label>导出文件名 <input aria-label="模板名称" value={reportName} onChange={e => setReportName(e.target.value)}/></label>
-        <span>{view === 'design' ? `设计网格 ${def?.grid.rows ?? '—'} × ${def?.grid.cols ?? '—'}` : '运行结果只读，返回模板设计可继续编辑'}{cellDirty ? ' · 当前格有未应用修改' : ''}</span>
-        <button disabled={!printWorkbook} onClick={() => setShowPrint(true)}>图形与打印预览</button>
-      </div>
-      <MenuBar groups={menuGroups} />
-      {showPrint && printWorkbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={printWorkbook} initialPage={currentResultSheetIndex()} onClose={() => setShowPrint(false)} /></Suspense>}
-      
-      {status ? (
-        <div
-          style={{
-            padding: 14,
-            fontSize: 13,
-            fontFamily: 'system-ui, sans-serif',
-            color: ERROR_PREFIXES.some((p) => status.startsWith(p))
-              ? 'var(--rpx-danger)'
-              : 'var(--rpx-fg-muted)',
-          }}
-        >
-          {status}
+      {/* ── 第 1 层：菜单栏（IDE 惯例：菜单永远在最顶） ────────────── */}
+      <MenuBar groups={menuGroups} brand="rpx 报表设计器" />
+
+      {/* ── 第 2 层：主工具条（只留 6 个高频动作） ─────────────────────
+          旧版这里挤了 4 个按钮 + 报表库 + 运行记录 + 打开数据集 + 撤销等，
+          且「保存共享定义」「保存模板 JSON」「查看保存的结果」与菜单项重复。
+          现在每个动作只有一个入口：高频留在工具条，其余进菜单。 */}
+      <div className="rpx-toolbar">
+        <button className="tb" onClick={() => void newReport()} title="新建 12×8 模板">新建</button>
+        <button className="tb" onClick={openReport} title="打开模板文件（Ctrl+O）">打开</button>
+        <span className="sep" />
+        <button className="tb" onClick={() => void save()} disabled={!def} title="保存当前定义为服务端共享修订（Ctrl+S）">保存</button>
+        <button className="tb primary" onClick={() => void render()} disabled={!saved && !files.length && !def} title="查看已保存的运行结果（F9）">查看结果</button>
+        <button className="tb" onClick={() => setShowPrint(true)} disabled={!printWorkbook} title="图形与打印预览">打印预览</button>
+        <span className="sep" />
+        <div className="rpx-seg" role="group" aria-label="视图切换">
+          <button aria-pressed={view === 'design'} disabled={!def} onClick={() => showTemplate()}>设计</button>
+          <button
+            aria-pressed={view === 'result'}
+            disabled={!printWorkbook}
+            onClick={() => { if (printWorkbook && readyToLeaveCell()) attachSnapshot(printWorkbook, defRef.current, sourceKind ?? 'json') }}
+          >
+            结果
+          </button>
         </div>
-      ) : null}
-      {/* W3-5 主体：Univer 画布（flex 撑满）+ 右侧停靠属性面板（产品
-          `RPX.java` 的 desk + 属性栏布局）。侧栏整体显隐由「视图」菜单控制。 */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        <div ref={containerRef} data-sheet-ready={sheetReady} aria-busy={!!apiRef.current && !sheetReady} style={{ flex: 1, minWidth: 0, minHeight: 0, pointerEvents: sheetReady ? 'auto' : 'none' }} />
-        <div style={{ display: sideVisible ? 'contents' : 'none' }}>
-          <SidePanes
+        <span className="rpx-spacer" />
+        {cellDirty ? <span className="rpx-badge warn">当前格有未应用修改</span> : null}
+      </div>
+
+      {/* ── 第 3 层：上下文条（文档级：报表库 / 运行 / 修订 / 导出名 / 保存态） ── */}
+      <div className="rpx-context">
+        <label>报表库
+          <select aria-label="报表库" value={saved?.id ?? ''} onChange={event => {
+            if (draftChanged() && defRef.current) { setStatus('请先保存共享定义或下载草稿，再切换报表'); return }
+            void refreshLibrary(event.target.value, true)
+          }}>
+            <option value="">选择报表</option>
+            {reports.map(report => <option key={report.id} value={report.id}>{report.manifest.name}</option>)}
+          </select>
+        </label>
+        <label>运行
+          <select aria-label="运行记录" value={selectedRun} onChange={event => { setSelectedRun(event.target.value); setPrintWorkbook(null) }}>
+            <option value="">选择运行</option>
+            {runs.map(run => <option key={run.run_id} value={run.run_id}>{run.status} · {run.run_id} · {run.revision.slice(0, 12)}</option>)}
+          </select>
+        </label>
+        <span className="rpx-meta">
+          {saved?.result_state === 'older_revision' ? '结果对应旧修订' : saved?.result_state === 'current_revision' ? '已有同修订结果' : '尚未生成结果'}
+          {saved?.latest_attempt ? ` · 最近尝试 ${saved.latest_attempt.status}` : ''}
+        </span>
+        <span className="rpx-spacer" />
+        <label title="导出 JSON / Excel 时使用的文件名">导出文件名
+          <input aria-label="导出文件名" value={reportName} onChange={e => setReportName(e.target.value)} />
+        </label>
+        {saved ? (
+          draftChanged()
+            ? <span className="rpx-badge warn" title={`草稿基于 ${saved.revision.slice(0, 12)}`}>有本地草稿</span>
+            : <span className="rpx-badge ok" title={`共享修订 ${sharedRevision.slice(0, 12)}`}>已保存</span>
+        ) : (
+          <span className="rpx-badge">未入库</span>
+        )}
+      </div>
+      {/* 唯一文件入口：菜单「打开文件」与工具条「打开」都点它。
+          ⚠ 必须是 DOM 里第一个 input[type=file]，`openReport()` 靠选择器取它。 */}
+      <input
+        type="file"
+        multiple
+        hidden
+        accept=".json,.rpx,.csv,.tsv,.txt,.xlsx,.xls"
+        onChange={(e) => { const selected = Array.from(e.target.files ?? []); e.target.value = ''; void openFiles(selected) }}
+      />
+      {/* ── 第 4 层：主体（画布 + 属性面板） ─────────────────────────── */}
+      <div className="rpx-main">
+        <div ref={containerRef} className="rpx-canvas" data-sheet-ready={sheetReady} aria-busy={!!apiRef.current && !sheetReady} style={{ pointerEvents: sheetReady ? 'auto' : 'none' }} />
+        {sideVisible ? (
+          <PropertiesPanel
             cellEditor={<TemplateCellPane key={`cell-${documentKey}`} def={def} selection={selection} disabled={panelDisabled} onApply={onTemplateCellApply} onDirtyChange={setCellPending} />}
             datasetEditor={<TemplateDatasets key={`datasets-${documentKey}`} def={def} files={runFiles().filter(f => !f.name.toLowerCase().endsWith('.json') && !f.name.toLowerCase().endsWith('.rpx'))} disabled={panelDisabled}
               onFiles={addFiles} onDirtyChange={dirty => { datasetDirtyRef.current = dirty }}
               onChange={next => { setDefBoth(next); setStatus('已更新模板数据集；可保存共享定义') }} onError={message => setStatus(`编辑失败：${message}`)} />}
+            tab={propsTab}
+            onTab={setPropsTab}
+            focus={focusGroup}
+            view={view}
             api={{
               def,
               selection,
@@ -1106,10 +1121,59 @@ export default function App() {
               setupPanel,
               onSetupChange,
               onSwapPaper,
+              onBackToDesign: () => showTemplate(),
             }}
           />
+        ) : null}
+      </div>
+
+      {/* ── 第 5 层：底部抽屉（定义源码 / 运行诊断） ───────────────────
+          旧版是两个 `<details>` 折叠块，夹在工具条之间，展开后把画布往下挤。
+          现在收进抽屉：收起时只占 28px，且**不卸载**（DefinitionSource 的草稿
+          不能因为收起就丢）。 */}
+      <div className="rpx-drawer">
+        <div className="rpx-drawer-head">
+          <button aria-selected={drawerOpen && drawerTab === 'source'} onClick={() => { setDrawerTab('source'); setDrawerOpen(true) }}>
+            定义源码{jsonDirty ? ' · 有未应用修改' : ''}
+          </button>
+          <button aria-selected={drawerOpen && drawerTab === 'runs'} onClick={() => { setDrawerTab('runs'); setDrawerOpen(true) }}>
+            运行诊断{selectedRun ? ' · 1 次运行' : ''}
+          </button>
+          <span className="rpx-spacer" />
+          <button aria-selected={false} onClick={() => setDrawerOpen(!drawerOpen)} title={drawerOpen ? '收起抽屉' : '展开抽屉'}>
+            {drawerOpen ? '▾ 收起' : '▸ 展开'}
+          </button>
+        </div>
+        <div className="rpx-drawer-body" style={{ display: drawerOpen && drawerTab === 'source' ? 'block' : 'none' }}>
+          <DefinitionSource key={`source-${documentKey}`} value={def} onDirty={dirty => { jsonDirtyRef.current = dirty; setJsonDirty(dirty) }} onApply={next => {
+            if (cellDirtyRef.current || datasetDirtyRef.current) { setStatus('请先应用或放弃侧栏修改，再应用 JSON 源码草稿'); return false }
+            showTemplate(next); setStatus('已应用 JSON 源码草稿，可保存共享定义'); return true
+          }} onError={message => setStatus(`源码修改失败：${message}`)} />
+        </div>
+        <div className="rpx-drawer-body" style={{ display: drawerOpen && drawerTab === 'runs' ? 'block' : 'none' }}>
+          {selectedRun ? (
+            <>
+              {saved ? runs.find(run => run.run_id === selectedRun)?.source_files?.map(path => (
+                <a key={path} href={sourceUrl(saved.id, selectedRun, path)} target="_blank" rel="noreferrer" style={{ marginRight: 12, fontSize: 12 }}>查看当时源码 {path}</a>
+              )) : null}
+              <pre style={{ margin: '8px 0 0', fontSize: 12 }}>{JSON.stringify(runs.find(run => run.run_id === selectedRun), null, 2)}</pre>
+            </>
+          ) : (
+            <p className="rpx-hint" style={{ margin: 0 }}>先在上下文条选择一个运行记录，这里显示它的修订、实际参数与诊断。</p>
+          )}
         </div>
       </div>
+
+      {/* ── 第 6 层：状态栏（消息 + 网格 + 选区 + 运行号） ─────────────── */}
+      <div className="rpx-status">
+        <span className={ERROR_PREFIXES.some((p) => status.startsWith(p)) ? 'msg err' : 'msg'}>{status}</span>
+        <span className="rpx-spacer" />
+        <span>{view === 'design' ? `网格 ${def?.grid.rows ?? '—'} × ${def?.grid.cols ?? '—'}` : '结果视图（只读）'}</span>
+        {cellDirty ? <span>当前格有未应用修改</span> : null}
+        {selectedRun ? <code>{selectedRun}</code> : null}
+      </div>
+
+      {showPrint && printWorkbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={printWorkbook} initialPage={currentResultSheetIndex()} onClose={() => setShowPrint(false)} /></Suspense>}
     </div>
   )
 }

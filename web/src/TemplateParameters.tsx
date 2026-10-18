@@ -7,17 +7,33 @@ export default function TemplateParameters({ def, disabled, onChange }: {
   const params = (Array.isArray(def?.params) ? def.params : []) as Parameter[]
   const update = (next: Parameter[]) => { if (def) onChange({ ...def, params: next }) }
   const change = (index: number, patch: Partial<Parameter>) => update(params.map((p, i) => i === index ? { ...p, ...patch } : p))
-  return <fieldset disabled={disabled} style={{ border: 0, padding: 0 }}>
-    <p>编辑参数声明；default 保存字符串元数据。实际运行参数由 agent 提供，可在运行记录查看。</p>
-    {params.map((param, index) => <div key={index} style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-      <input aria-label={`参数名 ${index + 1}`} value={param.name} onChange={e => change(index, { name: e.target.value })} />
-      <select aria-label={`参数类型 ${index + 1}`} value={param.data_type} onChange={e => change(index, { data_type: e.target.value })}>{types.map(type => <option key={type}>{type}</option>)}</select>
-      <select aria-label={`参数种类 ${index + 1}`} value={param.kind ?? 'static'} onChange={e => change(index, { kind: e.target.value })}>{['static', 'dynamic', 'attribute'].map(kind => <option key={kind}>{kind}</option>)}</select>
-      <input aria-label={`参数默认元数据 ${index + 1}`} placeholder="默认值元数据" value={param.default ?? ''} onChange={e => change(index, { default: e.target.value })} />
-      <input aria-label={`参数说明 ${index + 1}`} placeholder="说明" value={param.description ?? ''} onChange={e => change(index, { description: e.target.value })} />
-      <button onClick={() => update(params.filter((_, i) => i !== index))}>删除参数</button>
+  return <fieldset disabled={disabled} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+    {params.length === 0 ? <p className="rpx-hint" style={{ margin: '0 0 7px' }}>尚未声明参数。参数由 agent 在运行时提供，可在运行诊断里看到实际取值。</p> : null}
+    {params.map((param, index) => <div key={index} style={{ borderTop: index ? '1px solid var(--rpx-border)' : 'none', paddingTop: index ? 7 : 0, marginBottom: 7 }}>
+      <div className="rpx-grid">
+        <span className="k">名称</span>
+        <span className="v">
+          <input className="rpx-in" aria-label={`参数名 ${index + 1}`} value={param.name} onChange={e => change(index, { name: e.target.value })} />
+        </span>
+        <span className="k">类型</span>
+        <span className="v">
+          <select className="rpx-in" aria-label={`参数类型 ${index + 1}`} value={param.data_type} onChange={e => change(index, { data_type: e.target.value })}>{types.map(type => <option key={type}>{type}</option>)}</select>
+          <select className="rpx-in" aria-label={`参数种类 ${index + 1}`} value={param.kind ?? 'static'} onChange={e => change(index, { kind: e.target.value })}>{['static', 'dynamic', 'attribute'].map(kind => <option key={kind}>{kind}</option>)}</select>
+        </span>
+        <span className="k">默认值</span>
+        <span className="v">
+          <input className="rpx-in" aria-label={`参数默认元数据 ${index + 1}`} placeholder="默认值元数据" value={param.default ?? ''} onChange={e => change(index, { default: e.target.value })} />
+        </span>
+        <span className="k">说明</span>
+        <span className="v">
+          <input className="rpx-in" aria-label={`参数说明 ${index + 1}`} placeholder="说明" value={param.description ?? ''} onChange={e => change(index, { description: e.target.value })} />
+        </span>
+        <span className="span2">
+          <button className="rpx-btn" onClick={() => update(params.filter((_, i) => i !== index))}>删除参数</button>
+        </span>
+      </div>
     </div>)}
-    <button onClick={() => {
+    <button className="rpx-btn" onClick={() => {
       let number = 1
       while (params.some(p => p.name === `param${number}`)) number++
       update([...params, { name: `param${number}`, data_type: 'string' }])

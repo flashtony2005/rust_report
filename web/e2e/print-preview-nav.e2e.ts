@@ -22,8 +22,8 @@ test('打印预览页导航与结果视图的相关性', async ({ page }) => {
   page.on('pageerror', error => errors.push(String(error)))
   await page.goto('/')
   // 初始是设计视图（模板）；进入结果视图才有多个 sheet 标签
-  await page.getByRole('button', { name: '运行结果' }).click()
-  await page.getByRole('button', { name: '图形与打印预览' }).click()
+  await page.getByRole('button', { name: '结果', exact: true }).click()
+  await page.getByRole('button', { name: '打印预览' }).click()
 
   const preview = page.locator('.rpx-print-preview')
   await expect(preview).toBeVisible()
@@ -50,7 +50,7 @@ test('打印预览页导航与结果视图的相关性', async ({ page }) => {
   await preview.getByRole('button', { name: '关闭' }).click()
   await expect(preview).toBeHidden()
   await page.getByText(`第 ${target + 1} 页`, { exact: true }).first().click()
-  await page.getByRole('button', { name: '图形与打印预览' }).click()
+  await page.getByRole('button', { name: '打印预览' }).click()
   await expect(position).toHaveText(`第 ${target + 1} / ${total} 页`)
   expect(errors).toEqual([])
 })
