@@ -60,6 +60,19 @@ pub enum Command {
         #[arg(long)]
         datasources: Option<PathBuf>,
     },
+    /// 能力自描述：命令面/导出/限制/错误码（Agent 无需读文档）
+    Capabilities,
+    /// 静态检查：拦截"不报错但产物错"的写法
+    Lint {
+        #[arg(value_parser=source_path)]
+        file: PathBuf,
+        /// 数据集目录；给了才检查文件是否存在
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+        /// 有 warning 也返回退出码 3（CI 闸门用）
+        #[arg(long)]
+        strict: bool,
+    },
     /// 输出内置 JSON schema
     Schema {
         #[arg(value_parser=["template"])]
@@ -167,6 +180,12 @@ pub enum Template {
         file: PathBuf,
         #[arg(long)]
         params_file: Option<PathBuf>,
+        /// 真读文件数据集，核对文件存在与列名形状
+        #[arg(long)]
+        probe_data: bool,
+        /// 探针的数据集目录（默认模板所在目录）
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
     },
     /// 从内置示例创建模板包
     Create {
@@ -379,6 +398,8 @@ impl Command {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Doctor { .. } => "doctor",
+            Self::Capabilities => "capabilities",
+            Self::Lint { .. } => "lint",
             Self::Schema { .. } => "schema.template",
             Self::Run { .. } => "run",
             Self::Template { command } => match command {

@@ -66,7 +66,7 @@ pub async fn execute(source: Source, options: &Options, out: &Path, mut record: 
             record["finished_at"] = json!(timestamp());
             files::atomic_json(&out.join("run.json"), &record)?;
             Ok(
-                json!({"run":record,"out_dir":files::absolute(out)?,"result":files::absolute(&out.join("artifacts/result.json"))?,"workbook":files::absolute(&out.join("artifacts/workbook.json"))?}),
+                json!({"run":record,"out_dir":files::absolute(out)?,"result":files::absolute(&out.join("artifacts/result.json"))?,"workbook":files::absolute(&out.join("artifacts/workbook.json"))?,"layout":record["layout"].clone()}),
             )
         }
         Err(mut e) => {
@@ -110,6 +110,10 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
                     format!("{}: {e}", path.display()),
                 )
                 .at(format!("/datasets/{i}/file/file_name"))
+                .hint(format!(
+                    "file.file_name 是相对路径，基准目录当前为 {}；用 --data-dir 指向数据集目录后重跑",
+                    source.data_dir.display()
+                ))
             })?;
             inputs.push(json!({"kind":"file","dataset":f.name,"path":files::absolute(&path)?,"sha256":files::hash(&bytes)}));
             datasets.insert(name.into(), bytes);
@@ -128,6 +132,10 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
                 "data",
                 "数据源配置或连接失败，请检查配置与连接",
             )
+            .hint(format!(
+                "配置文件 {} 需为 {{name: url}} 或 {{name: {{url,user,pass}}}}；只做形状检查可用 rpx doctor --datasources",
+                p.display()
+            ))
         })?),
         None => None,
     };
@@ -139,11 +147,33 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
     };
     let sql = execution::prefetch_sql(&rd, registry.as_ref(), &macros)
         .await
-        .map_err(|e| Error::new(4, "DATA_FETCH", "data", e))?;
-    let datasets =
-        crate::data::load(&req, &rd, &sql).map_err(|e| Error::new(4, "DATA_FETCH", "data", e))?;
-    let grid = execution::calculate_datasets(&rd, &datasets, &req.params, &macros)
-        .map_err(|e| Error::new(5, "CALCULATION_FAILED", "calculate", e))?;
+        .map_err(|e| {
+            let hint = match &e {
+                execution::RenderError::NoDataSource { dsn } => Some(format!(
+                    "模板里有 SQL 数据集指向 dsn「{dsn}」，但本次没有数据源注册表；用 --datasources 传入，或先把 SQL 结果落成 CSV"
+                )),
+                execution::RenderError::UnknownDataSource { dsn, available } => Some(format!(
+                    "dsn「{dsn}」未在注册表里；已登记：{}",
+                    available.join(", ")
+                )),
+                _ => None,
+            };
+            Error::new(4, "DATA_FETCH", "data", e).hint_if_some(hint)
+        })?;
+    let datasets = crate::data::load(&req, &rd, &sql).map_err(|e| {
+        let hint = data_hint(&e);
+        Error::new(4, "DATA_FETCH", "data", e).hint_if_some(hint)
+    })?;
+    let grid =
+        execution::calculate_datasets(&rd, &datasets, &req.params, &macros).map_err(|e| {
+            let hint = match &e {
+                execution::RenderError::Engine(rpx_engine::EngineError::UnknownCell { id }) => {
+                    unknown_cell_hint(id, &datasets)
+                }
+                _ => data_hint(&e),
+            };
+            Error::new(5, "CALCULATION_FAILED", "calculate", e).hint_if_some(hint)
+        })?;
     let staged = out.join(".artifacts");
     fs::create_dir(&staged)?;
     let workbook = snapshot::build(&rd, &grid, &source.name)
@@ -193,7 +223,68 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
     record["artifacts"] = artifacts;
     record["diagnostics"] = json!(export_warnings);
     record["shape"] = json!({"rows":grid.rows,"cols":grid.cols,"pages":grid.page_count});
+    record["layout"] = snapshot::layout_json(&grid);
     Ok(())
+}
+
+/// 数据集类错误的修复提示。诊断说"哪一步炸了"，hint 说"下一步查什么"。
+fn data_hint(e: &execution::RenderError) -> Option<String> {
+    match e {
+        execution::RenderError::Data(message) => Some(format!(
+            "数据集解析失败（{message}）。按这个顺序查：① file.delimiter 是否显式写成 \",\"；② encoding 是否与实际一致；③ 首行是不是表头。\n用 `rpx dataset inspect FILE --name NAME` 可以看到引擎真正解析出的列名"
+        )),
+        execution::RenderError::MissingFile { file, dataset } => Some(format!(
+            "模板里数据集「{dataset}」引用文件 {file}，但本次输入没有它；用 --data-dir 指向该文件所在目录"
+        )),
+        execution::RenderError::Engine(rpx_engine::EngineError::UnknownParam { name }) => Some(
+            format!("参数「{name}」没有绑定；用 --params-file 传入 {{\"{name}\": ...}}，或在模板 params 里声明默认值"),
+        ),
+        _ => None,
+    }
+}
+
+/// `UnknownCell` 的提示：这个错误九成不是"格号写错"，而是"列名根本没解析出来"。
+///
+/// 关键判别：某数据集的 `cols` 只有一项且本身含分隔符 ⇒ 文件没被切分，
+/// 此时列名就是整行文本，表达式里任何 `ds.field` 都会报 UnknownCell。
+fn unknown_cell_hint(id: &str, datasets: &[rpx_engine::expr::ds::DataSet]) -> Option<String> {
+    // 裸格号（`$B$2`）没有点号 ⇒ 确实是格号问题，不该编提示。
+    let (ds_name, field) = id.split_once('.')?;
+    let Some(ds) = datasets.iter().find(|d| d.name == ds_name) else {
+        let names: Vec<&str> = datasets.iter().map(|d| d.name.as_str()).collect();
+        return Some(format!(
+            "已加载的数据集是 [{}]；表达式里的「{ds_name}」不在其中（大小写敏感）",
+            names.join(", ")
+        ));
+    };
+    if let Some(bad) = ds.cols.iter().find(|c| {
+        c.len() > 1 && (c.contains(',') || c.contains(';') || c.contains('\t') || c.contains('|'))
+    }) {
+        let delimiter = if bad.contains('\t') {
+            "\\t".to_string()
+        } else if bad.contains(',') {
+            ",".to_string()
+        } else if bad.contains(';') {
+            ";".to_string()
+        } else {
+            "|".to_string()
+        };
+        return Some(format!(
+            "数据集「{}」只解析出 1 列「{}」，说明文件没被切分（缺 delimiter）。\n修法：给该数据集的 file 加 \"delimiter\": \"{}\"；确认列名用 `rpx dataset inspect FILE --name {}`",
+            ds.name, bad, delimiter, ds.name
+        ));
+    }
+    let preview: Vec<&str> = ds.cols.iter().take(12).map(String::as_str).collect();
+    Some(format!(
+        "数据集「{}」的列是 [{}]{}；`{field}` 不在其中（列名大小写敏感，中文列名不要加空格）",
+        ds.name,
+        preview.join(", "),
+        if ds.cols.len() > preview.len() {
+            " …"
+        } else {
+            ""
+        }
+    ))
 }
 pub fn timestamp() -> String {
     time::OffsetDateTime::now_utc()

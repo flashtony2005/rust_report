@@ -2,9 +2,9 @@ use crate::args::*;
 #[cfg(feature = "legacy-rpx")]
 use rpx_runtime::format as rpx_format;
 use rpx_runtime::{
-    catalog, definition,
+    capabilities, catalog, definition,
     error::{Error, Result},
-    files, library, result, run,
+    files, library, lint, result, run,
 };
 use serde_json::{json, Value as J};
 use std::{
@@ -38,80 +38,6 @@ fn inputs(inputs: Inputs) -> Result<run::Options> {
         exports: inputs.exports,
     })
 }
-fn doctor_library(path: Option<&Path>) -> J {
-    let Some(path) = path else {
-        return json!({"name":"library","ok":true,"detail":"not requested"});
-    };
-    let checked = (|| {
-        let root = files::absolute(path)?;
-        let meta = files::read_json(&root.join(".library.json"))?;
-        if meta["version"] != 1 {
-            return Err(Error::new(
-                3,
-                "LIBRARY_INVALID",
-                "doctor",
-                "不支持的报表库版本",
-            ));
-        }
-        let probe = root.join(format!(".doctor-{}", files::unique()));
-        files::create(&probe, b"ok")?;
-        let _ = std::fs::remove_file(&probe);
-        Ok::<_, Error>(root)
-    })();
-    match checked {
-        Ok(root) => json!({"name":"library","ok":true,"detail":root,"writable":true}),
-        Err(e) => json!({"name":"library","ok":false,"detail":e.diagnostic}),
-    }
-}
-
-fn doctor_datasources(path: Option<&Path>) -> J {
-    let Some(path) = path else {
-        return json!({"name":"datasources","ok":true,"detail":"not requested","connected":false});
-    };
-    let checked = (|| {
-        let value: J = serde_json::from_slice(&std::fs::read(path)?)?;
-        let Some(map) = value.as_object() else {
-            return Err(Error::new(
-                3,
-                "DATASOURCES_INVALID",
-                "doctor",
-                "数据源配置必须是 JSON 对象",
-            ));
-        };
-        for (name, spec) in map {
-            let url = match spec {
-                J::String(url) => url.as_str(),
-                J::Object(m) => m.get("url").and_then(J::as_str).ok_or_else(|| {
-                    Error::new(3, "DATASOURCES_INVALID", "doctor", format!("{name} 缺 url"))
-                })?,
-                _ => {
-                    return Err(Error::new(
-                        3,
-                        "DATASOURCES_INVALID",
-                        "doctor",
-                        format!("{name} 必须是 URL 或 {{url,user,pass}}"),
-                    ))
-                }
-            };
-            if !url.contains("://") {
-                return Err(Error::new(
-                    3,
-                    "DATASOURCES_INVALID",
-                    "doctor",
-                    format!("{name} 的 URL 缺 scheme"),
-                ));
-            }
-        }
-        Ok::<_, Error>(map.len())
-    })();
-    match checked {
-        Ok(count) => {
-            json!({"name":"datasources","ok":true,"detail":format!("{count} datasource(s)"),"connected":false})
-        }
-        Err(e) => json!({"name":"datasources","ok":false,"detail":e.diagnostic,"connected":false}),
-    }
-}
-
 pub async fn execute(command: Command) -> Result<J> {
     match command {
         Command::Doctor {
@@ -130,11 +56,30 @@ pub async fn execute(command: Command) -> Result<J> {
             "exports":["csv","xlsx","print-xlsx"],
             "web_executes_engine":false,
             "pdf":false,
-            "checks":[
-                doctor_library(lib.as_deref()),
-                doctor_datasources(datasources.as_deref()),
-            ],
+            "checks": crate::doctor::checks(lib.as_deref(), datasources.as_deref()),
         })),
+        Command::Capabilities => Ok(capabilities::describe(env!("CARGO_PKG_VERSION"))),
+        Command::Lint {
+            file,
+            data_dir,
+            strict,
+        } => {
+            let template = read(&file)?;
+            let base = match data_dir {
+                Some(dir) => Some(files::absolute(&dir)?),
+                None => files::absolute(&file)?.parent().map(Path::to_path_buf),
+            };
+            let mut out = lint::lint(&template, base.as_deref());
+            let warnings = out["summary"]["warning"].as_u64().unwrap_or(0);
+            let errors = out["summary"]["error"].as_u64().unwrap_or(0);
+            let failed = errors > 0 || (strict && warnings > 0);
+            out["gate"] = json!({
+                "strict": strict,
+                "passed": !failed,
+                "exit_code": if failed { 3 } else { 0 },
+            });
+            Ok(out)
+        }
         Command::Schema { .. } => Ok(json!({"schema":definition::schema()})),
         Command::Template { command } => template(command),
         #[cfg(feature = "legacy-rpx")]
@@ -200,10 +145,27 @@ pub async fn execute(command: Command) -> Result<J> {
 }
 fn template(command: Template) -> Result<J> {
     match command {
-        Template::Validate { file, params_file } => definition::validate(
-            &read(&file)?,
-            params_file.as_deref().map(params).transpose()?.as_ref(),
-        ),
+        Template::Validate {
+            file,
+            params_file,
+            probe_data,
+            data_dir,
+        } => {
+            let template = read(&file)?;
+            let params = params_file.as_deref().map(params).transpose()?;
+            let probe = if probe_data {
+                Some(match &data_dir {
+                    Some(dir) => files::absolute(dir)?,
+                    None => files::absolute(&file)?
+                        .parent()
+                        .map(Path::to_path_buf)
+                        .unwrap_or_else(|| Path::new(".").to_path_buf()),
+                })
+            } else {
+                None
+            };
+            definition::validate_with(&template, params.as_ref(), probe.as_deref())
+        }
         Template::Create { example, out_dir } => catalog::write_package(&example, &out_dir, false),
         Template::Patch {
             file,
@@ -437,6 +399,39 @@ pub fn print_text(value: &J) {
     let mut out = std::io::stdout().lock();
     let _ = writeln!(out, "{command}: OK");
     let data = &value["data"];
+    if let Some(issues) = data["issues"].as_array() {
+        // lint 的人读视图：一条一行 + hint 起头箭头，与 python 闸门同款。
+        let summary = &data["summary"];
+        let _ = writeln!(
+            out,
+            "{} 条：error {} / warning {} / info {}",
+            summary["total"].as_u64().unwrap_or(0),
+            summary["error"].as_u64().unwrap_or(0),
+            summary["warning"].as_u64().unwrap_or(0),
+            summary["info"].as_u64().unwrap_or(0),
+        );
+        for issue in issues {
+            let _ = writeln!(
+                out,
+                "{:7} {:5} {}",
+                issue["level"].as_str().unwrap_or("?"),
+                issue["code"].as_str().unwrap_or(""),
+                issue["message"].as_str().unwrap_or(""),
+            );
+            if let Some(hint) = issue["hint"].as_str() {
+                let _ = writeln!(out, "        → {hint}");
+            }
+        }
+        if let Some(passed) = data["gate"]["passed"].as_bool() {
+            let _ = writeln!(
+                out,
+                "gate: {}（strict={}）",
+                if passed { "PASS" } else { "FAIL" },
+                data["gate"]["strict"]
+            );
+        }
+        return;
+    }
     if let Some(items) = data["items"].as_array() {
         let _ = writeln!(out, "返回 {} / {}", items.len(), data["total"]);
         for item in items {

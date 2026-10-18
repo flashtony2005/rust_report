@@ -19,6 +19,21 @@ impl Error {
         self.diagnostic["json_pointer"] = json!(pointer.to_string());
         self
     }
+    /// 附一条**可操作**的修复提示。诊断信息回答"哪里错了"，hint 回答"下一步查什么"。
+    ///
+    /// 约定：hint 必须是动作（"给 file 加 delimiter" 而不是 "分隔符有问题"），
+    /// 因为调用方常常是没有上下文的 Agent。
+    pub fn hint(mut self, text: impl ToString) -> Self {
+        self.diagnostic["hint"] = json!(text.to_string());
+        self
+    }
+    /// 有 hint 时才加，避免把 `hint: null` 塞进每个诊断。
+    pub fn hint_if_some(self, text: Option<impl ToString>) -> Self {
+        match text {
+            Some(t) => self.hint(t),
+            None => self,
+        }
+    }
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

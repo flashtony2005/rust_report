@@ -111,6 +111,29 @@ fn build_single(rd: &ReportDefine, grid: &CalcGrid, name: &str) -> Result<String
         .expect("快照 JSON 序列化失败：value/geom 已过滤非有限数，不应发生"))
 }
 
+/// `run` 直接回给调用方的**版面摘要**：不打开 `workbook.json` 也能判"打几页、会不会横向分页"。
+///
+/// 与 `pagination_json` 同源（同一份 `grid.pagination`），但只取标量、不含逐页明细，
+/// 便于放在 `run` 的 stdout 里。`pagination` 缺失时各分页字段写 0，
+/// 用 `paginated:false` 明确区分"没分页"与"分了 0 页"。
+pub(crate) fn layout_json(grid: &CalcGrid) -> J {
+    match &grid.pagination {
+        None => json!({
+            "rows": grid.rows, "cols": grid.cols,
+            "paginated": false, "page_count": 0, "x_pages": 0, "y_pages": 0,
+            "page_columns": 0, "row_num_per_page": 0,
+            "paper_w_pt": J::Null, "paper_h_pt": J::Null,
+        }),
+        Some(pg) => json!({
+            "rows": grid.rows, "cols": grid.cols,
+            "paginated": true, "page_count": pg.page_count,
+            "x_pages": pg.x_pages, "y_pages": pg.y_pages,
+            "page_columns": pg.columns, "row_num_per_page": pg.row_num_per_page,
+            "paper_w_pt": pg.paper_w, "paper_h_pt": pg.paper_h,
+        }),
+    }
+}
+
 /// `pagination` 块（M3-06，契约 `docs/spec-m4.md` §4.5）：workbook 顶层。
 ///
 /// `grid.pagination` 是 `render_request` 里刚覆盖过的**模板真值口径**

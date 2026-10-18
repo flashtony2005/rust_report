@@ -1,3 +1,4 @@
+pub mod capabilities;
 pub mod catalog;
 mod data;
 pub mod datasource;
@@ -11,6 +12,7 @@ pub mod gallery;
 #[cfg(feature = "legacy-rpx")]
 pub mod import;
 pub mod library;
+pub mod lint;
 pub mod parameters;
 pub mod reportdef;
 pub mod result;

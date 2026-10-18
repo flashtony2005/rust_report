@@ -1,5 +1,6 @@
 mod args;
 mod commands;
+mod doctor;
 use clap::Parser;
 use rpx_runtime::error::{envelope, Error};
 use std::io::Write;
@@ -33,11 +34,18 @@ async fn main() {
         }
     };
     let name = cli.command.name();
-    let (code, value) = envelope(
+    let (mut code, value) = envelope(
         name,
         commands::execute(cli.command).await,
         started.elapsed().as_millis(),
     );
+    // `lint --strict` 这类命令：本身跑成功了（ok=true），但"有告警"要让 CI 能判失败，
+    // 所以由命令自己在 data.gate.exit_code 里给出退出码，这里只负责采纳。
+    if code == 0 {
+        if let Some(exit) = value["data"]["gate"]["exit_code"].as_i64() {
+            code = exit as i32;
+        }
+    }
     if cli.output == "text" {
         commands::print_text(&value);
     } else {
