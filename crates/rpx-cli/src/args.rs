@@ -40,7 +40,7 @@ pub struct Inputs {
     #[arg(long)]
     pub datasources: Option<PathBuf>,
     /// 导出格式，可重复
-    #[arg(long="export",value_parser=["csv","xlsx","print-xlsx"])]
+    #[arg(long="export",value_parser=["csv","xlsx","print-xlsx","html","pdf"])]
     pub exports: Vec<String>,
 }
 #[derive(Args)]

@@ -109,6 +109,19 @@ fn capabilities_is_self_describing() {
         );
     }
 
+    let exports: Vec<&str> = data["exports"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    for required in ["csv", "xlsx", "print-xlsx", "html", "pdf"] {
+        assert!(
+            exports.contains(&required),
+            "缺导出格式 {required}：{exports:?}"
+        );
+    }
+
     let errors = data["errors"].as_array().unwrap();
     let calculation = errors
         .iter()
@@ -224,4 +237,52 @@ fn unsplit_csv_error_carries_delimiter_hint() {
         hint.contains("customer") || hint.contains("dept,item,amount"),
         "{hint}"
     );
+}
+
+/// 页数三处必须一致：分页器的 `layout.page_count`、HTML 的 `<section>` 数、
+/// PDF 的页对象数。**只对齐一处等于没对齐**——PDF 里多一页空白最难被发现。
+#[test]
+fn run_exports_paged_html_and_optional_pdf() {
+    let (_temp, path) = fixture("page");
+    let out =
+        Path::new(&std::env::temp_dir()).join(format!("rpx-page-{}", rpx_runtime::files::unique()));
+    let chrome = rpx_runtime::pdf::chrome();
+    let mut args = vec![
+        "run",
+        path.to_str().unwrap(),
+        "--out-dir",
+        out.to_str().unwrap(),
+        "--export",
+        "html",
+    ];
+    if chrome.is_some() {
+        args.extend(["--export", "pdf"]);
+    }
+    let (code, value) = invoke(&args);
+    assert_eq!(code, 0, "{value}");
+    let pages = value["data"]["layout"]["page_count"].as_u64().unwrap();
+
+    let html = fs::read_to_string(out.join("artifacts/report.html")).unwrap();
+    assert_eq!(
+        html.matches("<section class=\"page\"").count() as u64,
+        pages,
+        "HTML 页数与分页器不一致"
+    );
+    assert!(html.contains("@page{size:"), "缺 @page 纸张声明");
+
+    if chrome.is_some() {
+        let pdf = fs::read(out.join("artifacts/report.pdf")).unwrap();
+        assert!(pdf.starts_with(b"%PDF"), "PDF 文件头不对");
+        let total = count(&pdf, b"/Type /Page");
+        let tree = count(&pdf, b"/Type /Pages");
+        assert_eq!((total - tree) as u64, pages, "PDF 页数与分页器不一致");
+    }
+    let _ = fs::remove_dir_all(&out);
+}
+
+fn count(haystack: &[u8], needle: &[u8]) -> usize {
+    haystack
+        .windows(needle.len())
+        .filter(|window| *window == needle)
+        .count()
 }

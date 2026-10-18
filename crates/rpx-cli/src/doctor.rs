@@ -141,9 +141,35 @@ fn binary() -> J {
     }
 }
 
+/// PDF 导出依赖外部浏览器。这里报的是"**这台机器**能不能出 PDF"：
+/// `ok` 表示检查本身跑通了，能力结论在 `available`——与 binary 检查同一口径
+/// （"无法比对"不等于"不一致"）。
+fn pdf() -> J {
+    match rpx_runtime::pdf::chrome() {
+        Some(path) => json!({
+            "name": "pdf",
+            "ok": true,
+            "available": true,
+            "path": path.display().to_string(),
+            "detail": "--export pdf 可用",
+        }),
+        None => json!({
+            "name": "pdf",
+            "ok": true,
+            "available": false,
+            "path": J::Null,
+            "detail": format!(
+                "未找到 Chrome/Chromium/Edge；--export pdf 不可用，可设 {} 指定浏览器路径",
+                rpx_runtime::pdf::ENV
+            ),
+        }),
+    }
+}
+
 pub fn checks(library_path: Option<&Path>, datasources_path: Option<&Path>) -> Vec<J> {
     vec![
         binary(),
+        pdf(),
         library(library_path),
         datasources(datasources_path),
     ]

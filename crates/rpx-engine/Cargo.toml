@@ -1,6 +1,6 @@
 [package]
 name = "rpx-engine"
-version = "0.14.0"
+version = "0.15.0"
 edition.workspace = true
 description = "ReportLite calculated-state engine (extension / evaluation / merge / pagination), pure std, zero dependencies"
 

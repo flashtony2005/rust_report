@@ -4,7 +4,7 @@ use crate::{
     error::{Error, Result},
     execution, files,
     form::RenderRequest,
-    parameters, result, snapshot,
+    parameters, pdf, print_html, result, snapshot,
 };
 use serde_json::{json, Value as J};
 use std::{
@@ -186,6 +186,19 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
     let mut artifacts =
         json!({"result.json":"artifacts/result.json","workbook.json":"artifacts/workbook.json"});
     let mut export_warnings = Vec::new();
+    // HTML/PDF 吃的是同一份快照契约：workbook 已经在盘上，这里只是把它解析回来。
+    // 解析失败不该拖垮整次 run（导出失败一律降级为诊断），所以错误留着延后处理。
+    let wants_page = options
+        .exports
+        .iter()
+        .any(|kind| kind == "html" || kind == "pdf");
+    let page: std::result::Result<print_html::Rendered, String> = if wants_page {
+        serde_json::from_str::<J>(&workbook)
+            .map_err(|e| format!("workbook 无法解析：{e}"))
+            .and_then(|value| print_html::from_workbook(&value))
+    } else {
+        Err("未请求 html/pdf".to_string())
+    };
     for kind in &options.exports {
         let (name, result): (&str, std::result::Result<Vec<u8>, String>) = match kind.as_str() {
             "csv" => ("report.csv", Ok(rpx_export::to_csv(&grid).into_bytes())),
@@ -194,12 +207,24 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
                 "report-print.xlsx",
                 rpx_export::to_print_xlsx(&grid, &grid.print_setup),
             ),
+            "html" => (
+                "report.html",
+                page.as_ref()
+                    .map(|rendered| rendered.html.clone().into_bytes())
+                    .map_err(Clone::clone),
+            ),
+            "pdf" => (
+                "report.pdf",
+                page.as_ref()
+                    .map_err(Clone::clone)
+                    .and_then(|rendered| pdf::render(&rendered.html)),
+            ),
             _ => {
                 return Err(Error::new(
                     2,
                     "USAGE",
                     "arguments",
-                    "导出格式可选 csv / xlsx / print-xlsx",
+                    "导出格式可选 csv / xlsx / print-xlsx / html / pdf",
                 ))
             }
         };
@@ -217,6 +242,26 @@ async fn generate(source: &Source, options: &Options, out: &Path, record: &mut J
                 "format": kind,
                 "message": message,
             })),
+        }
+    }
+    // 图表没渲染是**部分成功**，必须显式说出来：PDF 里那一片空白否则会被当成版式 bug。
+    if let Ok(rendered) = &page {
+        let paged = artifacts
+            .as_object()
+            .is_some_and(|map| map.contains_key("report.html") || map.contains_key("report.pdf"));
+        if paged && !rendered.charts.is_empty() {
+            export_warnings.push(json!({
+                "severity": "warning",
+                "code": "EXPORT_PARTIAL",
+                "stage": "export",
+                "format": "html/pdf",
+                "message": format!(
+                    "{} 个图表没有渲染（CLI 不做图表光栅化）：{}",
+                    rendered.charts.len(),
+                    rendered.charts.join("、")
+                ),
+                "hint": "图表目前只有 Web 打印预览和 xlsx 原生图表两种落地；要进 PDF 请先换成静态图片",
+            }));
         }
     }
     fs::rename(staged, out.join("artifacts"))?;
