@@ -74,8 +74,18 @@ function Detail({ report }: { report: GalleryReport }) {
     return workbook.sheetOrder.flatMap((id, page) =>
       (workbook.sheets[id]?.rpxGraphics ?? []).map(graphic => ({ graphic, page })))
   }, [workbook])
-  // 含图形的报表直接开在「图形」页 —— 否则用户先看到一片空网格，误以为生成失败。
-  useEffect(() => { if (!chosen && graphics.length) setTab('graphics') }, [chosen, graphics.length])
+  // 含**图表**的报表直接开在「图形」页 —— 否则用户先看到一片空网格，误以为生成失败。
+  // 只有图片（image）的例子不开：图片是版面的一部分（条码、印章），
+  // 拆成卡片反而看不出排版，且条件出图的透明占位会被当成「20 张图」列出来。
+  const hasChart = graphics.some(({ graphic }) =>
+    ['chart', 'echarts', 'echarts_js'].includes(graphic.content.kind))
+  useEffect(() => { if (!chosen && hasChart) setTab('graphics') }, [chosen, hasChart])
+  // 含**图片**的报表直接开打印预览：Univer 画布只画单元格，**不渲染 rpxGraphics**
+  // （只有 PrintPreview 画），所以图片类例子在「报表结果」里是一片空白 —— 看着像坏了。
+  // 这里只在首次载入时开一次，用户关掉后不会重开。
+  const hasImage = graphics.some(({ graphic }) =>
+    graphic.content.kind === 'image' || graphic.content.kind === 'cell_background')
+  useEffect(() => { if (workbook && hasImage) setPrint(true) }, [workbook, hasImage])
   useEffect(() => {
     let current = true
     if (report.status !== 'succeeded') return

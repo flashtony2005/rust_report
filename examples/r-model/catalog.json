@@ -1295,6 +1295,60 @@
      "label": "地区数"
     }
    ]
+  },
+  {
+   "id": "barcode-staggered-labels",
+   "title": "条形码错位显示",
+   "section": "条码与标签",
+   "description": "条码由 barcode() 逐行生成（Code 128B → PNG data URI），奇数号标签条码在左、偶数号在右，错开排版便于裁切。",
+   "template": "barcode-staggered-labels.json",
+   "features": [
+    "条形码",
+    "Code 128B",
+    "错位排版",
+    "条件出图",
+    "逐行生成"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      3
+     ],
+     "values": [
+      "JIJIA-0001",
+      "",
+      "JIJIA-0003",
+      "",
+      "JIJIA-0005",
+      "",
+      "JIJIA-0007",
+      "",
+      "JIJIA-0009",
+      ""
+     ],
+     "label": "奇数号标签文字"
+    },
+    {
+     "origin": [
+      3,
+      4
+     ],
+     "values": [
+      "",
+      "JIJIA-0002",
+      "",
+      "JIJIA-0004",
+      "",
+      "JIJIA-0006",
+      "",
+      "JIJIA-0008",
+      "",
+      "JIJIA-0010"
+     ],
+     "label": "偶数号标签文字"
+    }
+   ]
   }
  ]
 }

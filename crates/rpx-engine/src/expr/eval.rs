@@ -49,6 +49,7 @@ use super::dsfn::{avg_list, ds_call, ds_column, max_list, min_list, sum_list};
 //    `evaluate_unary`/`evaluate_binary` 一起搬进 `ops`，这里只留区域聚合要用的三个。
 use super::num::{aggregate_cmp, num_add, num_div};
 
+mod barcode;
 mod date;
 /// 一元 / 二元运算的求值（拆出只为门禁行数 G4，见该模块文档）。
 mod ops;
@@ -240,6 +241,7 @@ fn evaluate_call(c: &Call, ctx: &mut dyn EvalCtx) -> Result<Value> {
     match c.name.as_str() {
         "year" | "month" => date::call(c, ctx),
         "count" | "to" | "if" | "ifn" | "int" | "seq" | "value" => tutorial::call(c, ctx),
+        "barcode" => barcode::call(c, ctx),
         "sum" if c.args.len() == 2 => sum_link(c, ctx),
         // ── sum：叶子 / 复合两路（`Sum.java:106-206`）──
         // ── M2-12：avg / max / min 的 `A:B` 区域形态（单格 else 分支）──

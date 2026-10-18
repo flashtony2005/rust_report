@@ -104,6 +104,7 @@
 #![forbid(unsafe_code)]
 
 pub mod arena;
+pub mod barcode;
 pub mod calc;
 pub mod collation;
 pub mod dataset;

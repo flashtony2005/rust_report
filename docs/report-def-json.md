@@ -720,6 +720,28 @@ state_timeline gantt gauge gauge_3d radar milestone error_bar range
 图片内容用 `data_type:"image"`。后二者使用 `image:{source,width,height}`，source
 可为图片 data URI 或 `=表达式`。支持 PNG/JPEG/GIF/BMP，验证实际图片字节。
 
+**条码**用普通表达式函数 `barcode(文本 [, 模块宽 [, 高度]])`，返回 PNG data URI
+（Code 128B，只接受 ASCII 32..126）：
+
+```json
+{"row":3,"col":2,"data_type":"image","left_head":"A3",
+ "image":{"source":"=barcode(lbl.code)","width":150,"height":36}}
+```
+
+编码器与 PNG 写入器都在引擎内（`crates/rpx-engine/src/barcode.rs`），**不引第三方
+条码库**——引擎是零依赖层。PNG 走 stored deflate，所以也不需要 zlib 实现。
+`source` 写成 `=表达式` 时解析期不做静态校验，但导出期仍会过 `validate_image`
+的真解析器，图坏了会在导出时红。
+
+⚠ **不支持「本行不出图」**：`image` 的 source 必须求出合法 data URI，没有「跳过」
+这个分支。需要按行条件出图时，让关闭的一侧退化成**全透明 1×1 PNG**
+（`if(条件, barcode(x), '<透明占位>')`，示例 `barcode-staggered-labels` 的错位标签）。
+注意占位图必须是**全透明**（RGBA `00000000`）——半透明红之类的 1×1 图会在页面上
+显示成一个小红块。
+
+⚠ **Univer 画布只画单元格，不渲染任何 `rpxGraphics`**（图片、图表都不画）；图形
+只能在「打印预览」里看到。画廊对含图片的例子会直接打开打印预览，避免看着像空白。
+
 `data_type:"echarts"` 使用 `echarts:{template,params,width,height}`：template
 为 option JSON 文本，`${参数名}` 用表达式结果的 JSON 字面量单次替换。
 `data_type:"echarts_js"` 使用同一配置，但 template 是 JS 函数体，可 `return option`
