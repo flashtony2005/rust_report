@@ -254,6 +254,14 @@
   判据用 `merge_same_mode = 118`（`getSource()`，保持默认）：扩展出的同列格同源 ⇒
   相邻等值即可并。缺省（不声明）= `97`（关）。
 
+  ⚠ **分组格的跨度不来自 `merge_same`**：`extend_mode: vertical` 的 `group()` 格
+  天然占满它生成的那一块（**引擎跨度**，`CellSource::row_merge`），**不声明
+  `merge_same` 也照样合并**。实测（2026-10-18）：交叉表的大区 / 门店列去掉
+  `merge_same` 后跨度一字不变；真正吃 `merge_same` 的只有**明细列**（无分组、
+  相邻等值）。把两者混为一谈会写出假绿判据 —— 判据见
+  `crates/rpx-runtime/tests/crosstab_merge.rs`（第三条自带反证：摘掉 `merge_same`
+  必须一格都不并）。
+
 ### 4.3 对齐码
 
 枚举 → 契约整数码（出处 `docs/format-contract.md` 附件 B.3 注 3）：

@@ -78,10 +78,10 @@ async fn gallery_runs_all_models_and_rejects_changed_source_against_expectations
         .await
         .unwrap();
     let reports = catalog["reports"].as_array().unwrap();
-    // 13 = 9 份报表模型 + 4 份「统计图与图形」（2026-10-18 增：销售看板 /
-    // 任务时间线 / ECharts option 模板 / ECharts JS 模板）。新增例子必须同步这里，
-    // 否则「目录里有但没跑」会静默通过。
-    assert_eq!(reports.len(), 13);
+    // 15 = 9 份报表模型 + 2 份「交叉表合并」（2026-10-18 增：交叉表动态合并格 /
+    // 明细同值合并）+ 4 份「统计图与图形」（销售看板 / 任务时间线 / ECharts option
+    // 模板 / ECharts JS 模板）。新增例子必须同步这里，否则「目录里有但没跑」会静默通过。
+    assert_eq!(reports.len(), 15);
     for report in reports {
         assert_eq!(report["status"], "succeeded");
         assert!(!report["run"]["checks"].as_array().unwrap().is_empty());

@@ -1,0 +1,198 @@
+{
+ "version": 1,
+ "grid": {
+  "rows": 5,
+  "cols": 5
+ },
+ "datasets": [
+  {
+   "name": "sales",
+   "file": {
+    "file_name": "crosstab-merge-cells.csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+   }
+  }
+ ],
+ "cells": [
+  {
+   "row": 1,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 18,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "明细同值合并",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "bold": true,
+   "fore_color": "#163D46"
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "月份列挂了 merge_same=vertical：相邻等值并成一格（1 月跨 2 行、2 月跨 2 行）；品类列空调/冰箱交替，所以一格都不并。",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "fore_color": "#52666E"
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "none",
+   "text": "大区",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF"
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "none",
+   "text": "门店",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF"
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "none",
+   "text": "月份",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF"
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "none",
+   "text": "品类",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF"
+  },
+  {
+   "row": 3,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "none",
+   "text": "金额",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF"
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "vertical",
+   "expr": "sales.group(region;region:1)"
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "vertical",
+   "left_head": "A4",
+   "expr": "sales.group(store;store:1)"
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "vertical",
+   "left_head": "B4",
+   "expr": "sales.select(month)",
+   "merge_same": "vertical"
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "vertical",
+   "left_head": "C4",
+   "expr": "sales.select(cat)"
+  },
+  {
+   "row": 4,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "right",
+   "extend_mode": "vertical",
+   "left_head": "C4",
+   "expr": "sales.select(amount)",
+   "format": "#,##0"
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "none",
+   "text": "合计",
+   "merge": {
+    "rows": 1,
+    "cols": 4
+   },
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 5,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "right",
+   "extend_mode": "none",
+   "expr": "sales.sum(amount)",
+   "format": "#,##0",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  }
+ ]
+}
