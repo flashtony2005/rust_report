@@ -67,3 +67,10 @@ Thumbs.db
 # Playwright
 /web/test-results
 /web/playwright-report
+
+# 本地报表库：README 第 2 步 `rpx library init ./reports --presets` 的产物。
+# 里面是模板副本 + 每次 `report run` 的运行记录/导出物 —— 属于「本机开发状态」，
+# 不是仓库资产，新克隆上按 README 重建即可。`/.rpx-init.lock` 是 init 的锁文件。
+# ⛔ 不要把它当成例子来源提交：真正的例子在 `examples/r-model/`。
+/reports/
+/.rpx-init.lock
