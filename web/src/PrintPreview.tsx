@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import * as echarts from 'echarts'
-import { chartOption, type Graphic, type GraphicContent } from './graphics'
-import ScriptChart from './graphics/ScriptChart'
+import type { Graphic } from './graphics'
+import ChartView from './graphics/ChartView'
 import { printValue } from './print-value'
 
 interface Cell {
@@ -24,23 +23,6 @@ interface Sheet {
   printOptions?:{autoSize:boolean;wrapNumbers:boolean;borderWidth:number;borderColor:string;overlay:boolean}
 }
 export interface PrintWorkbook { sheetOrder: string[]; sheets: Record<string, Sheet> }
-
-function ChartView({ content, width, height }: { content: GraphicContent; width: number; height: number }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    if (!ref.current || (content.kind !== 'chart' && content.kind !== 'echarts')) return
-    const chart = echarts.init(ref.current, undefined, { renderer: 'svg', width, height })
-    try {
-      chart.setOption((content.kind === 'chart' ? chartOption(content) : { ...content.option, animation: false }) as echarts.EChartsOption)
-      setError('')
-    } catch (error) { setError(`图形生成失败：${String(error)}`) }
-    return () => chart.dispose()
-  }, [content, width, height])
-  if (content.kind === 'image' || content.kind === 'cell_background') return <img src={content.source} width={width} height={height} alt="报表图片" style={{ objectFit: 'contain' }} />
-  if (content.kind==='echarts_js')return <ScriptChart source={content.source} width={width} height={height}/>
-  return <><div ref={ref} style={{ width, height }} />{error && <p role="alert">{error}</p>}</>
-}
 
 function cellStyle(cell?: Cell): CSSProperties {
   const s = cell?.s

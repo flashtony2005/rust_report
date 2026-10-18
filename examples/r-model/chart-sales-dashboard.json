@@ -1,0 +1,310 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 8,
+    "cols": 8
+  },
+  "datasets": [
+    {
+      "name": "region",
+      "file": {
+        "file_name": "chart-region.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    },
+    {
+      "name": "category",
+      "file": {
+        "file_name": "chart-category.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    },
+    {
+      "name": "monthly",
+      "file": {
+        "file_name": "chart-monthly.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 18,
+      "v_align": "middle",
+      "text": "销售看板 · 四个统计图共用三个数据集",
+      "merge": {
+        "rows": 1,
+        "cols": 8
+      },
+      "bold": true,
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "text": "总额",
+      "h_align": "right",
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 2,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "expr": "region.sum(amount)",
+      "format": "#,##0.00",
+      "bold": true,
+      "fore_color": "#1B505B"
+    },
+    {
+      "row": 2,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "text": "地区数",
+      "h_align": "right",
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 2,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "expr": "region.count()",
+      "format": "0",
+      "bold": true,
+      "fore_color": "#1B505B"
+    },
+    {
+      "row": 2,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "text": "月度合计",
+      "h_align": "right",
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 2,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "expr": "monthly.sum(revenue)",
+      "format": "#,##0.00",
+      "bold": true,
+      "fore_color": "#1B505B"
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "column",
+        "title": "各地区销售额",
+        "width": 520,
+        "height": 270,
+        "categories": "=region.select(region)",
+        "series": [
+          {
+            "name": "金额",
+            "values": "=region.select(amount)"
+          }
+        ],
+        "appearance": {
+          "colors": [
+            "#215951",
+            "#3f8f7d",
+            "#7fb8a6",
+            "#b7d6c8"
+          ],
+          "legend": "none"
+        }
+      }
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "data_type": "chart",
+      "chart": {
+        "type": "pie",
+        "title": "品类金额占比",
+        "width": 400,
+        "height": 270,
+        "categories": "=category.select(category)",
+        "series": [
+          {
+            "name": "金额",
+            "values": "=category.select(amount)"
+          }
+        ],
+        "appearance": {
+          "colors": [
+            "#215951",
+            "#4f9a86",
+            "#a8cbbb"
+          ],
+          "legend": "right",
+          "pie_rotation": 120
+        }
+      }
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "line",
+        "title": "月度收入与成本",
+        "width": 520,
+        "height": 270,
+        "categories": "=monthly.select(month)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=monthly.select(revenue)"
+          },
+          {
+            "name": "成本",
+            "values": "=monthly.select(cost)"
+          }
+        ],
+        "appearance": {
+          "colors": [
+            "#215951",
+            "#d98b4a"
+          ]
+        }
+      }
+    },
+    {
+      "row": 6,
+      "col": 5,
+      "data_type": "chart",
+      "chart": {
+        "type": "column_line",
+        "title": "金额与订单量",
+        "width": 400,
+        "height": 270,
+        "categories": "=region.select(region)",
+        "series": [
+          {
+            "name": "金额",
+            "values": "=region.select(amount)"
+          },
+          {
+            "name": "订单",
+            "values": "=region.select(orders)"
+          }
+        ],
+        "appearance": {
+          "colors": [
+            "#4f9a86",
+            "#d98b4a"
+          ],
+          "margins": [
+            46,
+            52,
+            34,
+            52
+          ]
+        }
+      }
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 44
+    },
+    {
+      "row": 2,
+      "height": 22
+    },
+    {
+      "row": 3,
+      "height": 10
+    },
+    {
+      "row": 4,
+      "height": 180
+    },
+    {
+      "row": 5,
+      "height": 180
+    },
+    {
+      "row": 6,
+      "height": 10
+    },
+    {
+      "row": 7,
+      "height": 140
+    },
+    {
+      "row": 8,
+      "height": 140
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 140
+    },
+    {
+      "col": 2,
+      "width": 140
+    },
+    {
+      "col": 3,
+      "width": 140
+    },
+    {
+      "col": 4,
+      "width": 140
+    },
+    {
+      "col": 5,
+      "width": 140
+    },
+    {
+      "col": 6,
+      "width": 140
+    },
+    {
+      "col": 7,
+      "width": 140
+    },
+    {
+      "col": 8,
+      "width": 140
+    }
+  ],
+  "print_setup": {
+    "paper_width": 420,
+    "paper_height": 297,
+    "left_margin": 10,
+    "right_margin": 10,
+    "top_margin": 10,
+    "bottom_margin": 10
+  },
+  "printing": {
+    "horizontal_split": false,
+    "vertical_split": false,
+    "border_width": 0.5,
+    "border_color": "#CBD5E1"
+  }
+}

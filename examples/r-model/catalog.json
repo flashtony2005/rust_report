@@ -1054,6 +1054,124 @@
           "label": "跨片最终应收"
         }
       ]
+    },
+    {
+      "id": "chart-sales-dashboard",
+      "title": "销售看板 · 四图共用三源",
+      "section": "统计图与图形",
+      "description": "柱状、饼图、双系列折线与柱线组合四张图排在一页，分别绑定地区、品类、月度三个独立数据集；图形尺寸与锚定格在模板里固定，不随扩展漂移。",
+      "template": "chart-sales-dashboard.json",
+      "features": [
+        "统计图",
+        "多数据集",
+        "配色与图例",
+        "单页排版"
+      ],
+      "checks": [
+        {
+          "origin": [
+            2,
+            2
+          ],
+          "values": [
+            7375
+          ],
+          "label": "地区金额合计"
+        },
+        {
+          "origin": [
+            2,
+            4
+          ],
+          "values": [
+            4
+          ],
+          "label": "地区数"
+        },
+        {
+          "origin": [
+            2,
+            6
+          ],
+          "values": [
+            6730
+          ],
+          "label": "月度收入合计"
+        }
+      ]
+    },
+    {
+      "id": "chart-tasks-timeline",
+      "title": "项目排期 · 甘特 / 状态时间线 / 里程碑",
+      "section": "统计图与图形",
+      "description": "三张任务型统计图共用同一份 tasks 绑定：甘特图给起止时间，状态时间线给状态分类，里程碑只给起点。",
+      "template": "chart-tasks-timeline.json",
+      "features": [
+        "甘特图",
+        "状态时间线",
+        "里程碑",
+        "任务绑定"
+      ],
+      "checks": [
+        {
+          "origin": [
+            2,
+            2
+          ],
+          "values": [
+            5
+          ],
+          "label": "任务行数"
+        }
+      ]
+    },
+    {
+      "id": "echarts-option-template",
+      "title": "ECharts option 模板 · 参数注入",
+      "section": "统计图与图形",
+      "description": "template 是一段 option JSON 文本，${参数名} 由数据集表达式结果的 JSON 字面量单次替换；分类轴与系列值都来自 chart-region.csv。",
+      "template": "echarts-option-template.json",
+      "features": [
+        "ECharts option",
+        "参数注入",
+        "后端求值"
+      ],
+      "checks": [
+        {
+          "origin": [
+            2,
+            2
+          ],
+          "values": [
+            7375
+          ],
+          "label": "地区金额合计"
+        }
+      ]
+    },
+    {
+      "id": "echarts-js-formatter",
+      "title": "ECharts JS 模板 · formatter 回调",
+      "section": "统计图与图形",
+      "description": "template 是 JS 函数体，在 sandbox iframe 内执行：tooltip 与标签用真正的函数做 formatter，而不是字符串模板。",
+      "template": "echarts-js-formatter.json",
+      "features": [
+        "ECharts JS",
+        "formatter 回调",
+        "sandbox iframe"
+      ],
+      "checks": [
+        {
+          "origin": [
+            2,
+            2
+          ],
+          "values": [
+            4
+          ],
+          "label": "地区数"
+        }
+      ]
     }
   ]
 }
