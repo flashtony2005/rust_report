@@ -292,7 +292,7 @@ ReportDef(JSON) + Params + RowSets  ──引擎──▶  CalcGrid  ──▶  
 | 3 | `rpx model introspect --source pg` → 人工/AI 修订 → `model apply` | 无                                   | schema 反射 + 候选 join/metric 建议 + 编译校验     | 2 小时  |
 | 4 | `rpx preset list --industry retail` → `report create --from`  | 26 份模板无分类/无搜索/无克隆语义                 | 模板包格式、标签、脱敏、依赖声明                         | 10 分钟 |
 | 5 | Agent 用 `--patch-file` 迭代 + `report validate`                 | **有**（这是强项）                         | 校验要 < 2s（fast path），否则 Agent 循环太慢        | 2 小时  |
-| 6 | `rpx report run --export print-xlsx` → 交付                     | **无 PDF**（只能人肉另存）                   | headless PDF（同一份打印 HTML）                 | 30 分钟 |
+| 6 | `rpx report run --export pdf` → 交付                            | **已具备**（0.15.0：html 渲染 + 浏览器打印）        | 图表光栅化（当前留占位框 + `EXPORT_PARTIAL`）           | 30 分钟 |
 | 7 | 客户批注 → 改 → 重出                                                 | 无批注载体                               | 结果快照 + 批注/对比（生成 v1/v2 差异）                | 1 小时  |
 | 8 | `rpx preset extract --from <report> --as <preset>`            | **完全缺失**                            | 脱敏（去 DSN/绝对路径/客户字段）+ 自动补 `checks` 入画廊    | 1 小时  |
 

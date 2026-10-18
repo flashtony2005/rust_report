@@ -10,7 +10,9 @@ rpx doctor
 rpx library init ./reports --presets
 rpx report show complex-master --library ./reports
 revision=$(rpx report show complex-master --library ./reports | jq -r '.data.revision')
-rpx report run complex-master --library ./reports --if-match "$revision" --export xlsx --export csv
+rpx report run complex-master --library ./reports --if-match "$revision" --export xlsx --export csv --export pdf
+# pdf/html 复用同一份打印快照；pdf 需要本机 Chrome/Chromium/Edge（或用 RPX_CHROME 指定），
+# 找不到浏览器就明确失败，不会静默降级。图表不参与渲染，会在原位留占位框并记 EXPORT_PARTIAL。
 rpx format verify external.rpx --mode preserve
 cargo run --locked -p rpx-server -- serve --library ./reports
 # 启用 Bearer 鉴权时：

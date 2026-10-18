@@ -34,7 +34,7 @@ rpx doctor
 | 查看/定位单元格 | `rpx template inspect FILE --cell C6` |
 | 校验模板 | `rpx template validate FILE [--params-file P] [--probe-data] [--data-dir D]` |
 | 补丁 | `rpx template patch FILE --patch-file P --out FILE [--dry-run]` |
-| 直接运行 | `rpx run FILE --out-dir DIR [--export csv|xlsx|print-xlsx]` |
+| 直接运行 | `rpx run FILE --out-dir DIR [--export csv|xlsx|print-xlsx|html|pdf]` |
 | 查结果 | `rpx result inspect result.json [--origin C6] [--range A1:K20]` |
 | 查数据集 | `rpx dataset inspect FILE --name DS [--data-dir D] [--datasources F]` |
 | 初始化库 | `rpx library init DIR [--presets]` |
@@ -193,10 +193,16 @@ rpx report import-rpx external.rpx --id external --library ./reports --data-dir 
 
 ## 导出与已知边界
 
-- `--export csv|xlsx|print-xlsx` 可重复。
+- `--export csv|xlsx|print-xlsx|html|pdf` 可重复。
 - `print-xlsx` 支持 A3/A4/A5/Letter 自定义纸张；3D 图表、工作表背景会返回 `EXPORT_FAILED`。
 - 单个导出失败只记 warning，`result.json`/`workbook.json` 和成功导出仍发布。
-- CLI **不生成 PDF**；需要 PDF 从 Web 打印预览另存。
+- `html` 是**打印版 1:1 的中间产物**（一页一个 `<section>`，纸面尺寸/合并/样式/数字格式都在），
+  页数恒等于 `layout.page_count`。想核对版式又不想开 PDF 时看它最快。
+- `pdf` = 同一份 HTML 交给本机 Chrome/Chromium/Edge 打印，中文与分页由浏览器负责。
+  找不到浏览器时该导出失败（`EXPORT_FAILED` + 明确原因），**不会静默降级**；
+  也可用 `RPX_CHROME=<可执行文件>` 指定路径。先 `rpx doctor` 看 `checks[pdf].available`。
+- **图表不会被渲染进 html/pdf**（CLI 不做图表光栅化）：会在原位置画虚线占位框写出标题，
+  并在 `run.diagnostics` 记一条 `EXPORT_PARTIAL` 列出图表名。要图表请用 xlsx 原生图表或 Web 预览。
 - 快照失败时整次 run failed；保留上一次成功结果。
 
 ## 安全操作清单
