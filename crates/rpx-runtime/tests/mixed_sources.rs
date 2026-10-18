@@ -82,9 +82,10 @@ async fn gallery_runs_all_models_and_rejects_changed_source_against_expectations
     // + 4 份「统计图与图形」（销售看板 / 任务时间线 / ECharts option 模板 /
     // ECharts JS 模板）+ 1 份「条码与标签」（条形码错位显示）
     // + 1 份「自由格间运算」（复杂格间计算 · 质量损失分析）
-    // + 1 份「多口径分组合计」（卷烟产值计算表，2026-10-18 增）。
+    // + 1 份「多口径分组合计」（卷烟产值计算表）
+    // + 1 份「表单与序号列」（保险单明细表，2026-10-18 增）。
     // 新增例子必须同步这里，否则「目录里有但没跑」会静默通过。
-    assert_eq!(reports.len(), 18);
+    assert_eq!(reports.len(), 19);
     for report in reports {
         assert_eq!(report["status"], "succeeded");
         assert!(!report["run"]["checks"].as_array().unwrap().is_empty());
