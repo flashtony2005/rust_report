@@ -366,6 +366,18 @@ export default function App() {
     } catch (error) { setStatus(`下载失败：${String(error)}`) }
   }
 
+  /** 结果视图里用户当前停在第几个 sheet（0 起）。打印预览打开时落在同一页——
+   * 两个多 sheet 视图（Univer 标签页 ↔ 预览堆叠页）由此保持相关性，
+   * 否则从第 7 页打开预览又回到第 1 页，上下文丢失。 */
+  const currentResultSheetIndex = (): number => {
+    if (view !== 'result' || !printWorkbook) return 0
+    try {
+      const sheetId = apiRef.current?.getActiveWorkbook()?.getActiveSheet()?.getSheetId()
+      const index = sheetId ? printWorkbook.sheetOrder.indexOf(sheetId) : -1
+      return index < 0 ? 0 : index
+    } catch { return 0 }
+  }
+
   // -------------------------------------------------------------------------
   // W3-4 菜单栏（产品式 IDE 菜单；与顶栏按钮并存不重复）
   // -------------------------------------------------------------------------
@@ -1049,7 +1061,7 @@ export default function App() {
         <button disabled={!printWorkbook} onClick={() => setShowPrint(true)}>图形与打印预览</button>
       </div>
       <MenuBar groups={menuGroups} />
-      {showPrint && printWorkbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={printWorkbook} onClose={() => setShowPrint(false)} /></Suspense>}
+      {showPrint && printWorkbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={printWorkbook} initialPage={currentResultSheetIndex()} onClose={() => setShowPrint(false)} /></Suspense>}
       
       {status ? (
         <div

@@ -24,16 +24,57 @@ interface Sheet {
 }
 export interface PrintWorkbook { sheetOrder: string[]; sheets: Record<string, Sheet> }
 
+/** 控件条高度（sticky 遮住页顶）：跳转定位与「当前页」判定都按它折算。 */
+const CONTROLS_OFFSET = 70
+/** 判定容差：scrollIntoView 落点有亚像素漂移（实测 70.22），页高上千 px，4px 不会串页。 */
+const CONTROLS_TOLERANCE = 4
+
 function cellStyle(cell?: Cell): CSSProperties {
   const s = cell?.s
   return { fontFamily: s?.ff, fontSize: s?.fs, fontWeight: s?.bl ? 'bold' : 'normal', fontStyle: s?.it ? 'italic' : 'normal', color: s?.cl?.rgb, backgroundColor: s?.bg?.rgb,
     textAlign: s?.ht === 2 ? 'center' : s?.ht === 3 ? 'right' : 'left', verticalAlign: s?.vt === 1 ? 'top' : s?.vt === 3 ? 'bottom' : 'middle', whiteSpace: 'pre-wrap', overflow: 'hidden', padding: 0 }
 }
 
-export default function PrintPreview({ workbook, onClose }: { workbook: PrintWorkbook; onClose: () => void }) {
+export default function PrintPreview({ workbook, initialPage = 0, onClose }: { workbook: PrintWorkbook; initialPage?: number; onClose: () => void }) {
   const [mirror,setMirror]=useState(false)
+  const [current,setCurrent]=useState(initialPage)
+  const rootRef=useRef<HTMLDivElement>(null)
   const pagesRef=useRef<HTMLDivElement>(null)
   const first = workbook.sheets[workbook.sheetOrder[0]]
+  const total = workbook.sheetOrder.length
+  // 滚动时同步「当前页」：页顶进入控件条下沿即算当前页（控件条 sticky 遮住页顶，
+  // 与 jumpTo 的 scroll-margin-top 用同一折算值，两处必须一致）。
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || total <= 1) return
+    let frame = 0
+    const sync = () => {
+      frame = 0
+      const rootTop = root.getBoundingClientRect().top
+      let idx = 0
+      for (let i = 0; i < total; i++) {
+        const page = pagesRef.current?.children[i] as HTMLElement | undefined
+        if (page && page.getBoundingClientRect().top - rootTop <= CONTROLS_OFFSET + CONTROLS_TOLERANCE) idx = i
+      }
+      setCurrent(idx)
+    }
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(sync) }
+    root.addEventListener('scroll', onScroll, { passive: true })
+    return () => { root.removeEventListener('scroll', onScroll); if (frame) cancelAnimationFrame(frame) }
+  }, [total])
+  const jumpTo = (index: number) => {
+    const page = pagesRef.current?.children[index] as HTMLElement | undefined
+    // 瞬时跳转：跨 15 页的平滑滚动要 1.5s，跳转控件要的是「到那一页」；
+    // 方位感由位置指示（第 N / M 页）和下拉本身提供。
+    page?.scrollIntoView({ behavior: 'auto', block: 'start' })
+  }
+  // 打开时落到 initialPage：结果视图当前 sheet 对应的页。两个多 sheet 视图
+  // （Univer 标签页 ↔ 预览堆叠页）由此保持相关性——否则从第 7 页打开预览
+  // 又回到第 1 页，上下文丢失。预览随开关卸载重挂，无需额外重置。
+  useEffect(() => {
+    const page = pagesRef.current?.children[initialPage] as HTMLElement | undefined
+    page?.scrollIntoView({ behavior: 'auto', block: 'start' })
+  }, [initialPage])
   useEffect(()=>{
     const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d')
     if(!ctx)return
@@ -45,16 +86,16 @@ export default function PrintPreview({ workbook, onClose }: { workbook: PrintWor
       cell.style.fontSize=`${size*ratio}px`
     }
   },[workbook])
-  return createPortal(<div className="rpx-print-preview" role="dialog" aria-label="图形与打印预览">
+  return createPortal(<div ref={rootRef} className="rpx-print-preview" role="dialog" aria-label="图形与打印预览">
     <style>{`
       .rpx-print-preview{position:fixed;inset:0;z-index:10000;overflow:auto;background:#e8eaed;color:#111;font-family:system-ui,sans-serif}
       .rpx-print-controls{position:sticky;top:0;padding:12px;background:#fff;border-bottom:1px solid #ccc;z-index:10;display:flex;gap:16px;align-items:center}
-      .rpx-print-page{position:relative;margin:20px auto;background-color:white;background-size:100% 100%;box-shadow:0 1px 8px #999;box-sizing:border-box;overflow:hidden;break-after:page}
+      .rpx-print-page{position:relative;margin:20px auto;background-color:white;background-size:100% 100%;box-shadow:0 1px 8px #999;box-sizing:border-box;overflow:hidden;break-after:page;scroll-margin-top:${CONTROLS_OFFSET}px}
       .rpx-print-page:last-child{break-after:auto}
       @page{size:${first.printSize.width}mm ${first.printSize.height}mm;margin:0}
       @media print{#app,.rpx-print-controls{display:none!important}.rpx-print-preview{position:static;overflow:visible;background:white}.rpx-print-page{margin:0;box-shadow:none;print-color-adjust:exact;-webkit-print-color-adjust:exact}}
     `}</style>
-    <div className="rpx-print-controls"><strong>图形与打印预览</strong><span>{workbook.sheetOrder.length} 页</span><label><input type="checkbox" checked={mirror} onChange={e=>setMirror(e.target.checked)}/>镜像打印</label><button onClick={() => window.print()}>打印 / 保存为 PDF</button><button onClick={onClose}>关闭</button></div>
+    <div className="rpx-print-controls"><strong>图形与打印预览</strong><label>跳转 <select aria-label="跳转到页" value={current} onChange={event => { const index = Number(event.target.value); setCurrent(index); jumpTo(index) }}>{workbook.sheetOrder.map((id, i) => <option key={id} value={i}>{workbook.sheets[id].name}</option>)}</select></label><button disabled={current <= 0} onClick={() => jumpTo(current - 1)}>上一页</button><button disabled={current >= total - 1} onClick={() => jumpTo(current + 1)}>下一页</button><span>第 {current + 1} / {total} 页</span><label><input type="checkbox" checked={mirror} onChange={e=>setMirror(e.target.checked)}/>镜像打印</label><button onClick={() => window.print()}>打印 / 保存为 PDF</button><button onClick={onClose}>关闭</button></div>
     <div ref={pagesRef}>
     {workbook.sheetOrder.map(id => {
       const s = workbook.sheets[id]
