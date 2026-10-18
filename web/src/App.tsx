@@ -1046,9 +1046,9 @@ export default function App() {
         <button disabled={!printWorkbook} aria-pressed={view === 'result'} onClick={() => { if (printWorkbook && readyToLeaveCell()) attachSnapshot(printWorkbook, defRef.current, sourceKind ?? 'json') }}>运行结果</button>
         <label>导出文件名 <input aria-label="模板名称" value={reportName} onChange={e => setReportName(e.target.value)}/></label>
         <span>{view === 'design' ? `设计网格 ${def?.grid.rows ?? '—'} × ${def?.grid.cols ?? '—'}` : '运行结果只读，返回模板设计可继续编辑'}{cellDirty ? ' · 当前格有未应用修改' : ''}</span>
+        <button disabled={!printWorkbook} onClick={() => setShowPrint(true)}>图形与打印预览</button>
       </div>
       <MenuBar groups={menuGroups} />
-      <button disabled={!printWorkbook} onClick={() => setShowPrint(true)}>图形与打印预览</button>
       {showPrint && printWorkbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={printWorkbook} onClose={() => setShowPrint(false)} /></Suspense>}
       
       {status ? (
