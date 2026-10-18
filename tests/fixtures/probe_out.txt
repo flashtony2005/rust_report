@@ -59,7 +59,7 @@
 [D] (4,3) value=Integer(300) src=(4,3) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,3) null}
 [D] (4,4) value=Integer(150) src=(4,4) rowMerge=1 colMerge=1 extend=16 subCells=1 {(6,4) null}
 == Phase E: TextReport view over the calculated grid
-[E] TextReport length=1298 first line:                                                                                                                     
+[E] TextReport length=1298 first line:                                                                                                                     
 == Phase F: expression variants over the extended grid
 [F] --- sum($B2:B2)  (range, absolute col, single cell)
 [F] calculated grid: 8 rows x 4 cols
