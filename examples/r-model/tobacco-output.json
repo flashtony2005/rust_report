@@ -1,0 +1,3119 @@
+{
+ "version": 1,
+ "grid": {
+  "rows": 29,
+  "cols": 10
+ },
+ "datasets": [
+  {
+   "name": "tob",
+   "file": {
+    "file_name": "tobacco-output.csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+   }
+  }
+ ],
+ "col_props": [
+  {
+   "col": 1,
+   "width": 34
+  },
+  {
+   "col": 2,
+   "width": 13
+  },
+  {
+   "col": 3,
+   "width": 12
+  },
+  {
+   "col": 4,
+   "width": 12
+  },
+  {
+   "col": 5,
+   "width": 12
+  },
+  {
+   "col": 6,
+   "width": 12
+  },
+  {
+   "col": 7,
+   "width": 12
+  },
+  {
+   "col": 8,
+   "width": 12
+  },
+  {
+   "col": 9,
+   "width": 12
+  },
+  {
+   "col": 10,
+   "width": 12
+  }
+ ],
+ "row_props": [
+  {
+   "row": 1,
+   "height": 12
+  },
+  {
+   "row": 2,
+   "height": 6
+  },
+  {
+   "row": 3,
+   "height": 8
+  },
+  {
+   "row": 4,
+   "height": 6
+  },
+  {
+   "row": 5,
+   "height": 6
+  },
+  {
+   "row": 6,
+   "height": 6
+  },
+  {
+   "row": 7,
+   "height": 6
+  },
+  {
+   "row": 8,
+   "height": 6
+  },
+  {
+   "row": 9,
+   "height": 6
+  },
+  {
+   "row": 10,
+   "height": 6
+  },
+  {
+   "row": 11,
+   "height": 6
+  },
+  {
+   "row": 12,
+   "height": 6
+  },
+  {
+   "row": 13,
+   "height": 6
+  },
+  {
+   "row": 14,
+   "height": 6
+  },
+  {
+   "row": 15,
+   "height": 6
+  },
+  {
+   "row": 16,
+   "height": 6
+  },
+  {
+   "row": 17,
+   "height": 6
+  },
+  {
+   "row": 18,
+   "height": 6
+  },
+  {
+   "row": 19,
+   "height": 6
+  },
+  {
+   "row": 20,
+   "height": 6
+  },
+  {
+   "row": 21,
+   "height": 6
+  },
+  {
+   "row": 22,
+   "height": 6
+  },
+  {
+   "row": 23,
+   "height": 6
+  },
+  {
+   "row": 24,
+   "height": 6
+  },
+  {
+   "row": 25,
+   "height": 6
+  },
+  {
+   "row": 26,
+   "height": 6
+  },
+  {
+   "row": 27,
+   "height": 6
+  },
+  {
+   "row": 28,
+   "height": 6
+  },
+  {
+   "row": 29,
+   "height": 6
+  }
+ ],
+ "printing": {
+  "auto_size": false
+ },
+ "cells": [
+  {
+   "row": 1,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 17,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "卷烟产值计算表",
+   "merge": {
+    "rows": 1,
+    "cols": 10
+   },
+   "bold": true,
+   "fore_color": "#163D46"
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "四组口径不同的分组合计；每行产值 = 产量（万支）× 不含税调拨价（元/万支）/ 1000。",
+   "merge": {
+    "rows": 1,
+    "cols": 10
+   },
+   "fore_color": "#52666E"
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "卷烟牌号名称",
+   "merge": {
+    "rows": 2,
+    "cols": 1
+   },
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "不含税调拨价",
+   "merge": {
+    "rows": 2,
+    "cols": 1
+   },
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "产量（万支）",
+   "merge": {
+    "rows": 1,
+    "cols": 2
+   },
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "总产值（当年价）千元",
+   "merge": {
+    "rows": 1,
+    "cols": 2
+   },
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "销量（万支）",
+   "merge": {
+    "rows": 1,
+    "cols": 2
+   },
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "销售产值（当年价）千元",
+   "merge": {
+    "rows": 1,
+    "cols": 2
+   },
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "本月",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "累计",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "本月",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "累计",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "本月",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "累计",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "本月",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "累计",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "各厂合计",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 5,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 6,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 上海卷烟厂",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,plant=='上海卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,plant=='上海卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,plant=='上海卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,plant=='上海卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,plant=='上海卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,plant=='上海卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,plant=='上海卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 6,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,plant=='上海卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 玉溪卷烟厂",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,plant=='玉溪卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,plant=='玉溪卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,plant=='玉溪卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,plant=='玉溪卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,plant=='玉溪卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,plant=='玉溪卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,plant=='玉溪卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 7,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,plant=='玉溪卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 武汉卷烟厂",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,plant=='武汉卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,plant=='武汉卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,plant=='武汉卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,plant=='武汉卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,plant=='武汉卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,plant=='武汉卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,plant=='武汉卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 8,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,plant=='武汉卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 广州卷烟厂",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,plant=='广州卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,plant=='广州卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,plant=='广州卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,plant=='广州卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,plant=='广州卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,plant=='广州卷烟厂')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,plant=='广州卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 9,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,plant=='广州卷烟厂')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 10,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "包装形式合计",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 11,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 条盒硬盒",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,pack=='条盒硬盒')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,pack=='条盒硬盒')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,pack=='条盒硬盒')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,pack=='条盒硬盒')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,pack=='条盒硬盒')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,pack=='条盒硬盒')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,pack=='条盒硬盒')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 11,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,pack=='条盒硬盒')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 12,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "tob.group(brand, pack=='条盒硬盒')"
+  },
+  {
+   "row": 12,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "A12",
+   "expr": "tob.price",
+   "format": "#,##0.00"
+  },
+  {
+   "row": 12,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 12,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 12,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 12,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 12,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 12,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 12,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 12,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 13,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 条盒软盒",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,pack=='条盒软盒')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,pack=='条盒软盒')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,pack=='条盒软盒')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,pack=='条盒软盒')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,pack=='条盒软盒')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,pack=='条盒软盒')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,pack=='条盒软盒')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 13,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,pack=='条盒软盒')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 14,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "tob.group(brand, pack=='条盒软盒')"
+  },
+  {
+   "row": 14,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "A14",
+   "expr": "tob.price",
+   "format": "#,##0.00"
+  },
+  {
+   "row": 14,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 14,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 14,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 14,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 14,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 14,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 14,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 14,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 15,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "卷烟类型合计",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 15,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 16,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 烤烟型",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,kind=='烤烟型')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,kind=='烤烟型')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,kind=='烤烟型')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,kind=='烤烟型')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,kind=='烤烟型')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,kind=='烤烟型')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,kind=='烤烟型')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 16,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,kind=='烤烟型')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 17,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "tob.group(brand, kind=='烤烟型')"
+  },
+  {
+   "row": 17,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "A17",
+   "expr": "tob.price",
+   "format": "#,##0.00"
+  },
+  {
+   "row": 17,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 17,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 17,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 17,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 17,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 17,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 17,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 17,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 18,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "价类合计",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c)",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 18,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price)/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 19,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 一类烟",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,price_class=='一类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,price_class=='一类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,price_class=='一类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,price_class=='一类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,price_class=='一类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,price_class=='一类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,price_class=='一类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 19,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,price_class=='一类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 20,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "tob.group(brand, price_class=='一类烟')"
+  },
+  {
+   "row": 20,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "A20",
+   "expr": "tob.price",
+   "format": "#,##0.00"
+  },
+  {
+   "row": 20,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 20,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 20,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 20,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 20,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 20,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 20,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 20,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 21,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 二类烟",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,price_class=='二类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,price_class=='二类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,price_class=='二类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,price_class=='二类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,price_class=='二类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,price_class=='二类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,price_class=='二类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 21,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,price_class=='二类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 22,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "tob.group(brand, price_class=='二类烟')"
+  },
+  {
+   "row": 22,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "A22",
+   "expr": "tob.price",
+   "format": "#,##0.00"
+  },
+  {
+   "row": 22,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 22,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 22,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 22,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 22,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 22,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 22,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 22,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 23,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 三类烟",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,price_class=='三类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,price_class=='三类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,price_class=='三类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,price_class=='三类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,price_class=='三类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,price_class=='三类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,price_class=='三类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 23,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,price_class=='三类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 24,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "tob.group(brand, price_class=='三类烟')"
+  },
+  {
+   "row": 24,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "A24",
+   "expr": "tob.price",
+   "format": "#,##0.00"
+  },
+  {
+   "row": 24,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 24,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 24,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 24,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 24,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 24,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 24,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 24,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 25,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 四类烟",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,price_class=='四类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,price_class=='四类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,price_class=='四类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,price_class=='四类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,price_class=='四类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,price_class=='四类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,price_class=='四类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 25,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,price_class=='四类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 26,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "tob.group(brand, price_class=='四类烟')"
+  },
+  {
+   "row": 26,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "A26",
+   "expr": "tob.price",
+   "format": "#,##0.00"
+  },
+  {
+   "row": 26,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 26,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 26,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 26,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 26,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 26,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 26,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 26,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 27,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": " 五类烟",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m,price_class=='五类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c,price_class=='五类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_m*price,price_class=='五类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(out_c*price,price_class=='五类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m,price_class=='五类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c,price_class=='五类烟')",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_m*price,price_class=='五类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 27,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sum(sale_c*price,price_class=='五类烟')/1000",
+   "format": "0.0000",
+   "bold": true,
+   "back_color": "#EAF1EE"
+  },
+  {
+   "row": 28,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "tob.group(brand, price_class=='五类烟')"
+  },
+  {
+   "row": 28,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "A28",
+   "expr": "tob.price",
+   "format": "#,##0.00"
+  },
+  {
+   "row": 28,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 28,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 28,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 28,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.out_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 28,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m",
+   "format": "0.0000"
+  },
+  {
+   "row": 28,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c",
+   "format": "0.0000"
+  },
+  {
+   "row": 28,
+   "col": 9,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_m*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 28,
+   "col": 10,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "tob.sale_c*tob.price/1000",
+   "format": "0.0000"
+  },
+  {
+   "row": 29,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "产值单位千元 = 万支 × 元/万支 / 1000；各组合计口径不同但总数一致。",
+   "merge": {
+    "rows": 1,
+    "cols": 10
+   },
+   "fore_color": "#52666E"
+  }
+ ]
+}
