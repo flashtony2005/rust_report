@@ -17,18 +17,22 @@ rpx doctor
 
 - 默认响应是单行 JSON；脚本读取 `data`，用 `--output text` 才看人类可读文本。
 - 先看 `ok`、`error.code`、`diagnostics` 和进程退出码，不要只解析 stdout 的文本。
-- `rpx doctor` 的 `data.checks` 能检查 `--library` 可写、`--datasources` 配置形状。
+- `rpx doctor` 的 `data.checks` 检查三件事：`binary`（二进制是否落后于源码）、`--library` 可写、`--datasources` 配置形状。
+- **不确定这个二进制支持什么，先跑 `rpx capabilities`**：命令面、导出格式、限制、错误码目录、退出码语义一次给全。不要靠记忆或文档猜参数。
+- 失败响应里的 `error.hint` 是**下一步动作**（如"给 file 加 delimiter"）。先读 hint，再去翻模板。
 - 默认 CLI **没有** `format`、`template compile`、`report import-rpx`；这些只在 legacy 构建出现。不要假设它们存在。
 
 ## 命令地图
 
 | 目的 | 命令 |
 |---|---|
+| 能力自描述 | `rpx capabilities` |
+| 静态检查 | `rpx lint FILE [--data-dir D] [--strict]` |
 | 查 schema | `rpx schema template` |
 | 查函数/示例 | `rpx catalog functions --name sum`、`rpx catalog examples` |
 | 创建模板 | `rpx template create --example ID --out-dir DIR` |
 | 查看/定位单元格 | `rpx template inspect FILE --cell C6` |
-| 校验模板 | `rpx template validate FILE [--params-file P]` |
+| 校验模板 | `rpx template validate FILE [--params-file P] [--probe-data] [--data-dir D]` |
 | 补丁 | `rpx template patch FILE --patch-file P --out FILE [--dry-run]` |
 | 直接运行 | `rpx run FILE --out-dir DIR [--export csv|xlsx|print-xlsx]` |
 | 查结果 | `rpx result inspect result.json [--origin C6] [--range A1:K20]` |
@@ -66,13 +70,27 @@ JSON 响应：
 | 0 | 成功，包括空查询 |
 | 1 | 内部错误 |
 | 2 | 参数/用法错误 |
-| 3 | 定义、模板、主格或公式准备错误 |
-| 4 | 数据、参数或 SQL 错误 |
+| 3 | 定义、模板、主格或公式准备错误；`lint --strict` 有告警也返回 3 |
+| 4 | 数据、参数或 SQL 错误；`validate --probe-data` 的数据问题也走 4 |
 | 5 | 计算或分页错误 |
 | 6 | 文件/导出错误 |
 | 7 | 源码修订冲突 |
 
-失败时优先展示 `error.code`、`error.message` 和 `error.path`（若有），不要只说“命令失败”。
+失败时优先展示 `error.code`、`error.message`、`error.hint` 和 `error.json_pointer`（若有），不要只说“命令失败”。
+
+## 两条"别相信通过"的命令
+
+`template validate` 是**静态**的：它的 `checked` 只有 6 项，`deferred` 明写
+`data_loading / calculation / pagination / export`。所以 `valid: true` 不代表能出报表。
+
+| 想知道 | 用 | 它证明什么 |
+|---|---|---|
+| 有没有"不报错但产物错"的写法 | `rpx lint` | 宏写进 text、border 不落地、扩展块内空行、同排多扩展根、缺 delimiter、列宽超纸张、窄列两位小数 |
+| 文件/列名到底对不对 | `rpx template validate --probe-data` | 真读文件数据集：文件是否存在、是否被切分、表达式引用的列是否存在 |
+| 打出来几页、会不会横向分页 | `rpx run` 的 `data.layout` | `page_count / x_pages / y_pages / rows / cols`，不必再开 `workbook.json` |
+
+`lint` 只报 warning，默认退出 0；要当闸门用就加 `--strict`（有告警即退出 3）。
+它证明不了"值算对"，值必须真跑后断言产物。
 
 ## 工作流 1：独立文件
 
@@ -206,3 +224,15 @@ rpx dataset inspect FILE --name DS --data-dir ./data
 - `5`：计算/分页问题；看 run 诊断和打印设置。
 - `6`：文件/导出问题；确认输出目录不存在、源文件存在、导出限制。
 - `7`：revision 冲突；重新 `report show` 取 revision，再重做修改/运行。
+
+## 从零做一份报表：用配套技能
+
+本文件是**命令手册**（有什么命令、参数怎么给、错误码怎么读）。
+要做"从数据到可打印交付物"的实际工作，用 `rpx-report-authoring` 技能：
+它给出最小模板骨架、扩展/主格的硬约束、六类静默失败（宏写进 text、border 不落地、
+扩展块内空行、同排多扩展列、CSV 缺 delimiter、窄列两位小数）以及一条必跑的验证闸
+`scripts/verify_report.py`。
+
+一条关键事实：`template validate` 的 `checked` 只有 6 项，`deferred` 包含
+`data_loading/calculation/pagination/export`——**valid:true 不代表能出报表**。
+交付前必须真跑并断言产物。
