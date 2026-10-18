@@ -1,6 +1,6 @@
 //! Library JSON source editing and fixed run artifacts. No calculation handlers.
 use axum::{
-    extract::{rejection::JsonRejection, DefaultBodyLimit, Extension, Path, Query, Request, State},
+    extract::{DefaultBodyLimit, Extension, Path, Query, Request, State},
     http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -13,6 +13,9 @@ use rpx_runtime::{
 };
 use serde_json::{json, Value as J};
 use std::{collections::HashMap, path::PathBuf};
+
+/// 请求体上限（含未匹配路由的排空）。
+const BODY_LIMIT: usize = 64 * 1024 * 1024;
 
 /// 本地开发默认无鉴权；生产用 [`app_with_auth`]。
 pub fn app(root: PathBuf) -> Router {
@@ -32,7 +35,8 @@ pub fn app_with_auth(root: PathBuf, token: Option<String>) -> Router {
         .route("/reports/{id}/runs/{run}", get(record))
         .route("/reports/{id}/runs/{run}/source/{*path}", get(source))
         .route("/reports/{id}/runs/{run}/artifacts/{name}", get(artifact))
-        .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
+        .fallback(not_found)
+        .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .with_state(root)
         .layer(Extension(AuthRequired(required)));
     if let Some(token) = token {
@@ -53,6 +57,25 @@ async fn auth_status(Extension(AuthRequired(required)): Extension<AuthRequired>)
     Json(json!({"required": required})).into_response()
 }
 
+/// 未匹配路由：**先把请求体读完**，再回 404。
+///
+/// 不读 body 直接返回，会让 hyper 在一个接收队列还有未读字节的 socket 上关闭连接，
+/// 内核发的是 RST 而不是 FIN ⇒ 客户端在读到响应之前就吃 `ECONNRESET`，
+/// **连 404 本身都丢掉**（RFC 9112 §9.6：连接在响应送达前被重置）。
+/// 判据见 `tests/library_http.rs`：`POST /render`、`POST /export` 这两个路由
+/// **故意不存在**（回归护栏），带 8 MiB 请求体也必须稳定读到 404。
+///
+/// 遗留边界：body 超过 [`BODY_LIMIT`] 时排空会提前放弃，此时仍可能被 RST 吃掉；
+/// 根治要 `Expect: 100-continue` 或按 `Content-Length` 预检。
+async fn not_found(request: Request) -> Response {
+    let _ = axum::body::to_bytes(request.into_body(), BODY_LIMIT).await;
+    (
+        StatusCode::NOT_FOUND,
+        Json(json!({"error":{"code":"NOT_FOUND","message":"没有这个接口"}})),
+    )
+        .into_response()
+}
+
 async fn require_auth(State(auth): State<AuthState>, request: Request, next: Next) -> Response {
     let path = request.uri().path();
     if path == "/health" || path == "/auth/status" {
@@ -67,6 +90,8 @@ async fn require_auth(State(auth): State<AuthState>, request: Request, next: Nex
     if ok {
         return next.run(request).await;
     }
+    // 401 也是早退分支：同样要先把 body 读完，否则响应会被 RST 吃掉。
+    let _ = axum::body::to_bytes(request.into_body(), BODY_LIMIT).await;
     (
         StatusCode::UNAUTHORIZED,
         Json(json!({"error":{"code":"AUTH_REQUIRED","message":"需要 Authorization: Bearer <token>"}})),
@@ -121,28 +146,42 @@ async fn list(State(root): State<PathBuf>, Query(q): Query<HashMap<String, Strin
 async fn show(State(root): State<PathBuf>, Path(id): Path<String>) -> Response {
     blocking(move || library::show(&root, &id)).await
 }
-async fn save(
-    State(root): State<PathBuf>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
-    payload: std::result::Result<Json<J>, JsonRejection>,
-) -> Response {
-    let value = match payload {
-        Ok(Json(value)) => value,
-        Err(e) => {
-            let code = match e.status() {
-                StatusCode::UNSUPPORTED_MEDIA_TYPE => "UNSUPPORTED_MEDIA_TYPE",
-                StatusCode::PAYLOAD_TOO_LARGE => "PAYLOAD_TOO_LARGE",
-                _ => "JSON_INVALID",
-            };
+async fn save(State(root): State<PathBuf>, Path(id): Path<String>, request: Request) -> Response {
+    let (parts, body) = request.into_parts();
+    // 先把 body 读完再判任何东西：415/400 都是早退分支，而在接收队列非空的
+    // socket 上关闭连接会发 RST 而不是 FIN，客户端连响应都读不到（RFC 9112 §9.6）。
+    // 判据：tests/library_http.rs 用 text/plain 发 PUT，必须稳定读到 415。
+    let bytes = match axum::body::to_bytes(body, BODY_LIMIT).await {
+        Ok(bytes) => bytes,
+        Err(_) => {
             return (
-                e.status(),
-                Json(json!({"error":{"code":code,"message":e.body_text()}})),
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Json(json!({"error":{"code":"PAYLOAD_TOO_LARGE","message":format!("请求体超过 {BODY_LIMIT} 字节上限")}})),
             )
-                .into_response();
+                .into_response()
         }
     };
-    let expected = headers
+    if !is_json(&parts.headers) {
+        return (
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Json(
+                json!({"error":{"code":"UNSUPPORTED_MEDIA_TYPE","message":"Content-Type 必须是 application/json"}}),
+            ),
+        )
+            .into_response();
+    }
+    let value: J = match serde_json::from_slice(&bytes) {
+        Ok(value) => value,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error":{"code":"JSON_INVALID","message":e.to_string()}})),
+            )
+                .into_response()
+        }
+    };
+    let expected = parts
+        .headers
         .get(header::IF_MATCH)
         .and_then(|v| v.to_str().ok())
         .map(|s| s.trim_matches('"').to_string());
@@ -157,6 +196,28 @@ async fn save(
     };
     blocking(move || library::save(&root, &id, &expected, &value, false)).await
 }
+
+/// axum `Json` 认可的媒体类型：`application/json` 或 `application/*+json`，
+/// `charset` 只接受 utf-8（与 axum 0.8 的判定保持一致，别在这里放宽）。
+fn is_json(headers: &HeaderMap) -> bool {
+    let Some(content_type) = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+    else {
+        return false;
+    };
+    let mut parts = content_type.split(';');
+    let mime = parts.next().unwrap_or("").trim().to_ascii_lowercase();
+    let json = mime == "application/json"
+        || mime
+            .strip_prefix("application/")
+            .is_some_and(|sub| sub.ends_with("+json"));
+    json && parts.all(|p| {
+        let p = p.trim().to_ascii_lowercase();
+        !p.starts_with("charset=") || p == "charset=utf-8"
+    })
+}
+
 async fn runs(
     State(root): State<PathBuf>,
     Path(id): Path<String>,

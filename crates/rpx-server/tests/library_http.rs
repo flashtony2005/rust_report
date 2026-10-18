@@ -128,32 +128,26 @@ async fn web_saves_json_with_revision_and_reads_fixed_artifacts() {
         bytes,
         fs::read(library::artifact(root, "complex-master", run, "workbook.json").unwrap()).unwrap()
     );
-    assert_eq!(
-        send(&addr, "POST", "/render", Some(&json!({})), None)
-            .await
-            .0,
-        404
-    );
-    assert_eq!(
-        send(&addr, "POST", "/export", Some(&json!({})), None)
-            .await
-            .0,
-        404
-    );
+    // /render 与 /export 已下线：必须 404，且**带着请求体**也要稳定读到 404。
+    // 大 body 是刻意的：服务端若在读完 body 之前就返回，hyper 会在接收队列非空的
+    // socket 上发 RST 而不是 FIN，客户端连响应都读不到（RFC 9112 §9.6）。
+    // 小 body 下这是概率性的（实测 2/10 假红），8 MiB 把偶发变成确定。
+    let big = json!({ "pad": "x".repeat(8 * 1024 * 1024) });
+    for path in ["/render", "/export"] {
+        let (status, _) = send(&addr, "POST", path, Some(&big), None).await;
+        assert_eq!(status, 404, "{path} 必须 404，且响应不能被 RST 吃掉");
+    }
     assert_eq!(library::runs(root, "complex-master").unwrap().len(), 1);
     let (status, bytes) = send_raw(&addr, "/reports/x/template", "application/json", b"{bad").await;
     assert_eq!(status, 400);
     let value: J = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(value["error"]["code"], "JSON_INVALID");
 
-    let (status, bytes) = send_raw(
-        &addr,
-        "/reports/x/template",
-        "text/plain",
-        br#"{"grid":{"rows":1,"cols":1}}"#,
-    )
-    .await;
-    assert_eq!(status, 415);
+    // 415 同样是早退分支：body 不读完就返回，连接会被 RST（RFC 9112 §9.6）。
+    // 22 字节下这是概率性的（实测 2/20 假红），8 MiB 把偶发变成确定。
+    let big_text = vec![b'x'; 8 * 1024 * 1024];
+    let (status, bytes) = send_raw(&addr, "/reports/x/template", "text/plain", &big_text).await;
+    assert_eq!(status, 415, "415 必须能读到，不能被 RST 吃掉");
     let value: J = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(value["error"]["code"], "UNSUPPORTED_MEDIA_TYPE");
 
