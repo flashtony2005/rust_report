@@ -150,6 +150,14 @@
 | `col_props[].col` | 整数 | ✔ | 列号（1 起，1..=`grid.cols`） |
 | `col_props[].width` | 数字 \| 字符串 | ✖ | 列宽；口径同行高 |
 
+⚠ **`height` / `width` 的单位是毫米（mm）**，既不是 pt 也不是 px：`height: 10` 得到
+37.8px，`width: 14` 得到 53px。按 pt 写会得到一张几倍大的表，而且**不报错** ——
+表现是页被切成好几栏、快照只取第一页，看起来像「后面的内容丢了」。
+（2026-10-18 实测踩到：把 52/150 当 pt 写，列宽直接变成 196/567px。）
+
+⚠ `printing.auto_size`（默认 `true`）会**按内容再扩**行列：显式写的窄列会被合并格里
+的长文本撑开。要严格按自己写的宽度排版，就同时给 `"printing":{"auto_size":false}`。
+
 ### 3.5 `params[]`（可选，2026-10-16 补，M7-4）
 
 参数声明。落点是 `ReportDefine.params`（`rpx_core::param::Param` 的 5 个语义槽）；
