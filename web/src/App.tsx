@@ -35,7 +35,7 @@ import {
 } from './rowcol'
 import TemplateCellPane from './TemplateCellPane'
 import TemplateDatasets from './TemplateDatasets'
-import { galleryFiles } from './gallery-data'
+import { artifact, galleryFiles } from './gallery-data'
 import { applyTemplateCell, applyTemplateValues, parseTemplate, templateCellData, templateInputValue, templateWorkbook, type CellDraft } from './template'
 import {
   PRINT_SETUP_DEFAULTS,
@@ -886,14 +886,29 @@ export default function App() {
     }
   }
 
-  useEffect(() => { void refreshLibrary(undefined, true) }, [])
+  useEffect(() => {
+    // 示例库入口（?gallery=）已显式指定要打开的报表：跳过模板库首项的自动装载。
+    // 否则两条装载链路并行互相覆盖——不仅模板被顶掉，库里附带的 workbook 还会
+    // 把示例的运行结果挤掉，「运行结果」看到的是另一份报表。
+    if (new URLSearchParams(location.search).get('gallery')) return
+    void refreshLibrary(undefined, true)
+  }, [])
 
   useEffect(() => {
     const base = new URLSearchParams(location.search).get('gallery')
     if (!base) return
     let current = true
-    void galleryFiles(base).then(files => { if (current) void openFiles(files) })
-      .catch(error => { if (current) setStatus(`装载失败：${String(error)}`) })
+    void galleryFiles(base).then(async files => {
+      if (!current) return
+      await openFiles(files)
+      if (!current) return
+      // 同一运行目录里的 workbook.json 一并装载，「运行结果」按钮立即可用
+      // （否则 printWorkbook 为 null，按钮永远是禁用的）。读取失败时明确上屏，
+      // 不静默留一个点不动的按钮。
+      try {
+        setPrintWorkbook(await (await artifact(`${base}/workbook.json`)).json() as PrintWorkbook)
+      } catch (error) { setStatus(`装载失败：读取运行结果 workbook.json 失败（${String(error)}）`) }
+    }).catch(error => { if (current) setStatus(`装载失败：${String(error)}`) })
     return () => { current = false }
     // 此入口只在首次装载时读取固定运行版本。
   }, [])
