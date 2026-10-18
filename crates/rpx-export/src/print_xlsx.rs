@@ -38,16 +38,10 @@ pub fn to_print_xlsx(grid: &CalcGrid, setup: &PrintSetup) -> Result<Vec<u8>, Str
                 ws.set_row_hidden(i as u32).map_err(message)?;
             }
         }
-        for (i, &width) in local.col_widths.iter().enumerate() {
-            let px = unit_to_pt(width, local.unit) * 96.0 / 72.0;
-            if px > 0.0 {
-                ws.set_column_width_pixels(i as u16, px.round() as u32)
-                    .map_err(message)?;
-            }
-            if local.col_visible.get(i) == Some(&false) {
-                ws.set_column_hidden(i as u16).map_err(message)?;
-            }
-        }
+        // 列宽与行高分开：行高直接取页内投影；列宽要走「数字必须放得下」的下限，
+        // 否则真实数据比设计稿宽时，Excel 会把整格画成 `####`（见 widths 模块）。
+        crate::xlsx::write_widths(&local, ws, local.cols).map_err(message)?;
+
         crate::xlsx::write_print_sheet(&local, ws);
         graphics::write(ws, &local.graphics, &mut data)?;
         if local.rows > 0 && local.cols > 0 {

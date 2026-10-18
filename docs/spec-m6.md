@@ -57,7 +57,7 @@ rpx-server（加 /export 路由）  +  rpx-cli（加 render --out）
 | 序 | 出口 | 为什么这个顺序 |
 | --- | --- | --- |
 | M6-01 | **CSV 文本** | 格式最简单、无第三方依赖（engine 纯 std 即可写）；既是对拍基准，又是 CLI 第一个真导出 |
-| M6-02 | **xlsx** | `rust_xlsxwriter`；含 `merge_range`、行高列宽后置 |
+| M6-02 | **xlsx** | `rust_xlsxwriter`；含 `merge_range`、行高列宽后置。（v0.16 补记：列宽已落地，见 `rpx-export::widths` —— 模板列宽 + 「数字放得下」下限，防止 Excel 把放不下的数字画成 `####`） |
 | M6-03 | server `/export` 路由 | 把前两个接到 HTTP 文件流 |
 | M6-04 | CLI `render --out` | 补审计遗留③（凡验收写了 `CLI X` 就必须有真跑 CLI 的断言） |
 | — | PDF / Word / HTML | **后置**，`rpx-print` 另立里程碑（蓝图 §11） |

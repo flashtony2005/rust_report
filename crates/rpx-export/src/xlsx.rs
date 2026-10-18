@@ -51,12 +51,19 @@
 //!    ⛔ 不钉 `creation_time` 则 `docProps/core.xml` 写**当前 UTC 时刻**，
 //!    跨秒两次调用字节即不同 —— M6-03 的 socket×库直调对拍实测抓到
 //!    （跨秒即不等）。M6-04 的「CLI 产出与库函数直调逐字节一致」依赖本条。
+//!
+//! # 列宽（v0.16）
+//!
+//! 首版**完全不写** `<cols>`，Excel 按默认 8.43 字符（≈64px）显示——`#,##0.00`
+//! 的金额、长尾小数放不下就被画成 `####`，用户看到的是"坏数据"。现在：
+//! 模板列宽照写，且对**数值格**加宽到"放得下"（文本格不动，Excel 文本溢出不会
+//! 变 `####`）。判据与合并区摊法见 [`crate::widths`]。
 
 use std::collections::{HashMap, HashSet};
 
 use rpx_engine::arena::{CalcCell, CalcGrid, MergedCell};
 use rpx_engine::value::Value;
-use rust_xlsxwriter::{DocProperties, ExcelDateTime, Format, Workbook, Worksheet};
+use rust_xlsxwriter::{DocProperties, ExcelDateTime, Format, Workbook, Worksheet, XlsxError};
 
 use crate::text::value_text;
 
@@ -67,7 +74,7 @@ const EXCEL_MAX_COLS: i32 = 16_384;
 /// Excel 单元格文本硬上限（**字符**数；与写库 `MAX_STRING_LEN` 同粒度）。
 const EXCEL_MAX_TEXT_CHARS: usize = 32_767;
 
-/// 计算态网格 → xlsx 字节（单 sheet、无样式；边界见模块文档）。
+/// 计算态网格 → xlsx 字节（单 sheet、无字体/边框样式但**有列宽**；边界见模块文档）。
 pub fn to_xlsx(grid: &CalcGrid) -> Vec<u8> {
     let mut workbook = new_workbook();
     write_sheet(grid, workbook.add_worksheet());
@@ -90,6 +97,10 @@ pub(crate) fn write_print_sheet(grid: &CalcGrid, ws: &mut Worksheet) {
 fn write_sheet_impl(grid: &CalcGrid, ws: &mut Worksheet, styled: bool) {
     let max_row = grid.rows.clamp(0, EXCEL_MAX_ROWS);
     let max_col = grid.cols.clamp(0, EXCEL_MAX_COLS);
+
+    // 列宽必须写：不写就是 Excel 默认的 8.43 字符（≈64px），两位小数的金额、
+    // 占比的长尾小数一律被画成 `####` —— 用户看到的是"坏数据"，不是"窄列"。
+    write_widths(grid, ws, max_col).expect("已验证列宽");
 
     // 稀疏格索引（越界/超上限的格不参与）。
     let mut index: HashMap<(i32, i32), &CalcCell> = HashMap::with_capacity(grid.cells.len());
@@ -153,6 +164,25 @@ fn write_sheet_impl(grid: &CalcGrid, ws: &mut Worksheet, styled: bool) {
         };
         write_merged(ws, a, &payload, &format);
     }
+}
+
+/// 列宽落到工作表：模板列宽，且**至少放得下本列的数字**（见 `widths` 模块）。
+///
+/// 隐藏列写 `hidden`（宽 0 的列在 Excel 里是 0 宽但仍占位，与"隐藏"不等价）。
+pub(crate) fn write_widths(
+    grid: &CalcGrid,
+    ws: &mut Worksheet,
+    max_col: i32,
+) -> Result<(), XlsxError> {
+    let widths = crate::widths::fitted(grid, &crate::widths::base_px(grid));
+    for (i, px) in widths.iter().enumerate().take(max_col.max(0) as usize) {
+        if *px > 0.0 {
+            ws.set_column_width_pixels(i as u16, px.round() as u32)?;
+        } else if grid.col_visible.get(i) == Some(&false) {
+            ws.set_column_hidden(i as u16)?;
+        }
+    }
+    Ok(())
 }
 
 fn write_styled_payload(ws: &mut Worksheet, r: i32, c: i32, p: &CellPayload, f: &Format) {

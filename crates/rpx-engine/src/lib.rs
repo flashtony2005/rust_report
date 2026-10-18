@@ -121,6 +121,7 @@ pub mod literal;
 pub mod macros;
 pub mod main_cell;
 pub mod merge;
+pub mod numfmt;
 pub mod pager;
 pub mod params;
 pub mod stage_a;

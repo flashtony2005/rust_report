@@ -19,6 +19,7 @@
 pub mod csv;
 pub mod print_xlsx;
 mod text;
+mod widths;
 pub mod xlsx;
 
 pub use csv::to_csv;

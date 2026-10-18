@@ -13,7 +13,9 @@ pub mod gallery;
 pub mod import;
 pub mod library;
 pub mod lint;
-pub mod numfmt;
+/// 数字格式子集 → 显示文本。**实现在 `rpx-engine`**：导出面（`rpx-export`）
+/// 算列宽时要用同一套口径，而它按分层矩阵不能依赖本 crate。
+pub use rpx_engine::numfmt;
 pub mod parameters;
 pub mod pdf;
 pub mod print_html;
