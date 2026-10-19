@@ -16,3 +16,10 @@
 # ⛔ 用 `-text` 覆盖（同文件多规则时**后行优先**），xlsx 是 zip 二进制同样显式声明。
 /tests/fixtures/out/export_*.csv -text
 /tests/fixtures/out/export_*.xlsx -text
+
+# Java probe 的原始输出（Windows 上生成，行尾含 CRLF；RUNLOG 记了它的 sha256）。
+# `*.txt text eol=lf` 会让 git 每次比较都把工作区版本规范化成 LF，
+# 而库里的 blob 原样留着 CR —— 三者（HEAD blob / index / 工作区）字节完全相同
+# 却永远报「150 增 150 删」的假脏（见 docs/code-review.md §1-②、§5.11）。
+# ⛔ 别对这条文件 `git add` 去「修好」它，那会把换行符噪音真提交进去。
+/tests/fixtures/probe_out.txt -text
