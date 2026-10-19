@@ -114,6 +114,9 @@ export default function App() {
   const cellDirtyRef = useRef(false)
   const datasetDirtyRef = useRef(false)
   const requestRef = useRef(0)
+  /** 示例库入口（?gallery=）装载的运行目录。模板没入库（saved 为 null），
+   * 导出只能从这个静态目录拉 report.csv/report.xlsx。 */
+  const galleryBaseRef = useRef<string | null>(null)
   const [documentKey, setDocumentKey] = useState(0)
   const [sheetReady, setSheetReady] = useState(false)
   const setView = (next: 'design' | 'result') => { viewRef.current = next; setViewState(next) }
@@ -324,6 +327,16 @@ export default function App() {
     } catch (error) { setStatus(`读取失败：${error instanceof Error ? error.message : String(error)}`) }
   }
   const render = async () => {
+    if (!saved && printWorkbook) {
+      // 示例库入口（?gallery=）：模板是磁盘文件、没有入库 ⇒ saved 为 null，
+      // 但装载时已把该次运行的 workbook.json 读进 printWorkbook。此时没有
+      // 「重跑」可做，这个固定运行版本就是拿来展示的结果。
+      // 原先这条路上 render() 会以「请从模板库选择报表」拒绝 —— 按钮因
+      // printWorkbook 非空而可点，却永远点不动（见装载处的注释）。
+      attachSnapshot(printWorkbook, defRef.current, 'json')
+      setStatus(`正在查看示例库附带的运行结果（${printWorkbook.sheetOrder.length} 个 sheet）`)
+      return
+    }
     if (!saved) { setStatus('请从模板库选择报表；本地模板可通过 rpx run 执行'); return }
     if (!readyToLeaveCell()) return
     try {
@@ -360,8 +373,22 @@ export default function App() {
   /** W3-4：导出 Excel/CSV（`POST /export`，M6-03 服务端已就绪）——优先导出
    * **打过补丁的 def**（与「渲染」持有 def 优先同口径），否则回落磁盘源。 */
   const exportFile = async (fmt: 'csv' | 'xlsx' | 'print-xlsx') => {
-    if (!saved || !selectedRun) { setStatus('请先选择一次成功运行'); return }
     const name = fmt === 'csv' ? 'report.csv' : fmt === 'xlsx' ? 'report.xlsx' : 'report-print.xlsx'
+    // 示例库入口：模板是磁盘文件（saved 为 null），但装载目录里就躺着这次的
+    // report.csv / report.xlsx —— 直接拉静态文件，不走服务端 artifacts 路由。
+    if (!saved || !selectedRun) {
+      if (galleryBaseRef.current && (fmt === 'csv' || fmt === 'xlsx')) {
+        try {
+          const response = await fetch(`${galleryBaseRef.current}/${name}`)
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          downloadBlob(await response.blob(), name)
+          setStatus(`已下载示例库附带的 ${name}`)
+        } catch (error) { setStatus(`下载失败：${String(error)}`) }
+        return
+      }
+      setStatus('请先选择一次成功运行')
+      return
+    }
     const run = runs.find(run => run.run_id === selectedRun)
     if (!run?.artifacts[name]) { setStatus(`该次运行未生成 ${name}；请由 agent 使用 --export ${fmt} 再执行`); return }
     try {
@@ -973,6 +1000,7 @@ export default function App() {
     const base = new URLSearchParams(location.search).get('gallery')
     if (!base) return
     let current = true
+    galleryBaseRef.current = base
     void galleryFiles(base).then(async files => {
       if (!current) return
       await openFiles(files)
