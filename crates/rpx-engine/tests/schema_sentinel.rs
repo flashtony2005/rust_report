@@ -204,10 +204,15 @@ fn pagination_and_merged_keys_are_uniform_and_absent_on_error_form() {
     }
 }
 
-/// `calculated.error` 的键：只在错误形态出现，且集合固定。
+/// `calculated.error` 的键：只在错误形态出现，且只能是登记过的 5 个。
+///
+/// M5-09 起改为**子集**校验：产品按错误来源按需写 `cause_*` / `chain`
+/// （`GenEngineFixtures.errorJson`：有 cause 才写 cause_*，消息里能抠出格链才写 chain）。
+/// 例：`engine_cycle` 5 键齐；`engine_hc_err`（`&` 非主格）只有 class+message。
+/// 但 `class` / `message` 必须恒在，且不允许出现未登记键。
 #[test]
 fn error_object_keys_are_uniform_and_only_on_error_form() {
-    let expect: Vec<String> = ERROR_KEYS.iter().map(|s| s.to_string()).collect();
+    let allowed: Vec<String> = ERROR_KEYS.iter().map(|s| s.to_string()).collect();
     let mut seen = 0usize;
     for name in all_names() {
         let root = load_raw(name);
@@ -217,7 +222,17 @@ fn error_object_keys_are_uniform_and_only_on_error_form() {
                 assert!(!is_error_form(&root), "{name}: 形态判定与 error 键不一致");
             }
             Some(e) => {
-                assert_eq!(keys_of(e, name), expect, "{name}: error 对象键集合不符");
+                let got = keys_of(e, name);
+                assert!(
+                    got.iter().all(|k| allowed.contains(k)),
+                    "{name}: error 出现未登记键 {got:?}（允许集 {allowed:?}）"
+                );
+                for must in ["class", "message"] {
+                    assert!(
+                        got.contains(&must.to_string()),
+                        "{name}: error 缺 `{must}` 键"
+                    );
+                }
                 seen += 1;
             }
         }

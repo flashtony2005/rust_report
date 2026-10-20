@@ -3993,3 +3993,271 @@ clippy 干净；G1–G8 全绿。spec-m6 v0.6。
   该失败时就要失败。
 - **沉淀的持久改进**：写失败收集式（`export_baseline.rs`，一次运行看全貌）+
   `.gitignore` 的 `*.res` + `export_baseline.rs` 的「环境抖动」注释提示。
+
+## M5-09 层次坐标/格集探针（2026-10-20）
+
+- 新增 `ProbeHc.java`（22 例，两轮）；产物 `out/hc_probe.log`（GBK 原样）+
+  `out/hc_probe_summary.txt` / `hc_fixed.txt` / `hc_round2.txt`（UTF-8 摘要）。
+- 编译/运行：
+  ```bash
+  cd F:/project/report/rpx/tests/fixtures
+  "D:/Tools/jdk-21.0.2/bin/javac.exe" --release 8 -Xlint:none \
+    -cp "F:/project/report/reportlite/lib/*;out" ProbeHc.java -d out
+  "F:/project/report/common/jre/bin/java.exe" \
+    -cp "F:/project/report/reportlite/lib/*;out" rpx.fixtures.ProbeHc .
+  ```
+- 结论（详见 `docs/spec-m5-09-hier-coord.md` §2.1）：
+  - 绝对坐标 ✅ **1-based**；根坐标 `` `0 `` ✅；`{}` ✅（count 全量 6 / 单列 3 / 数值 sum 6）；
+  - `&` ✅ **1-based**（行/列主格均可）；非主格报「A2不是F8的主格」；
+  - 相对坐标：**有主格越界 → null**；**无该主格 → 报「"[]"位移对象超出范围」**；`!` 倒数**不支持**；
+  - 空数据集 → 坐标退化为模板单格（count=1）；文本 `sum` → 字符串拼接（"E/AN/A"）。
+- 三个布局坑：
+  1. 产品 `.csv` 是 **TAB 分隔**（逗号会整列丢失，报「无法识别的表达式：region」）；
+  2. 扩展会移动固定格（模板 (8,6) → 计算态 (10,7)），断言一律用计算态坐标；
+  3. 列带内的格会横向复制（`FIXA` 出现两次），固定探针格必须放带外列（col 6 仅一份）。
+
+## M5-09 首批夹具（2026-10-20，5 条，主对拍绿）
+
+- 新增 `EngineModelsHc.java`（5 夹具）+ `GenEngineFixtures.NAMES` 23→28；
+  `EngineModels.build/rows` 分派；`writeCsv`/`render` 增 `region/product/amount` 表头。
+- 生成：
+  ```bash
+  cd F:/project/report/rpx/tests/fixtures
+  "D:/Tools/jdk-21.0.2/bin/javac.exe" --release 8 -cp "F:/project/report/reportlite/lib/*" *.java -d out
+  "F:/project/report/common/jre/bin/java.exe" -cp "F:/project/report/reportlite/lib/*;out" rpx.fixtures.GenEngineFixtures .
+  ```
+  产物：`engine_hc_{abs,offset,root,cellset,amp}.{rpx,csv,expected.json}`，计算态均 14×9。
+- `.rpx → JSON`（**CLI 必须 `--features legacy-rpx` 构建**）：
+  ```bash
+  cd F:/project/report/rpx
+  cargo build -p rpx-cli --features legacy-rpx
+  target/debug/rpx.exe format to-json tests/fixtures/engine_hc_abs.rpx \
+    --out tests/fixtures/format/engine/engine_hc_abs.json --mode preserve
+  ```
+- 接入：`loader.rs all_names` 23→28、`fixture_loader` 断言 28、
+  `format_engine_json` 名单 28、`expr_state_tripwire` 117→145。
+- 结果：`cargo test -p rpx-engine` 全绿；`format_engine_json --features legacy-rpx` 3 测试绿。
+  手算抽检：abs → (10,7)=`N/B`、(10,8)=`E/C`、(10,9)=`N/A`；FIXA 复制两份、FIXB 单份。
+- 经验：**CLI 的 `format` 子命令默认不编译**（feature `legacy-rpx` 门控），
+  二进制名是 `rpx.exe` 不是 `rpx-cli.exe`；`--source-hash` 参数不存在。
+
+## M5-09 第二批夹具（2026-10-20，cond / empty）
+
+- 先用 `ProbeHc2.java` 证布局：教程式同比 = A2 年（ds1）→ B2 月（ds2）→ C2 值 → D2 差额。
+  **年维表与明细表必须拆分数据集**——同一数据集里 A2 的 select 会把游标钉在组首行，
+  B2 只能取到 1 行（第一版探针：每年只有 M1，`subCells=1`）。
+- `engine_hc_cond`（13×5）：手算断言 2025 三行 = 10/20/30（目标空 ⇒ 当前值），
+  2026 三行 = 5/5/5；去掉 `{$B2==B2}` 则 2026 M2/M3 错取去年 M1（15/25）⇒ 条件承重。
+- `engine_hc_empty`（12×8）：空数据集下 B2 = "/"，`count(B2[;B1:1]{})` = 1（不是 0）。
+- 接入：NAMES / `loader.rs` / `format_engine_json` 名单 28→30、
+  `expr_state_tripwire` 145→153。
+- ⚠ 验证被本机安全策略拦住：写 `target/debug/incremental/m09_compare-*/query-cache.bin`
+  触发了 Security Center 规则，全量 `cargo test -p rpx-engine` 未跑完；
+  需放行后重跑（或 `CARGO_INCREMENTAL=0` 重试）。
+
+## M5-09 第三批夹具（2026-10-20，ds / order / err / cycle）
+
+- `ProbeHc3.java` 结论：
+  - **ds**：`ds1.select(amount, product==A2[2])` 在固定格里返回 20/50 两行 ⇒ 固定格纵向扩展（15×9），
+    坐标值可作过滤参数；`region==B1[2]` 取不到值（横向头序号在过滤里不生效），不进夹具。
+  - **order**：三级链（部门→组→人，三张维表）`[A2:2,B2:1,C2:2]` = 212、`[A2:1,B2:2,C2:1]` = 121，17×8。
+  - **merge**：把 B2:C2 合并后横向扩展被扭曲（两列都出 E/A），固定格坐标落空
+    ⇒ **本批不做**，需换单方向布局重探（数据来源：`out/hc3_summary.txt`）。
+  - **err**：`&A2` 非主格 → `ReportError: 单元格F8中有错误: … A2不是F8的主格`（无 chain）。
+- 引擎侧由此暴露并修复 3 处：
+  1. `expr/eval/ops.rs`：一元/二元操作数加**标量降级**（List 取首元素、空集 → null；
+     `in` 右操作数除外）——原先 `10 - List([])` 直接报 UnsupportedExpr。
+  2. `expr/num.rs`：减法补 null 语义（null 当 0；探针 B_cond 首年 `10 - 空 = 10`）。
+  3. `calc/run.rs`：错误链改用**模板格号**（`h.src_row/src_col`）并对连续同格折叠——
+     原先自引用报 `D2-D2-D2`（计算态地址），产品报 `C2-C2`；修后一致，
+     互引链 `B2-C2-B2-C2` 不受影响。命名/格式化拆到 `calc/chain.rs`
+     （G4：`run.rs` 509 → 481 行）。
+- 另放宽 `schema_sentinel` 的 error 键校验：由「固定 5 键」改为「5 键的子集 + class/message 必在」
+  （产品按需写 `cause_*`/`chain`，`engine_hc_err` 只有 2 键）。
+- 结果：`cargo test -p rpx-engine` 22 个测试二进制全绿（34 夹具逐格）；
+  `format_engine_json --features legacy-rpx` 3 测试绿。安全策略仍在时用 `CARGO_INCREMENTAL=0` 规避。
+
+## §48 M5-09 收口：合并区夹具 + 变异钉子（2026-10-20 上午）
+
+### 48.1 `ProbeHc4` —— 合并区为什么必须单方向（11 例）
+
+上一批（§47）把 `B2:C2` 合并塞进 3×3 交叉矩阵时，产品把横向扩展弄歪（两列都出 `E/A`），
+固定格坐标也落空。本探针换**只纵向扩展**：
+
+```
+A2 纵向 ds1.select(dept)（D1/D2/D3）      B2:C2 横向合并      B2 = A2+"#"
+```
+
+| 问 | 结论 | 证据（计算态） |
+| --- | --- | --- |
+| Q1 锚点 | `B2[A2:k]` = 第 k 实例 | (10,6)=`D1#` |
+| Q2 延续槽 | `C2[A2:k]` **读锚点值** | `C2[A2:2]`=`D2#`、`C2[A2:3]`=`D3#` |
+| Q3 格集 | 延续槽不重复计数 | `count(C2[`0]{})` = `count(B2[`0]{})` = **3** |
+| Q4 合并复制 | **只第 1 实例保留合并** | (2,3) cm=2；src(3,3) cm=1 |
+
+两条坑：
+
+1. **`B2[A2]{}`（有主格、无序号）在固定格报错**「"[]"位移对象超出范围」——固定格没有 A2
+   实例。数全量必须用根坐标 `` count(B2[`0]{}) ``。
+2. **合并区不能与横向扩展同带**：`B2:C2` + B1 横向扩展 ⇒ 两列同值，扩展被扭曲。
+
+### 48.2 夹具 #7 `engine_hc_merge`（14×8）
+
+`EngineModelsHc.merge`：A2 三行部门、B2:C2 合并、B2 = `A2+"#"`；五个探针格：
+
+| 模板 | 表达式 | 计算态 | 值 |
+| --- | --- | --- | --- |
+| F8 | `B2[A2:1]` | (10,6) | `D1#` |
+| G8 | `C2[A2:2]` | (10,7) | `D2#` |
+| H8 | `C2[A2:3]` | (10,8) | `D3#` |
+| F9 | `count(C2[`0]{})` | (11,6) | 3 |
+| G9 | `count(B2[`0]{})` | (11,7) | 3 |
+
+**rpx 首次跑就绿**：横向延续槽在 `stage_b/merge_alias.rs` 已建 `by_src` 别名，
+坐标侧无需新代码。接入改动只有 `NAMES` 34→35、`loader.rs` / `fixture_loader` /
+`format_engine_json` 同步 35、`expr_state_tripwire` 171→178（+7 公式）。
+
+### 48.3 变异钉子 `crates/rpx-engine/tests/hc_tripwire.rs`（4 条，实跑验证）
+
+每条钉子先证明「变异预测值 ≠ 正确值」（守卫），再钉承重格的值；守卫一破即红。
+
+| 变异 | 改动 | 结果 |
+| --- | --- | --- |
+| M1 序号基准 | `coord.rs:274` `n - 1` → `n` | 🔴 4 条全红（`[A2:3]` 先越界，`calculate` 直接报 unknown cell） |
+| M2 链次序 | `coord.rs:323` `for seg in &coord.left` → `.rev()` | 🔴 `engine_hc_order: unknown cell: B2（坐标 第 1 个实例不存在）` |
+| M3 位移基准 | `coord.rs:279` `resolve_cell(...)` → `cands[0]` | 🔴 守卫命中「三个副本同值 ⇒ 位移基准不可观测」 |
+| M4 合并别名 | `merge_alias.rs:59` 横向延续槽并入纵向影子格 | 🔴 `(10,7) 期望文本，实际是 Null` |
+
+**M4 的第一次变异选错了点**：改 `stage_a.rs` 的 `if i == br { continue; }` 与
+`else { continue; }` 都不改变可观测行为 —— 真正的别名表在 `stage_b/merge_alias.rs`
+（`by_src` 那一段）。教训：**改一处"看起来负责合并"的代码不等于改到语义点，
+必须按 `file:line` 找注册 `by_src` 的地方**。
+
+四条的变异都用 `cp 原文件 备份 → 改 → 测 → 恢复` 在同一调用内完成（工作区有大量未提交改动，
+不能用 `git checkout` 复原）。
+
+### 48.4 收口状态
+
+- `cargo test -p rpx-engine`：**23 个测试二进制全绿**（含新 `hc_tripwire`），35 夹具逐格对拍零差异。
+- `cargo test -p rpx-runtime --features legacy-rpx --test format_engine_json`：3 绿。
+- M5-09 §6 四条验收标准全部有证据；`spec-m5-09-hier-coord.md` 状态改为「已实现 + 12 夹具 + 变异钉子」。
+
+## §49 M5 §6.3 残账清零（2026-10-20 中午）
+
+### 49.1 `ProbeM5Rest` —— P1 / P2 / P4（12 例）
+
+数据集 `m5r.csv`（TAB）：`id k1 k2 g` = `7 K Z B / 3 K Z A / 9 K Z B / 1 K Z A / 5 K Z B`；
+另有 `m5r_sorted.csv` 作有序对照。
+
+| 问 | 结论 | 证据 |
+| --- | --- | --- |
+| P1 多键全相等 | 产出 = **输入序** 7/3/9/1/5（含单键 `;k1` 同结论）；对照 `;id` = 1/3/5/7/9 | `P1_multikey_all_equal` / `P1_by_id` |
+| P2 过滤非布尔 | 三形态（常量 `5` / `id+1` / `"x"`）同一条内层文本「记录过滤条件应该返回布尔值」 | `P2_filter_*` |
+| P4 `sum@b` | 无序 `B A B A B`：`@b` = **9**、线性 = **21**；升序 `A A B B B`：两者 = 21（`A` 组 = 4） | `P4_sum_*` |
+
+⇒ P1 证「稳定排序等价」，P2 证文本已对齐，P4 证「等价域 = 升序」，并顺带核出
+**降序数据二分查不到**（`B B B A A` 下 `sum@b(g=="A")` = 0）。
+
+### 49.2 三条夹具 + 两处工程修复
+
+| 夹具 | 形状 | 钉什么 |
+| --- | --- | --- |
+| `engine_tiesort` | 22×4；A2 纵展 `;k1,k2`，D8 另一条纵带 `;id` | 全键相等保持输入序；对照带证排序通道有效 |
+| `engine_rowtest` | 错误型 | `ds1.select(id, 5)` → ReportError（消息「记录过滤条件应该返回布尔值」） |
+| `engine_groupb` | 8×4 | 升序下 `sum@b` ≡ `sum`（21/21/4）——`@b` 的等价域 |
+
+1. **解析器缺口**：`ds1.select(id,,,;k1,k2)` 原先在 `,,,` 上报「表达式不能以 `,` 开头」
+   —— `parse_params` 只做顶层一层切分，`;` 段里的 `id,,` 被当成普通表达式。
+   修法（`expr/call.rs`）：顶层是 `;` 且子段含顶层 `,` 时**递归成嵌套参数组**
+   （`Expr::ValueList`），对应产品 `ParamParser._$1` 的 `;`→`,`→`:` 递进。
+   DS 调用的真实参数走 `param_tree`，扁平 args 仅供 `list(...)`/普通函数，语义不受影响。
+2. **错误映射**：`engine_grid_compare::error_class_chain` 补 `UnsupportedExpr →
+   ReportError`（无 chain）——`engine_rowtest` 的产品侧就是 `Row.test` 抛的 ReportError。
+
+接入：`NAMES` 35→38、`loader.rs` / `fixture_loader` / `format_engine_json` 同步 38、
+`expr_state_tripwire` 178→184（+6 公式）。
+
+### 49.3 钉子 `crates/rpx-engine/tests/m5_residual.rs`（3 条）
+
+- `non_boolean_filter_carries_the_product_row_test_wording`：钉内层措辞（主对拍只比 class/chain）
+- `tied_sort_keys_keep_the_input_order`：先证对照带 1/3/5/7/9，再钉并列带 7/3/9/1/5（防空转）
+- `group_binary_option_matches_linear_when_the_column_is_sorted`：钉等价域 + 两组值可辨
+
+### 49.4 P3（合并段断在分组头行）—— 仍带账，但核出两条硬约束
+
+`ProbeMergePage` 4 布局（`out/mergepage_probe.log`）：
+
+- **显式合并区不能盖 `rowType=-90` 的行** —— 产品报「表头合并设置不合法」
+  ⇒ 该形态只能由 **mergeSame 运行期同值合并**产生。
+- mergeSame 版跑通，但 6 行数据出 6 页 ⇒ **行高单位与 `dumpPages(595,842)` 口径没校准**，
+  页边界不可控。**页边界不可控就不能钉「分页点落在分组头行」**，故不实现（不凭源码猜）。
+- 下一步：先做行高标定探针（单列 N 行 × 已知高度 → 读 `rowNumPerPage`/每页行数）。
+
+### 49.5 验证
+
+```
+cargo test -p rpx-engine --test engine_grid_compare   → 7 passed（38 夹具逐格）
+cargo test -p rpx-engine --test expr_state_tripwire   → 2 passed
+cargo test -p rpx-engine --test fixture_loader        → 10 passed
+cargo test -p rpx-engine --test hc_tripwire           → 4 passed
+cargo test -p rpx-engine --test schema_sentinel       → 6 passed
+cargo test -p rpx-engine --test m5_residual           → 3 passed
+cargo test -p rpx-engine --test cross_dataset_compare / m09_compare / merged_assert / pager_guard → 全绿
+cargo test -p rpx-engine --test disp_assert / subcell_assert / root_heads / fixture_shape /
+                              fixture_types / loader_contract / units_contract → 全绿
+cargo test -p rpx-runtime --features legacy-rpx --test format_engine_json → 3 passed
+```
+
+## §50 M5 §6.3 ⑦ 结案：行高标定 + 分组头行不可驱动（2026-10-20 下午）
+
+### 50.1 `ProbeRowHeight` —— 行高单位与分页口径（8 组行高，一次钉死）
+
+| 行高 | 12 行的分页结果 | 反解 |
+| --- | --- | --- |
+| 20 | 1 页 | 240mm ≤ 297mm |
+| 30 | 9 + 3 | 9×30=270 ≤ 297，10×30=300 > 297 |
+| 50 | 5 + 5 + 2 | 5×50=250 ≤ 297，6×50=300 > 297 |
+| 100 | 2 × 6 | 2×100=200 ≤ 297，3×100=300 > 297 |
+| 150 | 1 × 12 | 2×150=300 > 297 |
+
+结论：**`setRowHeight(x)` 的单位是 mm**；`getPagerInfo(rpt, 595, 842, 1)` 的 595/842 是
+**pt**（A4 纵向，842pt ≈ 297mm）⇒ 每页可用高度 297mm；每页行数 = 累计高度不超 297mm
+的最大行数；**`rowNumPerPage` 是常量 20，与真实切页无关**（此前被它误导过）。
+
+### 50.2 `ProbeMergePage` —— 分组头行的三条路径全被产品拒绝
+
+| 布局 | 产品行为 |
+| --- | --- |
+| 显式合并区盖住 `rowType=-90` 的行 | 报错「表头合并设置不合法」 |
+| 带内行本身设 -90（随实例复制到每行） | `SimplePager.createPages` **NPE**（堆栈见 `out/mergepage_probe.log`） |
+| 两行带（数据行 + 分组头行 left_head=A2）+ mergeSame | mergeSame **不合并**——相邻同值才合并，分组头行插在中间断了相邻性 |
+
+⇒ 原带账描述的「合并段断在分组头行」在产品侧**不可驱动**，按「无夹具不实现」结案
+（与 ⑧ `filtercross` 同类）。
+
+### 50.3 新夹具 `engine_mergepage`（39 夹具，主对拍全绿）
+
+- 模板：A2 `ds1.select(g)` 纵展 + mergeSame、B2 `ds1.select(id)` 纵展；行高 100mm ⇒ 每页 2 行；
+  数据 A,A,A,B,B,B ⇒ A 段跨第 1/2 页、B 段跨第 2/3 页。
+- 产品基准：3 页；`merged` 只报第 1 页的 A 段两行（`row_merge=2`）与末页的 B 段两行，
+  跨页后只剩 1 行的那一页**不上报**（跨度 1 = 非合并）。
+- 本仓 `calc/merged_view.rs::page_slots`（矩形求交）**逐格一致**，夹具一次通过 ⇒
+  现有实现无需改动，⑦ 从「未复刻」改判「已结案」。
+- 接入：`NAMES` 38→39、`loader.rs` / `fixture_loader` / `format_engine_json` 同步 39、
+  `expr_state_tripwire` 184→186（+2 公式）。
+
+### 50.4 验证
+
+```
+engine_grid_compare 7 / cross_dataset_compare 2 / m09_compare 3 / merged_assert 3
+pager_guard 5 / engine_rowheight_pager 5 / expr_state_tripwire 2 / fixture_loader 10
+hc_tripwire 4 / m5_residual 3 / schema_sentinel 6        → 全绿
+format_engine_json（legacy-rpx）3                        → 全绿
+```
+
+⚠ **lib 单测仍未跑**：`target/debug/deps/rpx_engine-6446e7259d97cb6c.exe` 被本机
+Security Center 规则拦住写入，按提示未重试。放行后补一次 `cargo test -p rpx-engine --lib`。
+
+
+
+

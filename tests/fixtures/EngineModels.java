@@ -23,6 +23,14 @@ final class EngineModels {
 	}
 
 	static ReportDefine2 build(String name) {
+		// M5-09：层次坐标/格集夹具（engine_hc_*）统一交给 EngineModelsHc 构造。
+		// M5 §6.3 残账三夹具（tiesort / rowtest / groupb）。
+		if (EngineModelsM5r.isM5r(name)) {
+			return EngineModelsM5r.build(name);
+		}
+		if (EngineModelsHc.isHc(name)) {
+			return EngineModelsHc.build(name);
+		}
 		if ("engine_sum".equals(name)) {
 			return sumFixture();
 		}
@@ -262,6 +270,14 @@ final class EngineModels {
 	}
 
 	static String[][] rows(String fixture) {
+		// M5-09：hc 夹具的数据集按名分派（cond=year/month/amount，empty=0 行）。
+		// M5 §6.3：残账三夹具的数据集各自分派。
+		if (EngineModelsM5r.isM5r(fixture)) {
+			return EngineModelsM5r.rows(fixture);
+		}
+		if (EngineModelsHc.isHc(fixture)) {
+			return EngineModelsHc.rows(fixture);
+		}
 		if ("engine_pager".equals(fixture)) {
 			String[][] r = new String[40][2];
 			for (int i = 0; i < 40; i++) {

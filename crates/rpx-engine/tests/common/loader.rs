@@ -11,9 +11,9 @@ use std::path::PathBuf;
 use super::json::{self, Json};
 use super::model::*;
 
-/// 20 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致；末两位是 M5-04
-/// 新增的嵌套主子表夹具 `engine_cross` / Root 态跨数据集 `engine_cross_root`）。
-pub fn all_names() -> [&'static str; 23] {
+/// 39 个夹具名（顺序与 `GenEngineFixtures.java` 的 `NAMES` 一致；末十二个是
+/// M5-09 层次坐标/格集夹具 `engine_hc_*`）。
+pub fn all_names() -> [&'static str; 39] {
     [
         "engine_sum",
         "engine_ext",
@@ -38,6 +38,23 @@ pub fn all_names() -> [&'static str; 23] {
         "engine_crossalign",
         "engine_crossalign_lit",
         "engine_crossalign_ds2",
+        "engine_hc_abs",
+        "engine_hc_offset",
+        "engine_hc_root",
+        "engine_hc_cellset",
+        "engine_hc_amp",
+        "engine_hc_cond",
+        "engine_hc_empty",
+        "engine_hc_ds",
+        "engine_hc_order",
+        "engine_hc_err",
+        "engine_hc_cycle",
+        "engine_hc_merge",
+        // M5 §6.3 残账（P1 多键并列 / P2 过滤非布尔 / P4 group@b 等价域）。
+        "engine_tiesort",
+        "engine_rowtest",
+        "engine_groupb",
+        "engine_mergepage",
     ]
 }
 

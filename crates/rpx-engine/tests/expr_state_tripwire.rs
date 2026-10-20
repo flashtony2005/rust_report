@@ -71,7 +71,25 @@ use common::{all_names, load};
 /// 交叉点 `B1+"/"+A2`——Binary(+, CellRef, Constant) 未覆写）+
 /// `engine_crossalign_lit` 2 条 + `engine_crossalign_ds2` 2 条，
 /// 均 state 4 ⇒ 110 → 117。
-const TOTAL_FORMULAS: usize = 117;
+/// 2026-10-20（M5-09）：`engine_hc_*` 5 条夹具、28 条公式（abs 6 / offset 6 /
+/// root 5 / cellset 6 / amp 5），含 `B2[A2:2;B1:2]`（Coord）、
+/// `count(B2[`0]{})`（Coord + Select）、`&A2`（Address）——均 state 4 ⇒ 117 → 145。
+/// 2026-10-20（M5-09 二批）：`engine_hc_cond` 4 条（ds1.select 年 / ds2.select 月 /
+/// ds2.select 值 / `C2-C2[A2:-1]{$B2==B2}`）+ `engine_hc_empty` 4 条
+/// （空数据集下 B1/A2/B2 + `count(B2[;B1:1]{})`），均 state 4 ⇒ 145 → 153。
+/// 2026-10-20（M5-09 三批）：`engine_hc_ds` 4 条（矩阵 3 +
+/// `ds1.select(amount, product==A2[2])`）、`engine_hc_order` 6 条
+/// （部门/组/人 + `&A2*100+&B2*10+&C2` + 两条 `D2[...]` 坐标）、
+/// `engine_hc_err` 4 条、`engine_hc_cycle` 4 条，均 state 4 ⇒ 153 → 171。
+/// 2026-10-20（M5-09 四批）：`engine_hc_merge` 7 条（A2 纵向 + B2 值 +
+/// `B2[A2:1]` + 两条 `C2[A2:k]` 延续槽坐标 + 两条 `count(C2[`0]{})`），
+/// 均 state 4 ⇒ 171 → 178。
+/// 2026-10-20（M5 §6.3 残账）：`engine_tiesort` 2 条（`;k1,k2` / `;id`）+
+/// `engine_rowtest` 1 条（过滤非布尔）+ `engine_groupb` 3 条（`sum@b` 两条、
+/// `sum` 一条），均 state 4 ⇒ 178 → 184。
+/// 2026-10-20（M5 §6.3 ⑦）：`engine_mergepage` 2 条（`ds1.select(g)` +
+/// `ds1.select(id)`，mergeSame 段跨分页点），均 state 4 ⇒ 184 → 186。
+const TOTAL_FORMULAS: usize = 186;
 
 #[test]
 fn every_fixture_formula_is_state_four() {

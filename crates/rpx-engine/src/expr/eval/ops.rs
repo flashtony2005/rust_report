@@ -35,13 +35,24 @@ pub(super) fn evaluate_unary(op: UnOp, rhs: &Expr, ctx: &mut dyn EvalCtx) -> Res
         };
         return coord::address_of(id, ctx);
     }
-    let v = evaluate(rhs, ctx)?;
+    let v = scalar(evaluate(rhs, ctx)?);
     match op {
         UnOp::Neg => num_neg(&v),
         UnOp::Pos => Ok(v),
         UnOp::Not => Ok(Value::Bool(!as_bool(&v)?)),
         // 上面已提前返回
         UnOp::Address => unreachable!("Address 在求值 rhs 之前已处理"),
+    }
+}
+
+/// 标量语境降级：产品 `Variant2.getValue` 对 CSVariable/List 取**第一个**值，
+/// 空集取 null（教程「定位到多个单元格 ⇒ 返回第一个」）。
+///
+/// 只用于一元/二元运算符的操作数；函数实参**不降级**（`sum(B2[`0]{})` 要整集）。
+fn scalar(v: Value) -> Value {
+    match v {
+        Value::List(items) => items.into_iter().next().unwrap_or(Value::Null),
+        other => other,
     }
 }
 
@@ -53,7 +64,14 @@ pub(super) fn evaluate_binary(
     rhs: &Expr,
     ctx: &mut dyn EvalCtx,
 ) -> Result<Value> {
-    let (a, b) = (evaluate(lhs, ctx)?, evaluate(rhs, ctx)?);
+    // M5-09：坐标/格集作为操作数时先降级成标量（空集 ⇒ null）。
+    // `in` 的右操作数必须保留 List（`x in [1,2]`），故整条支路不降级。
+    let (a0, b0) = (evaluate(lhs, ctx)?, evaluate(rhs, ctx)?);
+    let (a, b) = if op == BinOp::In {
+        (a0, b0)
+    } else {
+        (scalar(a0), scalar(b0))
+    };
     match op {
         BinOp::Add => num_add(&a, &b),
         BinOp::Sub => num_sub(&a, &b),

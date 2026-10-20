@@ -473,10 +473,11 @@ cellx[层次坐标或者位移坐标]{条件表达式}
 | 循环设置报错 | `CircularRef`（`leftHeadCircle`），`engine_cycle` 夹具对拍 `chain == "B2-C2-B2-C2"` | ✅ |
 | 扩展变化规则（从主到次/拉大主格/复制附属格） | `ext_algo/`：`extend_row`/`extend_col` 两趟 + `expand_left_head`/`expand_top_head`（§5.5） | ✅ |
 | 交叉扩展 | 纵向 18 先于横向 19 的标志位调度 + `extend_col` 前置校验（"行头行"）（§5.4/§5.5） | ✅ |
-| 层次坐标 `[Lk:lk; Tk:tk]` | 未建模 | ⛔ 缺口（§6.3） |
-| 位移坐标 / 根坐标 / `&` | 未建模 | ⛔ 缺口 |
+| 层次坐标 `[Lk:lk; Tk:tk]` | `expr/coord.rs`（`Coord`/`CoordSeg`/`coord_cells`） | ✅ 已实现（`engine_hc_abs`/`engine_hc_root`/`engine_hc_order` 三级链） |
+| 位移坐标 / 根坐标 / `&` | `expr/coord.rs`（`Offset`/`Root`/`address_of`） | ✅ 已实现（`engine_hc_offset`/`engine_hc_amp`；`!` 倒数产品不支持） |
 | 格集 `[A:B]`（Link 操作符） | `expr/cellset.rs` + `eval.rs::region_loop`：矩形遍历逐格（`[B2:B4]` 与 `(B2:B4)` 两形态） | ✅（P0 子集：见 §6.2 的口径修正） |
-| 格集 `{}`（扩展格格集）与条件过滤 | 部分：`sum(D3{D3>10000})` 形态的**单格条件**可见于教程；`cellx[坐标]{}` 未建模 | ⛔ 缺口 |
+| 格集 `{}`（扩展格格集）与条件过滤 | `expr/coord.rs` + `expr/cellset.rs`（与产品 `Select` 同构） | ✅ 已实现（`engine_hc_cellset` + `engine_hc_cond` 同比夹具） |
+| 坐标落合并区（锚点/延续槽） | 横向延续槽是锚点别名（`stage_b/merge_alias.rs` 的 `by_src`）；坐标只管选实例 | ✅ 已实现（`engine_hc_merge`：`C2[A2:k]` 读锚点值、格集计数 3） |
 | `$` 运算符 | **实现为 `isSaved` 快照机制**（`CSVariable(cell,true)` + `getSavedCurrent`）——与手册的"指代当前格主格"是**同一语义的两个侧面** | ✅（详见 §6.2） |
 | 缺省引用规则（唯一确定） | `expr/resolve.rs` + 计算态 head 链解析；循环引用检出 `engine_cycle` | ✅ |
 | 定位与拉伸（分页区域） | 未建模（M2-11 分页已有页结构，但"区域定位/拉伸/空白格复用"未覆盖） | ⛔ 缺口 |
@@ -855,8 +856,8 @@ extCells = new ExtCell[count]; extCells[0] = cell; cell.setExtCells(extCells);
 
 | # | 缺口 | 影响面 | 状态 |
 |---|---|---|---|
-| 1 | **层次坐标**（`cellx[Lk:lk; Tk:tk]`）、位移坐标、根坐标、`&` 运算符 | 占比/累积/同期比/排名/序号等教程示例报表的表达式无法表达 | P0 范围外（`docs/m2-engine-design.md` §9.2） |
-| 2 | **格集 `{}` 形态**（`cellx[坐标]{}` 与条件过滤 `{cond}`） | 依赖层次坐标，未建模 | P0 范围外 |
+| 1 | **层次坐标**（`cellx[Lk:lk; Tk:tk]`）、位移坐标、根坐标、`&` 运算符 | 占比/累积/同期比/排名/序号等教程示例报表的表达式无法表达 | ✅ **已实现**（`expr/coord.rs`；12 条 `engine_hc_*` 夹具入主对拍 + `hc_tripwire` 变异钉子，明细见 `spec-m5-09`） |
+| 2 | **格集 `{}` 形态**（`cellx[坐标]{}` 与条件过滤 `{cond}`） | 依赖层次坐标，未建模 | ✅ **已实现**（`{}` 与 `{cond}`；`engine_hc_cond` 教程式同比夹具承重） |
 | 3 | **子报表模型**（引入式/嵌入式、`eval()` 取值） | 无 | P0 范围外 |
 | 4 | **定位与拉伸**（区域划分、分页时伸缩、空白单元格优先占用） | 分页标题对齐不还原 | P0 范围外（§4.6） |
 | 5 | **`Variant2.parse` 的日期兜底、`Variant2.format`** | 日期字面量按原文保留 | 已声明（§6.2 #9） |

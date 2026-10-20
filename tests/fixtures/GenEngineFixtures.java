@@ -52,7 +52,15 @@ public class GenEngineFixtures {
 			"engine_param", "engine_gbk", "engine_emp",
 			"engine_cross", "engine_cross_root",
 			"engine_crossalign", "engine_crossalign_lit",
-			"engine_crossalign_ds2" };
+			"engine_crossalign_ds2",
+			// M5-09：层次坐标/格集（P0 全量 + cond/empty/ds/order/err/cycle）。
+			"engine_hc_abs", "engine_hc_offset", "engine_hc_root",
+			"engine_hc_cellset", "engine_hc_amp", "engine_hc_cond",
+			"engine_hc_empty", "engine_hc_ds", "engine_hc_order",
+			"engine_hc_err", "engine_hc_cycle", "engine_hc_merge",
+			// M5 §6.3 残账：多键并列 / 过滤非布尔 / group@b 等价域。
+			"engine_tiesort", "engine_rowtest", "engine_groupb",
+			"engine_mergepage" };
 
 	public static void main(String[] args) throws Exception {
 		String dir = args.length > 0 ? args[0] : ".";
@@ -211,9 +219,20 @@ public class GenEngineFixtures {
 		}
 		// dataset 段的列头必须与该夹具 CSV 的真实列一致（writeCsv 的分派同款）：
 		// engine_gbk 两列中文、engine_emp 五列中文、其余 region/qty 两列。
-		String[] dsHeader = "engine_gbk.csv".equals(EngineModels.csvName(name))
+		String[] dsHeader = EngineModelsM5r.isM5r(EngineModels.csvName(name))
+				? EngineModelsM5r.header(EngineModels.csvName(name))
+				: "engine_gbk.csv".equals(EngineModels.csvName(name))
 				? new String[] { "区域", "数量" }
-				: "engine_emp.csv".equals(EngineModels.csvName(name))
+				// M5-09：order 单列 dept；cond 三列 year/month/amount；其余 hc 是三列明细。
+				: "engine_hc_order.csv".equals(EngineModels.csvName(name))
+						|| "engine_hc_merge.csv".equals(EngineModels.csvName(name))
+						? new String[] { "dept" }
+						: "engine_hc_cond.csv".equals(EngineModels.csvName(name))
+								? new String[] { "year", "month", "amount" }
+								: EngineModelsHc.isHc(EngineModels.csvName(name))
+										? new String[] { "region", "product",
+												"amount" }
+						: "engine_emp.csv".equals(EngineModels.csvName(name))
 						? new String[] { "编号", "部门", "姓名", "性别", "工资" }
 						: "engine_cross.csv".equals(EngineModels.csvName(name))
 								|| "engine_cross_root.csv".equals(
@@ -314,9 +333,21 @@ public class GenEngineFixtures {
 		// (GBK-encoded, like every writeCsv output -- this one just makes it
 		// observable). Every other fixture keeps the English header byte for
 		// byte.
-		String[] header = "engine_gbk.csv".equals(name)
+		String[] header = EngineModelsM5r.isM5r(name)
+				? EngineModelsM5r.header(name)
+				: "engine_gbk.csv".equals(name)
 				? new String[] { "区域", "数量" }
-				: "engine_emp.csv".equals(name)
+				// M5-09：order 是部门维表（单列）；cond 是 year/month/amount；
+				// 其余 hc 夹具是 region/product/amount。
+				: "engine_hc_order.csv".equals(name)
+						|| "engine_hc_merge.csv".equals(name)
+						? new String[] { "dept" }
+						: "engine_hc_cond.csv".equals(name)
+								? new String[] { "year", "month", "amount" }
+								: EngineModelsHc.isHc(name)
+										? new String[] { "region", "product",
+												"amount" }
+						: "engine_emp.csv".equals(name)
 						? new String[] { "编号", "部门", "姓名", "性别", "工资" }
 						: "engine_cross.csv".equals(name)
 								|| "engine_cross_root.csv".equals(name)
@@ -328,6 +359,24 @@ public class GenEngineFixtures {
 												: new String[] { "region",
 														"qty" };
 		CalcProbe.writeCsv(dir + File.separator + name, header, data);
+		// M5-09：cond 的年维表（ds1）与明细表（ds2）必须分开——同一数据集里
+		// A2 的 select 会把游标钉在组首行，B2 只能取到 1 行（探针实证）。
+		if ("engine_hc_cond.csv".equals(name)) {
+			CalcProbe.writeCsv(dir + File.separator + "engine_hc_cond_years.csv",
+					new String[] { "year" },
+					new String[][] { { "Y2025" }, { "Y2026" } });
+		}
+		// M5-09：order 的三级链用三张维表（部门/组/人），避免同数据集游标互污。
+		if ("engine_hc_order.csv".equals(name)) {
+			CalcProbe.writeCsv(dir + File.separator + "engine_hc_order_team.csv",
+					new String[] { "dept", "team" },
+					new String[][] { { "D1", "T1" }, { "D1", "T2" },
+							{ "D2", "T1" }, { "D2", "T2" } });
+			CalcProbe.writeCsv(dir + File.separator + "engine_hc_order_person.csv",
+					new String[] { "team", "person" },
+					new String[][] { { "T1", "P1" }, { "T1", "P2" },
+							{ "T2", "P1" }, { "T2", "P2" } });
+		}
 		// engine_sum carries a second dataset with identical content but no
 		// extending cells referencing it, so the two aggregate scopes can be
 		// compared side by side in one fixture.

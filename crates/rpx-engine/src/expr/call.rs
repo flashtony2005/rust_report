@@ -44,6 +44,17 @@ pub fn parse_params(toks: &[Tok], params: &ParamTable) -> Result<(ParamKind, Vec
         if piece.is_empty() {
             // 空子段 ⇒ 产品返回 null IParam（ArgumentTokenizer 的相邻分隔符）
             args.push(Expr::Const(Value::Null));
+        } else if kind == ParamKind::Semicolon && has_top_sep(piece, &Tok::Comma) {
+            // `;` 段的子段本身是 `,` 组（`select(id,,,;k1,k2)` 的第一段是 `id,,,`）。
+            // 直接 `parse_tokens_with` 会在逗号上炸「表达式不能以 `,` 开头」——
+            // 产品的层级是 `;` → `,` → `:`（`ParamParser._$1` 递进），这里按同构
+            // 递归成嵌套参数组；DS 调用另有完整 `param_tree`，扁平 args 仅供
+            // `list(...)`/普通函数使用，故用 `ValueList` 承载即可。
+            let (sub_kind, items) = parse_params(piece, params)?;
+            args.push(Expr::ValueList {
+                kind: sub_kind,
+                items,
+            });
         } else {
             args.push(parse_tokens_with(piece, params)?);
         }

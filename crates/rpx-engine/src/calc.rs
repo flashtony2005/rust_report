@@ -42,6 +42,7 @@
 //! 复位成根 Group"；真正的推进在逐格 `calculate` 内部，见 [`ds_current`] 的模块文档。
 
 pub mod cell_eval;
+mod chain;
 pub mod ctx;
 pub mod ds_current;
 pub mod merged_view;

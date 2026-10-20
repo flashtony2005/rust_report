@@ -41,6 +41,7 @@ use std::collections::VecDeque;
 use rpx_core::ReportDefine;
 
 use crate::arena::{CalcCell, CalcGrid, SourceRef, SubValue};
+use crate::calc::chain::src_addr_name;
 use crate::calc::ctx::CalcCtx;
 use crate::calc::ds_current::{reset_ds_current, set_ds_current};
 use crate::error::{EngineError, Result};
@@ -184,30 +185,27 @@ fn finish_with_chain(ctx: &mut CalcCtx, flow: Flow, st: &[crate::arena::CellId])
         state: state::CIRCLE,
     }) = flow
     {
-        let mut names: Vec<String> = st.iter().map(|&c| addr_name(ctx, c)).collect();
-        names.push(addr_name(ctx, cell));
+        // M5-09：链上的名字用**模板格号**（`h.src_row/src_col`），与产品一致；
+        // 计算态地址会因扩展而偏移（模板 C2 落到 D2），产品报的仍是 C2。
+        let mut names: Vec<String> = st.iter().map(|&c| src_addr_name(ctx, c)).collect();
+        names.push(src_addr_name(ctx, cell));
+        // 自引用时引擎栈会把同一格压多层（C2-C2-C2），产品只报两跳（C2-C2）：
+        // 连续同格折叠；折叠后只剩一格则补成两跳（互引链 B2-C2-B2-C2 不受影响）。
+        let mut chain: Vec<String> = Vec::new();
+        for n in names {
+            if chain.last() != Some(&n) {
+                chain.push(n);
+            }
+        }
+        if chain.len() == 1 {
+            let n = chain[0].clone();
+            chain.push(n);
+        }
         return Err(EngineError::CircularRef {
-            chain: names.join("-"),
+            chain: chain.join("-"),
         });
     }
     finish_channel(Err(flow))
-}
-
-/// `CellId` → `"B2"` 形态地址（列字母 + 行号；列 26 进制，A=1）。
-fn addr_name(ctx: &CalcCtx, id: crate::arena::CellId) -> String {
-    match ctx.grid.get(id) {
-        Some(h) => {
-            let (r, mut c) = (h.row, h.col);
-            let mut letters = Vec::new();
-            while c > 0 {
-                letters.push((b'A' + ((c - 1) % 26) as u8) as char);
-                c = (c - 1) / 26;
-            }
-            letters.reverse();
-            format!("{}{}", letters.into_iter().collect::<String>(), r)
-        }
-        None => format!("cell#{}", id.0),
-    }
 }
 
 /// `_$2()` 无参（`ExtCellSet.java:2175-2198`）：**尾部空列裁剪**。行永不裁。

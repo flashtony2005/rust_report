@@ -52,6 +52,16 @@ pub(crate) fn num_add(a: &Value, b: &Value) -> Result<Value> {
 
 /// 减法：Int/Long 同型回绕，其余升 Double。
 pub(crate) fn num_sub(a: &Value, b: &Value) -> Result<Value> {
+    // M5-09：产品把 null 当 0 参与减法（探针 B_cond 首年 = 10 - 空目标 = 10）。
+    if a.is_null() && b.is_null() {
+        return Ok(Value::Null);
+    }
+    if b.is_null() {
+        return Ok(a.clone());
+    }
+    if a.is_null() {
+        return num_neg(b);
+    }
     if let (Value::Int(x), Value::Int(y)) = (a, b) {
         return Ok(Value::Int(x.wrapping_sub(*y)));
     }

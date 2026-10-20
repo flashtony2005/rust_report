@@ -45,8 +45,11 @@ pub(super) fn eval_rows_idx(
 /// `;` 多键排序：`Group.sort(sortExps, isDescs)` → `SortDsValue.sort:343-414`。
 ///
 /// 产品算法 = 键0 排序 + 相等 run 内递归按键1…（`:384-401` 的 run 切分）。
-/// Rust 用**稳定多键比较**（`sort_by` 稳定）等价 —— 唯一未复刻点：产品手写
-/// 归并在**全键相等**时的次序（无夹具基准，`spec-m5.md` §6.3 带账 ④）。
+/// Rust 用**稳定多键比较**（`sort_by` 稳定）等价 —— 两趟都稳定的手写归并
+/// 在全键相等时产出 = 输入序，Rust 稳定排序同结论。
+///
+/// 2026-10-20 已探针实证并夹具化（`ProbeM5Rest` P1 + `engine_tiesort`）：
+/// 全键相等 7/3/9/1/5 原样输出 ⇒ `spec-m5.md` §6.3 ④ 闭合，无需复刻 run 切分。
 pub(crate) fn multi_key_sort(
     idx: &[usize],
     sort_exps: &[Expr],

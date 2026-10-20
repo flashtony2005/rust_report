@@ -2,7 +2,7 @@
 //!
 //! # 这条链路验收什么
 //!
-//! 对 23 个引擎夹具各跑一遍：「JSON 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
+//! 对 35 个引擎夹具各跑一遍：「JSON 模板 + `.csv` 数据集 → `rpx_engine::calculate()`
 //! → `emit::render_document()` 渲染成 `expected.json` 同 schema 的 JSON」，再交给
 //! [`common::compare_actual_text`] 与夹具**逐格**比（值 / 类型 / `disp_value` /
 //! `source` 的 6 个子字段 / `sub_values` / `left_head` / `top_head` / 网格尺寸 /
@@ -62,6 +62,13 @@ fn error_class_chain(e: &rpx_engine::EngineError) -> (String, Option<String>) {
             Some(chain.clone()),
         ),
         // 未建模的错误没有可对上的 fixture class，直接响铃而不是猜。
+        // M5-09：坐标/`&` 的非法形态在产品侧是 ReportError（无 chain），
+        // 引擎侧统一落到 UnknownCell ⇒ 映射成同一 class、chain=None。
+        E::UnknownCell { .. } => ("com.raqsoft.commonl.ReportError".to_string(), None),
+        // M5 §6.3（2026-10-20）：`engine_rowtest` 的产品侧是 `Row.test` 抛
+        // ReportError（`Row.java:88-94`，消息「记录过滤条件应该返回布尔值」），
+        // 引擎侧 `expr/num.rs::as_bool` 走 UnsupportedExpr ⇒ 同一 class、无 chain。
+        E::UnsupportedExpr { .. } => ("com.raqsoft.commonl.ReportError".to_string(), None),
         other => panic!("未建模的引擎错误，无法映射 class：{other}"),
     }
 }
