@@ -1,4 +1,7 @@
-//! Library JSON source editing and fixed run artifacts. No calculation handlers.
+//! Library JSON source editing and fixed run artifacts.
+//!
+//! **唯一的计算入口**是 `POST /reports/{id}/runs`：引擎在服务端进程里跑，浏览器只发
+//! 请求、等产物。`/render` 与 `/export` 仍然**故意不存在**（回归护栏，见 [`not_found`]）。
 use axum::{
     extract::{DefaultBodyLimit, Extension, Path, Query, Request, State},
     http::{header, HeaderMap, StatusCode},
@@ -9,7 +12,7 @@ use axum::{
 };
 use rpx_runtime::{
     error::{Error, Result},
-    files, library,
+    files, library, run,
 };
 use serde_json::{json, Value as J};
 use std::{collections::HashMap, path::PathBuf};
@@ -31,7 +34,7 @@ pub fn app_with_auth(root: PathBuf, token: Option<String>) -> Router {
         .route("/reports", get(list))
         .route("/reports/{id}", get(show))
         .route("/reports/{id}/template", axum::routing::put(save))
-        .route("/reports/{id}/runs", get(runs))
+        .route("/reports/{id}/runs", get(runs).post(execute))
         .route("/reports/{id}/runs/{run}", get(record))
         .route("/reports/{id}/runs/{run}/source/{*path}", get(source))
         .route("/reports/{id}/runs/{run}/artifacts/{name}", get(artifact))
@@ -232,6 +235,108 @@ async fn runs(
 }
 async fn record(State(root): State<PathBuf>, Path((id, run)): Path<(String, String)>) -> Response {
     blocking(move || library::run_record(&root, &id, &run)).await
+}
+
+/// 触发一次运行 —— 设计器「结果」按钮打的就是这里。
+///
+/// 引擎仍在 Rust 进程里跑：浏览器只发请求、等产物（`web_executes_engine: false`
+/// 说的是「浏览器是否执行引擎」，所以那句话依然成立）。
+///
+/// - `If-Match`：可选。给了就按该修订校验（412 表示源码已变）；缺省取库内
+///   当前修订 —— 「点结果就要看到最新定义的算法」，不该撞上用户的编辑窗口。
+/// - 请求体：可空。`{"params":{…},"data_dir":"…","exports":["xlsx"]}`；未知字段
+///   直接 400，宁可让调用方看到拼错的字段，也不要静默忽略后算出「看着对」的结果。
+///
+/// 计算是 CPU 密集的且 `library::execute` 内部已用库锁串行化，这里直接 await：
+/// 并发请求会排队，不会算错。本地单机库场景够用。
+async fn execute(
+    State(root): State<PathBuf>,
+    Path(id): Path<String>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    // 同 save/not_found：早退分支前必须把 body 读完，否则响应会被 RST 吃掉。
+    let bytes = match axum::body::to_bytes(body, BODY_LIMIT).await {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Json(json!({"error":{"code":"PAYLOAD_TOO_LARGE","message":format!("请求体超过 {BODY_LIMIT} 字节上限")}})),
+            )
+                .into_response()
+        }
+    };
+    if !bytes.is_empty() && !is_json(&parts.headers) {
+        return (
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Json(
+                json!({"error":{"code":"UNSUPPORTED_MEDIA_TYPE","message":"Content-Type 必须是 application/json"}}),
+            ),
+        )
+            .into_response();
+    }
+    let options = match run_options(&bytes) {
+        Ok(options) => options,
+        Err(e) => return response(Err(e)),
+    };
+    let expected = parts
+        .headers
+        .get(header::IF_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim_matches('"').to_string());
+    let result = async {
+        let revision = match expected {
+            Some(revision) => revision,
+            None => library::show(&root, &id)?["revision"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+        };
+        library::execute(&root, &id, &revision, &options).await
+    }
+    .await;
+    response(result)
+}
+
+/// 解析运行请求体。空体 = 全缺省（不带导出，只出 `workbook.json` 等固定产物）。
+fn run_options(bytes: &[u8]) -> Result<run::Options> {
+    if bytes.is_empty() {
+        return Ok(run::Options::default());
+    }
+    let value: J = serde_json::from_slice(bytes)
+        .map_err(|e| Error::new(2, "JSON_INVALID", "body", e.to_string()))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| Error::new(2, "JSON_INVALID", "body", "请求体必须是 JSON 对象"))?;
+    if let Some(key) = object
+        .keys()
+        .find(|key| !["params", "data_dir", "exports"].contains(&key.as_str()))
+    {
+        return Err(Error::new(2, "USAGE", "body", format!("未知字段：{key}")));
+    }
+    let text = |key: &str| match object.get(key) {
+        None => Ok(None),
+        Some(J::String(value)) => Ok(Some(value.clone())),
+        Some(_) => Err(Error::new(2, "USAGE", "body", format!("{key} 需要字符串"))),
+    };
+    let exports = match object.get("exports") {
+        None => Vec::new(),
+        Some(J::Array(items)) => items
+            .iter()
+            .map(|item| {
+                item.as_str()
+                    .map(str::to_string)
+                    .ok_or_else(|| Error::new(2, "USAGE", "body", "exports 需要字符串数组"))
+            })
+            .collect::<Result<Vec<_>>>()?,
+        Some(_) => return Err(Error::new(2, "USAGE", "body", "exports 需要字符串数组")),
+    };
+    Ok(run::Options {
+        data_dir: text("data_dir")?.map(PathBuf::from),
+        params: object.get("params").cloned(),
+        datasources: None,
+        exports,
+    })
 }
 async fn artifact(
     State(root): State<PathBuf>,

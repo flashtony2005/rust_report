@@ -7,6 +7,7 @@ import type { Graphic } from './graphics'
 import ChartView from './graphics/ChartView'
 import { artifact, type GalleryCatalog, type GalleryReport } from './gallery-data'
 import { fitColumns } from './fit-columns'
+import { captureSizeBaseline, captureStyleBaseline, mergeLivePrint, type LiveWorkbook, type SizeBaseline, type StyleBaseline } from './live-layout'
 import './gallery.css'
 
 const PrintPreview = lazy(() => import('./PrintPreview'))
@@ -19,7 +20,15 @@ const tabs: [Tab, string][] = [
   ['checks', '运行校验'],
 ]
 
-function Result({ workbook }: { workbook: PrintWorkbook }) {
+function Result({ workbook, onLive }: {
+  workbook: PrintWorkbook
+  /**
+   * 画布活态变化时回调（用户在画布上拖了列宽/行高后，打印预览要跟着变）。
+   * 同时带**装载时的尺寸基线** —— 增量 = 活态 − 基线。基线必须在装载前
+   * 冻结：Univer 会原地修改装载进去的对象，用被改过的对象当基线则增量恒为 0。
+   */
+  onLive?: (state: { live: PrintWorkbook | null; baseline: SizeBaseline; styles: StyleBaseline }) => void
+}) {
   const container = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
@@ -30,14 +39,27 @@ function Result({ workbook }: { workbook: PrintWorkbook }) {
     if (!container.current) return
     setReady(false)
     const api = mountUniver(container.current, true)
+    // 装载**前**冻结尺寸与样式基线（深拷贝，与画布里的对象再无引用关系）。
+    const baseline = captureSizeBaseline(display)
+    const styles = captureStyleBaseline(display as never)
     try { api.createWorkbook(display as Parameters<typeof api.createWorkbook>[0])?.setEditable(false) }
     catch (error) { setError(String(error)) }
     if (api.getCurrentLifecycleStage() >= LifecycleStages.Steady) setReady(true)
     const lifecycle = api.addEvent(api.Event.LifeCycleChanged, ({ stage }) => {
       if (stage === LifecycleStages.Steady) setReady(true)
     })
-    return () => { lifecycle.dispose(); api.dispose() }
-  }, [display])
+    // 版面变化（拖列宽/行高）⇒ 把**活态**和**尺寸基线**一起抛上去。
+    // 打印预览要靠两者算出「用户拖了多少」——只给活态无法区分用户拖的量与
+    // 显示层加宽的量。
+    // 只认这两条命令：其它命令（选中、滚动）在只读态也会触发，但不改版面。
+    const layout = api.addEvent(api.Event.CommandExecuted, event => {
+      // 尺寸（拖列宽/行高）与格式（粗体/字色/填充…）都会影响打印，统一刷一次。
+      if (!/^sheet\.command\.(delta-|set-|clear)/.test(event.id)) return
+      const snapshot = api.getActiveWorkbook()?.save?.()
+      onLive?.({ live: (snapshot ?? null) as PrintWorkbook | null, baseline, styles })
+    })
+    return () => { layout.dispose(); lifecycle.dispose(); api.dispose() }
+  }, [display, onLive])
   return <>{error && <p role="alert">{error}</p>}<div className="gallery-sheet" ref={container} aria-label="报表结果画布" aria-busy={!ready} /></>
 }
 
@@ -73,6 +95,18 @@ function Detail({ report }: { report: GalleryReport }) {
   const [definition, setDefinition] = useState('')
   const [error, setError] = useState('')
   const [print, setPrint] = useState(false)
+  // 画布活态版面（用户拖过列宽/行高后的当前版式）。打印预览据此出页面，
+  // 免得「画布拖了排版、预览纹丝不动」。
+  // 同时留一份**装载时的尺寸基线** —— 增量 = 活态 − 基线，两者一起才能算出
+  // 「用户实际拖了多少」（见 `live-layout.ts`）。
+  const [layout, setLayout] = useState<{ live: PrintWorkbook | null; baseline: SizeBaseline; styles: StyleBaseline } | null>(null)
+  // 打印预览取数：**版面**以活态增量为准，**内容**以引擎快照为准。
+  const printWorkbook = useMemo(
+    () => (workbook
+      ? mergeLivePrint(workbook, { sizes: layout?.baseline, styles: layout?.styles }, layout?.live as unknown as LiveWorkbook)
+      : null),
+    [workbook, layout],
+  )
   const graphics = useMemo(() => {
     if (!workbook) return []
     return workbook.sheetOrder.flatMap((id, page) =>
@@ -118,7 +152,7 @@ function Detail({ report }: { report: GalleryReport }) {
     </div>
     <div className="gallery-body" role="tabpanel" aria-label={tabs.find(([id]) => id === tab)?.[1]}>
       {(report.error || error) ? <div className="gallery-error" role="alert">{report.error || error}</div> : <>
-        {tab === 'result' && (workbook ? <Result workbook={workbook} /> : <p className="gallery-loading" role="status">正在读取运行结果…</p>)}
+        {tab === 'result' && (workbook ? <Result workbook={workbook} onLive={setLayout} /> : <p className="gallery-loading" role="status">正在读取运行结果…</p>)}
         {tab === 'graphics' && <Graphics items={graphics} />}
         {tab === 'definition' && <div className="gallery-document"><p>这份 JSON 定义包含数据集、公式、扩展方向和主格关系。可在设计器中修改并下载保存。</p><pre aria-label="JSON 报表定义">{definition}</pre></div>}
         {tab === 'sources' && <div className="gallery-document"><h2>同一报表的独立数据来源</h2><p>数据集通过名称绑定公式，通过业务键关联。文件和数据库在执行时读取，当前页面展示已经保存的结果。</p>
@@ -128,7 +162,7 @@ function Detail({ report }: { report: GalleryReport }) {
       </>}
     </div>
     <footer className="gallery-status"><span className={report.status === 'succeeded' ? 'gallery-passed' : 'gallery-error'}>{report.status === 'succeeded' ? '● 计算及校验通过' : '● 生成失败'}</span><span>结果由 Rust 报表引擎生成 · Univer 只读展示</span></footer>
-    {print && workbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={workbook} onClose={() => setPrint(false)} /></Suspense>}
+    {print && printWorkbook && <Suspense fallback={<p role="status">正在装载打印预览…</p>}><PrintPreview workbook={printWorkbook} onClose={() => setPrint(false)} /></Suspense>}
   </main>
 }
 
@@ -147,7 +181,7 @@ function Gallery() {
   }, [])
   const active = catalog?.reports.find(report => report.id === selected) ?? catalog?.reports[0]
   return <div className="gallery-app">
-    <header className="gallery-top"><a href="/gallery.html" className="gallery-brand"><b>RPX</b><span>报表实例库</span></a><span>报表模型 / 多源数据 / 自由格间运算</span><a href="/">打开报表设计器 ↗</a></header>
+    <header className="gallery-top"><a href="/gallery.html" className="gallery-brand"><img className="gallery-logo" src="/logo-ai-report-engine.png" alt="AI 报表引擎" /><span>报表实例库</span></a><span>报表模型 / 多源数据 / 自由格间运算</span><a href="/">打开报表设计器 ↗</a></header>
     <div className="gallery-layout"><aside className="gallery-sidebar"><div className="gallery-sidebar-title"><strong>模型与实例</strong><span>{catalog?.reports.length ?? '—'} 份</span></div>
       {catalog && [...new Set(catalog.reports.map(report => report.section))].map(section => <nav aria-label={section} key={section}><h2>{section}</h2>{catalog.reports.filter(report => report.section === section).map(report => <a href={`#${report.id}`} key={report.id} aria-current={active?.id === report.id ? 'page' : undefined}><span>{report.title}</span><small>{report.status === 'succeeded' ? '已生成' : '失败'}</small></a>)}</nav>)}
       <div className="gallery-sidebar-note">Agent 执行与保存结果<br />在这里观察、校验和修正模板</div>

@@ -34,8 +34,18 @@
 .rpx-badge.warn{color:#9a6700;background:#fff5d9;border-color:#f0d590}
 
 /* 主体：画布 + 属性面板 */
-.rpx-main{display:flex;flex:1;min-height:0}
+.rpx-main{display:flex;flex:1;min-height:0;position:relative}
 .rpx-canvas{flex:1;min-width:0;min-height:0}
+
+/* 运行提示条（点「结果」后的可见反馈）：引擎常常 1s 内跑完，只刷状态栏一行
+   小字等同于「没反应」；没有库内 id 时也要当场说清楚，而不是留个禁用按钮。 */
+.rpx-runbar{position:absolute;top:10px;right:14px;z-index:20;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1px solid var(--rpx-border);background:#fff;color:var(--rpx-fg);font:12px system-ui,sans-serif;box-shadow:0 6px 18px rgba(15,23,42,.16);max-width:62%}
+.rpx-runbar.running{border-color:var(--rpx-accent);color:var(--rpx-accent)}
+.rpx-runbar.ok{border-color:#0f766e;background:#ecfdf5;color:#0f766e;font-weight:600}
+.rpx-runbar.error{border-color:var(--rpx-danger);background:#fef2f2;color:var(--rpx-danger)}
+.rpx-runbar .dot{width:9px;height:9px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:rpx-spin .7s linear infinite;flex-shrink:0}
+.rpx-runbar .tb.mini{font:11px system-ui,sans-serif;padding:1px 7px;border:1px solid currentColor;border-radius:3px;background:transparent;color:inherit;cursor:pointer;flex-shrink:0}
+@keyframes rpx-spin{to{transform:rotate(360deg)}}
 
 /* 属性面板：双页签 + 分组 */
 .rpx-props{width:336px;min-width:336px;border-left:1px solid var(--rpx-border);display:flex;flex-direction:column;background:#fff;overflow:hidden}
@@ -92,6 +102,13 @@
 .rpx-status .msg{color:var(--rpx-fg)}
 .rpx-status .msg.err{color:var(--rpx-danger)}
 .rpx-status code{font:11px monospace;color:var(--rpx-fg-muted)}
+/* 「重算」提示：引擎在 Rust 侧、Web 端不跑（web_executes_engine=false），
+   设计器改完定义必须由 CLI 重算才有新结果。把命令直接摆出来（可一键复制），
+   免得用户只看到「等待 agent 执行」却不知道该敲什么。 */
+.rpx-rerun{display:inline-flex;align-items:center;gap:6px;padding:1px 6px;border:1px solid var(--rpx-border);border-radius:4px;background:#fff;max-width:52vw;overflow:hidden}
+.rpx-rerun code{color:var(--rpx-fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rpx-rerun .tb.mini{font:11px system-ui,sans-serif;padding:1px 6px;border:1px solid var(--rpx-border);border-radius:3px;background:var(--rpx-bg-muted);color:var(--rpx-fg);cursor:pointer;flex-shrink:0}
+.rpx-rerun .tb.mini:hover{background:#fff}
 
 /* 旧顶栏横条样式保留：数据集/参数等子组件仍在用 .template-* 类 */
 .template-pane{padding:12px;border-bottom:1px solid var(--rpx-border);font:13px system-ui,sans-serif;color:var(--rpx-fg);background:#fff}

@@ -224,3 +224,71 @@ async fn bearer_auth_protects_reports_and_reports_status() {
 
     task.abort();
 }
+
+#[tokio::test]
+async fn web_triggers_engine_run_and_reads_fresh_result() {
+    let temp = Temp(std::env::temp_dir().join(format!("rpx-http-run-{}", files::unique())));
+    let root = &temp.0;
+    library::init(root, true).unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap().to_string();
+    let app = rpx_server::http::app(root.clone());
+    let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+    let (status, bytes) = send(&addr, "GET", "/reports/complex-master", None, None).await;
+    assert_eq!(status, 200);
+    let detail: J = serde_json::from_slice(&bytes).unwrap();
+    let revision = detail["revision"].as_str().unwrap().to_string();
+    assert_eq!(detail["result_state"], "none");
+
+    // 设计器点「结果」：不带 If-Match 也算**当前**定义（不该撞上用户的编辑窗口）。
+    let (status, bytes) = send(&addr, "POST", "/reports/complex-master/runs", None, None).await;
+    assert_eq!(status, 200);
+    let started: J = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(started["run"]["status"], "succeeded");
+    let run = started["run"]["run_id"].as_str().unwrap().to_string();
+    assert!(started["workbook"]
+        .as_str()
+        .unwrap()
+        .ends_with("workbook.json"));
+
+    // 结果状态必须立刻从 none 变 current_revision（否则状态栏一直说「不是最新」）。
+    let (status, bytes) = send(&addr, "GET", "/reports/complex-master", None, None).await;
+    assert_eq!(status, 200);
+    let detail: J = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(detail["result_state"], "current_revision");
+    assert_eq!(detail["display_run_id"], run);
+
+    // 旧修订 ⇒ 412：不允许基于旧定义算出「看着对」的结果。
+    let (status, bytes) = send(
+        &addr,
+        "POST",
+        "/reports/complex-master/runs",
+        None,
+        Some("stale"),
+    )
+    .await;
+    assert_eq!(status, 412);
+    assert_eq!(
+        serde_json::from_slice::<J>(&bytes).unwrap()["error"]["code"],
+        "REVISION_CONFLICT"
+    );
+
+    // 拼错的字段 ⇒ 400（静默忽略会让人以为参数生效了）。
+    let (status, bytes) = send(
+        &addr,
+        "POST",
+        "/reports/complex-master/runs",
+        Some(&json!({"param": {}})),
+        Some(&revision),
+    )
+    .await;
+    assert_eq!(status, 400);
+    assert_eq!(
+        serde_json::from_slice::<J>(&bytes).unwrap()["error"]["code"],
+        "USAGE"
+    );
+
+    task.abort();
+}

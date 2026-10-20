@@ -50,6 +50,19 @@ export function mmToPx(mm: number): number {
   return (mm * 96.0) / 25.4
 }
 
+/**
+ * px → mm（96dpi 反算），**保留 2 位小数**。
+ *
+ * 画布上拖出来的宽度是 px（如 68.03149606299213），直接除会写出
+ * `17.999999999999996` 这种噪声进 JSON。舍到 0.01mm 既保住精度（0.04px），
+ * 又让导出文件可读、可 diff。
+ *
+ * ⚠ 只在「拖拽落库」这一条路上用：面板输入本身已经是 mm，不经反算。
+ */
+export function pxToMm(px: number): number {
+  return Math.round(((px * 25.4) / 96.0) * 100) / 100
+}
+
 /** `row_props[]` 单条（契约 §3.4；未知键原样保留）。 */
 export type RowPropEntry = { row: number; height?: number | string; break_page?: boolean | string }
 /** `col_props[]` 单条。 */

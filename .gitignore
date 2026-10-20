@@ -74,3 +74,33 @@ Thumbs.db
 # ⛔ 不要把它当成例子来源提交：真正的例子在 `examples/r-model/`。
 /reports/
 /.rpx-init.lock
+
+# 报表库运行期锁文件（`rpx-server serve --library` 生成）
+examples/library/.lock
+
+# ── 本机开发状态（2026-10-20 起不入库）──────────────────────────────────────
+# 29 份示例报表库：模板/manifest 由 build_r_model_gallery.sh + `report import-json`
+# 生成，data_dir 指向 gitignore 的画廊产物（/web/public/report-gallery/）⇒
+# 克隆后这些报表跑不通。要复现：先 build 画廊再批量 import（脚本见 RUNLOG）。
+/examples/library/
+
+# E2E / 探针的运行产物（可随时重跑）：日志、截图、probe json、探针 sqlite。
+# ⚠ 只禁这些**产物**，`*.mjs` 剧本本身入库（它们是回归判据）。
+/tests/fixtures/out/*.log
+/tests/fixtures/out/*.db
+/tests/fixtures/out/gallery_shots/
+/tests/fixtures/out/drag_scan*.json
+/tests/fixtures/out/*probe*.json
+/tests/fixtures/out/merge_diag.json
+/tests/fixtures/out/console_probe.json
+/tests/fixtures/out/layout_probe.json
+/tests/fixtures/out/print_layout_e2e.json
+/tests/fixtures/out/scroll_probe*.json
+/tests/fixtures/out/live_*.json
+/tests/fixtures/out/hc_*.txt
+/tests/fixtures/out/*_summary.txt
+
+# 抓取回来的参考资料页（2.7M 图片 + 原文，非仓库资产）
+/docs/_ref_pages/
+# sqlite 探针残留（0 字节，`probe_local_sqlite` 留下的）
+/crates/rpx-ds/probe.db

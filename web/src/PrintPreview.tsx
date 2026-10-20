@@ -3,11 +3,13 @@ import { createPortal } from 'react-dom'
 import type { Graphic } from './graphics'
 import ChartView from './graphics/ChartView'
 import { printValue } from './print-value'
+import { cellBorders } from './print-border'
 
 interface Cell {
   t?:number
   v?: unknown
-  s?: { ff?: string; fs?: number; bl?: number; it?: number; cl?: { rgb: string }; bg?: { rgb: string }; ht?: number; vt?: number; n?: { pattern: string } }
+  /** `bd` = Univer 的 `IBorderData`（四边 `t/r/b/l`）。快照与活态都能带。 */
+  s?: { ff?: string; fs?: number; bl?: number; it?: number; cl?: { rgb: string }; bg?: { rgb: string }; ht?: number; vt?: number; n?: { pattern: string }; bd?: unknown }
 }
 interface Sheet {
   name: string
@@ -29,14 +31,17 @@ const CONTROLS_OFFSET = 70
 /** 判定容差：scrollIntoView 落点有亚像素漂移（实测 70.22），页高上千 px，4px 不会串页。 */
 const CONTROLS_TOLERANCE = 4
 
-function cellStyle(cell?: Cell): CSSProperties {
+/** 单元格内联样式。`dropBackground` = 打印不要背景色（底纹全不落地）。 */
+function cellStyle(cell: Cell | undefined, dropBackground: boolean): CSSProperties {
   const s = cell?.s
-  return { fontFamily: s?.ff, fontSize: s?.fs, fontWeight: s?.bl ? 'bold' : 'normal', fontStyle: s?.it ? 'italic' : 'normal', color: s?.cl?.rgb, backgroundColor: s?.bg?.rgb,
+  return { fontFamily: s?.ff, fontSize: s?.fs, fontWeight: s?.bl ? 'bold' : 'normal', fontStyle: s?.it ? 'italic' : 'normal', color: s?.cl?.rgb, backgroundColor: dropBackground ? undefined : s?.bg?.rgb,
     textAlign: s?.ht === 2 ? 'center' : s?.ht === 3 ? 'right' : 'left', verticalAlign: s?.vt === 1 ? 'top' : s?.vt === 3 ? 'bottom' : 'middle', whiteSpace: 'pre-wrap', overflow: 'hidden', padding: 0 }
 }
 
 export default function PrintPreview({ workbook, initialPage = 0, onClose }: { workbook: PrintWorkbook; initialPage?: number; onClose: () => void }) {
   const [mirror,setMirror]=useState(false)
+  /** 去掉背景色：底纹 / 页背景图 / 单元格背景图都不打印（省墨；黑白打印机友好）。 */
+  const [dropBackground,setDropBackground]=useState(false)
   const [current,setCurrent]=useState(initialPage)
   const rootRef=useRef<HTMLDivElement>(null)
   const pagesRef=useRef<HTMLDivElement>(null)
@@ -95,7 +100,7 @@ export default function PrintPreview({ workbook, initialPage = 0, onClose }: { w
       @page{size:${first.printSize.width}mm ${first.printSize.height}mm;margin:0}
       @media print{#app,.rpx-print-controls{display:none!important}.rpx-print-preview{position:static;overflow:visible;background:white}.rpx-print-page{margin:0;box-shadow:none;print-color-adjust:exact;-webkit-print-color-adjust:exact}}
     `}</style>
-    <div className="rpx-print-controls"><strong>图形与打印预览</strong><label>跳转 <select aria-label="跳转到页" value={current} onChange={event => { const index = Number(event.target.value); setCurrent(index); jumpTo(index) }}>{workbook.sheetOrder.map((id, i) => <option key={id} value={i}>{workbook.sheets[id].name}</option>)}</select></label><button disabled={current <= 0} onClick={() => jumpTo(current - 1)}>上一页</button><button disabled={current >= total - 1} onClick={() => jumpTo(current + 1)}>下一页</button><span>第 {current + 1} / {total} 页</span><label><input type="checkbox" checked={mirror} onChange={e=>setMirror(e.target.checked)}/>镜像打印</label><button onClick={() => window.print()}>打印 / 保存为 PDF</button><button onClick={onClose}>关闭</button></div>
+    <div className="rpx-print-controls"><strong>图形与打印预览</strong><label>跳转 <select aria-label="跳转到页" value={current} onChange={event => { const index = Number(event.target.value); setCurrent(index); jumpTo(index) }}>{workbook.sheetOrder.map((id, i) => <option key={id} value={i}>{workbook.sheets[id].name}</option>)}</select></label><button disabled={current <= 0} onClick={() => jumpTo(current - 1)}>上一页</button><button disabled={current >= total - 1} onClick={() => jumpTo(current + 1)}>下一页</button><span>第 {current + 1} / {total} 页</span><label><input type="checkbox" checked={mirror} onChange={e=>setMirror(e.target.checked)}/>镜像打印</label><label><input type="checkbox" checked={dropBackground} onChange={e=>setDropBackground(e.target.checked)}/>去掉背景色</label><button onClick={() => window.print()}>打印 / 保存为 PDF</button><button onClick={onClose}>关闭</button></div>
     <div ref={pagesRef}>
     {workbook.sheetOrder.map(id => {
       const s = workbook.sheets[id]
@@ -107,7 +112,7 @@ export default function PrintPreview({ workbook, initialPage = 0, onClose }: { w
       const contentWidth = Math.max(widths.reduce((a,b)=>a+b,0), ...graphics.map(g=>widths.slice(0,g.col).reduce((a,b)=>a+b,0)+g.width))
       const contentHeight = Math.max(heights.reduce((a,b)=>a+b,0), ...graphics.map(g=>heights.slice(0,g.row).reduce((a,b)=>a+b,0)+g.height))
       const scale = Math.min(1, (s.printSize.width-margins[1]-margins[3])*96/25.4/Math.max(1,contentWidth), (s.printSize.height-margins[0]-margins[2])*96/25.4/Math.max(1,contentHeight))
-      const pageBackground=options?.overlay?s.pageBackground:undefined
+      const pageBackground=!dropBackground&&options?.overlay?s.pageBackground:undefined
       return <section key={id} className="rpx-print-page" aria-label={s.name} style={{ width: `${s.printSize.width}mm`, height: `${s.printSize.height}mm`, padding: margins.map(m => `${m}mm`).join(' '), backgroundImage: pageBackground ? `url(${pageBackground})` : undefined,transform:mirror?'scaleX(-1)':undefined }}>
         <div style={{ position: 'relative', transform:`scale(${scale})`, transformOrigin:'top left' }}>
           <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed', width: widths.reduce((a, b) => a + b, 0) }}>
@@ -117,10 +122,13 @@ export default function PrintPreview({ workbook, initialPage = 0, onClose }: { w
               if (merge && (r !== merge.startRow || c !== merge.startColumn)) return null
               const cell = s.cellData[r]?.[c]
               const hasImage = graphics.some(g => g.row === r && g.col === c && g.content.kind === 'image')
-              const background = graphics.find(g=>g.row===r && g.col===c && g.content.kind==='cell_background')?.content
-              const style=cellStyle(cell)
+              const background = dropBackground?undefined:graphics.find(g=>g.row===r && g.col===c && g.content.kind==='cell_background')?.content
+              const style=cellStyle(cell,dropBackground)
+              // 边框：模板里的（引擎快照 `s.bd`）与用户刚在画布上画的（活态差量）走同一条
+              // 通道；只有没有显式边框的边才用 `printOptions.borderWidth` 的网格线兜底。
+              const borders=cellBorders(cell?.s?.bd,options?.borderWidth?`${options.borderWidth}pt solid ${options.borderColor}`:undefined)
               if (pageBackground && style.backgroundColor==='#FFFFFF') style.backgroundColor='transparent'
-              return <td key={c} data-auto-size={!!options?.autoSize} rowSpan={merge ? merge.endRow - r + 1 : 1} colSpan={merge ? merge.endColumn - c + 1 : 1} style={{ ...style, fontSize:style.fontSize?`${style.fontSize}pt`:undefined,overflowWrap:options?.wrapNumbers?'anywhere':undefined,whiteSpace:typeof cell?.v==='number'&&!options?.wrapNumbers?'pre':style.whiteSpace,border:options?.borderWidth?`${options.borderWidth}pt solid ${options.borderColor}`:undefined,backgroundImage:background?.kind==='cell_background'?`url(${background.source})`:undefined,backgroundSize:'100% 100%', display: w ? undefined : 'none' }}>{hasImage ? '' : printValue(cell?.v, cell?.s?.n?.pattern)}</td>
+              return <td key={c} data-auto-size={!!options?.autoSize} rowSpan={merge ? merge.endRow - r + 1 : 1} colSpan={merge ? merge.endColumn - c + 1 : 1} style={{ ...style, ...borders, fontSize:style.fontSize?`${style.fontSize}pt`:undefined,overflowWrap:options?.wrapNumbers?'anywhere':undefined,whiteSpace:typeof cell?.v==='number'&&!options?.wrapNumbers?'pre':style.whiteSpace,backgroundImage:background?.kind==='cell_background'?`url(${background.source})`:undefined,backgroundSize:'100% 100%', display: w ? undefined : 'none' }}>{hasImage ? '' : printValue(cell?.v, cell?.s?.n?.pattern)}</td>
             })}</tr>)}</tbody>
           </table>
           {graphics.filter(g => g.content.kind!=='cell_background' && widths[g.col] > 0 && heights[g.row] > 0).map((g, i) => <div key={i} style={{ position: 'absolute', left: widths.slice(0, g.col).reduce((a, b) => a + b, 0), top: heights.slice(0, g.row).reduce((a, b) => a + b, 0), pointerEvents: 'auto' }}>

@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // M4 前端 dev server 配置（端口约定见 docs/spec-m4.md §3：web 5288 / server 8090）。
+// 两个服务各自独立：后端 rpx-server 监听 8090，前端 Vite 监听 5288，
+// /api 前缀由 Vite 代理转发到 8090（去掉 /api 前缀后与后端真实路由对齐）。
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -13,7 +15,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8090',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (requestPath) => requestPath.replace(/^\/api/, ''),
       },
     },
   },

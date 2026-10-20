@@ -20,7 +20,7 @@ import {
   mountUniver,
   pickReportFile,
 } from './report'
-import { listReports, getReport, getRuns, saveTemplate, loadWorkbook, artifactUrl, sourceUrl, LibraryError, type ReportDetail, type RunRecord } from './library-api'
+import { listReports, getReport, getRuns, saveTemplate, loadWorkbook, executeReport, artifactUrl, sourceUrl, LibraryError, type ReportDetail, type RunRecord } from './library-api'
 import MenuBar, { type MenuGroup } from './menubar'
 import PropertiesPanel, {
   GROUP_LABEL,
@@ -38,11 +38,21 @@ import {
   applyRowBreakPages,
   applyRowHeights,
   mmToPx,
+  pxToMm,
 } from './rowcol'
 import TemplateCellPane from './TemplateCellPane'
 import TemplateDatasets from './TemplateDatasets'
 import { artifact, galleryFiles } from './gallery-data'
 import { applyTemplateCell, applyTemplateValues, parseTemplate, templateCellData, templateInputValue, templateWorkbook, type CellDraft } from './template'
+import { fitColumns } from './fit-columns'
+import {
+  captureSizeBaseline,
+  captureStyleBaseline,
+  mergeLivePrint,
+  type SizeBaseline,
+  type StyleBaseline,
+} from './live-layout'
+import { rerunCommand } from './rerun-command'
 import {
   PRINT_SETUP_DEFAULTS,
   applyPrintSetup,
@@ -67,6 +77,63 @@ const ERROR_PREFIXES = ['装载失败', '入库失败', '请先', '未找到', '
 
 /** W2-3：属性编辑的状态栏标签（边标签随之搬迁 panes.tsx，这里本地小 map）。 */
 const SIDE_LABEL: Record<string, string> = { top: '上', right: '右', bottom: '下', left: '左' }
+
+/**
+ * 把 Univer 单元格编辑器里**还没提交**的输入落下来。
+ *
+ * # 为什么需要
+ *
+ * 实测（`tests/fixtures/out/formula_edit_no_enter_e2e.mjs`）：在一个格子里打完字
+ * **不按 Enter**、直接点工具条「保存 / 结果」，Univer 会**丢弃**这次输入 ——
+ * 画布值仍是旧值，`document.activeElement.blur()` 也不提交（blur 是取消语义）。
+ * 用户于是看到「我明明改了，结果里却没有」。
+ *
+ * # 做法
+ *
+ * 给编辑器补一个 `Enter` keydown（与用户按回车同一条路径），再等一拍让
+ * `sheet.mutation.set-range-values` 走完 `applyTemplateValues`。
+ * 只在焦点落在**可编辑元素**（contenteditable / 输入框）时动手，不干扰普通点击。
+ */
+async function commitCellEditor(): Promise<void> {
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement)) return
+  const editing = active.isContentEditable || active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+  if (!editing) return
+  active.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true,
+  } as KeyboardEventInit))
+  // 等一拍：mutation → applyTemplateValues → setDefBoth 是同步链，但要先让事件派发完。
+  await new Promise(resolve => setTimeout(resolve, 80))
+}
+
+
+/** Univer mutation 里 `ranges[]` 的形状（行列尺寸命令共用，起止字段名不同）。 */
+type MutationRange = {
+  startRow?: number; endRow?: number; startColumn?: number; endColumn?: number
+}
+
+/**
+ * mutation 的 `ranges[]` → **逻辑序号（1 起）** 清单。
+ *
+ * 列宽命令带的是 `startColumn/endColumn`，行高命令带的是 `startRow/endRow`；
+ * 定义 JSON 的 `col_props[].col` / `row_props[].row` 是 1 起，所以这里 +1。
+ * 去重并升序：拖动整段时 Univer 可能给出重叠 range。
+ */
+function rangeIndexes(
+  ranges: MutationRange[] | undefined,
+  from: 'startColumn' | 'startRow',
+  to: 'endColumn' | 'endRow',
+): number[] {
+  const seen = new Set<number>()
+  for (const range of ranges ?? []) {
+    const start = range[from]
+    const end = range[to]
+    if (typeof start !== 'number' || typeof end !== 'number') continue
+    for (let index = start; index <= end; index += 1) seen.add(index + 1)
+  }
+  return [...seen].sort((a, b) => a - b)
+}
+
 function propsEditLabel(edit: CellPropsEdit): string {
   switch (edit.kind) {
     case 'borderSide':
@@ -143,6 +210,16 @@ export default function App() {
   const [reports, setReports] = useState<ReportDetail[]>([])
   const [runs, setRuns] = useState<RunRecord[]>([])
   const [selectedRun, setSelectedRun] = useState('')
+  /** 正在调引擎重算（`POST /reports/{id}/runs` 是同步回包，期间按钮要禁用）。 */
+  const [running, setRunning] = useState(false)
+  /**
+   * 运行提示条：点「结果」后必须有**看得见**的反馈。
+   *
+   * 两个理由：①引擎常在 1s 内跑完，只改状态栏一行小字，用户会认定「点了没反应」；
+   * ②没有库内 id 的模板（示例深链 / 本地文件）压根不能重算，必须当场说清楚，
+   * 而不是留一个**禁用的按钮**让人反复点。
+   */
+  const [runNotice, setRunNotice] = useState<{ kind: 'running' | 'ok' | 'error'; text: string } | null>(null)
   const sourceRef = useRef('')
   const [sharedRevision, setSharedRevision] = useState('')
   /** W2-1：持有的定义 JSON（**打了补丁的那份**）。只有 `.json` 报表源才有；
@@ -161,11 +238,42 @@ export default function App() {
   /** W2-1：报表源形态，用于「.rpx 不能编辑」这条能力边界的提示。 */
   const [sourceKind, setSourceKind] = useState<'json' | 'rpx' | null>(null)
   const [status, setStatus] = useState(
-    '新建或打开 JSON 模板；在右侧配置数据集、公式和主格，由 agent 执行引擎生成结果',
+    '新建或打开 JSON 模板；在右侧配置数据集、公式和主格，点「结果」由报表引擎生成结果',
   )
 
   /** W2-5：报表源文件名（重渲染时 def 上传体沿用这个名字）。 */
   const [reportName, setReportName] = useState('report-definition.json')
+
+  /**
+   * 「重算」提示命令（引擎在 Rust 侧，Web 端不跑 —— 见 `rerun-command.ts`）。
+   * 两种情况该给命令：**定义有未保存改动**（改了还没落库）或
+   * **结果对应旧修订**（落库了但还没重算）。二者都意味着「结果不是最新的」。
+   */
+  const rerunHint = useMemo(() => {
+    if (!saved?.id || !saved.revision) return undefined
+    const stale = saved.result_state === 'older_revision' || saved.result_state === 'none'
+    const dirty = defRef.current ? JSON.stringify(defRef.current) !== sourceRef.current : false
+    if (!stale && !dirty) return undefined
+    return rerunCommand({ id: saved.id, revision: saved.revision, templatePath: saved.template_path })
+  }, [saved, def, status])
+
+  /**
+   * 结果视图的**打印活态上下文**：装载前的尺寸/样式基线 + 当时的快照。
+   *
+   * 用户在结果画布上改格式（粗体、填充色…）或拖列宽后，打印预览要跟着变
+   * （`mergeLivePrint`）。基线必须**装载前**冻结 —— Univer 会原地改装载对象。
+   */
+  const printLiveRef = useRef<{ sizes: SizeBaseline; styles: StyleBaseline; snapshot: PrintWorkbook } | null>(null)
+  /** 读活态 → 合成打印工作簿（结果视图专用；失败就保持上一次，不刷错误）。 */
+  const refreshPrintFromLive = () => {
+    const context = printLiveRef.current
+    const api = apiRef.current
+    if (!context || !api) return
+    try {
+      const live = api.getActiveWorkbook()?.save?.()
+      if (live) setPrintWorkbook(mergeLivePrint(context.snapshot, context, live as never))
+    } catch { /* 活态读不出来时保持现状：打印预览退化成「只看快照」 */ }
+  }
 
   /** 装载设计工作簿或运行快照；仅模板设计订阅内容修改。 */
   const attachSnapshot = (snapshot: unknown, held: ReportDef | null, kind: 'json' | 'rpx', design = false, selected?: { row0: number; col0: number }) => {
@@ -178,11 +286,28 @@ export default function App() {
     setSourceKind(kind)
     setSheetReady(false)
     setView(design ? 'design' : 'result')
-    if (!design) setPrintWorkbook(snapshot as PrintWorkbook)
+    // 结果视图：画布按「看得清」加宽（数字格放不下会画成 `######`，与画廊同款
+    // 处理）；**打印预览仍用原始宽度** —— 列宽是打印版面的一部分，加宽会改
+    // 横向分页与 PDF 页数，那是 run 的契约。用户自己拖/改的部分靠 `mergeLivePrint`
+    // 以「活态 − 装载基线」的差量补回来。
+    const display = design ? snapshot : fitColumns(snapshot as PrintWorkbook)
+    if (!design) {
+      printLiveRef.current = {
+        sizes: captureSizeBaseline(display as never),
+        styles: captureStyleBaseline(display as never),
+        snapshot: snapshot as PrintWorkbook,
+      }
+      setPrintWorkbook(snapshot as PrintWorkbook)
+    } else {
+      printLiveRef.current = null
+    }
     if (!containerRef.current) return
     const api = mountUniver(containerRef.current, design)
     apiRef.current = api
-    const workbook = api.createWorkbook(snapshot as Parameters<typeof api.createWorkbook>[0])
+    // 开发期探针钩子：给 `tests/fixtures/out/design_colwidth_e2e.mjs` 读活态列宽/行高用。
+    // `vite build` 里 `import.meta.env.DEV` 恒为 false，这段会被摇掉（不进产物）。
+    if (import.meta.env.DEV) (window as unknown as { __rpxProbeApi?: unknown }).__rpxProbeApi = api
+    const workbook = api.createWorkbook(display as Parameters<typeof api.createWorkbook>[0])
     workbook?.setEditable(design && !!held)
     commandDisposableRef.current = api.addEvent(api.Event.BeforeCommandExecute, event => {
       if (!design || writingRef.current || !event.id.startsWith('sheet.mutation.')) return
@@ -206,9 +331,43 @@ export default function App() {
         }
         return
       }
+      // ── 可驱动的结构变更：拖列宽 / 拖行高 ───────────────────────────────
+      // 画布给的是 px，定义 JSON 存的是 mm（`rowcol.ts` 的换算契约）；
+      // 拖完直接落进 `col_props[].width` / `row_props[].height`，与右侧面板同一条补丁路。
+      if (event.id === 'sheet.mutation.set-worksheet-row-auto-height'
+        || event.id === 'sheet.mutation.set-worksheet-row-is-auto-height') {
+        // Univer 改列宽/行高时会顺手发「自动行高」相关 mutation（实测两个 id：
+        // row-auto-height 带具体高度、row-is-auto-height 只翻标记）。
+        // 让它们落地就会改了画布行高却没进定义 JSON —— 两边说不清，静默拦掉
+        //（不刷状态栏，否则会盖掉上一行「已更新列宽/行高」的正确提示）。
+        event.cancel = true
+        return
+      }
+      if (event.id === 'sheet.mutation.set-worksheet-col-width' && defRef.current) {
+        const params = event.params as { colWidth?: number; ranges?: MutationRange[] } | undefined
+        if (typeof params?.colWidth !== 'number') { event.cancel = true; setStatus('编辑失败：列宽参数缺失'); return }
+        const cols = rangeIndexes(params.ranges, 'startColumn', 'endColumn')
+        const mm = pxToMm(params.colWidth)
+        const result = applyColWidths(defRef.current, cols, mm)
+        if (!result.def) { event.cancel = true; setStatus(`编辑失败：${result.error}`); return }
+        setDefBoth(result.def)
+        setStatus(`已更新列宽 ${mm} mm（列 ${cols.join('、')}）；点「结果」重新生成即可看到效果`)
+        return
+      }
+      if (event.id === 'sheet.mutation.set-worksheet-row-height' && defRef.current) {
+        const params = event.params as { rowHeight?: number; ranges?: MutationRange[] } | undefined
+        if (typeof params?.rowHeight !== 'number') { event.cancel = true; setStatus('编辑失败：行高参数缺失'); return }
+        const rows = rangeIndexes(params.ranges, 'startRow', 'endRow')
+        const mm = pxToMm(params.rowHeight)
+        const result = applyRowHeights(defRef.current, rows, mm)
+        if (!result.def) { event.cancel = true; setStatus(`编辑失败：${result.error}`); return }
+        setDefBoth(result.def)
+        setStatus(`已更新行高 ${mm} mm（行 ${rows.join('、')}）；点「结果」重新生成即可看到效果`)
+        return
+      }
       // Native structural changes cannot preserve report expressions and head addresses.
       event.cancel = true
-      setStatus('编辑失败：请使用右侧模板面板设置样式、合并区域和行列尺寸')
+      setStatus('编辑失败：插入/删除行列与合并会破坏报表表达式和表头地址；尺寸请拖列头/行头，或使用右侧面板')
     })
     eventDisposableRef.current = api.addEvent(api.Event.SheetValueChanged, event => {
       if (viewRef.current !== 'design' || writingRef.current || !defRef.current) return
@@ -234,6 +393,11 @@ export default function App() {
     })
     selectionDisposableRef.current = api.addEvent(api.Event.CommandExecuted, event => {
       if (event.id === 'sheet.operation.set-selections') syncPanel()
+      // 结果视图：格式命令（粗体/字色/填充/字号…）和行列尺寸命令执行完，
+      // 把活态差量合进打印工作簿 —— 否则「改了样式，打印预览没反应」。
+      if (viewRef.current === 'result' && /^sheet\.command\.(set-|delta-|clear)/.test(event.id)) {
+        refreshPrintFromLive()
+      }
     })
     const onReady = () => queueMicrotask(() => {
       if (apiRef.current !== api) return
@@ -251,7 +415,7 @@ export default function App() {
   const showTemplate = (held = defRef.current, selected?: { row0: number; col0: number }) => {
     if (!held || cellDirtyRef.current) return
     attachSnapshot(templateWorkbook(held, reportName), held, 'json', true, selected)
-    setStatus('模板设计：原始公式由 agent 调用 Rust 引擎执行，主格关系在右侧设置')
+    setStatus('模板设计：原始公式由报表引擎执行，主格关系在右侧设置')
   }
 
   const openFiles = async (selected: File[]) => {
@@ -274,6 +438,10 @@ export default function App() {
       setSelectedRun('')
       setSharedRevision('')
       if (held) {
+        // 基线 = 刚打开的内容：本地/示例模板打开后不应算「有未保存改动」，
+        // 否则「报表库」下拉会被 `draftChanged()` 挡住（提示「请先保存共享定义」），
+        // 而这种模板根本没有库内 id 可保存 —— 用户就被锁死在示例里了。
+        sourceRef.current = JSON.stringify(held)
         attachSnapshot(templateWorkbook(held, report.name), held, 'json', true)
         setStatus(`已打开模板 ${report.name}；无需数据即可编辑，运行前上传对应数据文件`)
       } else {
@@ -323,10 +491,22 @@ export default function App() {
       setRuns(history.items)
       setSelectedRun(run ?? '')
       setPrintWorkbook(workbook)
-      if (replaceDraft || !draftChanged()) setStatus(detail.result_state === 'older_revision' ? '定义已修改，结果对应旧修订；等待 agent 执行' : '已读取模板库与保存的运行结果')
+      if (replaceDraft || !draftChanged()) setStatus(detail.result_state === 'older_revision' ? '定义已修改，结果对应旧修订；点「结果」重新生成' : '已读取模板库与保存的运行结果')
     } catch (error) { setStatus(`读取失败：${error instanceof Error ? error.message : String(error)}`) }
   }
+  /**
+   * 「结果」/「查看结果」= **真的重算一次**（`POST /reports/{id}/runs`）。
+   *
+   * 顺序：有未落库的改动先保存（否则引擎算的还是旧定义，用户看到的仍是旧结果）
+   * → 请求服务端跑引擎 → 读新 run 的 `workbook.json` 并切到结果视图。
+   *
+   * 引擎始终在 Rust 侧执行，浏览器只发请求、等产物 —— Web 端不执行计算。
+   */
   const render = async () => {
+    // 先落编辑器里没提交的输入：否则「改完直接点结果」会把这次输入丢掉（实测）。
+    await commitCellEditor()
+    if (!readyToLeaveCell()) return
+    if (running) return
     if (!saved && printWorkbook) {
       // 示例库入口（?gallery=）：模板是磁盘文件、没有入库 ⇒ saved 为 null，
       // 但装载时已把该次运行的 workbook.json 读进 printWorkbook。此时没有
@@ -337,15 +517,65 @@ export default function App() {
       setStatus(`正在查看示例库附带的运行结果（${printWorkbook.sheetOrder.length} 个 sheet）`)
       return
     }
-    if (!saved) { setStatus('请从模板库选择报表；本地模板可通过 rpx run 执行'); return }
-    if (!readyToLeaveCell()) return
+    if (!saved?.id) {
+      // 没有库内 id 就没有可重算的对象：示例深链、本地打开的 JSON 都走这条。
+      // 这里**必须给可见反馈** —— 之前按钮直接 disabled，用户点半天以为坏了。
+      const message = '当前模板没有库内 id（示例深链 / 本地文件），服务端无法重算：请从上方「报表库」下拉选择库内报表再点结果'
+      setRunNotice({ kind: 'error', text: message })
+      setStatus(`运行失败：${message}`)
+      return
+    }
+    const held = defRef.current
+    setRunning(true)
+    setRunNotice({ kind: 'running', text: `正在调用报表引擎重算 ${saved.id}…` })
+    invalidateResult()
     try {
-      if (!selectedRun) { await refreshLibrary(); return }
-      const workbook = await loadWorkbook(saved.id, selectedRun)
+      let detail = saved
+      if (held && draftChanged()) {
+        setStatus('正在保存定义…')
+        detail = await saveTemplate(saved.id, saved.revision, held)
+        sourceRef.current = JSON.stringify(held)
+        setSaved(detail)
+        setSharedRevision(detail.revision)
+        setReports(current => current.map(item => item.id === detail.id ? detail : item))
+      }
+      setStatus('正在调用报表引擎重新生成结果…')
+      const started = await executeReport(detail.id, detail.revision)
+      const runId = started.run?.run_id ?? ''
+      // 运行记录与报表详情一起刷：`result_state` 要立刻从 older_revision 变
+      // current_revision，否则状态栏的「不是最新」提示不会消失。
+      const [history, latest] = await Promise.all([getRuns(detail.id), getReport(detail.id)])
+      setRuns(history.items)
+      setSelectedRun(runId)
+      setSaved(latest)
+      if (!runId) {
+        setRunNotice({ kind: 'error', text: '引擎未返回运行号，请到运行记录查看' })
+        setStatus('运行失败：引擎未返回运行号')
+        return
+      }
+      const workbook = await loadWorkbook(detail.id, runId)
       attachSnapshot(workbook, defRef.current, 'json')
-      setStatus(`正在查看已保存的运行 ${selectedRun}`)
-    } catch (error) { setStatus(`结果读取失败：${error instanceof Error ? error.message : String(error)}`) }
+      setRunNotice({ kind: 'ok', text: `已重新生成结果 · ${runId}` })
+      setStatus(`已重新生成结果（运行 ${runId}）`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const conflict = error instanceof LibraryError && error.status === 412
+      const text = conflict ? '修订冲突：共享定义已改变，请重新读取后再运行' : message
+      setRunNotice({ kind: 'error', text: `重新生成失败：${text}` })
+      setStatus(conflict ? `运行失败：${text}` : `重新生成失败：${text}`)
+      // 失败也是一次 attempt：把运行记录刷出来，用户才看得到失败诊断。
+      try { const history = await getRuns(saved.id); setRuns(history.items) } catch { /* 列表刷新失败不掩盖主错误 */ }
+    } finally {
+      setRunning(false)
+    }
   }
+
+  // 成功提示 5s 后自动收掉；失败提示留着，等用户处理或手动关闭。
+  useEffect(() => {
+    if (runNotice?.kind !== 'ok') return
+    const timer = setTimeout(() => setRunNotice(null), 5000)
+    return () => clearTimeout(timer)
+  }, [runNotice])
 
   const onTemplateCellApply = (row0: number, col0: number, draft: CellDraft): boolean => {
     if (!defRef.current || viewRef.current !== 'design') return false
@@ -354,7 +584,7 @@ export default function App() {
     setCellPending(false)
     datasetDirtyRef.current = false
     showTemplate(result.def, { row0, col0 })
-    setStatus('已应用单元格定义，可保存共享定义，由 agent 运行查看扩展结果')
+    setStatus('已应用单元格定义；点「结果」重新生成即可看到扩展结果')
     return true
   }
 
@@ -390,7 +620,7 @@ export default function App() {
       return
     }
     const run = runs.find(run => run.run_id === selectedRun)
-    if (!run?.artifacts[name]) { setStatus(`该次运行未生成 ${name}；请由 agent 使用 --export ${fmt} 再执行`); return }
+    if (!run?.artifacts[name]) { setStatus(`该次运行未生成 ${name}；请用 CLI 带 --export ${fmt} 再执行`); return }
     try {
       const response = await fetch(artifactUrl(saved.id, selectedRun, name))
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -555,7 +785,7 @@ export default function App() {
         { label: '报表实例库', onPick: () => { location.href = '/gallery.html' }, hint: '浏览已生成报表的实例画廊' },
         { sep: true },
         { label: '保存共享定义\tCtrl+S', onPick: () => void save(), disabled: !def, hint: '把当前定义提交为服务端共享修订' },
-        { label: '查看已保存结果\tF9', onPick: () => void render(), disabled: !saved && !files.length && !def, hint: '重新读取该运行的结果快照' },
+        { label: '运行并查看结果\tF9', onPick: () => void render(), disabled: running || !saved, hint: '调用报表引擎重算当前定义，再打开结果视图' },
         {
           label: '导出',
           onPick: () => {},
@@ -950,7 +1180,7 @@ export default function App() {
       return
     }
     setDefBoth(r.def)
-    setStatus(`已更新报表设置 ${field}；保存后由 agent 执行生效，或「导出 JSON」拿回文件`)
+    setStatus(`已更新报表设置 ${field}；保存并重新生成后生效，或「导出 JSON」拿回文件`)
   }
 
   /** W3-1：横竖互换（纸张宽高对调）。 */
@@ -966,11 +1196,13 @@ export default function App() {
       return
     }
     setDefBoth(r.def)
-    setStatus('已互换纸张方向；保存后由 agent 执行生效')
+    setStatus('已互换纸张方向；保存后重新生成生效')
   }
 
   /** 「另存为」（W1-3 + W1-2）：入库拿 id → 按 `/meta` 刷新参数表单。 */
   const save = async () => {
+    // 同 render：编辑器里未提交的输入先落地，否则保存的是「上一版」定义。
+    await commitCellEditor()
     if (!readyToLeaveCell()) return
     if (!saved || !defRef.current) { setStatus('本地模板可下载 JSON；请用 CLI 创建或导入报表包后共同编辑'); return }
     const held = defRef.current
@@ -980,7 +1212,7 @@ export default function App() {
       setSaved(detail)
       setSharedRevision(detail.revision)
       setReports(current => current.map(r => r.id === detail.id ? detail : r))
-      setStatus(detail.result_state === 'older_revision' ? '定义已保存；结果对应旧修订，等待 agent 执行' : '定义已保存')
+      setStatus(detail.result_state === 'older_revision' ? '定义已保存；点「结果」重新生成' : '定义已保存')
     } catch (error) {
       setStatus(error instanceof LibraryError && error.status === 412
         ? '修订冲突：共享源码已改变，本地草稿已保留。可下载草稿并与最新定义比较'
@@ -988,32 +1220,56 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    // 示例库入口（?gallery=）已显式指定要打开的报表：跳过模板库首项的自动装载。
-    // 否则两条装载链路并行互相覆盖——不仅模板被顶掉，库里附带的 workbook 还会
-    // 把示例的运行结果挤掉，「运行结果」看到的是另一份报表。
-    if (new URLSearchParams(location.search).get('gallery')) return
-    void refreshLibrary(undefined, true)
-  }, [])
+  /** 示例深链的退路：库里没有同名报表时，打开目录里的定义 + 固定运行结果。 */
+  const openGallery = async (base: string) => {
+    // 记住示例运行目录：导出 CSV/XLSX 时按 `<base>/<name>` 直接取该次运行的产物。
+    galleryBaseRef.current = base
+    const files = await galleryFiles(base)
+    await openFiles(files)
+    // 同一运行目录里的 workbook.json 一并装载，「运行结果」按钮立即可用。
+    try {
+      setPrintWorkbook(await (await artifact(`${base}/workbook.json`)).json() as PrintWorkbook)
+    } catch (error) { setStatus(`装载失败：读取运行结果 workbook.json 失败（${String(error)}）`) }
+  }
 
   useEffect(() => {
-    const base = new URLSearchParams(location.search).get('gallery')
-    if (!base) return
+    // 三个入口，按优先级：
+    //   `?report=<id>`  —— 显式指定库内报表（外部系统/脚本传参用）
+    //   `?gallery=<base>` —— 示例深链；**取路径最后一段当 id**，库里有同名报表就直接选中，
+    //                        不再让用户去下拉里挑第二次（用户 2026-10-20 明确要求）
+    //   都没有 —— 装载库内首项
+    const params = new URLSearchParams(location.search)
+    // `report` 与 `id` 等价（外部系统两种写法都见过，不必让对方改）
+    const explicit = params.get('report') ?? params.get('id')
+    const gallery = params.get('gallery')
+    // 深链值可能带 query/hash 或是完整 URL：先切干净再取最后一段当 id
+    const cleaned = gallery?.split(/[?#]/)[0] ?? ''
+    const wanted = explicit ?? (cleaned ? cleaned.split('/').filter(Boolean).pop() : undefined)
+    if (!gallery && !explicit) { void refreshLibrary(undefined, true); return }
+
     let current = true
-    galleryBaseRef.current = base
-    void galleryFiles(base).then(async files => {
-      if (!current) return
-      await openFiles(files)
-      if (!current) return
-      // 同一运行目录里的 workbook.json 一并装载，「运行结果」按钮立即可用
-      // （否则 printWorkbook 为 null，按钮永远是禁用的）。读取失败时明确上屏，
-      // 不静默留一个点不动的按钮。
-      try {
-        setPrintWorkbook(await (await artifact(`${base}/workbook.json`)).json() as PrintWorkbook)
-      } catch (error) { setStatus(`装载失败：读取运行结果 workbook.json 失败（${String(error)}）`) }
-    }).catch(error => { if (current) setStatus(`装载失败：${String(error)}`) })
+    void listReports()
+      .then(async listing => {
+        if (!current) return
+        // 先把列表填进下拉：即便最后走示例模板，用户也能手动切换
+        //（否则深链模式下「报表库」是个空下拉，提示让人选却没得选）。
+        setReports(listing.items)
+        const match = wanted ? listing.items.find(item => item.id === wanted) : undefined
+        if (match) {
+          // 库内有同 id 报表 ⇒ 直接选中（含修订号与最新运行结果），「结果」按钮即刻可用。
+          await refreshLibrary(match.id, true)
+          return
+        }
+        if (explicit) {
+          setStatus(`装载失败：模板库里没有 id 为 ${explicit} 的报表`)
+          return
+        }
+        await openGallery(gallery!)
+        // 说清楚为什么「没选中」：库里没有同 id 的报表，只能打开示例模板。
+        setStatus(`已在示例库打开 ${wanted ?? '模板'}；模板库里没有同 id 的报表，可从上方「报表库」下拉另选`)
+      })
+      .catch(error => { if (current) setStatus(`装载失败：读取模板库列表失败（${String(error)}）`) })
     return () => { current = false }
-    // 此入口只在首次装载时读取固定运行版本。
   }, [])
 
   // 卸载时收掉单元格监听 + 选区监听 + Univer 实例（canvas + 监听）。
@@ -1034,7 +1290,21 @@ export default function App() {
   const pv: PanelStyle = panel ?? PANEL_DEFAULTS
 
   return (
-    <div className="rpx-app">
+    <div
+      className="rpx-app"
+      onMouseDownCapture={event => {
+        // 编辑器里还有没提交的输入时，**点了画布外的按钮**（保存/结果/菜单/面板）
+        // 浏览器会先把焦点从编辑器挪走，Univer 就地把这次输入丢了。
+        // 所以在 mousedown 捕获阶段先补一个 Enter（提交语义），再让点击继续。
+        // 点画布内部不处理：那是用户自己换格，Univer 本来就会提交。
+        const active = document.activeElement
+        if (!(active instanceof HTMLElement) || !active.isContentEditable) return
+        if (containerRef.current?.contains(event.target as Node)) return
+        active.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true,
+        } as KeyboardEventInit))
+      }}
+    >
       <style>{`
         :root {
           --rpx-border: #d8dee4;
@@ -1047,7 +1317,7 @@ export default function App() {
         }
       `}</style>
       {/* ── 第 1 层：菜单栏（IDE 惯例：菜单永远在最顶） ────────────── */}
-      <MenuBar groups={menuGroups} brand="rpx 报表设计器" />
+      <MenuBar groups={menuGroups} brand="AI 报表引擎" />
 
       {/* ── 第 2 层：主工具条（只留 6 个高频动作） ─────────────────────
           旧版这里挤了 4 个按钮 + 报表库 + 运行记录 + 打开数据集 + 撤销等，
@@ -1058,17 +1328,23 @@ export default function App() {
         <button className="tb" onClick={openReport} title="打开模板文件（Ctrl+O）">打开</button>
         <span className="sep" />
         <button className="tb" onClick={() => void save()} disabled={!def} title="保存当前定义为服务端共享修订（Ctrl+S）">保存</button>
-        <button className="tb primary" onClick={() => void render()} disabled={!saved && !files.length && !def} title="查看已保存的运行结果（F9）">查看结果</button>
+        <button className="tb primary" onClick={() => void render()} disabled={running || (!saved && !def && !files.length)} title="调用报表引擎重新生成结果（F9）">{running ? '生成中…' : '结果'}</button>
         <button className="tb" onClick={() => setShowPrint(true)} disabled={!printWorkbook} title="图形与打印预览">打印预览</button>
         <span className="sep" />
         <div className="rpx-seg" role="group" aria-label="视图切换">
           <button aria-pressed={view === 'design'} disabled={!def} onClick={() => showTemplate()}>设计</button>
           <button
             aria-pressed={view === 'result'}
-            disabled={!printWorkbook}
-            onClick={() => { if (printWorkbook && readyToLeaveCell()) attachSnapshot(printWorkbook, defRef.current, sourceKind ?? 'json') }}
+            disabled={running || (!saved && !printWorkbook && !def)}
+            onClick={() => {
+              // 结果不是当前修订（或本地还有没落库的改动）⇒ 点它就**重算**；
+              // 结果已是最新 ⇒ 只切视图，不白跑一次引擎。
+              const stale = !saved || saved.result_state !== 'current_revision' || draftChanged()
+              if (stale || !printWorkbook) { void render(); return }
+              if (printWorkbook && readyToLeaveCell()) attachSnapshot(printWorkbook, defRef.current, sourceKind ?? 'json')
+            }}
           >
-            结果
+            {running ? '生成中…' : '结果'}
           </button>
         </div>
         <span className="rpx-spacer" />
@@ -1119,6 +1395,15 @@ export default function App() {
       />
       {/* ── 第 4 层：主体（画布 + 属性面板） ─────────────────────────── */}
       <div className="rpx-main">
+        {runNotice ? (
+          <div className={`rpx-runbar ${runNotice.kind}`} role="status" aria-live="polite">
+            {runNotice.kind === 'running' ? <span className="dot" aria-hidden /> : null}
+            <span>{runNotice.text}</span>
+            {runNotice.kind === 'running' ? null : (
+              <button className="tb mini" onClick={() => setRunNotice(null)} title="关闭提示">关闭</button>
+            )}
+          </div>
+        ) : null}
         <div ref={containerRef} className="rpx-canvas" data-sheet-ready={sheetReady} aria-busy={!!apiRef.current && !sheetReady} style={{ pointerEvents: sheetReady ? 'auto' : 'none' }} />
         {sideVisible ? (
           <PropertiesPanel
@@ -1195,6 +1480,20 @@ export default function App() {
       {/* ── 第 6 层：状态栏（消息 + 网格 + 选区 + 运行号） ─────────────── */}
       <div className="rpx-status">
         <span className={ERROR_PREFIXES.some((p) => status.startsWith(p)) ? 'msg err' : 'msg'}>{status}</span>
+        {/* 结果不是最新（结果对应旧修订，或本地还有没落库的改动）时给一键重算。
+            引擎在 Rust 侧，按钮打 `POST /reports/{id}/runs`；命令行的等价写法留在
+            title 里，方便脚本/agent 复用。 */}
+        {rerunHint ? (
+          <span className="rpx-rerun">
+            结果不是最新
+            <button
+              className="tb mini"
+              onClick={() => void render()}
+              disabled={running}
+              title={`调用报表引擎重算；等价命令：${rerunHint}`}
+            >{running ? '生成中…' : '重新生成'}</button>
+          </span>
+        ) : null}
         <span className="rpx-spacer" />
         <span>{view === 'design' ? `网格 ${def?.grid.rows ?? '—'} × ${def?.grid.cols ?? '—'}` : '结果视图（只读）'}</span>
         {cellDirty ? <span>当前格有未应用修改</span> : null}

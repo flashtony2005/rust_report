@@ -541,6 +541,102 @@ Univer 是**表格**模型，而 rpx 有它没有的概念：`extend_mode` 的�
 只能由 JSON 声明（M7-5 已支持）。⇒ W2 不做「在 Univer 里画扩展」，
 只做「在 JSON 里声明、在预览里看效果」。
 
+### W4 结果重算通道（2026-10-20，**已收口**）
+
+设计器「结果」不再只读旧快照 —— 它**真的调引擎**。
+
+| 层 | 契约 |
+| --- | --- |
+| 服务端 | `POST /reports/{id}/runs`：可选 `If-Match`（缺省取当前修订）→ `library::execute` → 回 `{run, out_dir, result, workbook}`。空体 = 全缺省；未知字段 400 `USAGE`；旧修订 412 `REVISION_CONFLICT` |
+| 前端 | 有未落库改动**先保存**（否则引擎算的还是旧定义）→ 调上面这条 → `getRuns`/`getReport` 刷新状态 → 装载新 run 的 `workbook.json` 并切结果视图 |
+| 触发点 | 工具条「结果」、视图切换「结果」（stale 才重算，current 只切视图）、状态栏「重新生成」、`F9` |
+
+**为什么改**：`web_executes_engine: false` 说的是「**浏览器**不执行引擎」——引擎一直在 Rust
+侧；此前服务端没有触发入口，用户改完定义只能看到旧结果（报障「设计后结果没有出现改动的
+效果」）。现在浏览器只发请求、服务端执行，该字段语义不变。
+
+**判据**（均已实跑）：
+
+1. `crates/rpx-server/tests/library_http.rs::web_triggers_engine_run_and_reads_fresh_result`
+   —— 无 `If-Match` 也算当前定义、`result_state` 立刻变 `current_revision`、旧修订 412、拼错字段 400。
+2. `tests/fixtures/out/result_button_e2e.mjs` —— 点按钮后运行记录 0→1，状态栏出「已重新生成结果（运行 …）」。
+3. `tests/fixtures/out/designer_result_rerun_e2e.mjs` —— 面板改格 → 点「结果」→ 运行记录 +1，
+   且**新 run 的 `workbook.json` 里能搜到刚改的文字**（「结果反映设计」的硬证据）。
+
+### W5 拖动行列尺寸（2026-10-20，**已收口**）
+
+设计视图以前把**所有** `sheet.mutation.*` 一律 `cancel`（怕插入/删除行列破坏表达式与表头
+地址），连拖列宽一起拦了 ⇒ 拖列头报「编辑失败：请使用右侧模板面板…」。现在按 id 分流：
+
+| mutation id | 处置 |
+| --- | --- |
+| `set-worksheet-col-width` | 放行 + 落 `col_props[].width`（px→mm，`pxToMm` 保留 2 位） |
+| `set-worksheet-row-height` | 放行 + 落 `row_props[].height`（同一换算） |
+| `set-worksheet-row-auto-height` / `set-worksheet-row-is-auto-height` | **静默**拦（改列宽时 Univer 顺手发的自动行高；让它落地会改画布却不进 JSON，且会盖掉「已更新列宽」提示） |
+| 其余（插入/删除行列、合并…） | 仍拦，文案改为「尺寸请拖列头/行头，或使用右侧面板」 |
+
+判据：`tests/fixtures/out/design_colwidth_e2e.mjs` —— 拖列头 52.91→80.91px、状态栏
+「已更新列宽 21.41 mm」；`setRowHeight` 走同一通道（「已更新行高 15.88 mm」）；点「结果」后
+**服务端 workbook** 列宽 80.92 / 行高 60.02（权威快照跟着变）；脚本末尾还原 `col_props`/
+`row_props` 并重算，示例库无残留。
+
+> 换算契约见 `web/src/rowcol.ts`：JSON 单位 mm，快照 96dpi ⇒ px = mm×96/25.4（8mm→30.24px）。
+
+### W6 打印预览「去掉背景色」（2026-10-20，**已收口**）
+
+打印预览控件条新增勾选项 **「去掉背景色」**（默认不勾 = 保持原样）。
+
+- 勾上后：单元格底纹（`s.bg`）不落地、页背景图（`printOptions.overlay` + `pageBackground`）不加载、
+  `cell_background` 图形不画 —— 省墨、黑白打印机友好；
+- 只影响**预览与打印**，不改 `workbook.json`、不影响设计器画布与引擎结果（`PrintPreview` 内部按开关传参）；
+- 判据（浏览器实测）：`store-ranking` 打印预览 → 默认状态下表头行底色 `rgb(27,80,91)`；
+  勾上后同格 `rgba(0,0,0,0)`，截图 `tests/fixtures/out/gallery_shots/print_bg_{on,off}.png` 对比可见表头深色带消失。
+
+### W7 结果画布的格式改动 → 打印预览（2026-10-20，**已收口**）
+
+结果视图是只读的（`setEditable(false)`），但**只锁数据编辑、不锁格式**：`sheet.command.set-bold` 等
+照样执行（实测返回 `true`）。此前这些改动只活在画布里，打印预览吃的是静态 `workbook.json`，
+所以「改了样式、预览没反应」。
+
+- 口径：样式是**离散量**，不比增量，只比等不等 —— 活态样式 ≠ 装载基线 ⇒ 用活态样式**覆盖**快照该格；
+  清除格式（活态无 `s`）⇒ 删掉快照里那份 `s`。内容（`v`/`t`）永远以快照为准。
+- 两个实测坑：①`save()` 里 `s` 可能是**字符串 id**（指向 `workbook.styles`），改过一次格式后就变 id 形态，
+  必须先 resolve；②Univer 会原地改装载对象，基线必须**装载前**冻结（与列宽同一条要求）。
+- 实现：`live-layout.ts::captureStyleBaseline` / `mergeLiveStyles` / `mergeLivePrint`；
+  设计器与画廊都在 `CommandExecuted` 里按 `^sheet\.command\.(set-|delta-|clear)` 触发重算。
+- 判据：`tests/fixtures/out/print_style_live_e2e.mjs` —— 设计器结果里给 A7 加粗 → 预览同格
+  `fontWeight` 400 → **700**（截图 `print_style_live.png` 可见「上海静安」变粗）；
+  单测 `live-layout.test.ts` +5 条（id 形态/键序规范化/未改/改色/清除格式/尺寸+样式同并）。
+
+### W8 边框（画布 → 打印预览 → 导出 PDF，2026-10-20 **已收口**）
+
+结果画布上画的边框（Univer 工具条的「所有边框 / 外边框 / 线型 / 颜色」）现在会原样出现在
+打印预览与导出的 PDF/HTML 里。这条链路此前**两头都断**：
+
+| 断点 | 现象 | 修法 |
+| --- | --- | --- |
+| 引擎快照不输出边框 | 模板里设了边框，**结果页**就是白底（只有设计视图有框，因为它直读定义 JSON） | `snapshot::style::style_json` 输出 `s.bd`（§spec-m4 4.3.2） |
+| 预览不读边框 | 画布上画了框，纸上没有 | 新增 `web/src/print-border.ts`：`BorderStyleTypes` → CSS（`borderSides` / `cellBorders`） |
+
+三个实现要点：
+
+1. **逐边兜底**，不用 `border` 简写：有显式边框的边用显式值，其余边才用
+   `printOptions.borderWidth` 的网格线。用简写会把用户画的三条边一起覆盖掉。
+2. **CSS 键名必须是 `borderTop`/`borderRight`/…**：写成 `top`/`right` 展开进 `style` 会被当成
+   **定位偏移**（`style.top = '1pt solid #F00'` 是无效值），边框静默不生效 —— 首版就死在这里。
+3. **活态差量与模板边框共用一条通道**：`mergeLiveStyles` 拷的是整份样式对象，`bd` 自然跟着走；
+   用户画框后 `CommandExecuted`（`sheet.command.set-border-basic` 命中 `set-` 前缀）触发重新合并。
+
+判据：
+
+- `crates/rpx-runtime/tests/snapshot_border.rs` —— 模板边框 → 快照 `s.bd`（实线 THIN / 双线 DOUBLE /
+  粗虚线 MEDIUM_DASHED 三条都验；未声明的边不出现）。
+- `crates/rpx-runtime/tests/print_html.rs::cell_borders_win_over_grid_lines_per_side` —— 导出的 HTML
+  里显式边与网格线**逐边共存**。
+- `tests/fixtures/out/print_border_e2e.mjs` —— 结果画布选一段区域上「所有边框」，预览里该段每一格
+  `border-*` 都是 `1px solid rgb(255,0,0)`，紧邻的下一列没有；0 pageerror。
+- 单测 `web/src/print-border.test.ts`（8 条：四种线型 / 粗细档 / none 与未知码不画 / 两种颜色槽 / 逐边兜底）。
+
 ## 5. 验收标准（EARS）
 
 1. **当** 用户选中一个定义 JSON 并点渲染，**系统应**渲染出与同内容 `.rpx` 逐字节等价的快照
@@ -749,6 +845,11 @@ cargo test -p rpx-server --test definition_channel_http
 
 | 日期 | 变更 | 原因 |
 | --- | --- | --- |
+| 2026-10-20 | v0.14 **W8 边框打通** | 快照补 `s.bd`（原来后置）+ 预览补边框渲染；修 `top`→`borderTop` 键名坑。 |
+| 2026-10-20 | v0.13 **W7 结果样式进打印预览** | 结果画布上的格式改动（粗体/字色/填充…）按「活态 vs 装载基线」覆盖进打印工作簿；不需 Univer Pro。 |
+| 2026-10-20 | v0.12 **W6 打印预览去背景色** | 预览控件加「去掉背景色」勾选；只影响预览/打印，不动快照与画布。 |
+| 2026-10-20 | v0.11 **W5 拖动行列尺寸收口** | `sheet.mutation.*` 从「一律 cancel」改为按 id 分流：列宽/行高放行并落 `col_props`/`row_props`，自动行高静默拦，其余结构变更仍拦。判据与换算见 §4 W5。 |
+| 2026-10-20 | v0.10 **W4 结果重算通道收口** | 新增 `POST /reports/{id}/runs`（服务端跑引擎）+ 设计器「结果」按钮自动保存并重算；判据 3 条（服务端测试 + 两个浏览器 E2E）见 §4 W4。`/render`、`/export` 仍故意 404。 |
 | 2026-10-16 | v0.1 立档 | M7-1~M7-6 已把定义 JSON 的服务端能力备齐（含 `.rpx` 产出与写回），
 `report-def-json.md` §7.2 要求为设计器另立 spec；本文件即该 spec。
 **先交 W0（前端可验证性地基），再谈 W1/W2** —— 没有 G9 的设计器改动无法按本仓标准收口。 |

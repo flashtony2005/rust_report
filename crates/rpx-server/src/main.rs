@@ -30,7 +30,10 @@ async fn start() -> Result<(), Box<dyn std::error::Error>> {
     let library = library.ok_or("必须指定 --library DIR")?;
     rpx_runtime::library::list(&library, None, None, 1, 0)?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    eprintln!("报表库 {} → http://{addr}", library.display());
+    // 打印**实际**绑定地址而不是 --addr 原值：--addr 端口写 0 时由 OS 分配，
+    // 打印原值会得到一个没用处的「:0」。
+    let bound = listener.local_addr()?;
+    eprintln!("报表库 {} → http://{bound}", library.display());
     if auth_token.is_some() {
         eprintln!("Bearer 鉴权已启用");
     }

@@ -1,0 +1,35 @@
+{
+ "version": 1,
+ "grid": {"rows": 6, "cols": 7},
+ "datasets": [{"name": "rev", "file": {"file_name": "revenue-channel.csv", "encoding": "UTF-8", "delimiter": ","}}],
+ "col_props": [
+  {"col": 1, "width": 20}, {"col": 2, "width": 16}, {"col": 3, "width": 13},
+  {"col": 4, "width": 16}, {"col": 5, "width": 13}, {"col": 6, "width": 10},
+  {"col": 7, "width": 12}
+ ],
+ "row_props": [{"row": 1, "height": 30}, {"row": 3, "height": 22}, {"row": 5, "height": 22}],
+ "cells": [
+  {"row": 1, "col": 1, "font_name": "Microsoft YaHei", "font_size": 18, "bold": true, "h_align": "center", "v_align": "middle", "fore_color": "#163D46", "text": "收入结构分析 · 占比 / 累计 / 排名", "merge": {"rows": 1, "cols": 7}, "extend_mode": "none"},
+  {"row": 2, "col": 1, "font_name": "Microsoft YaHei", "font_size": 9, "h_align": "center", "v_align": "middle", "fore_color": "#5A6B75", "text": "根坐标 `0 取全体收入实例做分母；累计用位移坐标取上一行；排名用条件格集统计“比我大的个数”", "merge": {"rows": 1, "cols": 7}, "extend_mode": "none"},
+  {"row": 3, "col": 1, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "渠道"},
+  {"row": 3, "col": 2, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "收入"},
+  {"row": 3, "col": 3, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "占比"},
+  {"row": 3, "col": 4, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "累计收入"},
+  {"row": 3, "col": 5, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "累计占比"},
+  {"row": 3, "col": 6, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "排名"},
+  {"row": 3, "col": 7, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "Top3"},
+  {"row": 4, "col": 1, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "left", "expr": "rev.select(channel)", "extend_mode": "vertical"},
+  {"row": 4, "col": 2, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "right", "expr": "rev.select(revenue)", "left_head": "A4", "format": "#,##0", "extend_mode": "none"},
+  {"row": 4, "col": 3, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "right", "expr": "B4/sum(B4[`0]{})", "left_head": "A4", "format": "0.00%", "extend_mode": "none"},
+  {"row": 4, "col": 4, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "right", "expr": "if(seq(A4)<=1,B4,B4+D4[-1])", "left_head": "A4", "format": "#,##0", "extend_mode": "none"},
+  {"row": 4, "col": 5, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "right", "expr": "D4/sum(B4[`0]{})", "left_head": "A4", "format": "0.00%", "extend_mode": "none"},
+  {"row": 4, "col": 6, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "center", "expr": "count(B4[`0]{B4>$B4})+1", "left_head": "A4", "format": "0", "extend_mode": "none"},
+  {"row": 4, "col": 7, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "v_align": "middle", "h_align": "center", "fore_color": "#B4531F", "expr": "if(F4<=3,'TOP3','')", "left_head": "A4", "extend_mode": "none"},
+  {"row": 5, "col": 1, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#F1F4F7", "text": "合计"},
+  {"row": 5, "col": 2, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "right", "v_align": "middle", "back_color": "#F1F4F7", "expr": "sum(B4[`0]{})", "format": "#,##0", "extend_mode": "none"},
+  {"row": 5, "col": 3, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "right", "v_align": "middle", "back_color": "#F1F4F7", "expr": "B5/sum(B4[`0]{})", "format": "0.00%", "extend_mode": "none"},
+  {"row": 5, "col": 4, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "right", "v_align": "middle", "back_color": "#F1F4F7", "expr": "B5", "format": "#,##0", "extend_mode": "none"},
+  {"row": 5, "col": 5, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "right", "v_align": "middle", "back_color": "#F1F4F7", "expr": "D5/sum(B4[`0]{})", "format": "0.00%", "extend_mode": "none"},
+  {"row": 6, "col": 1, "font_name": "Microsoft YaHei", "font_size": 9, "fore_color": "#5A6B75", "text": "说明：占比与累计占比同用根坐标取总额，不受数据顺序影响；排名按收入降序，前 3 名自动标注。", "merge": {"rows": 1, "cols": 7}, "extend_mode": "none"}
+ ]
+}
