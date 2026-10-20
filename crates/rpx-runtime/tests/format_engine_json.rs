@@ -10,7 +10,7 @@ fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures")
 }
 
-fn names() -> [&'static str; 23] {
+fn names() -> [&'static str; 39] {
     [
         "engine_sum",
         "engine_ext",
@@ -35,6 +35,23 @@ fn names() -> [&'static str; 23] {
         "engine_crossalign",
         "engine_crossalign_lit",
         "engine_crossalign_ds2",
+        "engine_hc_abs",
+        "engine_hc_offset",
+        "engine_hc_root",
+        "engine_hc_cellset",
+        "engine_hc_amp",
+        "engine_hc_cond",
+        "engine_hc_empty",
+        "engine_hc_ds",
+        "engine_hc_order",
+        "engine_hc_err",
+        "engine_hc_cycle",
+        "engine_hc_merge",
+        // M5 §6.3 残账三夹具。
+        "engine_tiesort",
+        "engine_rowtest",
+        "engine_groupb",
+        "engine_mergepage",
     ]
 }
 

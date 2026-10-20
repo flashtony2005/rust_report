@@ -49,7 +49,66 @@ pub(crate) fn style_json(cell: &Cell) -> J {
     if let Some(pattern) = &cell.format {
         s.insert("n".to_string(), json!({ "pattern": pattern }));
     }
+    // 边框（`spec-m4.md` §4.3 曾列为后置，2026-10-20 收口）：不输出的话结果页与
+    // 打印预览都丢边框，只有设计视图（直接读定义 JSON）看得到。
+    if let Some(bd) = border_json(cell) {
+        s.insert("bd".to_string(), bd);
+    }
     J::Object(s)
+}
+
+/// 四边边框 → Univer `IBorderData`（键 `t`/`r`/`b`/`l`，每边 `{ s, cl: { rgb } }`）。
+///
+/// 四边全 `none` ⇒ `None`（不写 `bd`，与「无边框」等价）。
+fn border_json(cell: &Cell) -> Option<J> {
+    let mut bd = Map::new();
+    for (key, style, width, color) in [
+        ("t", cell.tb_style, cell.tb_width, cell.tb_color),
+        ("r", cell.rb_style, cell.rb_width, cell.rb_color),
+        ("b", cell.bb_style, cell.bb_width, cell.bb_color),
+        ("l", cell.lb_style, cell.lb_width, cell.lb_color),
+    ] {
+        let Some(code) = univer_border_code(style, width) else {
+            continue;
+        };
+        bd.insert(
+            key.to_string(),
+            json!({ "s": code, "cl": { "rgb": argb_hex(color) } }),
+        );
+    }
+    (!bd.is_empty()).then(|| J::Object(bd))
+}
+
+/// rpx 线型码 + 线宽 → Univer `BorderStyleTypes`（稠密枚举）。
+///
+/// rpx 只有 5 种线型（`format/modeled/naming.rs`：0 none / 81 dotted / 82 dashed /
+/// 83 solid / 84 double），Univer 却有 14 档且**没有独立线宽字段** —— 宽度只能折进
+/// 档位。rpx 默认线宽 `def::BORDER_WIDTH` = 1.0pt，故：`<1.25` 走细档、`<2.5` 走中档、
+/// 再粗即 THICK（Univer 只有实线有 THICK，虚线最粗只到 MEDIUM_DASHED）。
+fn univer_border_code(style: u8, width: f32) -> Option<i32> {
+    let medium = width >= 1.25;
+    let thick = width >= 2.5;
+    Some(match style {
+        81 => 3, // DOTTED
+        82 => {
+            if medium {
+                9
+            } else {
+                4
+            }
+        } // MEDIUM_DASHED / DASHED
+        83 => {
+            if thick {
+                13
+            } else if medium {
+                8
+            } else {
+                1
+            }
+        } // THICK / MEDIUM / THIN
+        84 => 7, // DOUBLE
+        _ => return None, // 0 或未知码：不猜
+    })
 }
 
 /// ARGB int（`0xAARRGGBB`）→ `#RRGGBB`（低 24 位）。
@@ -78,5 +137,31 @@ pub(crate) fn v_align_code(v: i8) -> Option<i32> {
         -31 => Some(2),
         -30 => Some(3),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::univer_border_code;
+
+    /// 线型 × 线宽 → Univer 档位。宽度是 rpx 唯一的粗细信息（Univer 无独立宽度槽），
+    /// 折错档位等于把 1pt 实线画成 3pt 粗线，所以逐档钉死。
+    #[test]
+    fn border_width_folds_into_univer_style_code() {
+        // 81 dotted 只有一档（Univer 无「粗点线」）
+        assert_eq!(univer_border_code(81, 1.0), Some(3));
+        assert_eq!(univer_border_code(81, 3.0), Some(3));
+        // 82 dashed：细 → DASHED(4)，中 → MEDIUM_DASHED(9)
+        assert_eq!(univer_border_code(82, 1.0), Some(4));
+        assert_eq!(univer_border_code(82, 2.0), Some(9));
+        // 83 solid：THIN(1) / MEDIUM(8) / THICK(13)
+        assert_eq!(univer_border_code(83, 1.0), Some(1));
+        assert_eq!(univer_border_code(83, 2.0), Some(8));
+        assert_eq!(univer_border_code(83, 3.0), Some(13));
+        // 84 double 只有一档
+        assert_eq!(univer_border_code(84, 1.0), Some(7));
+        // 0 = 无边框；未知码不猜（宁可不画，也不画错线型）
+        assert_eq!(univer_border_code(0, 1.0), None);
+        assert_eq!(univer_border_code(85, 1.0), None);
     }
 }

@@ -20,7 +20,9 @@
 //! 早于分页）；多 sheet 待 M3-06 真实口径后接线（`spec-m4.md` §5 M4-05）。
 
 use serde_json::{json, Map, Value as J};
+use std::collections::{HashMap, HashSet};
 
+use rpx_core::objvalue::ObjValue;
 use rpx_core::ReportDefine;
 use rpx_engine::arena::CalcGrid;
 
@@ -180,7 +182,15 @@ pub(crate) fn pagination_json(grid: &CalcGrid) -> J {
 /// 稀疏口径一致（`arena/calc_grid.rs` 的 `is_emitted` 文档）。
 fn cell_data(rd: &ReportDefine, grid: &CalcGrid) -> J {
     let mut rows: Map<String, J> = Map::new();
+    // 模板坐标 → 计算坐标的映射（靠有值的格反推）：模板行 5（合计）扩展后落在计算行 12，
+    // 只有同行其它格能告诉我们这个对应关系。
+    let mut row_map: HashMap<i32, i32> = HashMap::new();
+    let mut col_map: HashMap<i32, i32> = HashMap::new();
+    let mut taken: HashSet<(i32, i32)> = HashSet::new();
     for cell in &grid.cells {
+        row_map.entry(cell.origin.0).or_insert(cell.row);
+        col_map.entry(cell.origin.1).or_insert(cell.col);
+        taken.insert((cell.row, cell.col));
         if !cell.is_emitted() {
             continue;
         }
@@ -204,12 +214,65 @@ fn cell_data(rd: &ReportDefine, grid: &CalcGrid) -> J {
         if let Some(tc) = rd.cell_at(cell.origin.0 as usize, cell.origin.1 as usize) {
             one.insert("s".to_string(), style::style_json(tc));
         }
-        let row = rows
-            .entry((cell.row - 1).to_string())
-            .or_insert_with(|| J::Object(Map::new()));
-        if let Some(m) = row.as_object_mut() {
-            m.insert((cell.col - 1).to_string(), J::Object(one));
+        insert_cell(&mut rows, cell.row, cell.col, one);
+    }
+    // 第二趟：**只有底纹/边框、没有内容**的模板格。
+    //
+    // 这类格不会出现在计算网格里（`CalcCell::is_emitted` 只认值/显示值），
+    // 以前整格从快照里消失 ⇒ 整行填色时中间出现白缝（实测 store-ranking 合计行
+    // 的 D/F/G 三格）。它们是版面的一部分，补一条只有 `s` 的记录。
+    for r in 0..rd.rows as i32 {
+        for c in 0..rd.cols as i32 {
+            let Some(tc) = rd.cell_at(r as usize, c as usize) else {
+                continue;
+            };
+            if tc.value != ObjValue::Null || tc.exp_map.is_some() || tc.disp_value.is_some() {
+                continue; // 有内容：走第一趟（值可能是空串，但仍由引擎决定是否输出）
+            }
+            if !painted(tc) {
+                continue;
+            }
+            // 该模板行/列**没有任何有值的格**时，映射表里没有它。若这一维根本没发生
+            // 扩展（计算尺寸 == 模板尺寸），那么模板下标就是计算下标 —— 用恒等映射兜底；
+            // 发生过扩展就必须靠映射表，宁可这一格不补，也不要把底纹画到别的行/列上。
+            let row = match row_map.get(&r) {
+                Some(&mapped) => mapped,
+                None if grid.rows == rd.rows as i32 - 1 => r,
+                None => continue,
+            };
+            let col = match col_map.get(&c) {
+                Some(&mapped) => mapped,
+                None if grid.cols == rd.cols as i32 - 1 => c,
+                None => continue,
+            };
+            if !taken.insert((row, col)) {
+                continue; // 位置已被有值的格占了
+            }
+            let mut one = Map::new();
+            one.insert("s".to_string(), style::style_json(tc));
+            insert_cell(&mut rows, row, col, one);
         }
     }
     J::Object(rows)
+}
+
+/// 往 `cellData` 的稀疏行表里放一格（行/列均转 0 起）。
+fn insert_cell(rows: &mut Map<String, J>, row: i32, col: i32, cell: Map<String, J>) {
+    let target = rows
+        .entry((row - 1).to_string())
+        .or_insert_with(|| J::Object(Map::new()));
+    if let Some(m) = target.as_object_mut() {
+        m.insert((col - 1).to_string(), J::Object(cell));
+    }
+}
+
+/// 该模板格是否**画得出东西**（底纹非白，或任一边框样式非 0）。
+///
+/// 用来决定「无值但有样式」的格要不要补进快照。只看底纹/边框：字体、对齐这些
+/// 在没有内容时看不出来，补进去只会把快照撑大。
+fn painted(cell: &rpx_core::cell::Cell) -> bool {
+    cell.back_color != rpx_core::props::def::COLOR_WHITE
+        || [cell.lb_style, cell.rb_style, cell.tb_style, cell.bb_style]
+            .into_iter()
+            .any(|style| style != 0)
 }

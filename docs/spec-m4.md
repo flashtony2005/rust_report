@@ -72,10 +72,28 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 | `defaultColumnWidth`  | `94`（≈25mm，`def::COL_WIDTH`）             | 同上                                                        |
 | `showGridlines`       | `1`                                       | v1 无边框样式，先开网格线保可读性（联调后可调）                                 |
 | `freeze`             | `{xSplit,ySplit,startRow,startColumn}`     | 计算态连续表头前缀，见 §4.2.1；Univer 原生消费 |
-| `cellData`            | `{ "r":{"c": <ICellData>} }`              | 由 `grid.cells` 过滤 `is_emitted()`，坐标 **1 起 → 0 起**（`r-1`,`c-1`） |
+| `cellData`            | `{ "r":{"c": <ICellData>} }`              | 由 `grid.cells` 过滤 `is_emitted()`，坐标 **1 起 → 0 起**（`r-1`,`c-1`）；**另补**「只有底纹/边框、没有值」的模板格（`{s}`，无 `v`）—— 否则整行填色会出现中间断层（§4.2.2） |
 | `mergeData`           | `[{startRow,startColumn,endRow,endColumn}]` | 由 `grid.merged` **去重取锚点**（§4.4）；0 起坐标                        |
 | `rowData`             | `{ "r":{"h": <px>} }`                     | `grid.row_heights[r]`（已按扩展铺开）＋ mm→px                         |
 | `columnData`          | `{ "c":{"w": <px>} }`                     | `grid.col_widths[c]` ＋ mm→px                                   |
+
+#### 4.2.2 纯样式格（2026-10-20）
+
+`cellData` 是**稀疏**的（`is_emitted` = 值或显示值非空）。这条规则会把「整行填色时
+那些**没有值**的格」一起滤掉：`store-ranking` 的合计行七格同色，结果页只剩四格有
+底色，中间两格白缝（用户报「合计这一行中间有断层」）。
+
+补法（`snapshot::cell_data` 第二趟）：模板格满足 ①无内容（`value` 为 Null、无
+`exp_map`、无 `disp_value`）、②有可见底纹或边框（`back_color != COLOR_WHITE` 或
+`lb/rb/tb/bb_style != 0`）⇒ 输出一条**只有 `s`** 的记录。
+
+坐标映射：模板坐标 ≠ 计算坐标（扩展会重排）。映射表由**有值的格**反推
+（`origin → row/col`）；若该模板行/列没有任何有值的格，则**仅当该维未发生扩展**
+（`grid.rows == rd.rows-1` / `grid.cols == rd.cols-1`）时用恒等映射兜底，否则
+放弃补这一格（宁可少一块底纹，也不要把颜色画到别的行列上）。
+
+判据：`crates/rpx-runtime/tests/snapshot_style_only.rs`（合计行七格同色 ⇒ 快照
+七格同色）。
 
 #### 4.2.1 浏览冻结（2026-10-17）
 
@@ -122,7 +140,8 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 | `ht`      | `Cell.h_align`                            | 数字枚举：`-48→1(left)` `-47→2(center)` `-46→3(right)` `-45→4(justified)` `-44→6(distributed)`（`format-contract.md` 注 3） |
 | `vt`      | `Cell.v_align`                            | `-32→1(top)` `-31→2(middle)` `-30→3(bottom)`                                              |
 | `n` | `Cell.format` | `{ "pattern": "0.00%" }`；数字原值不变，画布和打印使用相同格式 |
-| — 其他      | 边框（`bd`）/ 旋转（`tr`）/ 缩进          | **v1 不做**（后置；边框编码已备查 `format-contract.md` 注 2）                                           |
+| 边框       | `s.bd = { t/r/b/l: {s, cl:{rgb}} }`        | **2026-10-20 收口**（原为后置）：四边各自输出，`none` 的边不写；线型 81/82/83/84 + 线宽折成 Univer 档位（§4.3.2） |
+| — 其他      | 旋转（`tr`）/ 缩进                        | **v1 不做**（后置；编码已备查 `format-contract.md` 注 2）                                              |
 
 #### 4.3.1 值映射（`Value` → `v`）
 
@@ -136,6 +155,25 @@ M3 与 M4 的**唯一接口 = 快照 JSON**（`IWorkbookData`）。因此：
 | `Bool`                   | boolean                           |
 | `List`                   | string：`join(",")`（v1 近似；见 §7）     |
 | **有 `disp_value` 时**     | **一律优先 `disp_value`（字符串）** —— 显示值优先于原值                    |
+
+#### 4.3.2 边框（2026-10-20 收口）
+
+原先边框被列为后置，结果是**设计视图看得到、结果页和打印预览白花花一片**（用户报「要可以加边框，
+可以反映到预览中」）。现在 `style_json` 输出 `s.bd`：
+
+| rpx 线型码 | 名称 | 1pt（默认） | 2pt | 3pt |
+| --- | --- | --- | --- | --- |
+| 81 | dotted | DOTTED(3) | 同左 | 同左 |
+| 82 | dashed | DASHED(4) | MEDIUM_DASHED(9) | 同左 |
+| 83 | solid | THIN(1) | MEDIUM(8) | THICK(13) |
+| 84 | double | DOUBLE(7) | 同左 | 同左 |
+
+- 宽度用 `<1.25` / `<2.5` 两档切分（rpx 默认线宽 `def::BORDER_WIDTH` = 1.0pt）；Univer 无独立线宽字段，
+  只能折进档位，所以**粗到细的还原是近似的**（这是枚举本身的限制，不是映射错了）。
+- `0`（none）与未知码**不输出该边**（不是输出 `{s:0}`）—— 否则前端会把它当成显式「无边框」，
+  连带把 `printOptions.borderWidth` 的网格线也挡掉。
+- 消费端两处、同一张表：`web/src/print-border.ts`（打印预览）与 `print_html.rs::border_side_css`（导出 PDF）。
+- 判据：`crates/rpx-runtime/tests/snapshot_border.rs`（模板边框 → 快照 `s.bd`，实线/双线/粗虚线三条都验）。
 
 ### 4.4 `mergeData` 锚点恢复（v1 算法，2026-10-14 实证修订）
 

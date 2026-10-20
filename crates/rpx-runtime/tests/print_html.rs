@@ -99,3 +99,35 @@ fn missing_sheet_order_is_an_error_not_a_blank_page() {
     let error = print_html::from_workbook(&json!({"sheets": {}})).unwrap_err();
     assert!(error.contains("sheetOrder"), "{error}");
 }
+
+/// 边框：`s.bd` 的每一条边都要落成 CSS；**没声明的那几边仍要有网格线**。
+///
+/// 这条钉的是「逐边兜底」而不是整格 `border` 简写 —— 简写会把用户画的框整片覆盖掉，
+/// 表现是「预览/PDF 里边框时有时无」，很难从截图看出来。
+#[test]
+fn cell_borders_win_over_grid_lines_per_side() {
+    let mut book = workbook();
+    book["sheets"]["s1"]["cellData"]["1"]["0"]["s"]["bd"] = json!({
+        "t": { "s": 1, "cl": { "rgb": "#FF0000" } },   // THIN  → 0.75pt solid
+        "b": { "s": 7, "cl": { "rgb": "#00FF00" } },   // DOUBLE→ 2.25pt double
+    });
+    let html = print_html::from_workbook(&book).unwrap().html;
+
+    assert!(
+        html.contains("border-top:0.75pt solid #FF0000"),
+        "上边框应有显式声明：{html}"
+    );
+    assert!(
+        html.contains("border-bottom:2.25pt double #00FF00"),
+        "下边框应为双线"
+    );
+    // 左右没声明 ⇒ 仍由 `printOptions.borderWidth`(0.5pt) 兜底
+    assert!(
+        html.contains("border-left:0.50pt solid #000000"),
+        "左边应回落到网格线"
+    );
+    assert!(
+        html.contains("border-right:0.50pt solid #000000"),
+        "右边应回落到网格线"
+    );
+}

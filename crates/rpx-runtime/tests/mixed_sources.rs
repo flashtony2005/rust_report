@@ -57,9 +57,17 @@ async fn gallery_runs_all_models_and_rejects_changed_source_against_expectations
     }
     let mut config = json!({});
     for name in ["operations", "organization"] {
+        // Windows 上 `Path::display()` 给反斜杠，`sqlite://C:\…` 会被 sqlx 判成
+        // 非法 authority ⇒ unable to open database file（code 14）。
+        // 与 `scripts/prepare_r_model.py` 同一修正：绝对路径 + POSIX 斜杠 + 三斜杠。
         let url = format!(
-            "sqlite://{}?mode=rwc",
-            temp.0.join(format!("{name}.sqlite")).display()
+            "sqlite:///{}?mode=rwc",
+            temp.0
+                .join(format!("{name}.sqlite"))
+                .canonicalize()
+                .unwrap_or_else(|_| temp.0.join(format!("{name}.sqlite")))
+                .to_string_lossy()
+                .replace('\\', "/")
         );
         let source = rpx_ds::SqlSource::connect(&url).await.unwrap();
         for sql in std::fs::read_to_string(input.join(format!("{name}.sql")))
@@ -86,8 +94,10 @@ async fn gallery_runs_all_models_and_rejects_changed_source_against_expectations
     // + 1 份「表单与序号列」（保险单明细表，2026-10-18 增）。
     // 26 = 19 + 7 份「典型业务报表」（利润表 / 资产负债表 / 工资表 / 存货台账 /
     // 现金日记账 / 销售订单 / 应收账龄，2026-10-18 增）。
+    // 29 = 26 + 3 份管理分析（收入结构帕累托 / 预算执行预警 / 门店组内排名，
+    // 2026-10-20 增，全部 CSV 数据源）。
     // 新增例子必须同步这里，否则「目录里有但没跑」会静默通过。
-    assert_eq!(reports.len(), 26);
+    assert_eq!(reports.len(), 29);
     for report in reports {
         assert_eq!(report["status"], "succeeded");
         assert!(!report["run"]["checks"].as_array().unwrap().is_empty());

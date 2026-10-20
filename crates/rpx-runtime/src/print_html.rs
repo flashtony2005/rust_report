@@ -158,6 +158,32 @@ fn page_html(sheet: &J, charts: &mut Vec<String>) -> Result<String, String> {
     Ok(html)
 }
 
+/// 一条边 → CSS 边框声明（`"1pt solid #FF0000"`）。
+///
+/// 与 `web/src/print-border.ts` 同一张对照表：Univer 的 `BorderStyleTypes` 是稠密
+/// 枚举、没有独立线宽，所以「线型 + 粗细」只能还原成固定的 CSS 组合。CSS 没有点划线，
+/// `DASH_DOT` 系列统一退化成虚线（宁可少一种线型，不要画成实线）。
+fn border_side_css(edge: &J) -> Option<String> {
+    let code = edge["s"].as_i64()?;
+    let (width, style) = match code {
+        1 => (0.75, "solid"),                // THIN
+        2 => (0.5, "solid"),                 // HAIR
+        3 => (1.0, "dotted"),                // DOTTED
+        4 | 5 | 6 => (1.0, "dashed"),        // DASHED / DASH_DOT / DASH_DOT_DOT
+        7 => (2.25, "double"),               // DOUBLE
+        8 => (1.5, "solid"),                 // MEDIUM
+        9 | 10 | 11 | 12 => (1.5, "dashed"), // MEDIUM_DASHED 系列
+        13 => (2.25, "solid"),               // THICK
+        _ => return None,
+    };
+    // 颜色槽名是 `cl`（`IBorderStyleData`）；`c` 是早期 WiP 的写法，兜一下不至于丢线。
+    let color = edge["cl"]["rgb"]
+        .as_str()
+        .or_else(|| edge["c"]["rgb"].as_str())
+        .unwrap_or("#000000");
+    Some(format!("{width}pt {style} {color}"))
+}
+
 /// 一格的 `<td>`：样式按 Univer 的编码还原（`ht`/`vt`/`fs`pt/`cl`/`bg`/`n.pattern`）。
 fn td_html(
     cell: Option<&J>,
@@ -167,6 +193,9 @@ fn td_html(
     background: Option<&String>,
 ) -> String {
     let mut style = String::new();
+    // 显式边框（`s.bd`）优先于「打印网格线」（`printOptions.borderWidth`）：四边各自
+    // 决定，否则网格线的 `border:` 简写会把用户画的边框整片覆盖掉。
+    let mut explicit = [false; 4]; // top / right / bottom / left
     if let Some(cell) = cell {
         let s = &cell["s"];
         let font = s["ff"].as_str().unwrap_or("Microsoft YaHei");
@@ -196,12 +225,26 @@ fn td_html(
         }
         style.push_str(&format!("text-align:{};", horizontal(&s["ht"])));
         style.push_str(&format!("vertical-align:{};", vertical(&s["vt"])));
+        for (index, (side, key)) in [("top", "t"), ("right", "r"), ("bottom", "b"), ("left", "l")]
+            .iter()
+            .enumerate()
+        {
+            if let Some(css) = border_side_css(&s["bd"][*key]) {
+                style.push_str(&format!("border-{side}:{css};"));
+                explicit[index] = true;
+            }
+        }
     }
     if options.border_width > 0.0 {
-        style.push_str(&format!(
-            "border:{:.2}pt solid {};",
-            options.border_width, options.border_color
-        ));
+        for (index, side) in ["top", "right", "bottom", "left"].iter().enumerate() {
+            if explicit[index] {
+                continue;
+            }
+            style.push_str(&format!(
+                "border-{side}:{:.2}pt solid {};",
+                options.border_width, options.border_color
+            ));
+        }
     }
     if options.wrap_numbers {
         style.push_str("overflow-wrap:anywhere;");
