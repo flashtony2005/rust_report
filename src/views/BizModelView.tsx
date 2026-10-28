@@ -109,6 +109,21 @@ export const BizModelView: React.FC = () => {
     }, 400);
   };
 
+  const handleApplyAsRequirement = (res: any) => {
+    const req = store.createRequirement(
+      res.intent,
+      `由本体解析器 (Ontology 2.0) 静态编译生成的无偏报表。中心主表: ${res.rootEntity}，对齐粒度: customer_id`
+    );
+    const { run } = store.runRequirement(req.id);
+    run.univerSnapshot = res.univerSnapshot;
+    run.computedData = {
+      headers: res.outputData.headers,
+      rows: res.outputData.rows,
+    };
+    toast(`已成功将需求「${res.intent}」转入报表工作台！`);
+    window.location.hash = `#/req/${req.id}`;
+  };
+
   return (
     <>
       <div className="page-head">
@@ -185,7 +200,7 @@ export const BizModelView: React.FC = () => {
 
       {/* TAB 0: ONTOLOGY RESOLVER */}
       {activeTab === 'ontology' && (
-        <OntologyResolverView model={bizModel} />
+        <OntologyResolverView model={bizModel} onApplyAsRequirement={handleApplyAsRequirement} />
       )}
 
       {/* TAB 1: METRICS */}

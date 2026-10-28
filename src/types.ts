@@ -396,6 +396,25 @@ export interface OntologyResolutionResult {
     rows: any[][];
   };
   univerSnapshot: IWorkbookData;
+  identifiedTokens?: Array<{
+    token: string;
+    type: 'dim' | 'metric' | 'entity';
+    label: string;
+    targetEntity: string;
+    detail: string;
+  }>;
+  fanOutComparison?: {
+    badExample: {
+      headers: string[];
+      rows: any[][];
+      description: string;
+    };
+    goodExample: {
+      headers: string[];
+      rows: any[][];
+      description: string;
+    };
+  };
 }
 
 export interface BizModel {

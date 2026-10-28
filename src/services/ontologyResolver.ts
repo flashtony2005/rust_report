@@ -48,17 +48,47 @@ export class OntologyResolver {
     overrideMetrics?: string[]
   ): OntologyResolutionResult {
     const normIntent = intent.toLowerCase();
+    const identifiedTokens: Array<{
+      token: string;
+      type: 'dim' | 'metric' | 'entity';
+      label: string;
+      targetEntity: string;
+      detail: string;
+    }> = [];
 
     // 1. Identify Target Dimensions
     let dimIds: string[] = overrideDims || [];
     if (dimIds.length === 0) {
       if (normIntent.includes('等级') || normIntent.includes('level') || normIntent.includes('客户')) {
         dimIds.push('customer_level');
+        identifiedTokens.push({
+          token: '客户等级',
+          type: 'dim',
+          label: '客户等级 (customer_level)',
+          targetEntity: 'customer',
+          detail: '分组维度字段: VIP / 白金 / 黄金 / 普通',
+        });
       }
       if (normIntent.includes('区域') || normIntent.includes('地区') || normIntent.includes('大区')) {
         dimIds.push('customer_region');
+        identifiedTokens.push({
+          token: '所属大区',
+          type: 'dim',
+          label: '客户大区 (customer_region)',
+          targetEntity: 'customer',
+          detail: '地理分组维度: 华东 / 华南 / 华北',
+        });
       }
-      if (dimIds.length === 0) dimIds.push('customer_level');
+      if (dimIds.length === 0) {
+        dimIds.push('customer_level');
+        identifiedTokens.push({
+          token: '默认等级',
+          type: 'dim',
+          label: '客户等级 (customer_level)',
+          targetEntity: 'customer',
+          detail: '默认主分组维度',
+        });
+      }
     }
 
     // 2. Identify Target Metrics
@@ -66,15 +96,52 @@ export class OntologyResolver {
     if (metricIds.length === 0) {
       if (normIntent.includes('ltv') || normIntent.includes('价值') || normIntent.includes('销售') || normIntent.includes('金额')) {
         metricIds.push('customer_ltv');
+        identifiedTokens.push({
+          token: 'LTV (生命周期价值)',
+          type: 'metric',
+          label: '客户净累计价值 (customer_ltv)',
+          targetEntity: 'order',
+          detail: '度量计算: SUM(amount) - SUM(discount)',
+        });
       }
       if (normIntent.includes('逾期') || normIntent.includes('逾期率') || normIntent.includes('风险') || normIntent.includes('overdue')) {
         metricIds.push('overdue_rate');
+        identifiedTokens.push({
+          token: '逾期率',
+          type: 'metric',
+          label: '贷款逾期率 (overdue_rate)',
+          targetEntity: 'loan',
+          detail: '风险度量: COUNT_IF(is_overdue=1) / COUNT(id)',
+        });
       }
-      if (normIntent.includes('贷款') || normIntent.includes('借款') || normIntent.includes('本金')) {
+      if (normIntent.includes('贷款') || normIntent.includes('借款') || normIntent.includes('本金') || normIntent.includes('授信')) {
         metricIds.push('total_loan');
+        identifiedTokens.push({
+          token: '授信/贷款总额',
+          type: 'metric',
+          label: '贷款总本金 (total_loan)',
+          targetEntity: 'loan',
+          detail: '金融度量: SUM(principal)',
+        });
       }
       if (metricIds.length === 0) {
         metricIds.push('customer_ltv', 'overdue_rate');
+        identifiedTokens.push(
+          {
+            token: 'LTV',
+            type: 'metric',
+            label: '客户累计价值 (customer_ltv)',
+            targetEntity: 'order',
+            detail: '度量计算: SUM(amount) - SUM(discount)',
+          },
+          {
+            token: '逾期率',
+            type: 'metric',
+            label: '贷款逾期率 (overdue_rate)',
+            targetEntity: 'loan',
+            detail: '风险度量: COUNT_IF(is_overdue=1) / COUNT(id)',
+          }
+        );
       }
     }
 
@@ -112,11 +179,37 @@ export class OntologyResolver {
 
     if (hasMultipleOneToMany) {
       fanOutNotes.push(
-        '检测到多分支 1:N 拓扑（Customer ➔ Order 与 Customer ➔ Loan）。',
+        '检测到多分支 1:N 拓扑（Customer ➔ Order 与 Customer ➔ Loan 相互独立）。',
         '若采用简单 SQL 多表直接 LEFT JOIN，会导致笛卡尔积乘积膨胀（Fan-Out Trap），导致 LTV 与逾期单数翻倍虚增。',
         '本体解析器（Ontology Resolver）启动【粒度对齐 (Grain Alignment)】：各子实体在 customer_id 原生粒度预聚合为独立 CTE/LazyFrame，再对齐合并。'
       );
     }
+
+    // Generate Fan-out comparison example (Naive Join vs Safe Grain Alignment)
+    const fanOutComparison = {
+      badExample: {
+        description: '传统直接 JOIN（翻车现场）：1个客户 × 2笔订单 × 1笔贷款 = 笛卡尔积乘积放大，金额与单据被翻倍重复统计！',
+        headers: ['客户名', '订单ID', '订单实收', '贷款ID', '贷款本金', '翻车现象说明'],
+        rows: [
+          ['阿里巴巴华东采购部', 'O101', '¥ 305,000', 'L501', '¥ 500,000', '⚠️ 正常匹配第1条'],
+          ['阿里巴巴华东采购部', 'O102', '¥ 175,000', 'L501', '¥ 500,000', '❌ 贷款L501被重复计入第2次！'],
+          ['京东物流华北仓', 'O104', '¥ 142,000', 'L503', '¥ 200,000', '⚠️ 正常匹配第1条'],
+          ['京东物流华北仓', 'O105', '¥ 100,500', 'L503', '¥ 200,000', '❌ 贷款L503被重复计入第2次！'],
+          ['网易杭州园区', 'O107', '¥ 96,000', 'L505', '¥ 100,000', '⚠️ 正常匹配第1条'],
+          ['网易杭州园区', 'O108', '¥ 62,200', 'L505', '¥ 100,000', '❌ 贷款L505被重复计入第2次！'],
+        ],
+      },
+      goodExample: {
+        description: '本体解析器分头聚合（安全无偏）：各表先在 customer_id 粒度聚合成1行，再与客户表1:1合并，绝无虚胖！',
+        headers: ['客户ID', '客户名', '客户等级', '对齐后真实LTV', '对齐后逾期率', '对齐状态'],
+        rows: [
+          ['C001', '阿里巴巴华东采购部', 'VIP', '¥ 480,000', '0.0%', '✅ 订单自己算完变1条，贷款算完变1条'],
+          ['C002', '腾讯深圳分公司', 'VIP', '¥ 480,000', '0.0%', '✅ 严格 1:1 对齐，零膨胀'],
+          ['C003', '京东物流华北仓', '白金', '¥ 242,500', '0.0%', '✅ 2笔订单汇总为24.25万，贷款20万不重复'],
+          ['C004', '美团上海运营中心', '白金', '¥ 235,000', '100.0%', '✅ 风险标记精准对应，不发生叉积'],
+        ],
+      },
+    };
 
     // 4. Generate Rust + Polars Vector Code
     const polarsCode = `// [Ontology 2.0] Rust 原生 Polars 向量化惰性计算管道
@@ -127,7 +220,7 @@ pub fn execute_grain_aligned_report(
     df_order: LazyFrame,
     df_loan: LazyFrame,
 ) -> Result<DataFrame, PolarsError> {
-    // 阶段 1: Order 原生粒度聚合（杜绝 Fan-out 乘积膨胀）
+    // 阶段 1: Order 原生粒度聚合（订单自己算自己的，杜绝 Fan-out 乘积膨胀）
     let order_agg = df_order
         .group_by([col("customer_id")])
         .agg([
@@ -135,7 +228,7 @@ pub fn execute_grain_aligned_report(
             col("id").count().alias("order_count"),
         ]);
 
-    // 阶段 2: Loan 原生粒度聚合
+    // 阶段 2: Loan 原生粒度聚合（贷款自己算自己的）
     let loan_agg = df_loan
         .group_by([col("customer_id")])
         .agg([
@@ -144,7 +237,7 @@ pub fn execute_grain_aligned_report(
             col("principal").sum().alias("total_loan"),
         ]);
 
-    // 阶段 3: 零拷贝 Arrow 拓扑连接与目标维度分组汇总
+    // 阶段 3: 零拷贝 Arrow 拓扑连接与目标维度分组汇总 (Grain Alignment)
     df_customer
         .join(order_agg, [col("id")], [col("customer_id")], JoinType::Left.into())
         .join(loan_agg, [col("id")], [col("customer_id")], JoinType::Left.into())
@@ -162,7 +255,7 @@ pub fn execute_grain_aligned_report(
     // 5. Generate Grain-Aligned ANSI SQL
     const grainAlignedSql = `-- [Ontology 2.0] 语义拓扑编译生成的最优 Grain-Aligned SQL
 WITH
--- 1. 订单实体在 customer_id 粒度局部预聚合
+-- 1. 订单实体在 customer_id 粒度局部预聚合 (订单自己算自己的)
 order_grain AS (
     SELECT 
         customer_id,
@@ -171,7 +264,7 @@ order_grain AS (
     FROM orders
     GROUP BY customer_id
 ),
--- 2. 借贷实体在 customer_id 粒度局部预聚合
+-- 2. 借贷实体在 customer_id 粒度局部预聚合 (贷款自己算自己的)
 loan_grain AS (
     SELECT 
         customer_id,
@@ -180,7 +273,7 @@ loan_grain AS (
     FROM loans
     GROUP BY customer_id
 )
--- 3. 根实体连接并按目标维度投影
+-- 3. 根实体连接并按目标维度投影 (安全 1:1 拼装，0 膨胀)
 SELECT 
     c.level AS customer_level,
     COUNT(c.id) AS customer_count,
@@ -366,6 +459,8 @@ ORDER BY total_ltv DESC;`;
         rows,
       },
       univerSnapshot,
+      identifiedTokens,
+      fanOutComparison,
     };
   }
 }
