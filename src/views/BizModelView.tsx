@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { store } from '../services/store';
 import { useToast } from '../components/Toast';
 import { BizMetric, BizRule } from '../types';
+import { OntologyResolverView } from '../components/OntologyResolverView';
 
 export const BizModelView: React.FC = () => {
   const { toast } = useToast();
   const datasources = store.getDatasources();
   const [selectedDsn, setSelectedDsn] = useState(datasources[0]?.id || 'demo-sqlite');
-  const [activeTab, setActiveTab] = useState<'metrics' | 'dimensions' | 'rules' | 'aliases' | 'goldens'>('metrics');
+  const [activeTab, setActiveTab] = useState<'ontology' | 'metrics' | 'dimensions' | 'rules' | 'aliases' | 'goldens'>('ontology');
 
   const bizModel = store.getBizModel(selectedDsn);
   const goldens = store.getGoldenQuestions();
@@ -139,6 +140,14 @@ export const BizModelView: React.FC = () => {
       <div className="chip-toggles" style={{ marginBottom: '18px' }}>
         <button
           type="button"
+          className={`tog ${activeTab === 'ontology' ? 'on' : ''}`}
+          onClick={() => setActiveTab('ontology')}
+          style={activeTab === 'ontology' ? { background: '#4f46e5', color: '#fff', borderColor: '#4f46e5' } : {}}
+        >
+          🧠 本体大脑与解析器 (Ontology 2.0)
+        </button>
+        <button
+          type="button"
           className={`tog ${activeTab === 'metrics' ? 'on' : ''}`}
           onClick={() => setActiveTab('metrics')}
         >
@@ -173,6 +182,11 @@ export const BizModelView: React.FC = () => {
           问答回归测试集 ({goldens.length})
         </button>
       </div>
+
+      {/* TAB 0: ONTOLOGY RESOLVER */}
+      {activeTab === 'ontology' && (
+        <OntologyResolverView model={bizModel} />
+      )}
 
       {/* TAB 1: METRICS */}
       {activeTab === 'metrics' && (

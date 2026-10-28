@@ -363,6 +363,41 @@ export interface BizEntity {
   evidence: string[];
 }
 
+export interface BizRelationship {
+  id: string;
+  label?: string;
+  from_entity: string;
+  to_entity: string;
+  cardinality: '1:1' | '1:N' | 'N:1' | 'M:N';
+  from_key: string;
+  to_key: string;
+  status: 'confirmed' | 'candidate' | 'draft';
+  evidence?: string[];
+}
+
+export interface OntologyResolutionResult {
+  intent: string;
+  requestedDimensions: string[];
+  requestedMetrics: string[];
+  rootEntity: string;
+  resolvedEntities: string[];
+  joinPath: Array<{
+    from: string;
+    to: string;
+    cardinality: string;
+    joinOn: string;
+  }>;
+  fanOutProtected: boolean;
+  fanOutPreventionNotes: string[];
+  polarsCode: string;
+  grainAlignedSql: string;
+  outputData: {
+    headers: string[];
+    rows: any[][];
+  };
+  univerSnapshot: IWorkbookData;
+}
+
 export interface BizModel {
   schema: string;
   version: number;
@@ -372,6 +407,7 @@ export interface BizModel {
     generator: string;
   };
   entities: BizEntity[];
+  relationships?: BizRelationship[];
   metrics: BizMetric[];
   dimensions: BizDimension[];
   rules: BizRule[];

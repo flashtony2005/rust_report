@@ -764,6 +764,7 @@ class ReportStudioStore {
           generator: 'manual/created',
         },
         entities: [],
+        relationships: [],
         metrics: [],
         dimensions: [],
         rules: [],
