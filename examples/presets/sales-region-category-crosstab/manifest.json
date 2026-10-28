@@ -1,0 +1,60 @@
+{
+  "data_dir": "data",
+  "description": "行按区域、列按产品类别，交叉格统计销售额并显示总计",
+  "id": "sales-region-category-crosstab",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "cellset",
+      "grand_total",
+      "group_col",
+      "group_row",
+      "subtotal"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "category",
+          "region"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 2,
+    "domain": [
+      "销售"
+    ],
+    "examples": [
+      "行按区域列按产品类别交叉统计销售额",
+      "区域和销售类别交叉表"
+    ],
+    "extends": [
+      "row",
+      "col"
+    ],
+    "keywords": [
+      "区域",
+      "产品类别",
+      "交叉表",
+      "多维统计",
+      "地区品类"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "crosstab"
+  },
+  "name": "区域销售交叉表",
+  "tags": [
+    "agg_sum",
+    "cellset",
+    "crosstab",
+    "grand_total",
+    "group_col",
+    "group_row",
+    "subtotal"
+  ],
+  "template": "template.json",
+  "version": 1
+}

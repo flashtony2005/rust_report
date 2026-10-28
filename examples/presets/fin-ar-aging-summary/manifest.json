@@ -1,0 +1,52 @@
+{
+  "data_dir": "data",
+  "description": "按账龄区间汇总应收余额（aging_bucket 已预生成）",
+  "id": "fin-ar-aging-summary",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "aging_bucket",
+          "amount"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 2,
+    "domain": [
+      "财务"
+    ],
+    "examples": [
+      "按未到期、1-30天、31-60天、61-90天、90天以上统计应收余额",
+      "应收账龄分组表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "账龄",
+      "应收账款",
+      "逾期",
+      "分档",
+      "账龄区间"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "应收账款账龄分组表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

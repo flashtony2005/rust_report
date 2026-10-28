@@ -1,0 +1,51 @@
+{
+  "data_dir": "data",
+  "description": "列出每个仓库的商品库存现状",
+  "id": "inventory-current-detail",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "category",
+          "product",
+          "quantity",
+          "sku",
+          "warehouse"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "采购库存"
+    ],
+    "examples": [
+      "列出每个仓库的商品库存现状",
+      "库存现状明细表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "库存",
+      "现存",
+      "存货",
+      "SKU",
+      "在库"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "库存现状明细表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

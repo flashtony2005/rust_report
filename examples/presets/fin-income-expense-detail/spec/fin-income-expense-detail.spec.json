@@ -1,0 +1,41 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "收支明细表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "date",
+      "label": "日期"
+    },
+    {
+      "field": "category",
+      "label": "类别"
+    },
+    {
+      "field": "summary",
+      "label": "摘要"
+    },
+    {
+      "field": "account",
+      "label": "账户"
+    }
+  ],
+  "measures": [
+    {
+      "field": "income",
+      "agg": "sum",
+      "label": "收入",
+      "format": "#,##0.00"
+    },
+    {
+      "field": "expense",
+      "agg": "sum",
+      "label": "支出",
+      "format": "#,##0.00"
+    }
+  ]
+}

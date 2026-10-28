@@ -1,0 +1,735 @@
+{
+  "grid": {
+    "rows": 29,
+    "cols": 1
+  },
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "column",
+        "title": "column",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "column_3d",
+        "title": "column_3d",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "clustered_column_3d",
+        "title": "clustered_column_3d",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 4,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "stacked_column",
+        "title": "stacked_column",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 5,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "stacked_column_3d",
+        "title": "stacked_column_3d",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "pie",
+        "title": "pie",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 7,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "pie_3d",
+        "title": "pie_3d",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 8,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "line",
+        "title": "line",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 9,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "curve",
+        "title": "curve",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 10,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "line_3d",
+        "title": "line_3d",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 11,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "area",
+        "title": "area",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 12,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "area_3d",
+        "title": "area_3d",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 13,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "bar",
+        "title": "bar",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 14,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "clustered_bar_3d",
+        "title": "clustered_bar_3d",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 15,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "stacked_bar",
+        "title": "stacked_bar",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 16,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "stacked_bar_3d",
+        "title": "stacked_bar_3d",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 17,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "scatter",
+        "title": "scatter",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 18,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "column_line",
+        "title": "column_line",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 19,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "dual_line",
+        "title": "dual_line",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 20,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "time_series",
+        "title": "time_series",
+        "categories": "=list(1720000000000,1720086400000,1720172800000,1720259200000)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 21,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "state_timeline",
+        "title": "state_timeline",
+        "width": 600,
+        "height": 320,
+        "tasks": {
+          "categories": "=to(1,4)",
+          "starts": "=list(1720000000000,1720086400000,1720172800000,1720259200000)",
+          "ends": "=list(1720086400000,1720172800000,1720259200000,1720345600000)",
+          "states": "=to(1,4)"
+        }
+      }
+    },
+    {
+      "row": 22,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "gantt",
+        "title": "gantt",
+        "width": 600,
+        "height": 320,
+        "tasks": {
+          "categories": "=to(1,4)",
+          "starts": "=list(1720000000000,1720086400000,1720172800000,1720259200000)",
+          "ends": "=list(1720086400000,1720172800000,1720259200000,1720345600000)",
+          "states": "=to(1,4)"
+        }
+      }
+    },
+    {
+      "row": 23,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "gauge",
+        "title": "gauge",
+        "categories": "=1",
+        "series": [
+          {
+            "name": "完成率",
+            "values": "=67"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 24,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "gauge_3d",
+        "title": "gauge_3d",
+        "categories": "=1",
+        "series": [
+          {
+            "name": "完成率",
+            "values": "=67"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 25,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "radar",
+        "title": "radar",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 26,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "milestone",
+        "title": "milestone",
+        "width": 600,
+        "height": 320,
+        "tasks": {
+          "categories": "=to(1,4)",
+          "starts": "=list(1720000000000,1720086400000,1720172800000,1720259200000)",
+          "ends": "=list(1720086400000,1720172800000,1720259200000,1720345600000)",
+          "states": "=to(1,4)"
+        }
+      }
+    },
+    {
+      "row": 27,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "error_bar",
+        "title": "error_bar",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 28,
+      "col": 1,
+      "data_type": "chart",
+      "chart": {
+        "type": "range",
+        "title": "range",
+        "categories": "=to(1,4)",
+        "series": [
+          {
+            "name": "收入",
+            "values": "=to(10,13)"
+          },
+          {
+            "name": "支出",
+            "values": "=to(20,23)"
+          }
+        ],
+        "width": 600,
+        "height": 320
+      }
+    },
+    {
+      "row": 29,
+      "col": 1,
+      "data_type": "echarts_js",
+      "echarts": {
+        "template": "return {title:{text:${title}},xAxis:{type:'category',data:['一月','二月','三月']},yAxis:{type:'value'},series:[{type:'bar',data:${values},label:{show:true,formatter:p=>'¥'+p.value}}]};",
+        "params": {
+          "title": "='JavaScript 模板 · formatter 回调'",
+          "values": "=to(10,12)"
+        },
+        "width": 600,
+        "height": 320
+      }
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 88
+    },
+    {
+      "row": 2,
+      "height": 88
+    },
+    {
+      "row": 3,
+      "height": 88
+    },
+    {
+      "row": 4,
+      "height": 88
+    },
+    {
+      "row": 5,
+      "height": 88
+    },
+    {
+      "row": 6,
+      "height": 88
+    },
+    {
+      "row": 7,
+      "height": 88
+    },
+    {
+      "row": 8,
+      "height": 88
+    },
+    {
+      "row": 9,
+      "height": 88
+    },
+    {
+      "row": 10,
+      "height": 88
+    },
+    {
+      "row": 11,
+      "height": 88
+    },
+    {
+      "row": 12,
+      "height": 88
+    },
+    {
+      "row": 13,
+      "height": 88
+    },
+    {
+      "row": 14,
+      "height": 88
+    },
+    {
+      "row": 15,
+      "height": 88
+    },
+    {
+      "row": 16,
+      "height": 88
+    },
+    {
+      "row": 17,
+      "height": 88
+    },
+    {
+      "row": 18,
+      "height": 88
+    },
+    {
+      "row": 19,
+      "height": 88
+    },
+    {
+      "row": 20,
+      "height": 88
+    },
+    {
+      "row": 21,
+      "height": 88
+    },
+    {
+      "row": 22,
+      "height": 88
+    },
+    {
+      "row": 23,
+      "height": 88
+    },
+    {
+      "row": 24,
+      "height": 88
+    },
+    {
+      "row": 25,
+      "height": 88
+    },
+    {
+      "row": 26,
+      "height": 88
+    },
+    {
+      "row": 27,
+      "height": 88
+    },
+    {
+      "row": 28,
+      "height": 88
+    },
+    {
+      "row": 29,
+      "height": 88
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 160
+    }
+  ],
+  "print_setup": {
+    "pager_style": "rows",
+    "row_num_per_page": 1
+  }
+}

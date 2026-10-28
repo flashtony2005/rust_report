@@ -1,0 +1,50 @@
+{
+  "data_dir": "data",
+  "description": "按项目和状态统计任务数量",
+  "id": "project-status-summary",
+  "meta": {
+    "capabilities": [
+      "agg_count",
+      "agg_sum",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "project",
+          "status"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "项目"
+    ],
+    "examples": [
+      "按项目和状态统计任务数量"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "项目进度",
+      "任务状态",
+      "项目状态",
+      "里程碑统计"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "项目进度状态汇总表",
+  "tags": [
+    "agg_count",
+    "agg_sum",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

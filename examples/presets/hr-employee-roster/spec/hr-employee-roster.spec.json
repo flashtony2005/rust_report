@@ -1,0 +1,46 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "员工花名册",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "employee_id",
+      "label": "工号"
+    },
+    {
+      "field": "name",
+      "label": "姓名"
+    },
+    {
+      "field": "department",
+      "label": "部门"
+    },
+    {
+      "field": "position",
+      "label": "岗位"
+    },
+    {
+      "field": "hire_date",
+      "label": "入职日期"
+    },
+    {
+      "field": "status",
+      "label": "状态"
+    }
+  ],
+  "measures": [
+    {
+      "field": "rec",
+      "agg": "sum",
+      "label": "记录数",
+      "format": "#,##0"
+    }
+  ],
+  "totals": {
+    "grand": true
+  }
+}

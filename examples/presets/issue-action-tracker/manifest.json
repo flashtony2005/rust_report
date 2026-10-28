@@ -1,0 +1,54 @@
+{
+  "data_dir": "data",
+  "description": "查看问题、责任人、截止日期、处理状态和整改措施",
+  "id": "issue-action-tracker",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "actual_cost",
+          "due_date",
+          "issue",
+          "issue_id",
+          "owner",
+          "priority",
+          "resolution",
+          "status"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "通用"
+    ],
+    "examples": [
+      "查看问题、责任人、截止日期和处理状态",
+      "问题整改跟踪表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "问题",
+      "整改",
+      "责任人",
+      "截止日期",
+      "状态跟踪"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "问题整改跟踪表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

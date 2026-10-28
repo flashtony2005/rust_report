@@ -1,0 +1,54 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "项目任务跟踪表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "project",
+      "label": "项目"
+    },
+    {
+      "field": "task_id",
+      "label": "任务号"
+    },
+    {
+      "field": "task_name",
+      "label": "任务"
+    },
+    {
+      "field": "owner",
+      "label": "负责人"
+    },
+    {
+      "field": "priority",
+      "label": "优先级"
+    },
+    {
+      "field": "status",
+      "label": "状态"
+    },
+    {
+      "field": "plan_start",
+      "label": "计划开始"
+    },
+    {
+      "field": "due_date",
+      "label": "截止日期"
+    }
+  ],
+  "measures": [
+    {
+      "field": "rec",
+      "agg": "sum",
+      "label": "记录数",
+      "format": "#,##0"
+    }
+  ],
+  "totals": {
+    "grand": true
+  }
+}

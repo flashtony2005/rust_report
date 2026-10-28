@@ -1,0 +1,51 @@
+{
+  "data_dir": "data",
+  "description": "按项目查看预算和实际成本",
+  "id": "project-cost-summary",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "actual_cost",
+          "budget",
+          "project"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "项目"
+    ],
+    "examples": [
+      "按项目查看预算和实际成本"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "项目成本",
+      "项目预算",
+      "成本汇总",
+      "项目费用"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "项目成本汇总表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

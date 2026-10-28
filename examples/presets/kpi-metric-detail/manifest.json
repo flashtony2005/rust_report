@@ -1,0 +1,50 @@
+{
+  "data_dir": "data",
+  "description": "列出各部门每项 KPI 的目标值和实际值（运营域，落通用）",
+  "id": "kpi-metric-detail",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "actual_value",
+          "department",
+          "metric_name",
+          "period",
+          "target_value",
+          "unit"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "通用"
+    ],
+    "examples": [
+      "列出各部门每项 KPI 的目标值和实际值"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "KPI",
+      "指标明细",
+      "目标值",
+      "实际值"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "KPI 指标明细表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

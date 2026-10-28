@@ -1,0 +1,50 @@
+{
+  "data_dir": "data",
+  "description": "列出迟到、早退、缺勤等考勤异常",
+  "id": "hr-attendance-exceptions",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "date",
+          "department",
+          "employee_id",
+          "exception_type",
+          "minutes",
+          "name"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "人事"
+    ],
+    "examples": [
+      "列出迟到、早退、缺勤等考勤异常"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "考勤异常",
+      "迟到早退",
+      "缺勤记录",
+      "考勤明细"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "考勤异常明细表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

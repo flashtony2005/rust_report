@@ -1,0 +1,50 @@
+{
+  "data_dir": "data",
+  "description": "列出所有未收款发票和逾期天数（days_past_due 已预生成）",
+  "id": "fin-ar-aging-detail",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "customer",
+          "days_past_due",
+          "due_date",
+          "invoice_id"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 2,
+    "domain": [
+      "财务"
+    ],
+    "examples": [
+      "列出所有未收款发票和逾期天数",
+      "应收账龄明细表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "账龄明细",
+      "逾期明细",
+      "应收明细",
+      "欠款明细"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "应收账款账龄明细表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

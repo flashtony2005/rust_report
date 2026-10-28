@@ -1,0 +1,50 @@
+{
+  "data_dir": "data",
+  "description": "统计每个客户的累计销售额",
+  "id": "sales-by-customer",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "customer"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "销售"
+    ],
+    "examples": [
+      "统计每个客户的累计销售额，找出主要客户"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "客户销售",
+      "客户排行",
+      "客户累计",
+      "大客户"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "客户销售排行表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

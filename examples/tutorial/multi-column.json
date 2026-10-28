@@ -1,0 +1,38 @@
+{
+  "grid": {
+    "rows": 1,
+    "cols": 2
+  },
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "expr": "to(1,20)"
+    },
+    {
+      "row": 1,
+      "col": 2,
+      "expr": "A1*10"
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 10
+    },
+    {
+      "col": 2,
+      "width": 20
+    }
+  ],
+  "print_setup": {
+    "pager_style": "rows",
+    "row_num_per_page": 5,
+    "table_column_num": 2
+  },
+  "printing": {
+    "column_gap": 10,
+    "border_width": 0.4,
+    "border_color": "#CBD2D9"
+  }
+}

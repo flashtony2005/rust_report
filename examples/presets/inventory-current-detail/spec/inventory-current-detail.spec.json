@@ -1,0 +1,35 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "库存现状明细表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "sku",
+      "label": "SKU"
+    },
+    {
+      "field": "product",
+      "label": "商品"
+    },
+    {
+      "field": "category",
+      "label": "类别"
+    },
+    {
+      "field": "warehouse",
+      "label": "仓库"
+    }
+  ],
+  "measures": [
+    {
+      "field": "quantity",
+      "agg": "sum",
+      "label": "当前库存",
+      "format": "#,##0"
+    }
+  ]
+}

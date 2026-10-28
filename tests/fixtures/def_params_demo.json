@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "grid": { "rows": 3, "cols": 2 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "参数化报表演示", "merge": { "rows": 1, "cols": 2 }, "h_align": "center" },
+    { "row": 2, "col": 1, "text": "Top N", "h_align": "right" },
+    { "row": 2, "col": 2, "expr": "@topN" },
+    { "row": 3, "col": 1, "text": "区域", "h_align": "right" },
+    { "row": 3, "col": 2, "expr": "@region" }
+  ],
+  "row_props": [ { "row": 1, "height": 26 } ],
+  "col_props": [ { "col": 1, "width": 18 }, { "col": 2, "width": 24 } ],
+  "params": [
+    { "name": "topN", "data_type": "int", "default": "10", "description": "取前 N 名" },
+    { "name": "region", "data_type": "string", "kind": "dynamic", "description": "区域（渲染时提供）" }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "data_dir": "data",
+  "description": "汇总每种商品在所有仓库的库存数量",
+  "id": "inventory-by-product",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "product",
+          "quantity"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "采购库存"
+    ],
+    "examples": [
+      "汇总每种商品在所有仓库的库存数量"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "商品汇总",
+      "按商品统计",
+      "库存数量",
+      "品项汇总"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "商品库存汇总表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

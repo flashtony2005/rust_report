@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "grid": { "rows": 3, "cols": 2 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "样式演示", "bold": true, "fore_color": "#FF0000", "font_size": 18 },
+    { "row": 1, "col": 2, "text": "普通格" },
+    { "row": 2, "col": 1, "text": "斜体格", "italic": true },
+    { "row": 3, "col": 1, "text": "末行" }
+  ]
+}

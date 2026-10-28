@@ -1,0 +1,57 @@
+{
+  "data_dir": "data",
+  "description": "查看各项目任务、负责人、优先级、截止日期和状态",
+  "id": "project-task-tracker",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "detail_row",
+      "grand_total"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "due_date",
+          "owner",
+          "plan_start",
+          "priority",
+          "project",
+          "rec",
+          "status",
+          "task_id",
+          "task_name"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "项目"
+    ],
+    "examples": [
+      "查看各项目任务、负责人、优先级、截止日期和状态"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "任务跟踪",
+      "项目任务",
+      "任务清单",
+      "项目进度跟踪"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "项目任务跟踪表",
+  "tags": [
+    "agg_sum",
+    "detail",
+    "detail_row",
+    "grand_total"
+  ],
+  "template": "template.json",
+  "version": 1
+}

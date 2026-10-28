@@ -1,0 +1,50 @@
+{
+  "data_dir": "data",
+  "description": "按类别汇总数量或金额，作为占比/排名/图表的基础数据源",
+  "id": "generic-category-summary",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "category",
+          "value"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "通用"
+    ],
+    "examples": [
+      "按类别汇总数量或金额"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "分类占比",
+      "分类汇总",
+      "占比基础",
+      "结构占比"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "分类占比基础表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

@@ -1,0 +1,53 @@
+{
+  "data_dir": "data",
+  "description": "按月份汇总每月收入和支出（month 已预生成）",
+  "id": "fin-monthly-summary",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "expense",
+          "income",
+          "month"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "财务"
+    ],
+    "examples": [
+      "按月份汇总每月收入和支出",
+      "做一张月度收支汇总表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "月度收支汇总",
+      "按月汇总",
+      "月份收入",
+      "月份支出",
+      "收支趋势"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "月度收支汇总表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

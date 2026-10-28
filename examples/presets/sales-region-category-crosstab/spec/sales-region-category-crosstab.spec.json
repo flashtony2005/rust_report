@@ -1,0 +1,35 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "区域销售交叉表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "crosstab",
+  "row_dims": [
+    {
+      "field": "region",
+      "label": "区域",
+      "sort": "asc"
+    }
+  ],
+  "col_dims": [
+    {
+      "field": "category",
+      "label": "产品类别",
+      "sort": "asc"
+    }
+  ],
+  "measures": [
+    {
+      "field": "amount",
+      "agg": "sum",
+      "label": "销售额",
+      "format": "#,##0.00"
+    }
+  ],
+  "totals": {
+    "grand": true,
+    "subtotal": true
+  }
+}

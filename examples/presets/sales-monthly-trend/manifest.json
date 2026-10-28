@@ -1,0 +1,52 @@
+{
+  "data_dir": "data",
+  "description": "统计每个月的销售额，按月份顺序展示（month 已预生成）",
+  "id": "sales-monthly-trend",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "month"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "销售"
+    ],
+    "examples": [
+      "统计每个月的销售额",
+      "按月份看销售趋势"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "月度",
+      "销售趋势",
+      "按月",
+      "月份",
+      "月度走势"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "月度销售趋势表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

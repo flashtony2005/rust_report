@@ -1,0 +1,51 @@
+{
+  "data_dir": "data",
+  "description": "查询出入库流水记录",
+  "id": "inventory-movement-detail",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "date",
+          "inbound_qty",
+          "outbound_qty",
+          "product",
+          "reference_id",
+          "sku",
+          "warehouse"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "采购库存"
+    ],
+    "examples": [
+      "查询某段时间内的出入库记录"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "出入库",
+      "库存流水",
+      "进销存流水",
+      "收发存"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "出入库流水表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

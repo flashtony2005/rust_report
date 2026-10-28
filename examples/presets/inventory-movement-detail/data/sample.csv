@@ -1,0 +1,6 @@
+date,sku,product,warehouse,inbound_qty,outbound_qty,reference_id
+2026-10-01,SKU-001,产品X,一号仓,50,0,R1
+2026-10-02,SKU-002,产品Y,一号仓,0,20,R2
+2026-10-03,SKU-003,产品Z,二号仓,30,0,R3
+2026-10-04,SKU-001,产品X,二号仓,0,10,R4
+2026-10-05,SKU-004,产品W,三号仓,100,0,R5

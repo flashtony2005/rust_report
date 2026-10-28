@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "grid": { "rows": 6, "cols": 10 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "2026 年度产品销售交叉表（季度 × 人员 × 产品）", "merge": { "rows": 1, "cols": 10 }, "bold": true, "font_size": 16, "h_align": "center", "fore_color": "#1F4E79", "back_color": "#DCE6F1" },
+
+    { "row": 2, "col": 1, "text": "报表年度", "bold": true, "h_align": "right" },
+    { "row": 2, "col": 2, "expr": "@year" },
+    { "row": 2, "col": 3, "text": "币种", "bold": true, "h_align": "right" },
+    { "row": 2, "col": 4, "text": "人民币（元）" },
+    { "row": 2, "col": 5, "text": "口径", "bold": true, "h_align": "right" },
+    { "row": 2, "col": 6, "text": "含税成交额" },
+
+    { "row": 3, "col": 1, "text": "季度", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 2, "text": "姓名", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+    { "row": 3, "col": 3, "expr": "ds2.select(product:1,,,product)", "extend_mode": "horizontal", "bold": true, "h_align": "center", "back_color": "#DCE6F1",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "double" } } },
+
+    { "row": 4, "col": 1, "expr": "ds1.select(quarter)", "extend_mode": "vertical", "merge_same": "vertical" },
+    { "row": 4, "col": 2, "expr": "ds1.select(name)", "extend_mode": "vertical" },
+    { "row": 4, "col": 3, "expr": "ds2.select@r(amount, quarter==A4 && name==B4 && product==C3)", "format": "#,##0.00" },
+
+    { "row": 5, "col": 1, "text": "合计", "bold": true, "h_align": "center", "merge": { "rows": 1, "cols": 2 }, "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 5, "col": 3, "expr": "sum(ds2.select@r(amount, product==C3))", "bold": true, "h_align": "center", "format": "#,##0.00", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+
+    { "row": 6, "col": 1, "text": "平均每笔", "bold": true, "h_align": "center", "merge": { "rows": 1, "cols": 2 }, "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } },
+    { "row": 6, "col": 3, "expr": "avg(ds2.select@r(amount, product==C3))", "bold": true, "h_align": "center", "format": "#,##0.00", "back_color": "#F2F2F2",
+      "border": { "left": { "style": "solid" }, "right": { "style": "solid" }, "top": { "style": "solid" }, "bottom": { "style": "solid" } } }
+  ],
+  "datasets": [
+    {
+      "name": "ds1",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT s.quarter AS quarter, e.name AS name FROM sales s JOIN emp e ON e.id = s.emp_id GROUP BY s.quarter, e.name ORDER BY s.quarter, e.id"
+      }
+    },
+    {
+      "name": "ds2",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT s.quarter AS quarter, e.name AS name, s.product AS product, s.qty AS qty, s.amount AS amount FROM sales s JOIN emp e ON e.id = s.emp_id ORDER BY s.quarter, e.id, s.product"
+      }
+    }
+  ],
+  "params": [
+    { "name": "year", "data_type": "int", "default": "2026", "description": "报表年度" }
+  ],
+  "row_props": [
+    { "row": 1, "height": 36 },
+    { "row": 3, "height": 24 }
+  ],
+  "col_props": [
+    { "col": 1, "width": 8 },
+    { "col": 2, "width": 12 },
+    { "col": 3, "width": 14 },
+    { "col": 4, "width": 14 },
+    { "col": 5, "width": 14 },
+    { "col": 6, "width": 14 },
+    { "col": 7, "width": 14 },
+    { "col": 8, "width": 14 },
+    { "col": 9, "width": 14 },
+    { "col": 10, "width": 14 }
+  ],
+  "print_setup": {
+    "paper_width": 297,
+    "paper_height": 210,
+    "left_margin": 15,
+    "right_margin": 15,
+    "top_margin": 20,
+    "bottom_margin": 20,
+    "row_num_per_page": 30,
+    "copy_count": 1,
+    "zoom_scale": 100
+  }
+}

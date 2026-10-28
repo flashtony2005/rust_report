@@ -1,0 +1,381 @@
+{
+ "version": 1,
+ "grid": {
+  "rows": 6,
+  "cols": 8
+ },
+ "datasets": [
+  {
+   "name": "ar",
+   "file": {
+    "file_name": "ar-aging.csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+   }
+  }
+ ],
+ "col_props": [
+  {
+   "col": 1,
+   "width": 32
+  },
+  {
+   "col": 2,
+   "width": 26
+  },
+  {
+   "col": 3,
+   "width": 20
+  },
+  {
+   "col": 4,
+   "width": 20
+  },
+  {
+   "col": 5,
+   "width": 20
+  },
+  {
+   "col": 6,
+   "width": 20
+  },
+  {
+   "col": 7,
+   "width": 20
+  },
+  {
+   "col": 8,
+   "width": 18
+  }
+ ],
+ "row_props": [
+  {
+   "row": 1,
+   "height": 13
+  },
+  {
+   "row": 3,
+   "height": 8
+  },
+  {
+   "row": 4,
+   "height": 7
+  },
+  {
+   "row": 5,
+   "height": 7
+  },
+  {
+   "row": 6,
+   "height": 7
+  }
+ ],
+ "printing": {
+  "auto_size": false
+ },
+ "cells": [
+  {
+   "row": 1,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "应收账款账龄分析表",
+   "font_size": 18,
+   "bold": true,
+   "h_align": "center",
+   "v_align": "middle",
+   "fore_color": "#163D46",
+   "merge": {
+    "rows": 1,
+    "cols": 8
+   },
+   "extend_mode": "none"
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "截止 2025-09-30　　账龄按到期天数划分：未到期 / 1-30 / 31-60 / 61-90 / 90 天以上",
+   "font_size": 9,
+   "h_align": "center",
+   "v_align": "middle",
+   "fore_color": "#5A6B75",
+   "merge": {
+    "rows": 1,
+    "cols": 8
+   },
+   "extend_mode": "none"
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "客户",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "text": "应收余额",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "text": "未到期",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "text": "1-30 天",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "text": "31-60 天",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "text": "61-90 天",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "text": "90 天以上",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "text": "占比",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "vertical",
+   "expr": "ar.group(customer)",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "ar.sum(amount,customer==A4)",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "ar.sum(amount,customer==A4 and days<=0)",
+   "format": "#,##0",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "ar.sum(amount,customer==A4 and days>0 and days<=30)",
+   "format": "#,##0",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "ar.sum(amount,customer==A4 and days>30 and days<=60)",
+   "format": "#,##0",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "ar.sum(amount,customer==A4 and days>60 and days<=90)",
+   "format": "#,##0",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "ar.sum(amount,customer==A4 and days>90)",
+   "format": "#,##0",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "if(sum(B4[`0]{})==0,0,B4/sum(B4[`0]{}))",
+   "format": "0.0%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "合计",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#F1F4F7",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "ar.sum(amount)",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "ar.sum(amount,days<=0)",
+   "bold": true,
+   "format": "#,##0",
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "ar.sum(amount,days>0 and days<=30)",
+   "bold": true,
+   "format": "#,##0",
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "expr": "ar.sum(amount,days>30 and days<=60)",
+   "bold": true,
+   "format": "#,##0",
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "expr": "ar.sum(amount,days>60 and days<=90)",
+   "bold": true,
+   "format": "#,##0",
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "expr": "ar.sum(amount,days>90)",
+   "bold": true,
+   "format": "#,##0",
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "expr": "1",
+   "bold": true,
+   "format": "0.0%",
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 6,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "说明：每个账龄列的数值都是「客户当前行 + 天数区间」两个条件的汇总，新增客户会自动多一行并重算占比。",
+   "font_size": 9,
+   "fore_color": "#5A6B75",
+   "merge": {
+    "rows": 1,
+    "cols": 8
+   }
+  }
+ ]
+}

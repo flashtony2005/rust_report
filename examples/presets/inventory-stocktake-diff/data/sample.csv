@@ -1,0 +1,5 @@
+sku,product,warehouse,book_qty,counted_qty,diff_qty
+SKU-001,产品X,一号仓,100,98,-2
+SKU-002,产品Y,一号仓,50,52,2
+SKU-003,产品Z,二号仓,80,80,0
+SKU-004,产品W,三号仓,200,195,-5

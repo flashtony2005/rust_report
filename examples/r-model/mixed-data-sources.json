@@ -1,0 +1,499 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 6,
+    "cols": 9
+  },
+  "datasets": [
+    {
+      "name": "organization",
+      "sql": {
+        "dsn": "organization-db",
+        "sql": "SELECT region, owner FROM organization ORDER BY display_order"
+      }
+    },
+    {
+      "name": "actuals",
+      "sql": {
+        "dsn": "operations-db",
+        "sql": "SELECT region, revenue, cost FROM ledger ORDER BY rowid"
+      }
+    },
+    {
+      "name": "budget",
+      "file": {
+        "file_name": "sources.xlsx",
+        "encoding": "UTF-8",
+        "sheet_name": "预算"
+      }
+    },
+    {
+      "name": "refunds",
+      "file": {
+        "file_name": "refunds.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 18,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "经营实绩联查 · Excel + CSV + 双数据库",
+      "merge": {
+        "rows": 1,
+        "cols": 9
+      },
+      "bold": true,
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "Excel 预算 + CSV 退款 + 经营库实绩 + 组织库负责人；四个数据集通过区域键在报表中关联。",
+      "merge": {
+        "rows": 1,
+        "cols": 9
+      },
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "区域",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "负责人",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "Excel 预算",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "数据库收入",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "CSV 退款",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "净收入",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "数据库成本",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "毛利",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "预算达成率",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 4,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "expr": "organization.select(region)",
+      "h_align": "left",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "organization.owner",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "sum(budget.select(budget,region==A4))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "sum(actuals.select(revenue,region==A4))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "sum(refunds.select(amount,region==A4))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "D4-E4",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "sum(actuals.select(cost,region==A4))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "F4-G4",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "if(C4==0,0,F4/C4)",
+      "h_align": "right",
+      "format": "0.00%"
+    },
+    {
+      "row": 5,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "合计",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46",
+      "merge": {
+        "rows": 1,
+        "cols": 2
+      }
+    },
+    {
+      "row": 5,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "budget.sum(budget)",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "actuals.sum(revenue)",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "refunds.sum(amount)",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 6,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "D5-E5",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 7,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "actuals.sum(cost)",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 8,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "F5-G5",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 9,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "F5/C5",
+      "h_align": "right",
+      "format": "0.00%",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "华南有预算和负责人但没有收入；CSV 覆盖小数、引号内逗号和换行。连接配置独立于模板。",
+      "merge": {
+        "rows": 1,
+        "cols": 9
+      }
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 12
+    },
+    {
+      "row": 2,
+      "height": 9
+    },
+    {
+      "row": 3,
+      "height": 8
+    },
+    {
+      "row": 4,
+      "height": 8
+    },
+    {
+      "row": 5,
+      "height": 8
+    },
+    {
+      "row": 6,
+      "height": 8
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 32
+    },
+    {
+      "col": 2,
+      "width": 32
+    },
+    {
+      "col": 3,
+      "width": 29
+    },
+    {
+      "col": 4,
+      "width": 29
+    },
+    {
+      "col": 5,
+      "width": 29
+    },
+    {
+      "col": 6,
+      "width": 29
+    },
+    {
+      "col": 7,
+      "width": 29
+    },
+    {
+      "col": 8,
+      "width": 29
+    },
+    {
+      "col": 9,
+      "width": 29
+    }
+  ],
+  "print_setup": {
+    "paper_width": 420,
+    "paper_height": 297,
+    "left_margin": 10,
+    "right_margin": 10,
+    "top_margin": 10,
+    "bottom_margin": 10
+  },
+  "printing": {
+    "horizontal_split": false,
+    "vertical_split": false,
+    "border_width": 0.5,
+    "border_color": "#CBD5E1"
+  }
+}

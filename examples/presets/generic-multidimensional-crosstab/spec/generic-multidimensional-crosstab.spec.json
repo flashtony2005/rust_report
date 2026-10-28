@@ -1,0 +1,35 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "多维交叉统计表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "crosstab",
+  "row_dims": [
+    {
+      "field": "region",
+      "label": "区域",
+      "sort": "asc"
+    }
+  ],
+  "col_dims": [
+    {
+      "field": "category",
+      "label": "品类",
+      "sort": "asc"
+    }
+  ],
+  "measures": [
+    {
+      "field": "amount",
+      "agg": "sum",
+      "label": "金额",
+      "format": "#,##0.00"
+    }
+  ],
+  "totals": {
+    "grand": true,
+    "subtotal": true
+  }
+}

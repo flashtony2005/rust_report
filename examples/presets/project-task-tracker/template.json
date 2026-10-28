@@ -1,0 +1,301 @@
+{
+  "cells": [
+    {
+      "bold": true,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 16,
+      "fore_color": "#163D46",
+      "h_align": "center",
+      "merge": {
+        "cols": 9,
+        "rows": 1
+      },
+      "row": 1,
+      "text": "项目任务跟踪表",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 1,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "项目",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 2,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "任务号",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 3,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "任务",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 4,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "负责人",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 5,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "优先级",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 6,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "状态",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 7,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "计划开始",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 8,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "截止日期",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 9,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "记录数",
+      "v_align": "middle"
+    },
+    {
+      "col": 1,
+      "expr": "d.select(project)",
+      "extend_mode": "vertical",
+      "font_name": "Microsoft YaHei",
+      "row": 3
+    },
+    {
+      "col": 2,
+      "expr": "d.select(task_id)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "col": 3,
+      "expr": "d.select(task_name)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "col": 4,
+      "expr": "d.select(owner)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "col": 5,
+      "expr": "d.select(priority)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "col": 6,
+      "expr": "d.select(status)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "col": 7,
+      "expr": "d.select(plan_start)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "col": 8,
+      "expr": "d.select(due_date)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "col": 9,
+      "expr": "d.select(rec)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "format": "#,##0",
+      "h_align": "right",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "back_color": "#F1F4F7",
+      "bold": true,
+      "col": 1,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "merge": {
+        "cols": 8,
+        "rows": 1
+      },
+      "row": 4,
+      "text": "合计"
+    },
+    {
+      "back_color": "#F1F4F7",
+      "bold": true,
+      "col": 9,
+      "expr": "d.sum(rec)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "format": "#,##0",
+      "h_align": "right",
+      "row": 4
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 24.0
+    },
+    {
+      "col": 2,
+      "width": 24.0
+    },
+    {
+      "col": 3,
+      "width": 24.0
+    },
+    {
+      "col": 4,
+      "width": 24.0
+    },
+    {
+      "col": 5,
+      "width": 24.0
+    },
+    {
+      "col": 6,
+      "width": 24.0
+    },
+    {
+      "col": 7,
+      "width": 24.0
+    },
+    {
+      "col": 8,
+      "width": 24.0
+    },
+    {
+      "col": 9,
+      "width": 20.0
+    }
+  ],
+  "datasets": [
+    {
+      "file": {
+        "delimiter": ",",
+        "encoding": "UTF-8",
+        "file_name": "sample.csv"
+      },
+      "name": "d"
+    }
+  ],
+  "format": "rpx-report",
+  "format_version": 1,
+  "grid": {
+    "cols": 9,
+    "rows": 4
+  },
+  "printing": {
+    "auto_size": false
+  },
+  "row_props": [
+    {
+      "height": 13.0,
+      "row": 1
+    },
+    {
+      "height": 8.0,
+      "row": 2
+    },
+    {
+      "height": 7.0,
+      "row": 3
+    },
+    {
+      "height": 7.0,
+      "row": 4
+    }
+  ],
+  "schema": "rpx-report/v1",
+  "version": 1
+}

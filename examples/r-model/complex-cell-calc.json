@@ -1,0 +1,468 @@
+{
+ "version": 1,
+ "grid": {
+  "rows": 10,
+  "cols": 6
+ },
+ "datasets": [
+  {
+   "name": "q",
+   "file": {
+    "file_name": "quality-loss.csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+   }
+  }
+ ],
+ "col_props": [
+  {
+   "col": 1,
+   "width": 18
+  },
+  {
+   "col": 2,
+   "width": 62
+  },
+  {
+   "col": 3,
+   "width": 16
+  },
+  {
+   "col": 4,
+   "width": 15
+  },
+  {
+   "col": 5,
+   "width": 15
+  },
+  {
+   "col": 6,
+   "width": 18
+  }
+ ],
+ "row_props": [
+  {
+   "row": 1,
+   "height": 12
+  },
+  {
+   "row": 2,
+   "height": 6
+  },
+  {
+   "row": 3,
+   "height": 8
+  },
+  {
+   "row": 4,
+   "height": 6
+  },
+  {
+   "row": 5,
+   "height": 6
+  },
+  {
+   "row": 6,
+   "height": 6
+  },
+  {
+   "row": 7,
+   "height": 7
+  },
+  {
+   "row": 8,
+   "height": 7
+  },
+  {
+   "row": 9,
+   "height": 7
+  },
+  {
+   "row": 10,
+   "height": 6
+  }
+ ],
+ "cells": [
+  {
+   "row": 1,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 17,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "复杂格间计算 · 质量损失分析",
+   "merge": {
+    "rows": 1,
+    "cols": 6
+   },
+   "bold": true,
+   "fore_color": "#163D46"
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "同一份产品清单纵向堆成三块；累计行用块级格间引用把前两块相加，损失率再除以第三块的入库合计。",
+   "merge": {
+    "rows": 1,
+    "cols": 6
+   },
+   "fore_color": "#52666E"
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "产品",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "名称",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "类别",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "开卡数量",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "交单数量",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 3,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "损失金额",
+   "bold": true,
+   "back_color": "#1B505B",
+   "fore_color": "#FFFFFF",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "次品损失",
+   "bold": true,
+   "back_color": "#EAF1EE",
+   "h_align": "center"
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "q.select(code)"
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B4",
+   "expr": "q.category"
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B4",
+   "expr": "q.opened",
+   "format": "#,##0"
+  },
+  {
+   "row": 4,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B4",
+   "expr": "q.submitted",
+   "format": "#,##0"
+  },
+  {
+   "row": 4,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B4",
+   "expr": "q.loss",
+   "format": "#,##0"
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "返工退货",
+   "bold": true,
+   "back_color": "#EAF1EE",
+   "h_align": "center"
+  },
+  {
+   "row": 5,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "q.select(code)"
+  },
+  {
+   "row": 5,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B5",
+   "expr": "q.scrap",
+   "format": "#,##0"
+  },
+  {
+   "row": 5,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B5",
+   "expr": "q.sorting",
+   "format": "#,##0"
+  },
+  {
+   "row": 5,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B5",
+   "expr": "q.return_fee",
+   "format": "#,##0"
+  },
+  {
+   "row": 5,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B5",
+   "expr": "C5+D5+E5",
+   "format": "#,##0"
+  },
+  {
+   "row": 6,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "入库金额",
+   "bold": true,
+   "back_color": "#EAF1EE",
+   "h_align": "center"
+  },
+  {
+   "row": 6,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "vertical",
+   "expr": "q.select(code)"
+  },
+  {
+   "row": 6,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "left_head": "B6",
+   "expr": "q.inbound",
+   "format": "#,##0"
+  },
+  {
+   "row": 7,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "累计损失（块1 + 块2）",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "h_align": "right",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 7,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "sum(F4{})+sum(F5{})",
+   "format": "#,##0",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 8,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "入库合计（块3）",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "h_align": "right",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 8,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "sum(C6{})",
+   "format": "#,##0",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 9,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "质量损失率（累计 / 入库）",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "h_align": "right",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 9,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "F7/F8",
+   "format": "0.00%",
+   "bold": true,
+   "back_color": "#F5EFE3"
+  },
+  {
+   "row": 10,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "其中：块2 小计 > 500 的合计",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "fore_color": "#52666E",
+   "h_align": "right"
+  },
+  {
+   "row": 10,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "expr": "sum(F5{F5>500})",
+   "format": "#,##0",
+   "fore_color": "#52666E"
+  }
+ ],
+ "printing": {
+  "auto_size": false
+ }
+}

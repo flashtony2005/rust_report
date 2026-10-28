@@ -1,0 +1,60 @@
+{
+  "data_dir": "data",
+  "description": "按仓库和商品类别交叉统计库存并显示总计",
+  "id": "inventory-warehouse-category-crosstab",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "cellset",
+      "grand_total",
+      "group_col",
+      "group_row",
+      "subtotal"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "category",
+          "quantity",
+          "warehouse"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 2,
+    "domain": [
+      "采购库存"
+    ],
+    "examples": [
+      "按仓库和商品类别交叉统计库存",
+      "仓库和类别交叉表"
+    ],
+    "extends": [
+      "row",
+      "col"
+    ],
+    "keywords": [
+      "仓库",
+      "商品类别",
+      "交叉表",
+      "仓库存货",
+      "品类库存"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "crosstab"
+  },
+  "name": "仓库库存交叉表",
+  "tags": [
+    "agg_sum",
+    "cellset",
+    "crosstab",
+    "grand_total",
+    "group_col",
+    "group_row",
+    "subtotal"
+  ],
+  "template": "template.json",
+  "version": 1
+}

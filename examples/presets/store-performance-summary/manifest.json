@@ -1,0 +1,51 @@
+{
+  "data_dir": "data",
+  "description": "按门店汇总营业额（运营域，落通用）",
+  "id": "store-performance-summary",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "store"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "通用"
+    ],
+    "examples": [
+      "按门店汇总营业额",
+      "做一张门店经营汇总表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "门店经营",
+      "门店汇总",
+      "门店营业额",
+      "门店业绩"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "门店经营汇总表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

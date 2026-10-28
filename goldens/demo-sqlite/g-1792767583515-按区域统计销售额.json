@@ -1,0 +1,31 @@
+{
+  "schema": "rpx-golden/v1",
+  "id": "g-1792767583515-按区域统计销售额",
+  "dsn": "demo-sqlite",
+  "intent": "按区域统计销售额",
+  "query": {
+    "schema": "rpx-query/v1",
+    "metrics": [
+      {
+        "ref": "sales_amount"
+      }
+    ],
+    "dimensions": [
+      {
+        "ref": "sales_region"
+      }
+    ]
+  },
+  "sql": "SELECT ...",
+  "dialect": "sqlite",
+  "definitions": [],
+  "result_shape": {
+    "columns": [
+      "d0",
+      "m0"
+    ],
+    "rows": 4
+  },
+  "note": "销售额=sum(amount)-sum(discount)，按降序",
+  "created_at": "2026-10-23T22:59:43+0800"
+}

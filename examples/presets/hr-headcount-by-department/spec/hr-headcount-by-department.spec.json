@@ -1,0 +1,27 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "部门人数汇总表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "grouped",
+  "row_dims": [
+    {
+      "field": "department",
+      "label": "部门",
+      "sort": "asc"
+    }
+  ],
+  "measures": [
+    {
+      "field": "employee_id",
+      "agg": "count",
+      "label": "人数",
+      "format": "#,##0"
+    }
+  ],
+  "totals": {
+    "grand": true
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "项目进度状态汇总表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "grouped",
+  "row_dims": [
+    {
+      "field": "project",
+      "label": "项目",
+      "sort": "asc"
+    },
+    {
+      "field": "status",
+      "label": "状态",
+      "sort": "asc"
+    }
+  ],
+  "measures": [
+    {
+      "field": "task_id",
+      "agg": "count",
+      "label": "任务数",
+      "format": "#,##0"
+    }
+  ],
+  "totals": {
+    "grand": true
+  }
+}

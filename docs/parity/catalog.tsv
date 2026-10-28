@@ -1,0 +1,73 @@
+# RPX 能力目录 —— 由 scripts/gen_parity.py 校验并生成 docs/parity-checklist.md
+# 列：域	组	能力项	实现位置	状态
+# 实现位置 = 文件路径，或 文件路径#符号（该文件里必须出现的字符串）
+# 状态：ok = 已实现（实现位置必须能解析）；gap = 未实现（实现位置必须留空）
+# ⛔ 声称 ok 但实现位置解析失败 ⇒ gate 红。别为了让表好看而假报。
+定义	网格	rows / cols 声明	crates/rpx-format/src/reportdef/parse.rs#"grid"	ok
+定义	数据集	文件数据集（CSV / Excel + sheet）	crates/rpx-format/src/reportdef/parse.rs#file_name	ok
+定义	数据集	分隔符 delimiter	crates/rpx-format/src/reportdef/parse.rs#delimiter	ok
+定义	数据集	编码 encoding	crates/rpx-format/src/reportdef/parse.rs#encoding	ok
+定义	数据集	SQL 数据集（dsn + sql）	crates/rpx-format/src/reportdef/parse.rs#"dsn"	ok
+定义	单元格	text 静态文本	crates/rpx-format/src/reportdef/parse.rs#"text"	ok
+定义	单元格	expr 表达式	crates/rpx-format/src/reportdef/parse.rs#"expr"	ok
+定义	单元格	字体 / 字号 / 粗斜体 / 颜色	crates/rpx-format/src/reportdef/style.rs	ok
+定义	单元格	对齐（h_align / v_align）	crates/rpx-format/src/reportdef/style.rs#"center"	ok
+定义	单元格	边框与线型	crates/rpx-format/src/reportdef/style.rs#border	ok
+定义	单元格	数字格式 format	crates/rpx-format/src/reportdef/format.rs	ok
+定义	单元格	extend_mode 纵向 / 横向	crates/rpx-format/src/reportdef/parse.rs#extend_mode	ok
+定义	合并	静态矩形合并 merge{rows,cols}	crates/rpx-format/src/reportdef/parse.rs#merge	ok
+定义	合并	同值合并 merge_same（vertical/horizontal/both）	crates/rpx-format/src/reportdef/parse.rs#merge_same	ok
+定义	合并	空值合并 merge_null	crates/rpx-format/src/reportdef/parse.rs#merge_null	ok
+定义	主格	left_head / top_head	crates/rpx-format/src/reportdef/heads.rs	ok
+定义	属性	单元格属性 16 槽	crates/rpx-format/src/reportdef/cellprops.rs	ok
+定义	参数	params[] 声明	crates/rpx-format/src/reportdef/params.rs#parse_params	ok
+定义	行列	row_props / col_props（mm）	crates/rpx-format/src/reportdef/print_options.rs	ok
+定义	打印	print_setup / printing.auto_size	crates/rpx-format/src/reportdef/printsetup.rs	ok
+定义	导入	legacy .rpx 逐字段重建	crates/rpx-model/src/cell.rs#read_i8	ok
+引擎	扩展	纵向扩展（一条记录一行）	crates/rpx-engine/src/ext_algo/row.rs	ok
+引擎	扩展	横向扩展（动态列）	crates/rpx-engine/src/ext_algo/col.rs	ok
+引擎	扩展	多级嵌套 / 交集展开	crates/rpx-engine/src/ext_algo/expand.rs	ok
+引擎	合并	mergeSame 四趟（P1–P4）	crates/rpx-engine/src/merge/same.rs#pub fn merge_same	ok
+引擎	合并	mergeNull 四趟（上/左/下/右）	crates/rpx-engine/src/merge/null.rs#pub fn merge_null	ok
+引擎	表达式	格间引用与算术（A1*B1）	crates/rpx-engine/src/expr/eval.rs#fn evaluate_call	ok
+引擎	表达式	数据集函数 select / sum / group	crates/rpx-engine/src/expr/dsfn.rs	ok
+引擎	表达式	条件聚合 sum(x{条件})	crates/rpx-engine/src/expr/cellset.rs	ok
+引擎	表达式	日期 / 数学 / 字符串函数	crates/rpx-engine/src/expr/num.rs	ok
+引擎	表达式	函数名表 FunctionLib._$4	crates/rpx-engine/src/expr/names.rs#REGULAR	ok
+引擎	表达式	barcode() Code 128B → PNG	crates/rpx-engine/src/barcode.rs#pub fn data_uri	ok
+引擎	表达式	row() / col() 当前行号			gap
+引擎	计算	计算矩阵与求值编排	crates/rpx-engine/src/calc/run.rs#fn calculate_full	ok
+引擎	计算	十进制与数值比较	crates/rpx-engine/src/expr/num.rs#val_eq	ok
+引擎	分页	分页与页计数	crates/rpx-engine/src/pager.rs#pub fn paginate	ok
+引擎	合并	跨页合并拆分			gap
+引擎	图形	28 种内置统计图	crates/rpx-engine/src/graphics.rs#chart_kinds	ok
+引擎	图形	echarts option 模板（参数注入）	crates/rpx-format/src/reportdef/graphics.rs#"echarts"	ok
+引擎	图形	echarts_js 沙箱模板	crates/rpx-format/src/reportdef/graphics.rs#"echarts_js"	ok
+引擎	图形	图片 / 格背景 data URI	crates/rpx-format/src/reportdef/graphics.rs#"image"	ok
+引擎	图形	图形逐行计算	crates/rpx-engine/src/graphics/calculate.rs#pub(crate) fn collect	ok
+引擎	图形	条件出图（按行决定是否出图）			gap
+引擎	图形	图表动画（animationDelay 等）			gap
+引擎	图形	地图（需 GeoJSON 注册）			gap
+运行	目录库	init / list / show / save / patch	crates/rpx-runtime/src/library/manage.rs#pub fn init	ok
+运行	目录库	execute 绑定修订运行	crates/rpx-runtime/src/library.rs#pub async fn execute	ok
+运行	目录库	运行记录 / 源文件 / 产物	crates/rpx-runtime/src/library.rs#pub fn run_record	ok
+运行	目录库	migrate / prune / delete / copy	crates/rpx-runtime/src/library.rs#pub fn validate	ok
+运行	计算	calculate_grid	crates/rpx-runtime/src/execution.rs#pub fn calculate_grid	ok
+运行	取数	SQL 预取与数据源注册表	crates/rpx-runtime/src/datasource.rs#DataSourceRegistry	ok
+运行	快照	Univer workbook 快照	crates/rpx-runtime/src/snapshot.rs#pub fn build	ok
+运行	快照	mergeData 合并区	crates/rpx-runtime/src/snapshot/geom.rs#pub(crate) fn merge_data	ok
+运行	画廊	实例库生成（catalog + checks）	crates/rpx-runtime/src/gallery.rs#pub async fn generate	ok
+导出	文件	CSV	crates/rpx-export/src/csv.rs#fn to_csv	ok
+导出	文件	XLSX	crates/rpx-export/src/xlsx.rs#fn to_xlsx	ok
+导出	文件	打印用 XLSX	crates/rpx-export/src/print_xlsx.rs	ok
+导出	文件	DOCX			gap
+导出	文件	PDF（服务端，可选文本）			gap
+导出	检查	图片 data URI 校验	crates/rpx-export/src/lib.rs#pub fn validate_image	ok
+入口	CLI	38 个叶子命令 + JSON envelope	crates/rpx-cli/src/commands.rs#pub fn print_text	ok
+入口	HTTP	9 条路由（库 / 运行 / 产物）	crates/rpx-server/src/http.rs#pub fn app	ok
+入口	Agent	agent 全流程（CLI 驱动）	docs/agent-cli-design.md	ok
+前端	画布	Univer 挂载与样式	crates/rpx-cli/src/args.rs	ok
+前端	画布	单元格 / 合并 / 数字格式渲染	crates/rpx-server/src/http.rs#mergeData	ok
+前端	图形	画布内图形渲染（rpxGraphics）			gap
+前端	预览	打印预览（含图形叠层）	web/src/PrintPreview.tsx#mergeData	ok
+前端	画廊	报表实例库页面	web/src/gallery.tsx	ok

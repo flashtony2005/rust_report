@@ -1,0 +1,6 @@
+sku,product,category,warehouse,quantity
+SKU-001,产品X,原材料,一号仓,100
+SKU-002,产品Y,成品,一号仓,50
+SKU-003,产品Z,原材料,二号仓,80
+SKU-001,产品X,原材料,二号仓,30
+SKU-004,产品W,成品,三号仓,200

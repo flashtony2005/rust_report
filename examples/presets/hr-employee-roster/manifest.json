@@ -1,0 +1,55 @@
+{
+  "data_dir": "data",
+  "description": "生成员工花名册，按部门和姓名查看员工信息",
+  "id": "hr-employee-roster",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "detail_row",
+      "grand_total"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "department",
+          "employee_id",
+          "hire_date",
+          "name",
+          "position",
+          "rec",
+          "status"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "人事"
+    ],
+    "examples": [
+      "生成员工花名册，按部门和姓名查看员工信息"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "花名册",
+      "员工名册",
+      "人员清单",
+      "员工信息"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "员工花名册",
+  "tags": [
+    "agg_sum",
+    "detail",
+    "detail_row",
+    "grand_total"
+  ],
+  "template": "template.json",
+  "version": 1
+}

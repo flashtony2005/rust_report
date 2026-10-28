@@ -1,0 +1,54 @@
+{
+  "data_dir": "data",
+  "description": "列出销售订单明细，按日期查看客户、产品、数量和金额",
+  "id": "sales-order-detail",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "customer",
+          "order_date",
+          "order_id",
+          "product",
+          "quantity",
+          "salesperson"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "销售"
+    ],
+    "examples": [
+      "列出销售订单明细，按日期看客户、产品和金额",
+      "做一张订单明细表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "销售订单",
+      "订单明细",
+      "客户",
+      "产品",
+      "金额",
+      "发货"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "销售订单明细表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

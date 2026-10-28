@@ -1,0 +1,40 @@
+# 受审依赖白名单 —— scripts/gate.sh 的 G5 读这张表
+#
+# 格式（每行一条，`#` 后为注释）：
+#     <crate> <dep>
+# 例：
+#     rpx-ds libsql
+#
+# 规则（正文见 docs/code-review.md §3.2）：
+#   1. 零依赖层（rpx-core / rpx-engine）**不许**出现在本表里 —— 它们的
+#      [dependencies] 必须全是 path 依赖，任何非 path 依赖直接 FAIL。
+#   2. 其余 crate 的每个非 path 依赖都必须在这里登记，否则 FAIL。
+#   3. 本表里的**死条目**（登记了但代码里没有该依赖）也 FAIL ——
+#      与「无构造点的错误变体一律删除」同一条纪律，避免白名单悄悄膨胀。
+#
+# 目前为空：M1/M2 的 crate 全在零依赖层，尚无第三方依赖。
+# M3 起（rpx-ds / rpx-export / rpx-server / rpx-print）在这里逐条登记，
+# 每条都要在 docs/code-review.md §3.2 的表格里写明「谁 + 为什么 + 替代方案为何不行」。
+
+rpx-server serde_json
+rpx-server axum
+rpx-server tokio
+rpx-ds sqlx
+rpx-ds tokio
+rpx-ds calamine
+rpx-ds csv
+rpx-export rust_xlsxwriter
+rpx-export base64
+
+rpx-runtime serde_json
+rpx-runtime serde
+rpx-runtime sha2
+rpx-runtime base64
+rpx-runtime time
+rpx-runtime json-patch
+rpx-cli clap
+rpx-cli serde_json
+rpx-cli tokio
+
+rpx-format serde_json
+rpx-ds futures-util

@@ -1,0 +1,1 @@
+SUMMARY bmp=0/63488 pairs=0/595984 fuzzCE=0/30000 fuzzCMP=0/8000 singles=21837 contracts=25
