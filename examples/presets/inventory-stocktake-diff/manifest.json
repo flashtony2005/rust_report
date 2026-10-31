@@ -1,0 +1,48 @@
+{
+  "data_dir": "data",
+  "description": "对比账面库存与实盘数量列出差异（diff_qty 已预生成）",
+  "id": "inventory-stocktake-diff",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "diff_qty",
+          "product",
+          "sku",
+          "warehouse"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "采购库存"
+    ],
+    "examples": [
+      "对比账面库存与实盘数量，列出差异"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "盘点差异",
+      "账实差异",
+      "盘亏盘盈",
+      "库存差异"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "库存盘点差异表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

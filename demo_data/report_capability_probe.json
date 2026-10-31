@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "grid": { "rows": 3, "cols": 6 },
+  "cells": [
+    { "row": 1, "col": 1, "text": "区域", "h_align": "center", "bold": true },
+    { "row": 1, "col": 2, "text": "季度", "h_align": "center", "bold": true },
+    { "row": 1, "col": 3, "text": "金额", "h_align": "center", "bold": true },
+    { "row": 1, "col": 4, "text": "序号", "h_align": "center", "bold": true },
+    { "row": 1, "col": 5, "text": "占比", "h_align": "center", "bold": true },
+    { "row": 1, "col": 6, "text": "环比", "h_align": "center", "bold": true },
+
+    { "row": 2, "col": 1, "expr": "ds1.select(region)", "extend_mode": "vertical" },
+    { "row": 2, "col": 2, "expr": "ds1.select(quarter)", "extend_mode": "vertical" },
+    { "row": 2, "col": 3, "expr": "ds1.select(amount)", "extend_mode": "vertical", "format": "#,##0.00" },
+    { "row": 2, "col": 5, "expr": "C2/sum(ds1.select@r(amount))", "format": "0.00%" },
+
+    { "row": 3, "col": 1, "text": "合计", "h_align": "right", "bold": true },
+    { "row": 3, "col": 3, "expr": "ds1.sum(amount)", "format": "#,##0.00", "bold": true }
+  ],
+  "datasets": [
+    {
+      "name": "ds1",
+      "sql": {
+        "dsn": "demo",
+        "sql": "SELECT e.region AS region, s.quarter AS quarter, SUM(s.amount) AS amount FROM sales s JOIN emp e ON e.id = s.emp_id GROUP BY e.region_order, e.region, s.quarter ORDER BY e.region_order, s.quarter"
+      }
+    }
+  ]
+}

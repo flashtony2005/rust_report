@@ -1,0 +1,686 @@
+{
+ "version": 1,
+ "grid": {
+  "rows": 17,
+  "cols": 4
+ },
+ "datasets": [
+  {
+   "name": "gl",
+   "file": {
+    "file_name": "income-statement.csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+   }
+  }
+ ],
+ "col_props": [
+  {
+   "col": 1,
+   "width": 66
+  },
+  {
+   "col": 2,
+   "width": 32
+  },
+  {
+   "col": 3,
+   "width": 32
+  },
+  {
+   "col": 4,
+   "width": 22
+  }
+ ],
+ "row_props": [
+  {
+   "row": 1,
+   "height": 13
+  },
+  {
+   "row": 3,
+   "height": 8
+  },
+  {
+   "row": 4,
+   "height": 7
+  },
+  {
+   "row": 5,
+   "height": 7
+  },
+  {
+   "row": 6,
+   "height": 7
+  },
+  {
+   "row": 7,
+   "height": 7
+  },
+  {
+   "row": 8,
+   "height": 7
+  },
+  {
+   "row": 9,
+   "height": 7
+  },
+  {
+   "row": 10,
+   "height": 7
+  },
+  {
+   "row": 11,
+   "height": 7
+  },
+  {
+   "row": 12,
+   "height": 7
+  },
+  {
+   "row": 13,
+   "height": 7
+  },
+  {
+   "row": 14,
+   "height": 7
+  },
+  {
+   "row": 15,
+   "height": 7
+  },
+  {
+   "row": 16,
+   "height": 7
+  },
+  {
+   "row": 17,
+   "height": 7
+  }
+ ],
+ "printing": {
+  "auto_size": false
+ },
+ "cells": [
+  {
+   "row": 1,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "利 润 表",
+   "font_size": 18,
+   "bold": true,
+   "h_align": "center",
+   "v_align": "middle",
+   "fore_color": "#163D46",
+   "merge": {
+    "rows": 1,
+    "cols": 4
+   },
+   "extend_mode": "none"
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "编制单位：示例制造有限公司　　2025 年度　　单位：元",
+   "font_size": 9,
+   "h_align": "center",
+   "v_align": "middle",
+   "fore_color": "#5A6B75",
+   "merge": {
+    "rows": 1,
+    "cols": 4
+   },
+   "extend_mode": "none"
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "项　　目",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "text": "本期金额",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "text": "上期金额",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "text": "变动",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "一、营业收入",
+   "v_align": "middle",
+   "bold": true
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='营业收入')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='营业收入')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C4==0,0,B4/C4-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "减：营业成本",
+   "v_align": "middle",
+   "indent": 1
+  },
+  {
+   "row": 5,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='营业成本')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='营业成本')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C5==0,0,B5/C5-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 6,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "税金及附加",
+   "v_align": "middle",
+   "indent": 3
+  },
+  {
+   "row": 6,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='税金及附加')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 6,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='税金及附加')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 6,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C6==0,0,B6/C6-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 7,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "销售费用",
+   "v_align": "middle",
+   "indent": 3
+  },
+  {
+   "row": 7,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='销售费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 7,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='销售费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 7,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C7==0,0,B7/C7-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 8,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "管理费用",
+   "v_align": "middle",
+   "indent": 3
+  },
+  {
+   "row": 8,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='管理费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 8,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='管理费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 8,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C8==0,0,B8/C8-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 9,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "研发费用",
+   "v_align": "middle",
+   "indent": 3
+  },
+  {
+   "row": 9,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='研发费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 9,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='研发费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 9,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C9==0,0,B9/C9-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 10,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "财务费用",
+   "v_align": "middle",
+   "indent": 3
+  },
+  {
+   "row": 10,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='财务费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 10,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='财务费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 10,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C10==0,0,B10/C10-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 11,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "加：其他收益",
+   "v_align": "middle",
+   "indent": 1
+  },
+  {
+   "row": 11,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='其他收益')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 11,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='其他收益')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 11,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C11==0,0,B11/C11-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 12,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "二、营业利润",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "v_align": "middle"
+  },
+  {
+   "row": 12,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "B4-B5-B6-B7-B8-B9-B10+B11",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 12,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "C4-C5-C6-C7-C8-C9-C10+C11",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 12,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C12==0,0,B12/C12-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle",
+   "back_color": "#F1F4F7"
+  },
+  {
+   "row": 13,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "加：营业外收入",
+   "v_align": "middle"
+  },
+  {
+   "row": 13,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='营业外收入')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 13,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='营业外收入')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 13,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C13==0,0,B13/C13-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 14,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "减：营业外支出",
+   "v_align": "middle"
+  },
+  {
+   "row": 14,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='营业外支出')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 14,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='营业外支出')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 14,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C14==0,0,B14/C14-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 15,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "三、利润总额",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "v_align": "middle"
+  },
+  {
+   "row": 15,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "B12+B13-B14",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 15,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "C12+C13-C14",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 15,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C15==0,0,B15/C15-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle",
+   "back_color": "#F1F4F7"
+  },
+  {
+   "row": 16,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "减：所得税费用",
+   "v_align": "middle"
+  },
+  {
+   "row": 16,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(current,subject=='所得税费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 16,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "gl.sum(prior,subject=='所得税费用')",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 16,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C16==0,0,B16/C16-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 17,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "四、净利润",
+   "bold": true,
+   "back_color": "#E4EBF0",
+   "v_align": "middle"
+  },
+  {
+   "row": 17,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "expr": "B15-B16",
+   "bold": true,
+   "back_color": "#E4EBF0",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 17,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "C15-C16",
+   "bold": true,
+   "back_color": "#E4EBF0",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 17,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "if(C17==0,0,B17/C17-1)",
+   "format": "0.00%",
+   "h_align": "right",
+   "v_align": "middle",
+   "back_color": "#E4EBF0"
+  }
+ ]
+}

@@ -1,0 +1,51 @@
+{
+  "data_dir": "data",
+  "description": "统计各部门在职人数（样例已预过滤为在职）",
+  "id": "hr-headcount-by-department",
+  "meta": {
+    "capabilities": [
+      "agg_count",
+      "agg_sum",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "department"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "人事"
+    ],
+    "examples": [
+      "统计各部门在职人数",
+      "部门人数汇总表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "部门",
+      "人数",
+      "在职",
+      "编制",
+      "人头数"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "部门人数汇总表",
+  "tags": [
+    "agg_count",
+    "agg_sum",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

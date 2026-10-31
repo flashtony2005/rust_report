@@ -1,0 +1,52 @@
+{
+  "data_dir": "data",
+  "description": "按销售人员统计销售额，并按名称排序",
+  "id": "sales-by-salesperson",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "salesperson"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "销售"
+    ],
+    "examples": [
+      "按销售人员统计销售额",
+      "做一张销售业绩汇总表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "销售人员",
+      "业绩",
+      "提成",
+      "销售统计",
+      "业绩排名"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "销售人员业绩汇总表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

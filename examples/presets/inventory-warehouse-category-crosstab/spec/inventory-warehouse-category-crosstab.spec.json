@@ -1,0 +1,35 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "仓库库存交叉表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "crosstab",
+  "row_dims": [
+    {
+      "field": "warehouse",
+      "label": "仓库",
+      "sort": "asc"
+    }
+  ],
+  "col_dims": [
+    {
+      "field": "category",
+      "label": "商品类别",
+      "sort": "asc"
+    }
+  ],
+  "measures": [
+    {
+      "field": "quantity",
+      "agg": "sum",
+      "label": "库存数量",
+      "format": "#,##0"
+    }
+  ],
+  "totals": {
+    "grand": true,
+    "subtotal": true
+  }
+}

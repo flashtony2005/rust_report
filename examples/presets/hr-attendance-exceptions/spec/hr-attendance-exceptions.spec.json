@@ -1,0 +1,39 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "考勤异常明细表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "date",
+      "label": "日期"
+    },
+    {
+      "field": "employee_id",
+      "label": "工号"
+    },
+    {
+      "field": "name",
+      "label": "姓名"
+    },
+    {
+      "field": "department",
+      "label": "部门"
+    },
+    {
+      "field": "exception_type",
+      "label": "异常类型"
+    }
+  ],
+  "measures": [
+    {
+      "field": "minutes",
+      "agg": "sum",
+      "label": "时长(分钟)",
+      "format": "#,##0"
+    }
+  ]
+}

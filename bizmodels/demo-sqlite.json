@@ -1,0 +1,231 @@
+{
+  "schema": "rpx-bizmodel/v1",
+  "version": 1,
+  "source": {
+    "dsn": "demo-sqlite",
+    "generated_at": "2026-10-29T08:53:45+08:00",
+    "generator": "discovery/rpx-semantic"
+  },
+  "entities": [
+    {
+      "id": "sales",
+      "table": "sales",
+      "label": "sales",
+      "grain": {
+        "key": [],
+        "description": "粒度未知",
+        "status": "candidate",
+        "evidence": [
+          "no_primary_key"
+        ]
+      },
+      "status": "candidate",
+      "evidence": [
+        "table_exists"
+      ]
+    }
+  ],
+  "relationships": [],
+  "metrics": [
+    {
+      "id": "sales_amount",
+      "label": "销售额",
+      "aliases": [
+        "amount",
+        "销售额",
+        "金额",
+        "收入",
+        "营收"
+      ],
+      "entity": "sales",
+      "column": "amount",
+      "expression": "SUM(amount) - SUM(discount)",
+      "filters": [],
+      "time_field": "sales_sold_on",
+      "grain": "粒度未知",
+      "format": "#,##0.00",
+      "status": "confirmed",
+      "evidence": [
+        "column_type:REAL",
+        "human_confirmed:2026-10-23",
+        "human_edited:2026-10-29"
+      ]
+    },
+    {
+      "id": "sales_qty",
+      "label": "数量",
+      "aliases": [
+        "qty",
+        "数量",
+        "销量",
+        "件数"
+      ],
+      "entity": "sales",
+      "column": "qty",
+      "expression": "SUM(qty)",
+      "filters": [],
+      "time_field": null,
+      "grain": "粒度未知",
+      "format": "#,##0.00",
+      "status": "confirmed",
+      "evidence": [
+        "column_type:INTEGER",
+        "human_confirmed:2026-10-29"
+      ]
+    },
+    {
+      "id": "sales_discount",
+      "label": "折扣",
+      "aliases": [
+        "discount",
+        "折扣",
+        "让利"
+      ],
+      "entity": "sales",
+      "column": "discount",
+      "expression": "SUM(discount)",
+      "filters": [],
+      "time_field": null,
+      "grain": "粒度未知",
+      "format": "#,##0.00",
+      "status": "draft",
+      "evidence": [
+        "column_type:REAL"
+      ]
+    }
+  ],
+  "dimensions": [
+    {
+      "id": "sales_region",
+      "label": "区域",
+      "aliases": [
+        "region",
+        "区域",
+        "地区"
+      ],
+      "entity": "sales",
+      "column": "region",
+      "kind": "enum",
+      "values": [
+        "华北",
+        "华东",
+        "华南",
+        "西南"
+      ],
+      "time_grain": null,
+      "status": "candidate",
+      "evidence": [
+        "column_type:TEXT",
+        "distinct=4"
+      ]
+    },
+    {
+      "id": "sales_category",
+      "label": "品类",
+      "aliases": [
+        "category",
+        "品类",
+        "类别",
+        "分类"
+      ],
+      "entity": "sales",
+      "column": "category",
+      "kind": "enum",
+      "values": [
+        "办公用品",
+        "电子设备",
+        "家具"
+      ],
+      "time_grain": null,
+      "status": "candidate",
+      "evidence": [
+        "column_type:TEXT",
+        "distinct=3"
+      ]
+    },
+    {
+      "id": "sales_sold_on",
+      "label": "sold_on",
+      "aliases": [
+        "sold_on"
+      ],
+      "entity": "sales",
+      "column": "sold_on",
+      "kind": "date",
+      "values": null,
+      "time_grain": "day",
+      "status": "confirmed",
+      "evidence": [
+        "column_type:TEXT",
+        "distinct=9",
+        "human_edited:2026-10-29"
+      ]
+    },
+    {
+      "id": "sales_sold_at",
+      "label": "销售时间",
+      "aliases": [
+        "sold_at",
+        "销售时间",
+        "销售日期"
+      ],
+      "entity": "sales",
+      "column": "sold_at",
+      "kind": "date",
+      "values": null,
+      "time_grain": "day",
+      "status": "candidate",
+      "evidence": [
+        "column_type:timestamp"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "rule_1",
+      "label": "有效订单",
+      "expression": "amount > 0",
+      "applies_to": [
+        "sales"
+      ],
+      "status": "confirmed",
+      "evidence": [
+        "human_rule:2026-10-29"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "question": "表 sales 既无主键也无 id 列，粒度无法推断",
+      "source": "entity:sales",
+      "evidence": [
+        "no_primary_key",
+        "no_id_column"
+      ]
+    },
+    {
+      "question": "sales.amount 的业务含义需要确认（金额？数量？含税？折扣？）",
+      "source": "entity:sales.column:amount",
+      "evidence": [
+        "column_type:REAL",
+        "comment_missing"
+      ]
+    },
+    {
+      "question": "sales.qty 的业务含义需要确认（金额？数量？含税？折扣？）",
+      "source": "entity:sales.column:qty",
+      "evidence": [
+        "column_type:INTEGER",
+        "comment_missing"
+      ]
+    },
+    {
+      "question": "sales.discount 的业务含义需要确认（金额？数量？含税？折扣？）",
+      "source": "entity:sales.column:discount",
+      "evidence": [
+        "column_type:REAL",
+        "comment_missing"
+      ]
+    }
+  ]
+}

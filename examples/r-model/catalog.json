@@ -1,0 +1,3177 @@
+{
+ "version": 1,
+ "source": "https://www.raqsoft.com.cn/r/r-model",
+ "reports": [
+  {
+   "id": "vertical-slices",
+   "title": "纵向分片销售分析",
+   "section": "多源关联分片",
+   "description": "独立的地区与人员统计纵向排列，产品类别动态横向展开。",
+   "template": "vertical-slices.json",
+   "features": [
+    "纵向分片",
+    "多源关联",
+    "动态列",
+    "其中行"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      4
+     ],
+     "values": [
+      1200,
+      2400,
+      3600,
+      175
+     ],
+     "label": "各地区金额"
+    },
+    {
+     "origin": [
+      8,
+      4
+     ],
+     "values": [
+      7375
+     ],
+     "label": "原始明细总额"
+    },
+    {
+     "origin": [
+      8,
+      5
+     ],
+     "values": [
+      2250,
+      2575,
+      2550
+     ],
+     "label": "各产品总额"
+    }
+   ]
+  },
+  {
+   "id": "horizontal-slices",
+   "title": "横向分片销售分析",
+   "section": "多源关联分片",
+   "description": "地区与销售员横向分片，产品类别纵向扩展，与纵向示例互为转置。",
+   "template": "horizontal-slices.json",
+   "features": [
+    "横向分片",
+    "行列转置",
+    "双方向扩展"
+   ],
+   "checks": [
+    {
+     "origin": [
+      6,
+      2
+     ],
+     "values": [
+      1200,
+      2400,
+      3600,
+      175
+     ],
+     "label": "横向地区金额"
+    },
+    {
+     "origin": [
+      6,
+      6
+     ],
+     "values": [
+      7375
+     ],
+     "label": "横向总额"
+    },
+    {
+     "origin": [
+      7,
+      6
+     ],
+     "values": [
+      2250,
+      2575,
+      2550
+     ],
+     "label": "纵向产品总额"
+    }
+   ]
+  },
+  {
+   "id": "incomplete-groups",
+   "title": "按段不完全分组",
+   "section": "不规则分组",
+   "description": "分段次序来自 Excel，而不是价格排序；包含 20、50、80、100、150 的边界记录和被排除的负价格。",
+   "template": "incomplete-groups.json",
+   "features": [
+    "分段规则",
+    "不完全分组",
+    "边界验证"
+   ],
+   "checks": [
+    {
+     "origin": [
+      6,
+      2
+     ],
+     "values": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      3
+     ],
+     "label": "价格段边界归属"
+    },
+    {
+     "origin": [
+      8,
+      1
+     ],
+     "values": [
+      2
+     ],
+     "label": "不属于任何段的事实"
+    }
+   ]
+  },
+  {
+   "id": "overlapping-groups",
+   "title": "重叠分组贷款分析",
+   "section": "不规则分组",
+   "description": "一个事实可出现在省级、其中行与重点地区中，同时支持多重原因归因。",
+   "template": "overlapping-groups.json",
+   "features": [
+    "重叠分组",
+    "其中行",
+    "多重归因",
+    "合计口径"
+   ],
+   "checks": [
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      1000,
+      1800,
+      2000,
+      2900,
+      1400,
+      1200,
+      3900
+     ],
+     "label": "分组交叠与其中行"
+    },
+    {
+     "origin": [
+      6,
+      2
+     ],
+     "values": [
+      8900
+     ],
+     "label": "去重事实合计"
+    },
+    {
+     "origin": [
+      6,
+      3
+     ],
+     "values": [
+      4500
+     ],
+     "label": "原始不良余额"
+    }
+   ]
+  },
+  {
+   "id": "period-comparison",
+   "title": "同比环比与累计",
+   "section": "自由格间运算",
+   "description": "按结果实例访问上一期、去年同季与上次累计，覆盖跨年、缺基期与零基数。",
+   "template": "period-comparison.json",
+   "features": [
+    "位移坐标",
+    "跨年环比",
+    "同比",
+    "零基数"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      4
+     ],
+     "values": [
+      "—",
+      "基期为零",
+      1.5,
+      1.3333333333333333,
+      1.25,
+      0.8,
+      1.5,
+      0.0,
+      "基期为零",
+      1.1428571428571428,
+      1.125,
+      1.1111111111111112
+     ],
+     "label": "环比及零分母"
+    },
+    {
+     "origin": [
+      4,
+      5
+     ],
+     "values": [
+      "—",
+      "—",
+      "—",
+      "—",
+      "基期为零",
+      2.0,
+      2.0,
+      0.0,
+      1.4,
+      2.0,
+      1.5,
+      "基期为零"
+     ],
+     "label": "同比跨年定位"
+    },
+    {
+     "origin": [
+      5,
+      3
+     ],
+     "values": [
+      3480
+     ],
+     "label": "签约总额"
+    },
+    {
+     "origin": [
+      4,
+      6
+     ],
+     "values": [
+      0,
+      120,
+      300,
+      540,
+      840,
+      1080,
+      1440,
+      1440,
+      1860,
+      2340,
+      2880,
+      3480
+     ],
+     "label": "逐期累计"
+    }
+   ]
+  },
+  {
+   "id": "dynamic-cell-calculation",
+   "title": "动态格间排名与前三名",
+   "section": "自由格间运算",
+   "description": "新增业务会自动新增金额与排名两列，排名、前三名金额及占比均由格间公式计算。",
+   "template": "dynamic-cell-calculation.json",
+   "features": [
+    "动态列组",
+    "格集排名",
+    "Top 3",
+    "跨源占比"
+   ],
+   "checks": [
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      1200,
+      1600,
+      2000,
+      2400,
+      1700,
+      2100,
+      1400,
+      1800
+     ],
+     "label": "地区金额"
+    },
+    {
+     "origin": [
+      5,
+      3
+     ],
+     "values": [
+      8,
+      6,
+      3,
+      1,
+      5,
+      2,
+      7,
+      4
+     ],
+     "label": "动态排名"
+    },
+    {
+     "origin": [
+      6,
+      2
+     ],
+     "values": [
+      6500
+     ],
+     "label": "前三名总和"
+    },
+    {
+     "origin": [
+      7,
+      2
+     ],
+     "values": [
+      0.13
+     ],
+     "label": "跨源全市占比"
+    },
+    {
+     "origin": [
+      5,
+      4
+     ],
+     "values": [
+      100,
+      400,
+      700,
+      600,
+      900,
+      100,
+      1100,
+      300,
+      600,
+      500,
+      800,
+      1100,
+      1000,
+      200,
+      500,
+      400,
+      700,
+      1000,
+      900,
+      100,
+      400,
+      300,
+      600,
+      900
+     ],
+     "label": "各业务金额交叉"
+    },
+    {
+     "origin": [
+      5,
+      5
+     ],
+     "values": [
+      8,
+      5,
+      4,
+      4,
+      1,
+      8,
+      1,
+      6,
+      5,
+      5,
+      2,
+      1,
+      2,
+      7,
+      6,
+      6,
+      3,
+      2,
+      3,
+      8,
+      7,
+      7,
+      4,
+      3
+     ],
+     "label": "各业务独立排名"
+    },
+    {
+     "origin": [
+      6,
+      4
+     ],
+     "values": [
+      3000,
+      2400,
+      3000
+     ],
+     "label": "各业务前三名"
+    }
+   ]
+  },
+  {
+   "id": "complex-cell-calc",
+   "title": "复杂格间计算 · 质量损失分析",
+   "section": "自由格间运算",
+   "description": "同一份产品清单纵向堆成三块（正常卡损失 / 返工退货损失 / 入库金额），累计行用块级格间引用把前两块相加，损失率再除以第三块合计。",
+   "template": "complex-cell-calc.json",
+   "features": [
+    "多块布局",
+    "块级格间引用",
+    "同行格间运算",
+    "条件聚合",
+    "块标题跨整块"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      6
+     ],
+     "values": [
+      5340,
+      2026,
+      5427,
+      4857,
+      8019,
+      5074,
+      4918,
+      0
+     ],
+     "label": "块1 损失金额"
+    },
+    {
+     "origin": [
+      5,
+      6
+     ],
+     "values": [
+      2300,
+      770,
+      4200,
+      340,
+      6900,
+      1660,
+      1330,
+      0
+     ],
+     "label": "块2 行内小计"
+    },
+    {
+     "origin": [
+      7,
+      6
+     ],
+     "values": [
+      53161
+     ],
+     "label": "累计损失 = 块1 + 块2"
+    },
+    {
+     "origin": [
+      8,
+      6
+     ],
+     "values": [
+      1783105
+     ],
+     "label": "入库合计"
+    },
+    {
+     "origin": [
+      10,
+      6
+     ],
+     "values": [
+      17160
+     ],
+     "label": "块2 小计 > 500 的合计"
+    }
+   ]
+  },
+  {
+   "id": "tobacco-output",
+   "title": "卷烟产值计算表",
+   "section": "多口径分组合计",
+   "description": "同一份牌号明细，按厂 / 包装形式 / 卷烟类型 / 价类四种口径各出一组合计；每行产值 = 产量 × 调拨价。",
+   "template": "tobacco-output.json",
+   "features": [
+    "多口径分组",
+    "分组小计",
+    "逐行产值计算",
+    "两级表头",
+    "累计列"
+   ],
+   "checks": [
+    {
+     "origin": [
+      5,
+      3
+     ],
+     "values": [
+      17
+     ],
+     "label": "各厂合计 · 产量本月"
+    },
+    {
+     "origin": [
+      5,
+      5
+     ],
+     "values": [
+      0.598
+     ],
+     "label": "各厂合计 · 总产值本月"
+    },
+    {
+     "origin": [
+      5,
+      9
+     ],
+     "values": [
+      0.468
+     ],
+     "label": "各厂合计 · 销售产值本月"
+    },
+    {
+     "origin": [
+      6,
+      3
+     ],
+     "values": [
+      9
+     ],
+     "label": "上海卷烟厂 · 产量本月"
+    },
+    {
+     "origin": [
+      11,
+      3
+     ],
+     "values": [
+      9
+     ],
+     "label": "条盒硬盒 · 产量本月"
+    },
+    {
+     "origin": [
+      13,
+      3
+     ],
+     "values": [
+      8
+     ],
+     "label": "条盒软盒 · 产量本月"
+    },
+    {
+     "origin": [
+      12,
+      5
+     ],
+     "values": [
+      0.176,
+      0.032,
+      0.007
+     ],
+     "label": "条盒硬盒各牌号 · 总产值本月"
+    },
+    {
+     "origin": [
+      17,
+      5
+     ],
+     "values": [
+      0.325,
+      0.176,
+      0.022,
+      0.036,
+      0.032,
+      0.007
+     ],
+     "label": "烤烟型各牌号 · 总产值本月"
+    }
+   ]
+  },
+  {
+   "id": "symmetric-crosstab",
+   "title": "行列对称交叉预算",
+   "section": "行列对称",
+   "description": "不同数据集分别驱动横纵主格；展示稀疏交叉、缺预算与无业务成员。",
+   "template": "symmetric-crosstab.json",
+   "features": [
+    "行列对称",
+    "独立主格",
+    "Excel 多工作表",
+    "稀疏交叉"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      1200,
+      2400,
+      3600,
+      175,
+      0
+     ],
+     "label": "保留无业务区域"
+    },
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      2250,
+      2575,
+      2550
+     ],
+     "label": "动态产品汇总"
+    },
+    {
+     "origin": [
+      5,
+      4
+     ],
+     "values": [
+      4500
+     ],
+     "label": "Excel 预算合计"
+    }
+   ]
+  },
+  {
+   "id": "crosstab-merge-cells",
+   "title": "交叉表动态合并格",
+   "section": "交叉表合并",
+   "description": "大区、门店两级分组按相邻等值纵向合并，合并几行由数据决定而不是设计期写死；月份列因 1 月 / 2 月交替出现而不合并。",
+   "template": "crosstab-merge-cells.json",
+   "features": [
+    "同值合并",
+    "多级纵向分组",
+    "合并行数随数据变化",
+    "动态列"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      4
+     ],
+     "values": [
+      8000,
+      12000,
+      9000,
+      13000,
+      7600,
+      9800,
+      8100,
+      10200,
+      9100,
+      14300,
+      9400,
+      15100
+     ],
+     "label": "金额矩阵"
+    },
+    {
+     "origin": [
+      4,
+      1
+     ],
+     "values": [
+      "华东",
+      "华东",
+      "华东",
+      "华东",
+      "华南",
+      "华南"
+     ],
+     "label": "大区逐格取值"
+    },
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      "1月",
+      "2月",
+      "1月",
+      "2月",
+      "1月",
+      "2月"
+     ],
+     "label": "月份逐格取值"
+    }
+   ]
+  },
+  {
+   "id": "detail-merge-same",
+   "title": "明细同值合并（mergeSame）",
+   "section": "交叉表合并",
+   "description": "月份列开 merge_same=vertical，相邻等值并成一格（1 月跨 2 行、2 月跨 2 行）；品类列空调/冰箱交替，一格都不并。",
+   "template": "detail-merge-same.json",
+   "features": [
+    "同值合并",
+    "mergeSame 纵向",
+    "合并行数随数据变化",
+    "明细行"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      5
+     ],
+     "values": [
+      12000,
+      8000,
+      13000,
+      9000,
+      9800,
+      7600,
+      10200,
+      8100,
+      14300,
+      9100,
+      15100,
+      9400
+     ],
+     "label": "金额逐行"
+    },
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      "1月",
+      "1月",
+      "2月",
+      "2月",
+      "1月",
+      "1月",
+      "2月",
+      "2月",
+      "1月",
+      "1月",
+      "2月",
+      "2月"
+     ],
+     "label": "月份逐格"
+    }
+   ]
+  },
+  {
+   "id": "mixed-data-sources",
+   "title": "Excel / CSV / 双数据库联合报表",
+   "section": "混合数据源",
+   "description": "四份独立来源在一张表内关联；数据库连接只在 agent 执行时使用，结果页无需访问数据库。",
+   "template": "mixed-data-sources.json",
+   "features": [
+    "Excel",
+    "CSV",
+    "两个数据库",
+    "键关联",
+    "来源溯源"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      4
+     ],
+     "values": [
+      2000,
+      900,
+      600,
+      0
+     ],
+     "label": "经营库分区域收入"
+    },
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      "林岚",
+      "李禾",
+      "赵青",
+      "许远"
+     ],
+     "label": "组织库负责人"
+    },
+    {
+     "origin": [
+      5,
+      3
+     ],
+     "values": [
+      4500
+     ],
+     "label": "Excel 预算"
+    },
+    {
+     "origin": [
+      5,
+      5
+     ],
+     "values": [
+      100.5
+     ],
+     "label": "CSV 小数与引号"
+    },
+    {
+     "origin": [
+      5,
+      6
+     ],
+     "values": [
+      3399.5
+     ],
+     "label": "跨源净收入"
+    },
+    {
+     "origin": [
+      5,
+      8
+     ],
+     "values": [
+      1449.5
+     ],
+     "label": "跨源毛利"
+    }
+   ]
+  },
+  {
+   "id": "multisource-slicing",
+   "title": "多源关联分片 · 综合示例",
+   "section": "多源关联分片",
+   "description": "两个 SQLite 库、Excel 双工作表、CSV 驱动年月×地区城市、人员×产品类别、静态汇总及九张订单主子片；浏览时冻结四行两列。",
+   "template": "multisource-slicing.json",
+   "features": [
+    "多层交叉",
+    "横纵分片",
+    "in 集合关联",
+    "条件汇总",
+    "根主格",
+    "整片复制",
+    "浏览冻结"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      3
+     ],
+     "values": [
+      "East",
+      "East",
+      "West",
+      "West",
+      "West"
+     ],
+     "label": "地区排序"
+    },
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      "E2",
+      "Shared",
+      "Shared",
+      "W2",
+      "W3"
+     ],
+     "label": "同名城市按地区隔离"
+    },
+    {
+     "origin": [
+      4,
+      6
+     ],
+     "values": [
+      "Hardware",
+      "Software"
+     ],
+     "label": "Excel 非连续类别排序"
+    },
+    {
+     "origin": [
+      5,
+      1
+     ],
+     "values": [
+      2024,
+      2024,
+      2025,
+      2025,
+      2025
+     ],
+     "label": "日期提取年并排序"
+    },
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      1,
+      2,
+      1,
+      2,
+      3
+     ],
+     "label": "年内日期月份排序"
+    },
+    {
+     "origin": [
+      5,
+      3
+     ],
+     "values": [
+      0,
+      150,
+      200,
+      0,
+      0,
+      300,
+      0,
+      0,
+      400,
+      0,
+      0,
+      500,
+      0,
+      700,
+      0,
+      0,
+      0,
+      600,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      800
+     ],
+     "label": "两层交叉全部25格"
+    },
+    {
+     "origin": [
+      5,
+      4
+     ],
+     "values": [
+      350,
+      700,
+      1200,
+      600,
+      800
+     ],
+     "label": "月份片总额"
+    },
+    {
+     "origin": [
+      5,
+      5
+     ],
+     "values": [
+      0,
+      400,
+      1200,
+      600,
+      800
+     ],
+     "label": "城市条件格集排除300边界"
+    },
+    {
+     "origin": [
+      5,
+      6
+     ],
+     "values": [
+      150,
+      200,
+      300,
+      400,
+      1200,
+      0,
+      0,
+      600,
+      0,
+      800
+     ],
+     "label": "in 与类别主格集合关联"
+    },
+    {
+     "origin": [
+      5,
+      7
+     ],
+     "values": [
+      350,
+      700,
+      1200,
+      600,
+      800
+     ],
+     "label": "横向类别片合计"
+    },
+    {
+     "origin": [
+      5,
+      8
+     ],
+     "values": [
+      400,
+      600,
+      1300,
+      500,
+      900
+     ],
+     "label": "CSV 年月预算关联"
+    },
+    {
+     "origin": [
+      6,
+      3
+     ],
+     "values": [
+      300,
+      650,
+      800,
+      1100,
+      800
+     ],
+     "label": "跨年城市总额"
+    },
+    {
+     "origin": [
+      6,
+      4
+     ],
+     "values": [
+      3650
+     ],
+     "label": "静态销售总额"
+    },
+    {
+     "origin": [
+      6,
+      5
+     ],
+     "values": [
+      3350
+     ],
+     "label": "静态城市条件汇总"
+    },
+    {
+     "origin": [
+      6,
+      6
+     ],
+     "values": [
+      1650,
+      2000
+     ],
+     "label": "静态分类汇总"
+    },
+    {
+     "origin": [
+      6,
+      8
+     ],
+     "values": [
+      3700
+     ],
+     "label": "CSV 总预算"
+    },
+    {
+     "origin": [
+      8,
+      2
+     ],
+     "values": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "label": "Excel 职务内人员排序"
+    },
+    {
+     "origin": [
+      8,
+      3
+     ],
+     "values": [
+      300,
+      150,
+      0,
+      700,
+      0,
+      0,
+      500,
+      200,
+      0,
+      800,
+      0,
+      0,
+      600,
+      400,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "label": "人员城市关联含无业务成员"
+    },
+    {
+     "origin": [
+      8,
+      4
+     ],
+     "values": [
+      1150,
+      1500,
+      1000,
+      0
+     ],
+     "label": "过滤 sum 保留无业务人员"
+    },
+    {
+     "origin": [
+      8,
+      5
+     ],
+     "values": [
+      700,
+      1300,
+      1000,
+      0
+     ],
+     "label": "人员片条件格集"
+    },
+    {
+     "origin": [
+      8,
+      6
+     ],
+     "values": [
+      1150,
+      0,
+      500,
+      1000,
+      0,
+      1000,
+      0,
+      0
+     ],
+     "label": "人员与产品类别双条件"
+    },
+    {
+     "origin": [
+      8,
+      8
+     ],
+     "values": [
+      1200,
+      1400,
+      1100,
+      100
+     ],
+     "label": "嵌套集合后保留 Excel 当前行"
+    },
+    {
+     "origin": [
+      9,
+      4
+     ],
+     "values": [
+      3650
+     ],
+     "label": "独立人员片合计"
+    },
+    {
+     "origin": [
+      9,
+      8
+     ],
+     "values": [
+      3800
+     ],
+     "label": "人员预算合计"
+    },
+    {
+     "origin": [
+      11,
+      2
+     ],
+     "values": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109
+     ],
+     "label": "整片复制九张订单含空明细"
+    },
+    {
+     "origin": [
+      11,
+      8
+     ],
+     "values": [
+      "北辰物流",
+      "北辰物流",
+      "云帆运输",
+      "云帆运输",
+      "北辰物流",
+      "北辰物流",
+      "云帆运输",
+      "云帆运输",
+      "北辰物流",
+      "北辰物流",
+      "云帆运输",
+      "云帆运输",
+      "北辰物流",
+      "北辰物流",
+      "云帆运输",
+      "云帆运输",
+      "北辰物流",
+      "北辰物流"
+     ],
+     "label": "第二数据库运输商关联"
+    },
+    {
+     "origin": [
+      14,
+      5
+     ],
+     "values": [
+      150,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      0
+     ],
+     "label": "主子片订单各自小计"
+    },
+    {
+     "origin": [
+      14,
+      7
+     ],
+     "values": [
+      7,
+      11,
+      13,
+      17,
+      19,
+      23,
+      29,
+      31,
+      37
+     ],
+     "label": "订单运费不随明细重复"
+    },
+    {
+     "origin": [
+      14,
+      9
+     ],
+     "values": [
+      157,
+      211,
+      313,
+      417,
+      519,
+      623,
+      729,
+      831,
+      37
+     ],
+     "label": "订单金额与运费汇合"
+    },
+    {
+     "origin": [
+      15,
+      5
+     ],
+     "values": [
+      3650
+     ],
+     "label": "静态订单销售额"
+    },
+    {
+     "origin": [
+      15,
+      7
+     ],
+     "values": [
+      187
+     ],
+     "label": "运费只计一次总额"
+    },
+    {
+     "origin": [
+      15,
+      9
+     ],
+     "values": [
+      3837
+     ],
+     "label": "跨片最终应收"
+    }
+   ]
+  },
+  {
+   "id": "chart-sales-dashboard",
+   "title": "销售看板 · 四图共用三源",
+   "section": "统计图与图形",
+   "description": "柱状、饼图、双系列折线与柱线组合四张图排在一页，分别绑定地区、品类、月度三个独立数据集；图形尺寸与锚定格在模板里固定，不随扩展漂移。",
+   "template": "chart-sales-dashboard.json",
+   "features": [
+    "统计图",
+    "多数据集",
+    "配色与图例",
+    "单页排版"
+   ],
+   "checks": [
+    {
+     "origin": [
+      2,
+      2
+     ],
+     "values": [
+      7375
+     ],
+     "label": "地区金额合计"
+    },
+    {
+     "origin": [
+      2,
+      4
+     ],
+     "values": [
+      4
+     ],
+     "label": "地区数"
+    },
+    {
+     "origin": [
+      2,
+      6
+     ],
+     "values": [
+      6730
+     ],
+     "label": "月度收入合计"
+    }
+   ]
+  },
+  {
+   "id": "chart-tasks-timeline",
+   "title": "项目排期 · 甘特 / 状态时间线 / 里程碑",
+   "section": "统计图与图形",
+   "description": "三张任务型统计图共用同一份 tasks 绑定：甘特图给起止时间，状态时间线给状态分类，里程碑只给起点。",
+   "template": "chart-tasks-timeline.json",
+   "features": [
+    "甘特图",
+    "状态时间线",
+    "里程碑",
+    "任务绑定"
+   ],
+   "checks": [
+    {
+     "origin": [
+      2,
+      2
+     ],
+     "values": [
+      5
+     ],
+     "label": "任务行数"
+    }
+   ]
+  },
+  {
+   "id": "echarts-option-template",
+   "title": "ECharts option 模板 · 参数注入",
+   "section": "统计图与图形",
+   "description": "template 是一段 option JSON 文本，${参数名} 由数据集表达式结果的 JSON 字面量单次替换；分类轴与系列值都来自 chart-region.csv。",
+   "template": "echarts-option-template.json",
+   "features": [
+    "ECharts option",
+    "参数注入",
+    "后端求值"
+   ],
+   "checks": [
+    {
+     "origin": [
+      2,
+      2
+     ],
+     "values": [
+      7375
+     ],
+     "label": "地区金额合计"
+    }
+   ]
+  },
+  {
+   "id": "echarts-js-formatter",
+   "title": "ECharts JS 模板 · formatter 回调",
+   "section": "统计图与图形",
+   "description": "template 是 JS 函数体，在 sandbox iframe 内执行：tooltip 与标签用真正的函数做 formatter，而不是字符串模板。",
+   "template": "echarts-js-formatter.json",
+   "features": [
+    "ECharts JS",
+    "formatter 回调",
+    "sandbox iframe"
+   ],
+   "checks": [
+    {
+     "origin": [
+      2,
+      2
+     ],
+     "values": [
+      4
+     ],
+     "label": "地区数"
+    }
+   ]
+  },
+  {
+   "id": "barcode-staggered-labels",
+   "title": "条形码错位显示",
+   "section": "条码与标签",
+   "description": "条码由 barcode() 逐行生成（Code 128B → PNG data URI），奇数号标签条码在左、偶数号在右，错开排版便于裁切。",
+   "template": "barcode-staggered-labels.json",
+   "features": [
+    "条形码",
+    "Code 128B",
+    "错位排版",
+    "条件出图",
+    "逐行生成"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      3
+     ],
+     "values": [
+      "JIJIA-0001",
+      "",
+      "JIJIA-0003",
+      "",
+      "JIJIA-0005",
+      "",
+      "JIJIA-0007",
+      "",
+      "JIJIA-0009",
+      ""
+     ],
+     "label": "奇数号标签文字"
+    },
+    {
+     "origin": [
+      3,
+      4
+     ],
+     "values": [
+      "",
+      "JIJIA-0002",
+      "",
+      "JIJIA-0004",
+      "",
+      "JIJIA-0006",
+      "",
+      "JIJIA-0008",
+      "",
+      "JIJIA-0010"
+     ],
+     "label": "偶数号标签文字"
+    }
+   ]
+  },
+  {
+   "id": "insurance-policy",
+   "title": "保险单明细表",
+   "section": "表单与序号列",
+   "description": "保单附页的三个要件：地址列表序号列纵向合并、保险标的明细、合计行由明细汇总。",
+   "template": "insurance-policy.json",
+   "features": [
+    "序号列跨整块",
+    "地址列表",
+    "明细合计",
+    "成对指标",
+    "分区标签"
+   ],
+   "checks": [
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      1,
+      2,
+      3
+     ],
+     "label": "地址序号"
+    },
+    {
+     "origin": [
+      8,
+      4
+     ],
+     "values": [
+      213123,
+      231231,
+      123123,
+      23123
+     ],
+     "label": "第一部分保险金额"
+    },
+    {
+     "origin": [
+      9,
+      4
+     ],
+     "values": [
+      590600
+     ],
+     "label": "第一部分保险金额合计"
+    },
+    {
+     "origin": [
+      9,
+      6
+     ],
+     "values": [
+      119199.27
+     ],
+     "label": "第一部分保险费合计"
+    },
+    {
+     "origin": [
+      13,
+      4
+     ],
+     "values": [
+      1049145
+     ],
+     "label": "第二部分保险金额合计"
+    },
+    {
+     "origin": [
+      13,
+      6
+     ],
+     "values": [
+      278158.8
+     ],
+     "label": "第二部分保险费合计"
+    }
+   ]
+  },
+  {
+   "id": "income-statement",
+   "title": "利润表 · 本期与上期对比",
+   "section": "典型业务报表",
+   "description": "标准财务报表版式：营业收入到净利润逐级计算，本期/上期两列由同一科目口径汇总，变动率按行计算；三级缩进体现科目层级。",
+   "template": "income-statement.json",
+   "features": [
+    "多级科目",
+    "两期对比",
+    "变动率",
+    "科目缩进",
+    "格引用逐级汇总"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      2860000
+     ],
+     "label": "营业收入 · 本期"
+    },
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      1746000
+     ],
+     "label": "营业成本 · 本期"
+    },
+    {
+     "origin": [
+      12,
+      2
+     ],
+     "values": [
+      605200
+     ],
+     "label": "营业利润 · 本期"
+    },
+    {
+     "origin": [
+      15,
+      2
+     ],
+     "values": [
+      607200
+     ],
+     "label": "利润总额 · 本期"
+    },
+    {
+     "origin": [
+      17,
+      2
+     ],
+     "values": [
+      499200
+     ],
+     "label": "净利润 · 本期"
+    },
+    {
+     "origin": [
+      17,
+      3
+     ],
+     "values": [
+      408400
+     ],
+     "label": "净利润 · 上期"
+    }
+   ]
+  },
+  {
+   "id": "balance-sheet",
+   "title": "资产负债表 · 左右双栏",
+   "section": "典型业务报表",
+   "description": "一张 A4 上并排两栏：左栏资产、右栏负债和所有者权益，各自一列期末一列年初；底部给出平衡校验差额。",
+   "template": "balance-sheet.json",
+   "features": [
+    "双栏并排",
+    "期末年初两列",
+    "左右独立汇总",
+    "平衡校验"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      1286400
+     ],
+     "label": "资产 · 货币资金"
+    },
+    {
+     "origin": [
+      12,
+      6
+     ],
+     "values": [
+      279000
+     ],
+     "label": "所有者权益 · 未分配利润"
+    },
+    {
+     "origin": [
+      13,
+      2
+     ],
+     "values": [
+      4903000
+     ],
+     "label": "资产总计 · 期末"
+    },
+    {
+     "origin": [
+      13,
+      6
+     ],
+     "values": [
+      4903000
+     ],
+     "label": "负债和所有者权益总计 · 期末"
+    },
+    {
+     "origin": [
+      14,
+      2
+     ],
+     "values": [
+      0
+     ],
+     "label": "平衡校验差额 · 期末"
+    }
+   ]
+  },
+  {
+   "id": "payroll",
+   "title": "员工工资表 · 部门分组小计",
+   "section": "典型业务报表",
+   "description": "部门纵向分组自动合并成一格，员工逐行展开；应发与实发是逐行计算列，合计行由明细汇总。",
+   "template": "payroll.json",
+   "features": [
+    "分组纵向合并",
+    "明细逐行",
+    "逐行计算列",
+    "合计行",
+    "千分位"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      1
+     ],
+     "values": [
+      "销售部",
+      "销售部",
+      "销售部",
+      "技术部",
+      "技术部",
+      "财务部"
+     ],
+     "label": "部门逐行取值（显示层合并）"
+    },
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      "张伟",
+      "李娜",
+      "王强",
+      "陈晨",
+      "刘洋",
+      "赵敏"
+     ],
+     "label": "员工逐行"
+    },
+    {
+     "origin": [
+      4,
+      7
+     ],
+     "values": [
+      10400,
+      10850,
+      8400,
+      14800,
+      13400,
+      10800
+     ],
+     "label": "实发工资逐行"
+    },
+    {
+     "origin": [
+      5,
+      3
+     ],
+     "values": [
+      57000
+     ],
+     "label": "基本工资合计"
+    },
+    {
+     "origin": [
+      5,
+      7
+     ],
+     "values": [
+      68650
+     ],
+     "label": "实发工资合计"
+    }
+   ]
+  },
+  {
+   "id": "stock-ledger",
+   "title": "库存进销存台账",
+   "section": "典型业务报表",
+   "description": "仓储月度台账：期初 + 入库 − 出库 = 期末，期末是同一行字段的表达式结果；底部汇总入库、出库与入库金额。",
+   "template": "stock-ledger.json",
+   "features": [
+    "行内表达式",
+    "期末自动重算",
+    "合计行",
+    "数量与金额混排"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      7
+     ],
+     "values": [
+      160,
+      94,
+      600,
+      75,
+      16,
+      16
+     ],
+     "label": "期末结存逐行"
+    },
+    {
+     "origin": [
+      5,
+      5
+     ],
+     "values": [
+      1884
+     ],
+     "label": "本期入库合计"
+    },
+    {
+     "origin": [
+      5,
+      6
+     ],
+     "values": [
+      2092
+     ],
+     "label": "本期出库合计"
+    },
+    {
+     "origin": [
+      5,
+      8
+     ],
+     "values": [
+      15900
+     ],
+     "label": "入库金额合计"
+    }
+   ]
+  },
+  {
+   "id": "cash-journal",
+   "title": "资金日记账 · 逐行结转",
+   "section": "典型业务报表",
+   "description": "出纳日记账：每行余额 = 上一行余额 + 借方 − 贷方，首行加期初余额；期初值放在宏里，改一处即可换账户。",
+   "template": "cash-journal.json",
+   "features": [
+    "余额逐行结转",
+    "相对偏移引用",
+    "宏参数",
+    "本期合计"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      5
+     ],
+     "values": [
+      448500,
+      262500,
+      120500,
+      216500,
+      197900,
+      165500,
+      375500,
+      323100
+     ],
+     "label": "逐行余额结转"
+    },
+    {
+     "origin": [
+      5,
+      3
+     ],
+     "values": [
+      626000
+     ],
+     "label": "借方合计"
+    },
+    {
+     "origin": [
+      5,
+      4
+     ],
+     "values": [
+      431400
+     ],
+     "label": "贷方合计"
+    },
+    {
+     "origin": [
+      5,
+      5
+     ],
+     "values": [
+      323100
+     ],
+     "label": "期末余额与最后一行一致"
+    }
+   ]
+  },
+  {
+   "id": "sales-order",
+   "title": "销售发货单 · 一单多行明细",
+   "section": "典型业务报表",
+   "description": "单据式版式：抬头客户与单号、多行商品明细、金额合计、13% 增值税、价税合计与签收栏，一张纸可直接打印交付。",
+   "template": "sales-order.json",
+   "features": [
+    "单据抬头",
+    "多行明细",
+    "金额×单价",
+    "税额与价税合计",
+    "签字栏"
+   ],
+   "checks": [
+    {
+     "origin": [
+      6,
+      7
+     ],
+     "values": [
+      20160,
+      6000,
+      9540,
+      9552,
+      22320,
+      2064
+     ],
+     "label": "明细金额逐行"
+    },
+    {
+     "origin": [
+      7,
+      7
+     ],
+     "values": [
+      69636
+     ],
+     "label": "金额合计（不含税）"
+    },
+    {
+     "origin": [
+      8,
+      7
+     ],
+     "values": [
+      9052.68
+     ],
+     "label": "增值税 13%"
+    },
+    {
+     "origin": [
+      9,
+      7
+     ],
+     "values": [
+      78688.68
+     ],
+     "label": "价税合计"
+    }
+   ]
+  },
+  {
+   "id": "ar-aging",
+   "title": "应收账款账龄分析表",
+   "section": "典型业务报表",
+   "description": "按客户逐行统计各账龄区间金额：每个区间列都是「当前客户 + 天数区间」两个条件的汇总，末列给出占总额比重。",
+   "template": "ar-aging.json",
+   "features": [
+    "账龄区间",
+    "条件汇总",
+    "占比",
+    "横向合计校验"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      1286000,
+      742000,
+      486000,
+      318000,
+      264000,
+      156000
+     ],
+     "label": "各客户应收余额"
+    },
+    {
+     "origin": [
+      4,
+      7
+     ],
+     "values": [
+      0,
+      0,
+      486000,
+      0,
+      0,
+      156000
+     ],
+     "label": "90 天以上逐客户"
+    },
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      3252000
+     ],
+     "label": "应收总额"
+    },
+    {
+     "origin": [
+      5,
+      7
+     ],
+     "values": [
+      642000
+     ],
+     "label": "90 天以上合计"
+    }
+   ]
+  },
+  {
+   "id": "pareto-contribution",
+   "title": "收入结构 · 占比与帕累托",
+   "section": "自由格间运算",
+   "description": "同一列收入的三种口径：单行占比、累计收入、累计占比，另加降序排名与 Top3 标注。",
+   "template": "pareto-contribution.json",
+   "features": [
+    "根坐标",
+    "格集",
+    "位移坐标",
+    "累计",
+    "排名"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      486000,
+      372500,
+      268000,
+      195000,
+      128000,
+      86500
+     ],
+     "label": "各渠道收入"
+    },
+    {
+     "origin": [
+      4,
+      4
+     ],
+     "values": [
+      486000,
+      858500,
+      1126500,
+      1321500,
+      1449500,
+      1536000
+     ],
+     "label": "累计收入"
+    },
+    {
+     "origin": [
+      4,
+      6
+     ],
+     "values": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "label": "降序排名"
+    },
+    {
+     "origin": [
+      4,
+      7
+     ],
+     "values": [
+      "TOP3",
+      "TOP3",
+      "TOP3",
+      "",
+      "",
+      ""
+     ],
+     "label": "前三名标注"
+    },
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      1536000
+     ],
+     "label": "收入合计"
+    }
+   ]
+  },
+  {
+   "id": "budget-variance",
+   "title": "部门预算执行 · 差异与预警",
+   "section": "自由格间运算",
+   "description": "预算与实际对照：带符号差异、执行率、分档预警等级，累计实际逐行累加，合计行按整体判定。",
+   "template": "budget-variance.json",
+   "features": [
+    "分档判定",
+    "位移坐标",
+    "累计",
+    "合计行"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      1200000,
+      860000,
+      1540000,
+      640000,
+      320000
+     ],
+     "label": "各部门预算"
+    },
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      1128000,
+      912000,
+      1309000,
+      528000,
+      296000
+     ],
+     "label": "各部门实际"
+    },
+    {
+     "origin": [
+      4,
+      4
+     ],
+     "values": [
+      -72000,
+      52000,
+      -231000,
+      -112000,
+      -24000
+     ],
+     "label": "差异（负为结余）"
+    },
+    {
+     "origin": [
+      4,
+      6
+     ],
+     "values": [
+      "达标",
+      "达标",
+      "关注",
+      "关注",
+      "达标"
+     ],
+     "label": "预警等级"
+    },
+    {
+     "origin": [
+      4,
+      7
+     ],
+     "values": [
+      1128000,
+      2040000,
+      3349000,
+      3877000,
+      4173000
+     ],
+     "label": "累计实际"
+    },
+    {
+     "origin": [
+      5,
+      2
+     ],
+     "values": [
+      4560000
+     ],
+     "label": "预算合计"
+    },
+    {
+     "origin": [
+      5,
+      6
+     ],
+     "values": [
+      "整体达标"
+     ],
+     "label": "整体判定"
+    }
+   ]
+  },
+  {
+   "id": "store-ranking",
+   "title": "门店销售 · 组内排名与组内占比",
+   "section": "交叉表合并",
+   "description": "大区纵向同值合并，组内口径用根坐标收窄到同一大区：组内排名、组内占比、组内第一标注。",
+   "template": "store-ranking.json",
+   "features": [
+    "mergeSame",
+    "根坐标",
+    "条件格集",
+    "组内口径"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      186000,
+      142000,
+      98000,
+      205000,
+      167000,
+      121000,
+      198000,
+      88000
+     ],
+     "label": "各门店销售额"
+    },
+    {
+     "origin": [
+      4,
+      4
+     ],
+     "values": [
+      1,
+      2,
+      3,
+      1,
+      2,
+      3,
+      1,
+      2
+     ],
+     "label": "组内排名"
+    },
+    {
+     "origin": [
+      4,
+      6
+     ],
+     "values": [
+      "★ 组内第一",
+      "",
+      "",
+      "★ 组内第一",
+      "",
+      "",
+      "★ 组内第一",
+      ""
+     ],
+     "label": "组内第一标注"
+    },
+    {
+     "origin": [
+      5,
+      3
+     ],
+     "values": [
+      1205000
+     ],
+     "label": "销售合计"
+    }
+   ]
+  },
+  {
+   "id": "fin-ar-aging-detail",
+   "title": "应收账款账龄明细表",
+   "section": "财务 · detail",
+   "description": "列出所有未收款发票和逾期天数（days_past_due 已预生成）",
+   "package": "../presets/fin-ar-aging-detail",
+   "features": [
+    "账龄明细",
+    "逾期明细",
+    "应收明细",
+    "欠款明细",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      5
+     ],
+     "values": [
+      5000,
+      3000,
+      2000,
+      1500,
+      4000
+     ],
+     "label": "分组小计"
+    }
+   ]
+  },
+  {
+   "id": "fin-ar-aging-summary",
+   "title": "应收账款账龄分组表",
+   "section": "财务 · grouped",
+   "description": "按账龄区间汇总应收余额（aging_bucket 已预生成）",
+   "package": "../presets/fin-ar-aging-summary",
+   "features": [
+    "账龄",
+    "应收账款",
+    "逾期",
+    "分档",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      15500
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "fin-budget-vs-actual",
+   "title": "预算执行对比表",
+   "section": "财务 · crosstab",
+   "description": "按部门和预算项目对比预算与实际（value_type 预算/实际已规范到同一数据集）",
+   "package": "../presets/fin-budget-vs-actual",
+   "features": [
+    "预算对比",
+    "预算实际",
+    "预算执行",
+    "部门预算",
+    "crosstab"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      4
+     ],
+     "values": [
+      4450
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "fin-expense-by-category",
+   "title": "费用类别分析表",
+   "section": "财务 · grouped",
+   "description": "按部门和费用类别统计支出金额",
+   "package": "../presets/fin-expense-by-category",
+   "features": [
+    "费用类别分析",
+    "部门费用",
+    "费用分析",
+    "支出分类",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      1850
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "fin-income-expense-detail",
+   "title": "收支明细表",
+   "section": "财务 · detail",
+   "description": "列出本月所有收支记录，分别显示收入和支出",
+   "package": "../presets/fin-income-expense-detail",
+   "features": [
+    "收支",
+    "收入",
+    "支出",
+    "日记账",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      6
+     ],
+     "values": [
+      350,
+      0,
+      200,
+      0,
+      800
+     ],
+     "label": "分组小计"
+    }
+   ]
+  },
+  {
+   "id": "fin-monthly-summary",
+   "title": "月度收支汇总表",
+   "section": "财务 · grouped",
+   "description": "按月份汇总每月收入和支出（month 已预生成）",
+   "package": "../presets/fin-monthly-summary",
+   "features": [
+    "月度收支汇总",
+    "按月汇总",
+    "月份收入",
+    "月份支出",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      3150
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "generic-category-summary",
+   "title": "分类占比基础表",
+   "section": "通用 · grouped",
+   "description": "按类别汇总数量或金额，作为占比/排名/图表的基础数据源",
+   "package": "../presets/generic-category-summary",
+   "features": [
+    "分类占比",
+    "分类汇总",
+    "占比基础",
+    "结构占比",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      1900
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "generic-multidimensional-crosstab",
+   "title": "多维交叉统计表",
+   "section": "通用 · crosstab",
+   "description": "行按指定维度、列按另一维度展开，交叉格聚合指定指标",
+   "package": "../presets/generic-multidimensional-crosstab",
+   "features": [
+    "多维交叉统计",
+    "多维聚合",
+    "任意维度交叉",
+    "行列交叉",
+    "crosstab"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      11940
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "hr-attendance-exceptions",
+   "title": "考勤异常明细表",
+   "section": "人事 · detail",
+   "description": "列出迟到、早退、缺勤等考勤异常",
+   "package": "../presets/hr-attendance-exceptions",
+   "features": [
+    "考勤异常",
+    "迟到早退",
+    "缺勤记录",
+    "考勤明细",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      6
+     ],
+     "values": [
+      15,
+      30,
+      480,
+      10,
+      480
+     ],
+     "label": "分组小计"
+    }
+   ]
+  },
+  {
+   "id": "hr-employee-roster",
+   "title": "员工花名册",
+   "section": "人事 · detail",
+   "description": "生成员工花名册，按部门和姓名查看员工信息",
+   "package": "../presets/hr-employee-roster",
+   "features": [
+    "花名册",
+    "员工名册",
+    "人员清单",
+    "员工信息",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      7
+     ],
+     "values": [
+      6
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "hr-headcount-by-department",
+   "title": "部门人数汇总表",
+   "section": "人事 · grouped",
+   "description": "统计各部门在职人数（样例已预过滤为在职）",
+   "package": "../presets/hr-headcount-by-department",
+   "features": [
+    "部门",
+    "人数",
+    "在职",
+    "编制",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      8
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "hr-payroll-by-department",
+   "title": "部门薪酬汇总表",
+   "section": "人事 · grouped",
+   "description": "按部门汇总薪酬总额",
+   "package": "../presets/hr-payroll-by-department",
+   "features": [
+    "薪酬汇总",
+    "部门薪酬",
+    "工资总额",
+    "薪资",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      57000
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "inventory-by-product",
+   "title": "商品库存汇总表",
+   "section": "采购库存 · grouped",
+   "description": "汇总每种商品在所有仓库的库存数量",
+   "package": "../presets/inventory-by-product",
+   "features": [
+    "商品汇总",
+    "按商品统计",
+    "库存数量",
+    "品项汇总",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      460
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "inventory-current-detail",
+   "title": "库存现状明细表",
+   "section": "采购库存 · detail",
+   "description": "列出每个仓库的商品库存现状",
+   "package": "../presets/inventory-current-detail",
+   "features": [
+    "库存",
+    "现存",
+    "存货",
+    "SKU",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      5
+     ],
+     "values": [
+      100,
+      50,
+      80,
+      30,
+      200
+     ],
+     "label": "分组小计"
+    }
+   ]
+  },
+  {
+   "id": "inventory-low-stock",
+   "title": "低库存预警清单",
+   "section": "采购库存 · detail",
+   "description": "列出低于安全库存的商品并显示缺口（已预过滤 quantity<safety_stock，shortage 已预生成）",
+   "package": "../presets/inventory-low-stock",
+   "features": [
+    "低库存",
+    "安全库存",
+    "库存预警",
+    "缺货预警",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      4
+     ],
+     "values": [
+      20,
+      35,
+      17
+     ],
+     "label": "分组小计"
+    }
+   ]
+  },
+  {
+   "id": "inventory-movement-detail",
+   "title": "出入库流水表",
+   "section": "采购库存 · detail",
+   "description": "查询出入库流水记录",
+   "package": "../presets/inventory-movement-detail",
+   "features": [
+    "出入库",
+    "库存流水",
+    "进销存流水",
+    "收发存",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      7
+     ],
+     "values": [
+      0,
+      20,
+      0,
+      10,
+      0
+     ],
+     "label": "分组小计"
+    }
+   ]
+  },
+  {
+   "id": "inventory-stocktake-diff",
+   "title": "库存盘点差异表",
+   "section": "采购库存 · detail",
+   "description": "对比账面库存与实盘数量列出差异（diff_qty 已预生成）",
+   "package": "../presets/inventory-stocktake-diff",
+   "features": [
+    "盘点差异",
+    "账实差异",
+    "盘亏盘盈",
+    "库存差异",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      4
+     ],
+     "values": [
+      -2,
+      2,
+      0,
+      -5
+     ],
+     "label": "分组小计"
+    }
+   ]
+  },
+  {
+   "id": "inventory-warehouse-category-crosstab",
+   "title": "仓库库存交叉表",
+   "section": "采购库存 · crosstab",
+   "description": "按仓库和商品类别交叉统计库存并显示总计",
+   "package": "../presets/inventory-warehouse-category-crosstab",
+   "features": [
+    "仓库",
+    "商品类别",
+    "交叉表",
+    "仓库存货",
+    "crosstab"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      490
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "issue-action-tracker",
+   "title": "问题整改跟踪表",
+   "section": "通用 · detail",
+   "description": "查看问题、责任人、截止日期、处理状态和整改措施",
+   "package": "../presets/issue-action-tracker",
+   "features": [
+    "问题",
+    "整改",
+    "责任人",
+    "截止日期",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      1,
+      1
+     ],
+     "values": [
+      "问题整改跟踪表",
+      "问题整改跟踪表",
+      "问题整改跟踪表",
+      "问题整改跟踪表",
+      "问题整改跟踪表",
+      "问题整改跟踪表",
+      "问题整改跟踪表",
+      "问题整改跟踪表"
+     ],
+     "label": "明细样例"
+    }
+   ]
+  },
+  {
+   "id": "kpi-metric-detail",
+   "title": "KPI 指标明细表",
+   "section": "通用 · detail",
+   "description": "列出各部门每项 KPI 的目标值和实际值（运营域，落通用）",
+   "package": "../presets/kpi-metric-detail",
+   "features": [
+    "KPI",
+    "指标明细",
+    "目标值",
+    "实际值",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      6
+     ],
+     "values": [
+      520000,
+      9.5,
+      3,
+      6
+     ],
+     "label": "分组小计"
+    }
+   ]
+  },
+  {
+   "id": "project-cost-summary",
+   "title": "项目成本汇总表",
+   "section": "项目 · grouped",
+   "description": "按项目查看预算和实际成本",
+   "package": "../presets/project-cost-summary",
+   "features": [
+    "项目成本",
+    "项目预算",
+    "成本汇总",
+    "项目费用",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      28500
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "project-status-summary",
+   "title": "项目进度状态汇总表",
+   "section": "项目 · grouped",
+   "description": "按项目和状态统计任务数量",
+   "package": "../presets/project-status-summary",
+   "features": [
+    "项目进度",
+    "任务状态",
+    "项目状态",
+    "里程碑统计",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      5
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "project-task-tracker",
+   "title": "项目任务跟踪表",
+   "section": "项目 · detail",
+   "description": "查看各项目任务、负责人、优先级、截止日期和状态",
+   "package": "../presets/project-task-tracker",
+   "features": [
+    "任务跟踪",
+    "项目任务",
+    "任务清单",
+    "项目进度跟踪",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      9
+     ],
+     "values": [
+      5
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "sales-by-customer",
+   "title": "客户销售排行表",
+   "section": "销售 · grouped",
+   "description": "统计每个客户的累计销售额",
+   "package": "../presets/sales-by-customer",
+   "features": [
+    "客户销售",
+    "客户排行",
+    "客户累计",
+    "大客户",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      18400
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "sales-by-product",
+   "title": "产品销售汇总表",
+   "section": "销售 · grouped",
+   "description": "按产品统计销量和销售额",
+   "package": "../presets/sales-by-product",
+   "features": [
+    "产品销售",
+    "按产品统计",
+    "商品销量",
+    "产品汇总",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      18400
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "sales-by-salesperson",
+   "title": "销售人员业绩汇总表",
+   "section": "销售 · grouped",
+   "description": "按销售人员统计销售额，并按名称排序",
+   "package": "../presets/sales-by-salesperson",
+   "features": [
+    "销售人员",
+    "业绩",
+    "提成",
+    "销售统计",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      18400
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "sales-monthly-trend",
+   "title": "月度销售趋势表",
+   "section": "销售 · grouped",
+   "description": "统计每个月的销售额，按月份顺序展示（month 已预生成）",
+   "package": "../presets/sales-monthly-trend",
+   "features": [
+    "月度",
+    "销售趋势",
+    "按月",
+    "月份",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      18400
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "sales-order-detail",
+   "title": "销售订单明细表",
+   "section": "销售 · detail",
+   "description": "列出销售订单明细，按日期查看客户、产品、数量和金额",
+   "package": "../presets/sales-order-detail",
+   "features": [
+    "销售订单",
+    "订单明细",
+    "客户",
+    "产品",
+    "detail"
+   ],
+   "checks": [
+    {
+     "origin": [
+      3,
+      1
+     ],
+     "values": [
+      "SO-1001",
+      "SO-1002",
+      "SO-1003",
+      "SO-1004",
+      "SO-1005",
+      "SO-1006",
+      "SO-1007",
+      "SO-1008"
+     ],
+     "label": "明细样例"
+    }
+   ]
+  },
+  {
+   "id": "sales-region-category-crosstab",
+   "title": "区域销售交叉表",
+   "section": "销售 · crosstab",
+   "description": "行按区域、列按产品类别，交叉格统计销售额并显示总计",
+   "package": "../presets/sales-region-category-crosstab",
+   "features": [
+    "区域",
+    "产品类别",
+    "交叉表",
+    "多维统计",
+    "crosstab"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      3
+     ],
+     "values": [
+      18400
+     ],
+     "label": "合计"
+    }
+   ]
+  },
+  {
+   "id": "store-performance-summary",
+   "title": "门店经营汇总表",
+   "section": "通用 · grouped",
+   "description": "按门店汇总营业额（运营域，落通用）",
+   "package": "../presets/store-performance-summary",
+   "features": [
+    "门店经营",
+    "门店汇总",
+    "门店营业额",
+    "门店业绩",
+    "grouped"
+   ],
+   "checks": [
+    {
+     "origin": [
+      4,
+      2
+     ],
+     "values": [
+      50000
+     ],
+     "label": "合计"
+    }
+   ]
+  }
+ ]
+}

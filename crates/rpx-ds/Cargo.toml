@@ -1,0 +1,23 @@
+[package]
+name = "rpx-ds"
+version = "0.16.0"
+edition.workspace = true
+description = "ReportLite data-source layer (M3-03): SQL via AnyPool -> materialized RowSet"
+
+[dependencies]
+rpx-model = { path = "../rpx-model", default-features = false }
+calamine = "0.36"
+futures-util = "0.3"
+csv = "1.4"
+sqlx = { version = "0.9", default-features = false, features = [
+    # ⚠ 不用 "any"：sqlx 0.9 的 PG→Any 类型桥只认 Bool/Int/Float/Text/Bytea，
+    #   TIMESTAMP/NUMERIC/DATE 一律 eager 报错（见 sql_source.rs 模块头 2026-10-23）。
+    "postgres",
+    "mysql",
+    "sqlite",
+    "runtime-tokio",
+    # 原生解码业务列的两个刚需：日期时间 → Text、DECIMAL/NUMERIC → Value::Decimal。
+    "chrono",
+    "rust_decimal",
+] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

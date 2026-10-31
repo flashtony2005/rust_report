@@ -1,0 +1,152 @@
+{
+ "version": 1,
+ "grid": {
+  "rows": 4,
+  "cols": 5
+ },
+ "datasets": [
+  {
+   "name": "lbl",
+   "file": {
+    "file_name": "barcode-labels.csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+   }
+  }
+ ],
+ "col_props": [
+  {
+   "col": 1,
+   "width": 2
+  },
+  {
+   "col": 2,
+   "width": 76
+  },
+  {
+   "col": 3,
+   "width": 70
+  },
+  {
+   "col": 4,
+   "width": 70
+  },
+  {
+   "col": 5,
+   "width": 76
+  }
+ ],
+ "row_props": [
+  {
+   "row": 1,
+   "height": 12
+  },
+  {
+   "row": 2,
+   "height": 6
+  },
+  {
+   "row": 3,
+   "height": 10
+  },
+  {
+   "row": 4,
+   "height": 6
+  }
+ ],
+ "cells": [
+  {
+   "row": 1,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 18,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "条形码错位显示",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "bold": true,
+   "fore_color": "#163D46"
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "同一批标签左右交替：奇数号条码在左、偶数号在右，错开排版便于裁切。条码由 barcode() 逐行生成（Code 128B → PNG）。",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "fore_color": "#52666E"
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "extend_mode": "vertical",
+   "expr": "lbl.select(code)"
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "data_type": "image",
+   "left_head": "A3",
+   "image": {
+    "source": "=if(lbl.pos==1,barcode(lbl.code),'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=')",
+    "width": 150,
+    "height": 36
+   }
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "none",
+   "left_head": "A3",
+   "expr": "if(lbl.pos==1,lbl.code,'')"
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "font_size": 10,
+   "v_align": "middle",
+   "h_align": "center",
+   "extend_mode": "none",
+   "left_head": "A3",
+   "expr": "if(lbl.pos==2,lbl.code,'')"
+  },
+  {
+   "row": 3,
+   "col": 5,
+   "data_type": "image",
+   "left_head": "A3",
+   "image": {
+    "source": "=if(lbl.pos==2,barcode(lbl.code),'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=')",
+    "width": 150,
+    "height": 36
+   }
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "font_size": 9,
+   "v_align": "middle",
+   "extend_mode": "none",
+   "text": "偶数号与奇数号共用同一套格：只是条件取反。条码内容变了，条码图自动跟着变。",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "fore_color": "#52666E"
+  }
+ ]
+}

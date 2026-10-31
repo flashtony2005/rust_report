@@ -1,0 +1,31 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "库存盘点差异表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "sku",
+      "label": "SKU"
+    },
+    {
+      "field": "product",
+      "label": "商品"
+    },
+    {
+      "field": "warehouse",
+      "label": "仓库"
+    }
+  ],
+  "measures": [
+    {
+      "field": "diff_qty",
+      "agg": "sum",
+      "label": "差异数量",
+      "format": "#,##0"
+    }
+  ]
+}

@@ -1,0 +1,406 @@
+//! 表达式的 AST 与 `is_extend()` 谓词。
+//!
+//! 算法正文见 `docs/m2-engine-design.md` §13.2（节点清单）与 §13.3（`is_extend` 真值表）。
+//!
+//! # `is_extend()` 是什么
+//!
+//! `Expression.isExtend()`（`Expression.java:561-566`）就是 `home.isExtended()` ——
+//! **解析树上的一次纯递归谓词，不做任何求值**。它唯一的调用点是
+//! `ExtNormalCell.checkExtend`（`ExtNormalCell.java:510`，全产品唯一，已 grep 确认）。
+//!
+//! ⛔ **不许用 `isDSFunction()` 近似**：两条链的传播规则**相反**。
+//! `Function.isDSFunction()`（`Function.java:55-57`）**向参数透传**，而
+//! `Function`/`Sum`/`DSSum` 都**没有**覆写 `isExtended()`（`Sum extends Function extends Node`，
+//! `Function.java:17-18`），所以 `sum(ds1.select(qty))` 的 `isDSFunction()=true` 而
+//! `isExtended()=false`。这条反例是回归单测（`tests.rs`）。
+//!
+//! # 树形与 Java 的对应（每个变体点名了源码原类）
+//!
+//! | 本切片 | Java 原类 | `isExtended()` 出处 |
+//! |--------|-----------|---------------------|
+//! | [`Expr::Const`] | `Constant` | `Constant.java:22-24`（`value instanceof List`） |
+//! | [`Expr::CellRef`] | `CSVariable` | `CSVariable.java:379-381`（恒 false） |
+//! | [`Expr::Param`] | `Constant` / `ParamNode extends Constant` | 同 `Constant`；值未知 ⇒ 取 false |
+//! | [`Expr::CurrentCell`] | `CSCurrent extends Function` | 继承 `Node.java:82-84`（false） |
+//! | [`Expr::DsColumn`] | `DSVariable extends Node` | 继承 `Node.java:82-84`（false） |
+//! | [`Expr::Unknown`] | `UnknownSymbol extends Node` | 继承 `Node.java:82-84`（false），但 `isDSFunction()=true`（`:39-41`） |
+//! | [`Expr::ValueList`] | `ValueList extends Function` | `ValueList.java:30-32`（**自己**重写） |
+//! | [`Expr::Select`] | `Select extends SpecialFunction` | `SpecialFunction.java:27-32` 读 **`left`**（= 本切片的 `target`） |
+//! | [`Expr::Coord`] | `Move extends SpecialFunction` | 同上；`left` 是 CSVariable ⇒ 恒 false |
+//! | [`Expr::Index`] | `Move`/`DSOffset`/`Offset` | 同上，读 `left`；本切片的 `target` 就是 `left` |
+//! | [`Expr::Call`] | `Function` / `DSFunction` | 见 [`CallKind::is_extend`]（`Function` **未**重写） |
+//! | [`Expr::Unary`] / [`Expr::Binary`] | `Operator`（前缀/中缀） | `Operator.java:51-56`，**`Link` 例外** |
+//!
+//! # ⛔ 四条已逐行核过、最容易写错的类层次事实
+//!
+//! 1. **`SpecialFunction` 只挂 `left`**（`SpecialFunction.java:17-18`），
+//!    `Node.setLeft/setRight` 在基类是**空实现** ⇒ 往 `Constant`/`Function` 上挂子链
+//!    **静默丢弃**。
+//! 2. **`Select` 的 `left` 不是花括号里的表达式**：`Expression.java:131-134` 只调
+//!    `setParameter(...)`，`left` 要靠 `Expression.java:445` 的通用 `node.setLeft(right)`
+//!    才可能非 null，而那要求**前驱节点优先级 ≥ 17**（`Select.java:26` 自己是 17）。
+//!    常规写法（前驱是 `B2` / `sum(...)` / 运算符）拿到的 `left` 要么是那些节点的
+//!    `isExtended()`（CSVariable/Function 恒 false），要么是 null。
+//! 3. **`Function` 不向参数透传 `isExtended()`**（`Function.java` 全文无该方法），
+//!    而 `Function.isDSFunction()` **向参数透传**（`Function.java:55-57`）—— 两条链相反。
+//! 4. **`setLeft` 只有一个调用点**（`Expression.java:445`），`priority` 还会在
+//!    括号内 `+= 20`（`Node.java:57`）。
+
+use crate::value::Value;
+
+use super::coord::Coord;
+use super::names::CallKind;
+
+/// 一个表达式节点。
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr {
+    /// 字面量。`Constant`（`Constant.java:11`）。值为 `List` 时 `is_extend()` 为真。
+    ///
+    /// **参数值也在本变体里**（M3-01 建树期内联）：`@p`/`@@p` 在解析期就是
+    /// `Constant(getParamValue(id))`（`Expression.java:183-188`），本 crate 与产品
+    /// 同构 —— 由 [`crate::expr::parse_with`] 直接建 `Const(值)`。✅ 真机证据
+    /// （`probe_param_list_out.utf8.txt` + `probe_param_full_out.utf8.txt`）：
+    /// 多选参数（`List[1,2,3]`）⇒ `is_extend()=true` ⇒ 矩阵 3×2 → **5×2**、
+    /// 锚点 `extend=18 subCells=3`；标量 ⇒ false；**单元素与空 List 同为 true**
+    /// （判 `instanceof List`，不看内容）。空 List 的 calc 后果 = 矩阵不变、
+    /// 格值 null、锚点仍 `extend=18`（RUNLOG §24.1）。
+    ///
+    /// ⛔ 早期版本曾建 `Expr::Param { value: Option<Value> }` 占位 + 求值期
+    /// `ctx.param()` 兜底，**已整条删除**：`is_extend` 是准备期判定，求值期才拿到
+    /// 值救不了扩展，留着只掩盖漏绑定的 bug（[`crate::params`] 模块文档）。
+    Const(Value),
+    /// 格引用 `B2` / `$B2`。`CSVariable`（`CSVariable.java:19`）。
+    /// `absolute = true` 表示带 `$` 前缀（产品的"整格绝对引用"，见附件 G.1）。
+    ///
+    /// ⚠ `provisional = true` 表示**这是按形态猜的**：产品的判定是
+    /// `((ExtCellSet)cs).getSource(id) != null`（`Expression.java:201`），本切片没有
+    /// 引擎矩阵只能暂定。`qty1` / `amount2` 这类**数据集列名会被误判成本变体**。
+    /// 对 `is_extend()` 无影响（`CSVariable` 与 `UnknownSymbol` 都是 false），
+    /// 但求值期**必须**用引擎矩阵重新解析。未验证 ⇒ §13.5。
+    CellRef {
+        /// 格号原文（已剥 `$`），如 `B2`。
+        id: String,
+        /// 是否带 `$` 前缀。
+        absolute: bool,
+        /// 是否只是「形态上像格号」的**暂定**判定（见上文）。
+        provisional: bool,
+    },
+    /// `@`（当前格）。`CSCurrent`（`function/CSCurrent.java:13`）。
+    CurrentCell,
+    /// `数据集.列名`。`DSVariable`（`DSVariable.java:16`）。
+    DsColumn {
+        /// 数据集名。
+        ds: String,
+        /// 列名。
+        col: String,
+    },
+    /// 未识别符号。`UnknownSymbol`（`UnknownSymbol.java:15`），产品 `isExtended()` = false。
+    Unknown(String),
+    /// `[...]` 值列表/区间。`ValueList`（`ValueList.java:22`）。
+    ValueList {
+        /// 顶层分隔符类别（决定 `is_extend()`）。
+        kind: ParamKind,
+        /// 顶层切出的子表达式（供求值期使用；本切片不解释语义）。
+        items: Vec<Expr>,
+    },
+    /// `{...}` 单元格选择 / 格集条件。`Select`（`Select.java:21`）。
+    ///
+    /// ⚠ `arg` 是花括号里的**参数**（产品：`Expression.java:132` 的 `setParameter`），
+    /// **不是** `SpecialFunction.left`；`target` 才是 `left`。
+    ///
+    /// # 两个位置（M7-8 补）
+    ///
+    /// | 写法 | `target` | 语义 |
+    /// |------|----------|------|
+    /// | `{cond}`（表达式开头） | `None` | 产品的 `left == null` ⇒ `is_extend()` 恒 false |
+    /// | `Cellx{}` / `Cellx[坐标]{}` | `Some(前驱)` | 格集：前驱界定的**管辖范围**内全部 `Cellx` 实例 |
+    /// | `Cellx{cond}` | `Some(前驱)` | 上者再按 `cond` 过滤 |
+    ///
+    /// ⛔ **记号是 `[坐标]{条件}`，不是 `{坐标}[条件]`**：2010 年的
+    /// `报表引擎设计.md` §四 把两对括号写反了（写成 `Cellx{00}[EXP]`），
+    /// 而产品与官方教程一致用 `[坐标]{条件}`（`061_pm137.html` 的
+    /// `` =count(B2[`0]{B2>$B2})+1 ``、`m2-engine-design.md` 的优先级表
+    /// `Select{…}`=17 后缀）。**以产品为准**，见 [`super::coord`] 模块文档。
+    Select {
+        /// `{...}` 前面的操作数（产品的 `SpecialFunction.left`）。前缀位置 ⇒ `None`。
+        target: Option<Box<Expr>>,
+        /// `{...}` 内层表达式（产品的 `param`）；空 `{}` ⇒ [`Expr::Const`]`(Null)`。
+        arg: Box<Expr>,
+    },
+    /// `Cellx[...]` —— 层次坐标 / 位移坐标 / 根坐标（产品 `Move`，`Move.java:54`）。
+    ///
+    /// `is_extend()` 取 `left.isExtended()`；本仓 `target` 只是格号字符串，
+    /// 而格号的 `CSVariable.isExtended()` **恒 false**（`CSVariable.java:379-381`）
+    /// ⇒ 本变体恒 false（与产品等价，不是近似）。
+    ///
+    /// 记号与语义见 [`super::coord`] 模块文档。
+    Coord {
+        /// 目标格号原文（如 `C2`）。
+        target: String,
+        /// `[...]` 里解析出的坐标。
+        spec: Box<Coord>,
+    },
+    /// 后缀 `(...)` / `[...]` 挂在某个表达式上。`Offset` / `Move` / `DSOffset`
+    /// （都 `extends SpecialFunction`）。`is_extend()` 只看 `target`（= 产品的 `left`）。
+    ///
+    /// `index` 是 `[...]` 的内容（M5 带账⑤补建模：旧版**丢弃**，求值恒报
+    /// UnsupportedExpr；`ds[i].列` 路径在 parse_bp 后缀循环里被分流到
+    /// [`Expr::DsOffsetColumn`]，本变体只承载**无 `.列` 后缀**的 Move/Offset
+    /// 形态 —— eval 仍报 UnsupportedExpr，见 `eval.rs`）。
+    Index {
+        /// 被作用的表达式（Java 的 `SpecialFunction.left`）。
+        target: Box<Expr>,
+        /// `[...]` 括号内的表达式（产品的 `DSOffset.param`）。
+        index: Box<Expr>,
+    },
+    /// `ds[i].列` —— `DSOffset`（`DSOffset.java`）改写光标后接 `DSMember` 读列的
+    /// **合并形态**（产品 AST 是 Index→DSMember 两层，本仓按探针实证语义合成一个节点）。
+    ///
+    /// 语义（探针 `ProbeDsOffset` O1–O9 实证，2026-10-16）：
+    /// * `i` 求值必须为整数（非整 ⇒ 报错，产品消息 `"[]"函数参数类型错误`）；
+    /// * **Root 态**（Group）：读第 `i` 行该列，越界（`<1` 或 `>rowCount`）⇒ `Null`
+    ///   （不报错；`DataSet.java:395-411` 的 Group 分支）；
+    /// * **Row 态**：偏移被**忽略**，读当前行（同文件的 Row 分支不看 `_$5`）；
+    /// * `is_extend` = false（O1 实测 extend=17：非扩展格有表达式）。
+    ///
+    /// ⚠ 裸 `ds[i]`（不接 `.列`）产品返回 DataSet 对象（O7），本仓无此值形态 ⇒
+    /// parser 直接拒（显式错误），不猜。
+    DsOffsetColumn {
+        /// 数据集名。
+        ds: String,
+        /// 下标表达式（产品 `DSOffset.param`；探针 O9 实证非叶子运算也接受）。
+        offset: Box<Expr>,
+        /// 列名。
+        col: String,
+    },
+    /// 函数调用。`Function`（`function/*`）或 `DSFunction`（`function/dsfunction/*`）。
+    Call(Call),
+    /// 前缀运算符。`Not`/`Negative`/`Plus`/`Address`（都 `extends Operator`，只挂 `right`）。
+    Unary {
+        /// 运算符。
+        op: UnOp,
+        /// 操作数（Java 的 `right`）。
+        rhs: Box<Expr>,
+    },
+    /// 中缀运算符。`Operator` 的 `left`/`right` 两侧。
+    Binary {
+        /// 运算符。
+        op: BinOp,
+        /// 左操作数。
+        lhs: Box<Expr>,
+        /// 右操作数。
+        rhs: Box<Expr>,
+    },
+}
+
+/// 参数（`IParam`）的顶层分隔符类别。
+///
+/// `ParamParser._$1`（`ParamParser.java:66-79`）的层级是 `'\0' → ';' → ',' → ':'`：
+/// 取**第一个出现**的分隔符作为该层的 `getType()`；都不出现则是叶子（`getType()='\0'`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamKind {
+    /// 叶子：没有顶层分隔符（`lllIlIlIIlIIlIll.getType()` 返回 `'\0'`，`lllIlIlIIlIIlIll.java:47-49`）。
+    Leaf,
+    /// 顶层 `,`（`Comma`）。
+    Comma,
+    /// 顶层 `:`（`Link`）。
+    Colon,
+    /// 顶层 `;`。
+    Semicolon,
+}
+
+impl ParamKind {
+    /// `ValueList.isExtended()`（`ValueList.java:30-32`）：
+    /// `param == null || param.getType() != ':'`。
+    ///
+    /// 叶子（`param == null` 等价于空 `[]`）与 `,`/`;` 都返回 true，**只有顶层 `:` 返回 false**。
+    pub fn is_extend(self) -> bool {
+        self != ParamKind::Colon
+    }
+}
+
+/// 参数节点 —— 产品 `IParam` 的**完整嵌套树**（`ParamParser.java:35-64`）。
+///
+/// M5-01 补建的原因：[`Call`] 原先只存顶层切分（`param_kind` + 扁平 `args`），
+/// 表达不了 `ds.select` 的参数矩阵（`,` 段里套 `:`，如官方样例
+/// `select(产品ID:1, 订单ID==B2,,产品ID)`）⇒ `select` 的多参形态全部落
+/// `UnsupportedExpr`。本树由 [`super::call::build_param`] 在建树期生成，
+/// **只有 `ds.名(...)` 调用携带**（[`Call::param_tree]`）；`list(...)`/`[...]`
+/// 的扁平视图不变。
+#[derive(Debug, Clone, PartialEq)]
+pub enum Param {
+    /// 叶子（产品 `lllIlIlIIlIIlIll`，`getType()=='\0'`）：持一个表达式。
+    Leaf(Expr),
+    /// 内部节点（产品 `lIllIlIlIIIlIlIl`）：`getType()` = 本层分隔符 +
+    /// 子参数列表。**空段 = `None`**（产品 `ArgumentTokenizer` 的空 token →
+    /// `ParamParser.java:39-41` 的 trim 空串 → null `IParam`，如
+    /// `select(item, , , item)` 的第 2/3 段）。
+    Node {
+        /// 本层分隔符（`getType()`）。
+        kind: ParamKind,
+        /// 子参数（`getSub(i)`；`None` = 产品返回 null）。
+        subs: Vec<Option<Param>>,
+    },
+}
+
+impl Param {
+    /// `IParam.isLeaf()`。
+    pub fn is_leaf(&self) -> bool {
+        matches!(self, Param::Leaf(_))
+    }
+
+    /// `IParam.getType()`（叶子映射为 [`ParamKind::Leaf`]）。
+    pub fn kind(&self) -> ParamKind {
+        match self {
+            Param::Leaf(_) => ParamKind::Leaf,
+            Param::Node { kind, .. } => *kind,
+        }
+    }
+
+    /// `IParam.getSubSize()`（叶子为 0）。
+    pub fn sub_size(&self) -> usize {
+        match self {
+            Param::Leaf(_) => 0,
+            Param::Node { subs, .. } => subs.len(),
+        }
+    }
+
+    /// `IParam.getSub(i)`（越界或叶子 → `None`）。
+    pub fn sub(&self, i: usize) -> Option<&Param> {
+        match self {
+            Param::Node { subs, .. } => subs.get(i).and_then(|s| s.as_ref()),
+            Param::Leaf(_) => None,
+        }
+    }
+
+    /// `IParam.getLeafExpression()`（非叶子 → `None`）。
+    pub fn leaf_expr(&self) -> Option<&Expr> {
+        match self {
+            Param::Leaf(e) => Some(e),
+            Param::Node { .. } => None,
+        }
+    }
+}
+
+/// 前缀运算符。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnOp {
+    /// `!` / `not`（`Not`，优先级 16）。
+    Not,
+    /// 一元 `-`（`Negative`，优先级 18）。
+    Neg,
+    /// 一元 `+`（`Plus`，优先级 18）。
+    Pos,
+    /// `&`（`Address`，优先级 16）。
+    Address,
+}
+
+/// 中缀运算符 —— 优先级数值逐条取自 `Node.java:13-44` 的 `PRI_*` 常量与各运算符类的
+/// `this.priority = N`（见 §13.1 的优先级表）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinOp {
+    /// `,`（`Comma.java:16`，优先级 1）。`Operator` → 两侧或。
+    Comma,
+    /// 单个 `=`（`Evaluate.java:18`，优先级 2）。赋值/求值。
+    Eval,
+    /// `:`（`Link.java:25`，优先级 4）。⛔ **本运算符显式覆写 `isExtended()=false`**
+    /// （`operator/Link.java:100-102`）。
+    Link,
+    /// `or` / `||`（`Or.java:17`，优先级 5）。
+    Or,
+    /// `and` / `&&`（`And.java:18`，优先级 6）。
+    And,
+    /// `==`（`Equals.java:17`，优先级 10）。`=` 与 `=` 相连时走这里（`Expression.java:349-352`）。
+    Eq,
+    /// `!=`（`NotEquals.java:17`，优先级 10）。
+    Ne,
+    /// `in`（`In.java:18`，优先级 10）。
+    In,
+    /// `>`（`Greater.java:17`，优先级 11）。
+    Gt,
+    /// `>=`（`NotSmaller.java:17`，优先级 11）。
+    Ge,
+    /// `<`（`Smaller.java:17`，优先级 11）。
+    Lt,
+    /// `<=`（`NotGreater.java:17`，优先级 11）。
+    Le,
+    /// 二元 `+`（`Add.java:23`，优先级 13）。
+    Add,
+    /// 二元 `-`（`Subtract.java:22`，优先级 13）。
+    Sub,
+    /// `*`（`Multiply.java:21`，优先级 14）。
+    Mul,
+    /// `/`（`Divide.java:21`，优先级 14）。
+    Div,
+    /// `%`（`Mod.java:21`，优先级 14）。
+    Mod,
+}
+
+/// 一次函数调用。
+#[derive(Debug, Clone, PartialEq)]
+pub struct Call {
+    /// `ds.名(...)` 里的 `ds`；裸调用为 `None`。
+    pub qualifier: Option<String>,
+    /// 函数名（已剥 `ds.` 前缀与 `@选项`）。
+    pub name: String,
+    /// `名@选项(...)` 的选项串（`Expression.java:212-218` 的 `indexOf('@')` 切法）。
+    pub option: Option<String>,
+    /// 名字解析结果（决定 `is_extend()`）。
+    pub kind: CallKind,
+    /// 顶层参数类别（`list(...)` 走 `ValueList`，见 parser）。
+    pub param_kind: ParamKind,
+    /// 顶层切出的子表达式（⚠ 未建模嵌套 `IParam` 树，见 §13.5）。
+    pub args: Vec<Expr>,
+    /// 完整嵌套参数树（M5-01，[`Param`]）。**只有 `ds.名(...)` 调用携带**
+    /// （`build_call` 按 `qualifier.is_some()` 判定）；普通函数/`list` 为 `None`，
+    /// 扁平 [`Call::args`] 即它们的全部参数面。
+    ///
+    /// `Box` 是**断环**必需（`Expr → Call → Param → Expr` 无限尺寸，E0072）：
+    /// 与 [`Expr::Unary`] 等分支的 `Box<Expr>` 同一手法。
+    pub param_tree: Option<Box<Param>>,
+}
+
+impl Expr {
+    /// `Expression.isExtend()` 的逐节点实现（`Expression.java:561-566` + 各节点的 `isExtended()`）。
+    ///
+    /// **纯递归、不做求值。** 每个分支的来源见模块文档的真值表。
+    pub fn is_extend(&self) -> bool {
+        match self {
+            // Constant.isExtended() = value instanceof List（Constant.java:22-24）。
+            // M3-01 起参数值也走本分支（建树期内联，见 [`Expr::Const`] 文档）。
+            Expr::Const(v) => matches!(v, Value::List(_)),
+            // CSVariable / CurrentCell / DSVariable / UnknownSymbol
+            Expr::CellRef { .. } | Expr::CurrentCell | Expr::DsColumn { .. } | Expr::Unknown(_) => {
+                false
+            }
+            // ValueList.isExtended() = param == null || param.getType() != ':'（ValueList.java:30-32）
+            Expr::ValueList { kind, .. } => kind.is_extend(),
+            // SpecialFunction.isExtended() = left.isExtended() || super(false)
+            //   （SpecialFunction.java:27-32；super 是 Function，**未重写** ⇒ Node 的 false）
+            //
+            // ⛔ `Select` 的 `left` **不是**花括号里的表达式（`Expression.java:131-134`
+            //    只 setParameter），而是**前驱**——由通用 `Expression.java:445` 的
+            //    `node.setLeft(right)` 填上。M7-8 起本仓把它建模成 `target`，
+            //    于是判定变成 `target.is_extend()`，**比原先的"恒 false"更贴源码**：
+            //    `C2{}` 仍是 false（CSVariable 恒 false，`CSVariable.java:379-381`），
+            //    但 `ds1.select(x){}` 这类前驱本身可扩展的写法会判 true（原先错判 false）。
+            Expr::Select { target, .. } => target.as_ref().is_some_and(|t| t.is_extend()),
+            // Move / DSOffset / Offset 的 `left` 就是本切片的 `target`（前一个表达式）
+            Expr::Index { target, .. } => target.is_extend(),
+            // Move（`Cellx[...]`）：`left` 是 CSVariable ⇒ 恒 false（见变体文档）
+            Expr::Coord { .. } => false,
+            // ds[i].列：DSVariable 未覆写 isExtended（`DSVariable.java` 继承 Node）
+            // ⇒ false（探针 O1 实测 extend=17，见变体文档）
+            Expr::DsOffsetColumn { .. } => false,
+            // Function/DSFunction：不向参数透传（Function 未覆写 isExtended）→ 只看类别
+            Expr::Call(c) => c.kind.is_extend(),
+            // Operator.isExtended() = left || right（Operator.java:51-56）——前缀只挂 right
+            Expr::Unary { rhs, .. } => rhs.is_extend(),
+            // ⛔ Link 是唯一的例外：它是 Operator 却覆写成 false（operator/Link.java:100-102）
+            Expr::Binary {
+                op: BinOp::Link, ..
+            } => false,
+            Expr::Binary { lhs, rhs, .. } => lhs.is_extend() || rhs.is_extend(),
+        }
+    }
+}

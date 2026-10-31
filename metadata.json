@@ -1,0 +1,6 @@
+{
+  "name": "Report Studio · 需求 → 模板 → 结果",
+  "description": "Report Studio —— 从一句话需求到可打印报表：需求、模板、结果都留在这一个工作台。",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

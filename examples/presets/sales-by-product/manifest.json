@@ -1,0 +1,52 @@
+{
+  "data_dir": "data",
+  "description": "按产品统计销量和销售额",
+  "id": "sales-by-product",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "product",
+          "quantity"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "销售"
+    ],
+    "examples": [
+      "按产品统计销量和销售额",
+      "产品销售汇总表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "产品销售",
+      "按产品统计",
+      "商品销量",
+      "产品汇总"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "产品销售汇总表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

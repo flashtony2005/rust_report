@@ -1,0 +1,40 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "预算执行对比表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "crosstab",
+  "row_dims": [
+    {
+      "field": "department",
+      "label": "部门",
+      "sort": "asc"
+    },
+    {
+      "field": "budget_item",
+      "label": "预算项目",
+      "sort": "asc"
+    }
+  ],
+  "col_dims": [
+    {
+      "field": "value_type",
+      "label": "类型",
+      "sort": "asc"
+    }
+  ],
+  "measures": [
+    {
+      "field": "amount",
+      "agg": "sum",
+      "label": "金额",
+      "format": "#,##0.00"
+    }
+  ],
+  "totals": {
+    "grand": true,
+    "subtotal": true
+  }
+}

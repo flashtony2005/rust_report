@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report Studio：从元信息到业务语义，再到 SQL</title>
+<style>
+:root {
+  --bg: #f5f7fb; --panel: #fff; --ink: #172033; --muted: #65718a;
+  --line: #dce3ee; --blue: #315efb; --blue-soft: #edf2ff;
+  --teal: #087f8c; --teal-soft: #e8f8f8; --amber: #a45b08;
+  --amber-soft: #fff5e5; --green: #16794b; --green-soft: #e9f8f0;
+  --purple: #7048c8; --purple-soft: #f2edff; --red: #b42318;
+  --shadow: 0 10px 28px rgba(23,32,51,.07);
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+header { padding:54px 24px 40px; background:linear-gradient(135deg,#14213d,#233f7b 65%,#315efb); color:white; }
+.wrap { max-width:1180px; margin:auto; }
+.eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:12px; font-weight:700; opacity:.8; }
+h1 { font-size:clamp(30px,4vw,46px); line-height:1.2; margin:12px 0 16px; letter-spacing:-.03em; }
+header p { max-width:820px; margin:0; color:#e3eaff; font-size:17px; }
+.pills { display:flex; gap:8px; flex-wrap:wrap; margin-top:24px; }
+.pill { border:1px solid #ffffff55; border-radius:999px; padding:5px 11px; font-size:12px; color:#f1f4ff; }
+main { max-width:1180px; margin:0 auto; padding:30px 22px 70px; }
+section { margin:26px 0; }
+.section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:14px; }
+h2 { margin:0; font-size:25px; letter-spacing:-.02em; }
+h3 { margin:0 0 8px; font-size:17px; }
+.sub { color:var(--muted); margin:5px 0 0; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; box-shadow:var(--shadow); }
+.callout { border-left:4px solid var(--blue); background:var(--blue-soft); padding:16px 18px; border-radius:10px; }
+.callout strong { color:#2447c8; }
+.architecture { display:grid; grid-template-columns:1fr; gap:10px; }
+.layer { display:grid; grid-template-columns:64px minmax(190px,240px) 1fr; align-items:center; gap:16px; border:1px solid var(--line); border-radius:14px; background:white; padding:15px 18px; box-shadow:0 4px 14px rgba(23,32,51,.035); }
+.layer .num { display:grid; place-items:center; width:44px; height:44px; border-radius:12px; font-weight:800; font-size:17px; }
+.layer .desc { color:var(--muted); font-size:13px; }
+.layer ul { margin:0; padding-left:18px; display:flex; flex-wrap:wrap; gap:3px 25px; }
+.l1 .num { background:#e9eef8; color:#334155; } .l2 .num { background:var(--teal-soft); color:var(--teal); }
+.l3 .num { background:var(--purple-soft); color:var(--purple); } .l4 .num { background:var(--amber-soft); color:var(--amber); }
+.l5 .num { background:var(--green-soft); color:var(--green); }
+.down { text-align:center; color:#8a96aa; font-size:20px; line-height:1; }
+.grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.mini { border:1px solid var(--line); background:#fff; border-radius:14px; padding:18px; }
+.tag { display:inline-block; font-size:11px; font-weight:700; border-radius:6px; padding:3px 7px; margin-bottom:9px; background:#eef2f8; color:#43516a; }
+.tag.teal { background:var(--teal-soft); color:var(--teal); }
+.tag.purple { background:var(--purple-soft); color:var(--purple); }
+.tag.amber { background:var(--amber-soft); color:var(--amber); }
+.tag.green { background:var(--green-soft); color:var(--green); }
+pre { white-space:pre-wrap; overflow-wrap:anywhere; margin:10px 0 0; padding:14px; border-radius:10px; background:#111827; color:#e6edf7; font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+.flow { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; align-items:stretch; }
+.flow .step { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; position:relative; }
+.flow .step:not(:last-child):after { content:"→"; position:absolute; right:-15px; top:42%; z-index:2; color:#8390a5; font-size:20px; font-weight:700; }
+.step b { display:block; font-size:14px; margin-bottom:5px; }
+.step span { display:block; color:var(--muted); font-size:12px; }
+.table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:white; }
+table { width:100%; border-collapse:collapse; min-width:700px; }
+th,td { text-align:left; padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { background:#f0f3f9; font-size:13px; color:#39465d; }
+td { font-size:14px; } tr:last-child td { border-bottom:0; }
+.status { font-size:11px; border-radius:999px; padding:3px 8px; font-weight:700; white-space:nowrap; }
+.confirmed { background:var(--green-soft); color:var(--green); }
+.candidate { background:var(--amber-soft); color:var(--amber); }
+.warning { background:#fff0ef; color:var(--red); }
+.kpi { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.kpi .card { box-shadow:none; }
+.kpi strong { display:block; font-size:22px; margin:4px 0; }
+.kpi p { margin:0; color:var(--muted); font-size:13px; }
+.timeline { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.phase { border-top:4px solid var(--blue); }
+.phase:nth-child(2) { border-color:var(--teal); } .phase:nth-child(3) { border-color:var(--purple); }
+.phase ol { padding-left:19px; margin-bottom:0; }
+.phase li { margin:5px 0; }
+footer { text-align:center; padding:22px; color:var(--muted); font-size:12px; }
+@media(max-width:760px) {
+  header { padding:38px 20px 30px; }
+  main { padding:20px 14px 45px; }
+  .layer { grid-template-columns:44px 1fr; gap:10px; }
+  .layer .desc { grid-column:2; }
+  .layer ul { grid-column:1/-1; }
+  .grid2,.grid3,.kpi,.timeline { grid-template-columns:1fr; }
+  .flow { grid-template-columns:1fr; }
+  .flow .step:not(:last-child):after { content:"↓"; right:50%; top:auto; bottom:-19px; }
+  .section-head { display:block; }
+}
+@media print {
+  body { background:white; } header { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+  .card,.layer { box-shadow:none; break-inside:avoid; } section { break-inside:avoid; }
+  main { max-width:none; padding:18px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">REPORT STUDIO · UNDERSTANDING LAYER</div>
+    <h1>从元信息到业务语义，<br>再到可验证的 SQL</h1>
+    <p>不要让 LLM 直接“猜 SQL”。先从数据库发现结构与证据，再建立可版本化的业务模型，将自然语言编译成查询计划，最后生成、验证并执行 SQL。</p>
+    <div class="pills">
+      <span class="pill">Schema → Business Model</span>
+      <span class="pill">Semantic Query IR</span>
+      <span class="pill">Query Planner</span>
+      <span class="pill">SQL Compiler</span>
+      <span class="pill">Feedback Loop</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="callout">
+      <strong>核心判断：</strong>元信息是业务模型的证据，不是业务模型本身。系统必须区分数据库中“观察到的事实”和由字段名、样本值、历史 SQL 推导出的“候选解释”；未经确认的业务口径不能伪装成确定事实。
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div><h2>01 · 总体架构</h2><p class="sub">五层分工：每层只解决一类问题，LLM 不承担编译器和数据库的工作。</p></div>
+    </div>
+    <div class="architecture">
+      <div class="layer l1">
+        <div class="num">L1</div><div><h3>Physical Schema · 物理结构</h3><div class="desc">数据库能直接提供的证据</div></div>
+        <ul><li>表、列、类型、COMMENT</li><li>主键、外键、索引</li><li>枚举值、空值率、唯一性</li><li>已有 SQL 与报表样例</li></ul>
+      </div>
+      <div class="down">↓ 结构分析与关系发现</div>
+      <div class="layer l2">
+        <div class="num">L2</div><div><h3>Business Model · 业务语义</h3><div class="desc">把数据解释为业务世界</div></div>
+        <ul><li>Entity / Fact</li><li>Dimension / Metric</li><li>Relationship / Grain</li><li>Business Rule / Policy</li></ul>
+      </div>
+      <div class="down">↓ 术语解析与意图绑定</div>
+      <div class="layer l3">
+        <div class="num">L3</div><div><h3>Semantic Query · 查询意图</h3><div class="desc">表达“要查询什么”，不指定物理 SQL 细节</div></div>
+        <ul><li>指标与维度</li><li>过滤与时间范围</li><li>分组、排序、限制</li><li>歧义与待澄清问题</li></ul>
+      </div>
+      <div class="down">↓ 粒度检查与查询规划</div>
+      <div class="layer l4">
+        <div class="num">L4</div><div><h3>Query Planner · 查询规划</h3><div class="desc">确定数据源、关联路径与聚合策略</div></div>
+        <ul><li>选择事实源</li><li>JOIN 路径</li><li>预聚合与去重</li><li>粒度、权限、成本检查</li></ul>
+      </div>
+      <div class="down">↓ 编译与安全校验</div>
+      <div class="layer l5">
+        <div class="num">L5</div><div><h3>SQL Compiler · SQL 编译</h3><div class="desc">确定性地输出目标数据库可执行 SQL</div></div>
+        <ul><li>方言与参数绑定</li><li>AST / 只读检查</li><li>LIMIT、超时、行数上限</li><li>执行反馈与结果验证</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div><h2>02 · 从元信息发现业务模型</h2><p class="sub">先自动发现，再记录证据与置信状态；不把猜测直接升级为业务事实。</p></div></div>
+    <div class="grid3">
+      <div class="mini">
+        <span class="tag">结构证据</span><h3>发现实体与关系</h3>
+        主键、外键、候选键、字段命名、引用基数、历史 JOIN。
+        <p class="sub">产出：候选实体、关系边、关系基数与证据来源。</p>
+      </div>
+      <div class="mini">
+        <span class="tag teal">数据证据</span><h3>识别粒度与值域</h3>
+        唯一性、空值率、枚举值、时间范围、重复率、值域重合。
+        <p class="sub">产出：每行含义、字段角色、数据质量警告。</p>
+      </div>
+      <div class="mini">
+        <span class="tag purple">业务证据</span><h3>发现指标与口径</h3>
+        COMMENT、报表模板、已确认 SQL、业务术语、用户纠错。
+        <p class="sub">产出：指标候选、同义词、过滤规则与适用范围。</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>示例：从三张表推导候选业务图</h3>
+      <pre>orders(id PK, customer_id FK, amount, status, created_at)
+customers(id PK, region_id FK, name)
+regions(id PK, name)
+
+Customer ── places ──> Order ── belongs_to ──> Customer
+Customer ── located_in ──> Region
+
+Order grain: one row per order
+Customer grain: one row per customer
+Region grain: one row per region</pre>
+      <p class="sub">注意：外键可以证明结构关联，但不能自动决定“有效订单”的业务定义，也不能证明金额字段就是净销售额。</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div><h2>03 · 业务模型是核心资产</h2><p class="sub">业务模型应独立于物理数据库、LLM Prompt 和报表版式，并且可以版本化、审查与测试。</p></div></div>
+    <div class="grid2">
+      <div class="card">
+        <span class="tag teal">Metric · 指标</span>
+        <h3>指标不是一个字段名</h3>
+        <pre>net_sales
+  source_fact: Order
+  expression: SUM(order_amount)
+  filters: [approved business rules]
+  time_field: created_at
+  grain: order
+  format: currency
+  status: draft | confirmed</pre>
+        <p class="sub">正式口径必须由业务定义确认。例如退款、取消、折扣如何处理，不能从字段名猜出来。</p>
+      </div>
+      <div class="card">
+        <span class="tag amber">Relationship · 关系</span>
+        <h3>关系不仅是 JOIN 条件</h3>
+        <pre>Order.customer_id → Customer.id
+  cardinality: many_to_one
+  evidence: declared_foreign_key
+  status: confirmed
+
+OrderItem.order_id → Order.id
+  cardinality: many_to_one
+  evidence: inferred + data profile
+  status: candidate</pre>
+        <p class="sub">记录基数、来源、状态和适用条件，避免随意 JOIN、重复计数和未经验证的关联路径。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div><h2>04 · 自然语言如何变成 SQL</h2><p class="sub">LLM 负责把用户意图绑定到已注册的业务概念；规划器负责查询逻辑；编译器负责 SQL。</p></div></div>
+    <div class="flow">
+      <div class="step"><b>① 用户需求</b><span>按地区统计最近三个月每月销售额和订单数</span></div>
+      <div class="step"><b>② 业务绑定</b><span>net_sales、order_count、Region、Order.created_at</span></div>
+      <div class="step"><b>③ Semantic Query</b><span>指标、维度、时间、过滤、排序；标记歧义</span></div>
+      <div class="step"><b>④ 查询计划</b><span>事实源、JOIN 路径、粒度、聚合和去重策略</span></div>
+      <div class="step"><b>⑤ SQL 编译</b><span>目标方言、参数绑定、只读校验与执行</span></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card">
+        <h3>Semantic Query（示意）</h3>
+        <pre>{
+  "metrics": ["net_sales", "order_count"],
+  "dimensions": ["Region", "Order.created_month"],
+  "time_range": "last_3_months",
+  "sort": [{"metric": "net_sales", "direction": "desc"}]
+}</pre>
+      </div>
+      <div class="card">
+        <h3>SQL（示意，需按真实口径编译）</h3>
+        <pre>SELECT
+  r.name AS region,
+  DATE_TRUNC('month', o.created_at) AS month,
+  SUM(o.amount) AS sales,
+  COUNT(DISTINCT o.id) AS order_count
+FROM orders o
+JOIN customers c ON c.id = o.customer_id
+JOIN regions r ON r.id = c.region_id
+WHERE o.created_at >= :start_date
+  AND o.created_at < :end_date
+GROUP BY r.name, DATE_TRUNC('month', o.created_at)
+ORDER BY sales DESC;</pre>
+        <p class="sub">示例 SQL 使用了部分数据库方言语法，且未展示正式业务过滤条件；实际应由方言编译器和已确认指标定义生成。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div><h2>05 · 最容易出错的地方：粒度</h2><p class="sub">SQL 能运行，不代表指标正确。JOIN 后的行数变化可能导致金额、订单数重复计算。</p></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>数据对象</th><th>记录粒度</th><th>常见风险</th><th>规划器需要做什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>orders</code></td><td>一行一个订单</td><td>连接订单明细后，订单金额被重复累加</td><td>检查连接基数；必要时先聚合或分开计算</td></tr>
+          <tr><td><code>order_items</code></td><td>一行一个订单商品明细</td><td><code>COUNT(*)</code> 被误当成订单数</td><td>引用正确的订单指标或使用合适的去重策略</td></tr>
+          <tr><td><code>payments</code></td><td>一行一次支付记录</td><td>一笔订单多次支付，连接后产生重复行</td><td>明确支付口径，必要时先按订单预聚合</td></tr>
+          <tr><td>库存快照</td><td>一个商品在某时点的余额</td><td>跨时间直接 SUM 库存余额</td><td>使用期末、期初或时间加权等明确规则</td></tr>
+          <tr><td>比率指标</td><td>分子与分母定义的业务总体</td><td>直接对分组比率求和或简单平均</td><td>先聚合分子、分母，再计算比率</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div><h2>06 · 验证与知识反馈闭环</h2><p class="sub">错误要分类处理；确认过的结果才能沉淀为高质量样例或业务定义。</p></div></div>
+    <div class="grid3">
+      <div class="mini"><span class="tag green">静态验证</span><h3>编译前</h3>字段是否存在、指标是否注册、JOIN 是否允许、粒度是否冲突、权限是否满足。</div>
+      <div class="mini"><span class="tag amber">执行验证</span><h3>运行时</h3>只读账号、参数绑定、超时、行数限制、错误分类、结果形状与数据质量检查。</div>
+      <div class="mini"><span class="tag purple">业务验证</span><h3>用户确认</h3>对照已知答案、业务不变量或用户确认；把纠错记录关联到模型版本和样例版本。</div>
+    </div>
+    <div class="callout" style="margin-top:14px">
+      <strong>知识晋升原则：</strong>“SQL 执行成功”只能证明它在当前环境下可执行；“返回非空结果”不能证明业务语义正确。金样例应尽量附带期望结果、口径说明或可验证的不变量。
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div><h2>07 · 与现有 Report Studio 的边界</h2><p class="sub">复用已有能力，不另造一套报表引擎。</p></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>现有能力</th><th>建议定位</th><th>需要补充</th></tr></thead>
+        <tbody>
+          <tr><td>列元数据、COMMENT、枚举值</td><td>物理 Schema 与证据层</td><td>关系发现、粒度分析、证据状态</td></tr>
+          <tr><td><code>rpx-spec/v1</code></td><td>报表结构与展示契约</td><td>不要强行承担所有查询意图表达</td></tr>
+          <tr><td>模板库与 <code>report list --query</code></td><td>报表模板召回与 few-shot 示例</td><td>需求、Spec、SQL、验证结果关联存储</td></tr>
+          <tr><td><code>spec analyze</code>、lint、编译器</td><td>静态分析与报表编译</td><td>查询 IR、JOIN/粒度校验、SQL 安全校验</td></tr>
+          <tr><td><code>dataset inspect</code></td><td>数据源试运行与诊断</td><td>错误分类、限次修复、回归评测</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div><h2>08 · 实施路线</h2><p class="sub">先构建确定性基础，再接入 LLM，最后形成持续改进闭环。</p></div></div>
+    <div class="timeline">
+      <div class="card phase">
+        <span class="tag">P0 · 发现</span><h3>元信息 → 候选业务模型</h3>
+        <ol><li>提取 Schema 与约束</li><li>采样枚举值与数据分布</li><li>发现关系与候选粒度</li><li>输出可审查的模型文件</li></ol>
+        <p><b>验收：</b>每个候选结论都有证据和状态。</p>
+      </div>
+      <div class="card phase">
+        <span class="tag teal">P1 · 查询</span><h3>业务模型 → SQL</h3>
+        <ol><li>注册指标、维度、规则</li><li>生成 Semantic Query</li><li>构建查询 IR 与计划</li><li>编译、校验、试运行</li></ol>
+        <p><b>验收：</b>固定业务用例通过，结果粒度正确。</p>
+      </div>
+      <div class="card phase">
+        <span class="tag purple">P2 · 学习</span><h3>反馈 → 知识积累</h3>
+        <ol><li>保存已确认需求与查询</li><li>建立金样例检索</li><li>提出业务模型变更</li><li>持续运行回归评测</li></ol>
+        <p><b>验收：</b>经验可复用，正式口径不会被隐式改写。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kpi">
+      <div class="card"><span class="tag">原则 01</span><strong>事实与推断分离</strong><p>观察到的 Schema 不等于业务定义；候选关系必须保留证据与状态。</p></div>
+      <div class="card"><span class="tag teal">原则 02</span><strong>查询与展示分离</strong><p>Semantic Query 描述取什么数据；rpx-spec 描述如何组织和呈现报表。</p></div>
+      <div class="card"><span class="tag purple">原则 03</span><strong>验证优先于自信</strong><p>模型、规划器和 SQL 都要接受可重复的检查与真实用例评测。</p></div>
+    </div>
+  </section>
+</main>
+<footer>Report Studio · Understanding Layer Architecture · 2026-10-23</footer>
+</body>
+</html>

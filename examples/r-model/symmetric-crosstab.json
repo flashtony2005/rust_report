@@ -1,0 +1,342 @@
+{
+  "version": 1,
+  "grid": {
+    "rows": 6,
+    "cols": 5
+  },
+  "datasets": [
+    {
+      "name": "sales",
+      "file": {
+        "file_name": "sales.csv",
+        "encoding": "UTF-8",
+        "delimiter": ","
+      }
+    },
+    {
+      "name": "regions",
+      "file": {
+        "file_name": "sources.xlsx",
+        "encoding": "UTF-8",
+        "sheet_name": "区域"
+      }
+    },
+    {
+      "name": "products",
+      "file": {
+        "file_name": "sources.xlsx",
+        "encoding": "UTF-8",
+        "sheet_name": "产品"
+      }
+    },
+    {
+      "name": "budget",
+      "file": {
+        "file_name": "sources.xlsx",
+        "encoding": "UTF-8",
+        "sheet_name": "预算"
+      }
+    }
+  ],
+  "cells": [
+    {
+      "row": 1,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 18,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "区域 × 产品交叉预算分析",
+      "merge": {
+        "rows": 1,
+        "cols": 5
+      },
+      "bold": true,
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 9,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "行来自 Excel 区域、列来自 Excel 产品、金额来自 CSV；无业务区域与缺失预算仍保留。",
+      "merge": {
+        "rows": 1,
+        "cols": 5
+      },
+      "fore_color": "#52666E"
+    },
+    {
+      "row": 3,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "区域",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "销售合计",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "预算",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "达成率",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF",
+      "h_align": "center"
+    },
+    {
+      "row": 3,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "horizontal",
+      "expr": "products.select(category)",
+      "h_align": "center",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#1B505B",
+      "fore_color": "#FFFFFF"
+    },
+    {
+      "row": 4,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "vertical",
+      "expr": "regions.select(region)",
+      "h_align": "left",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "top_head": "B3",
+      "expr": "sum(sales.select(amount,region==A4 and category==B3))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "sum(sales.select(amount,region==A4))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "sum(budget.select(budget,region==A4))",
+      "h_align": "right",
+      "format": "#,##0.00"
+    },
+    {
+      "row": 4,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "left_head": "A4",
+      "expr": "if(D4==0,0,C4/D4)",
+      "h_align": "right",
+      "format": "0.00%"
+    },
+    {
+      "row": 5,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "合计",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 2,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "top_head": "B3",
+      "expr": "sum(sales.select(amount,category==B3))",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 3,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "sales.sum(amount)",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 4,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "budget.sum(budget)",
+      "h_align": "right",
+      "format": "#,##0.00",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 5,
+      "col": 5,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "expr": "C5/D5",
+      "h_align": "right",
+      "format": "0.00%",
+      "bold": true,
+      "back_color": "#E8F2F1",
+      "fore_color": "#163D46"
+    },
+    {
+      "row": 6,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 10,
+      "v_align": "middle",
+      "extend_mode": "none",
+      "text": "华南没有销售时金额为 0；未分配区域缺预算时不进行除零。",
+      "merge": {
+        "rows": 1,
+        "cols": 5
+      }
+    }
+  ],
+  "row_props": [
+    {
+      "row": 1,
+      "height": 12
+    },
+    {
+      "row": 2,
+      "height": 9
+    },
+    {
+      "row": 3,
+      "height": 8
+    },
+    {
+      "row": 4,
+      "height": 8
+    },
+    {
+      "row": 5,
+      "height": 8
+    },
+    {
+      "row": 6,
+      "height": 8
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 32
+    },
+    {
+      "col": 2,
+      "width": 32
+    },
+    {
+      "col": 3,
+      "width": 29
+    },
+    {
+      "col": 4,
+      "width": 29
+    },
+    {
+      "col": 5,
+      "width": 29
+    }
+  ],
+  "print_setup": {
+    "paper_width": 420,
+    "paper_height": 297,
+    "left_margin": 10,
+    "right_margin": 10,
+    "top_margin": 10,
+    "bottom_margin": 10
+  },
+  "printing": {
+    "horizontal_split": false,
+    "vertical_split": false,
+    "border_width": 0.5,
+    "border_color": "#CBD5E1"
+  }
+}

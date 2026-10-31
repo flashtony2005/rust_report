@@ -1,0 +1,266 @@
+{
+ "version": 1,
+ "grid": {
+  "rows": 6,
+  "cols": 5
+ },
+ "datasets": [
+  {
+   "name": "cj",
+   "file": {
+    "file_name": "cash-journal.csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+   }
+  }
+ ],
+ "macros": {
+  "openingBalance": "128500"
+ },
+ "col_props": [
+  {
+   "col": 1,
+   "width": 24
+  },
+  {
+   "col": 2,
+   "width": 62
+  },
+  {
+   "col": 3,
+   "width": 24
+  },
+  {
+   "col": 4,
+   "width": 24
+  },
+  {
+   "col": 5,
+   "width": 26
+  }
+ ],
+ "row_props": [
+  {
+   "row": 1,
+   "height": 13
+  },
+  {
+   "row": 3,
+   "height": 8
+  },
+  {
+   "row": 4,
+   "height": 7
+  },
+  {
+   "row": 5,
+   "height": 7
+  },
+  {
+   "row": 6,
+   "height": 7
+  }
+ ],
+ "printing": {
+  "auto_size": false
+ },
+ "cells": [
+  {
+   "row": 1,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "资 金 日 记 账",
+   "font_size": 18,
+   "bold": true,
+   "h_align": "center",
+   "v_align": "middle",
+   "fore_color": "#163D46",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "extend_mode": "none"
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "账户：基本户 6222 **** 8831　　2025 年 9 月　　期初余额 128,500.00 元",
+   "font_size": 9,
+   "h_align": "center",
+   "v_align": "middle",
+   "fore_color": "#5A6B75",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   },
+   "extend_mode": "none"
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "日期",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "text": "摘要",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "text": "借方（收）",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "text": "贷方（付）",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "text": "余额",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "vertical",
+   "expr": "cj.select(date)",
+   "h_align": "center",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "cj.select(summary)",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "cj.select(debit)",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "cj.select(credit)",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "if(seq(A4)==1,C4-D4+${openingBalance},E4[-1]+C4-D4)",
+   "bold": true,
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "本期合计",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#F1F4F7",
+   "merge": {
+    "rows": 1,
+    "cols": 2
+   },
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "expr": "cj.sum(debit)",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "expr": "cj.sum(credit)",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "expr": "${openingBalance}+C5-D5",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 6,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "说明：余额列取上一行余额结转（E4[-1] 相对偏移），首行加期初余额；期初值来自宏 openingBalance。",
+   "font_size": 9,
+   "fore_color": "#5A6B75",
+   "merge": {
+    "rows": 1,
+    "cols": 5
+   }
+  }
+ ]
+}

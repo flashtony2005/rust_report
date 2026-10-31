@@ -1,0 +1,48 @@
+{
+  "data_dir": "data",
+  "description": "列出低于安全库存的商品并显示缺口（已预过滤 quantity<safety_stock，shortage 已预生成）",
+  "id": "inventory-low-stock",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "product",
+          "shortage",
+          "sku",
+          "warehouse"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 2,
+    "domain": [
+      "采购库存"
+    ],
+    "examples": [
+      "列出低于安全库存的商品并显示缺口数量"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "低库存",
+      "安全库存",
+      "库存预警",
+      "缺货预警"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "低库存预警清单",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

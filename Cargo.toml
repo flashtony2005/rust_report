@@ -1,0 +1,9 @@
+[workspace]
+members = ["crates/rpx-model", "crates/rpx-cli", "crates/rpx-runtime", "crates/rpx-engine", "crates/rpx-export", "crates/rpx-server", "crates/rpx-ds", "crates/rpx-format", "crates/rpx-semantic"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+
+[profile.dev]
+opt-level = 0

@@ -1,0 +1,4 @@
+sku,product,warehouse,quantity,safety_stock,shortage
+SKU-002,产品Y,一号仓,10,30,20
+SKU-003,产品Z,二号仓,5,40,35
+SKU-005,产品V,三号仓,8,25,17

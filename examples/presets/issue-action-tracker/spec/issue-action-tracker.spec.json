@@ -1,0 +1,47 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "问题整改跟踪表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "issue_id",
+      "label": "编号"
+    },
+    {
+      "field": "issue",
+      "label": "问题"
+    },
+    {
+      "field": "owner",
+      "label": "责任人"
+    },
+    {
+      "field": "priority",
+      "label": "优先级"
+    },
+    {
+      "field": "status",
+      "label": "状态"
+    },
+    {
+      "field": "due_date",
+      "label": "截止日期"
+    },
+    {
+      "field": "resolution",
+      "label": "整改措施"
+    }
+  ],
+  "measures": [
+    {
+      "field": "actual_cost",
+      "agg": "sum",
+      "label": "实际成本",
+      "format": "#,##0"
+    }
+  ]
+}

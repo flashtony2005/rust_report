@@ -1,0 +1,45 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "出入库流水表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "date",
+      "label": "日期"
+    },
+    {
+      "field": "sku",
+      "label": "SKU"
+    },
+    {
+      "field": "product",
+      "label": "商品"
+    },
+    {
+      "field": "warehouse",
+      "label": "仓库"
+    },
+    {
+      "field": "reference_id",
+      "label": "单据号"
+    }
+  ],
+  "measures": [
+    {
+      "field": "inbound_qty",
+      "agg": "sum",
+      "label": "入库量",
+      "format": "#,##0"
+    },
+    {
+      "field": "outbound_qty",
+      "agg": "sum",
+      "label": "出库量",
+      "format": "#,##0"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "KPI 指标明细表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "period",
+      "label": "期间"
+    },
+    {
+      "field": "department",
+      "label": "部门"
+    },
+    {
+      "field": "metric_name",
+      "label": "指标"
+    },
+    {
+      "field": "unit",
+      "label": "单位"
+    }
+  ],
+  "measures": [
+    {
+      "field": "target_value",
+      "agg": "sum",
+      "label": "目标值",
+      "format": "#,##0.0"
+    },
+    {
+      "field": "actual_value",
+      "agg": "sum",
+      "label": "实际值",
+      "format": "#,##0.0"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+[package]
+name = "rpx-engine"
+version = "0.16.0"
+edition.workspace = true
+description = "ReportLite calculated-state engine (extension / evaluation / merge / pagination), pure std, zero dependencies"
+
+[dependencies]
+rpx-model = { path = "../rpx-model", default-features = false }
+
+[dev-dependencies]
+# engine 契约测试直接读 .rpx 夹具；库本身只依赖零依赖类型。
+rpx-model = { path = "../rpx-model", features = ["legacy-rpx"] }
+rpx-format = { path = "../rpx-format" }
+serde_json = "1"
+base64 = "0.22"

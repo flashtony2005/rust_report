@@ -1,0 +1,52 @@
+{
+  "data_dir": "data",
+  "description": "列出本月所有收支记录，分别显示收入和支出",
+  "id": "fin-income-expense-detail",
+  "meta": {
+    "capabilities": [
+      "detail_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "account",
+          "category",
+          "date",
+          "expense",
+          "income",
+          "summary"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "财务"
+    ],
+    "examples": [
+      "列出本月所有收支记录，分别显示收入和支出",
+      "收支明细表"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "收支",
+      "收入",
+      "支出",
+      "日记账",
+      "流水"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "detail"
+  },
+  "name": "收支明细表",
+  "tags": [
+    "detail",
+    "detail_row"
+  ],
+  "template": "template.json",
+  "version": 1
+}

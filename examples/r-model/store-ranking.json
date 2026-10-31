@@ -1,0 +1,32 @@
+{
+ "version": 1,
+ "grid": {"rows": 6, "cols": 7},
+ "datasets": [{"name": "sales", "file": {"file_name": "store-sales.csv", "encoding": "UTF-8", "delimiter": ","}}],
+ "col_props": [
+  {"col": 1, "width": 14}, {"col": 2, "width": 18}, {"col": 3, "width": 15},
+  {"col": 4, "width": 13}, {"col": 5, "width": 13}, {"col": 6, "width": 15},
+  {"col": 7, "width": 13}
+ ],
+ "row_props": [{"row": 1, "height": 30}, {"row": 3, "height": 22}, {"row": 5, "height": 22}],
+ "cells": [
+  {"row": 1, "col": 1, "font_name": "Microsoft YaHei", "font_size": 18, "bold": true, "h_align": "center", "v_align": "middle", "fore_color": "#163D46", "text": "门店销售排名 · 组内排名与组内占比", "merge": {"rows": 1, "cols": 6}, "extend_mode": "none"},
+  {"row": 2, "col": 1, "font_name": "Microsoft YaHei", "font_size": 9, "h_align": "center", "v_align": "middle", "fore_color": "#5A6B75", "text": "组内口径用根坐标把集合收窄到同一大区；组内排名统计同区比我大的个数；合计行回到全体", "merge": {"rows": 1, "cols": 6}, "extend_mode": "none"},
+  {"row": 3, "col": 1, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "大区"},
+  {"row": 3, "col": 2, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "门店"},
+  {"row": 3, "col": 3, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "销售额"},
+  {"row": 3, "col": 4, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "组内排名"},
+  {"row": 3, "col": 5, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "组内占比"},
+  {"row": 3, "col": 6, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#2C4A5A", "fore_color": "#FFFFFF", "text": "组内第一"},
+  {"row": 4, "col": 1, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "center", "expr": "sales.group(region)", "extend_mode": "vertical", "merge_same": "vertical"},
+  {"row": 4, "col": 2, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "left", "expr": "sales.select(store)", "left_head": "A4", "extend_mode": "vertical"},
+  {"row": 4, "col": 3, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "right", "expr": "sales.select(amount)", "left_head": "B4", "format": "#,##0", "extend_mode": "none"},
+  {"row": 4, "col": 4, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "center", "expr": "count(C4[`0]{C4>$C4 and A4==$A4})+1", "left_head": "B4", "format": "0", "extend_mode": "none"},
+  {"row": 4, "col": 5, "font_name": "Microsoft YaHei", "font_size": 10, "v_align": "middle", "h_align": "right", "expr": "C4/sum(C4[`0]{A4==$A4})", "left_head": "B4", "format": "0.00%", "extend_mode": "none"},
+  {"row": 4, "col": 6, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "v_align": "middle", "h_align": "center", "fore_color": "#B4531F", "expr": "if(D4==1,'★ 组内第一','')", "left_head": "B4", "extend_mode": "none"},
+  {"row": 5, "col": 1, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#F1F4F7", "text": "合计"},
+  {"row": 5, "col": 2, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "center", "v_align": "middle", "back_color": "#F1F4F7", "text": "8 家门店"},
+  {"row": 5, "col": 3, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "right", "v_align": "middle", "back_color": "#F1F4F7", "expr": "sum(C4[`0]{})", "format": "#,##0", "extend_mode": "none"},
+  {"row": 5, "col": 5, "font_name": "Microsoft YaHei", "font_size": 10, "bold": true, "h_align": "right", "v_align": "middle", "back_color": "#F1F4F7", "expr": "sum(C4[`0]{})/C5", "format": "0.00%", "extend_mode": "none"},
+  {"row": 6, "col": 1, "font_name": "Microsoft YaHei", "font_size": 9, "fore_color": "#5A6B75", "text": "说明：组内排名用根坐标定位到同一大区再统计；组内占比的 {} 不写坐标，管辖范围取“当前格与目标格的共同主格”。", "merge": {"rows": 1, "cols": 6}, "extend_mode": "none"}
+ ]
+}

@@ -1,0 +1,339 @@
+{
+ "version": 1,
+ "grid": {
+  "rows": 6,
+  "cols": 8
+ },
+ "datasets": [
+  {
+   "name": "st",
+   "file": {
+    "file_name": "stock-ledger.csv",
+    "encoding": "UTF-8",
+    "delimiter": ","
+   }
+  }
+ ],
+ "col_props": [
+  {
+   "col": 1,
+   "width": 18
+  },
+  {
+   "col": 2,
+   "width": 40
+  },
+  {
+   "col": 3,
+   "width": 10
+  },
+  {
+   "col": 4,
+   "width": 18
+  },
+  {
+   "col": 5,
+   "width": 18
+  },
+  {
+   "col": 6,
+   "width": 18
+  },
+  {
+   "col": 7,
+   "width": 18
+  },
+  {
+   "col": 8,
+   "width": 20
+  }
+ ],
+ "row_props": [
+  {
+   "row": 1,
+   "height": 13
+  },
+  {
+   "row": 3,
+   "height": 8
+  },
+  {
+   "row": 4,
+   "height": 7
+  },
+  {
+   "row": 5,
+   "height": 7
+  },
+  {
+   "row": 6,
+   "height": 7
+  }
+ ],
+ "printing": {
+  "auto_size": false
+ },
+ "cells": [
+  {
+   "row": 1,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "库存进销存台账",
+   "font_size": 18,
+   "bold": true,
+   "h_align": "center",
+   "v_align": "middle",
+   "fore_color": "#163D46",
+   "merge": {
+    "rows": 1,
+    "cols": 8
+   },
+   "extend_mode": "none"
+  },
+  {
+   "row": 2,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "2025 年 9 月　期末结存 = 期初 + 入库 − 出库，逐行计算；合计行只汇总入库、出库与入库金额",
+   "font_size": 9,
+   "h_align": "center",
+   "v_align": "middle",
+   "fore_color": "#5A6B75",
+   "merge": {
+    "rows": 1,
+    "cols": 8
+   },
+   "extend_mode": "none"
+  },
+  {
+   "row": 3,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "物料编码",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "text": "物料名称",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "text": "单位",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "text": "期初结存",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "text": "本期入库",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "text": "本期出库",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "text": "期末结存",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 3,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "text": "入库金额",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#2C4A5A",
+   "fore_color": "#FFFFFF",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "vertical",
+   "expr": "st.select(sku)",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 2,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "st.select(name)",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 3,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "st.select(unit)",
+   "h_align": "center",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 4,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "st.select(begin)",
+   "format": "#,##0",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "st.select(in_qty)",
+   "format": "#,##0",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "st.select(out_qty)",
+   "format": "#,##0",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 7,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "st.select(begin+in_qty-out_qty)",
+   "format": "#,##0",
+   "bold": true,
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 4,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "extend_mode": "none",
+   "left_head": "A4",
+   "expr": "st.select(in_amt)",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "合计",
+   "bold": true,
+   "h_align": "center",
+   "back_color": "#F1F4F7",
+   "merge": {
+    "rows": 1,
+    "cols": 3
+   },
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 5,
+   "font_name": "Microsoft YaHei",
+   "expr": "st.sum(in_qty)",
+   "bold": true,
+   "format": "#,##0",
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 6,
+   "font_name": "Microsoft YaHei",
+   "expr": "st.sum(out_qty)",
+   "bold": true,
+   "format": "#,##0",
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "v_align": "middle"
+  },
+  {
+   "row": 5,
+   "col": 8,
+   "font_name": "Microsoft YaHei",
+   "expr": "st.sum(in_amt)",
+   "bold": true,
+   "back_color": "#F1F4F7",
+   "h_align": "right",
+   "format": "#,##0.00",
+   "v_align": "middle"
+  },
+  {
+   "row": 6,
+   "col": 1,
+   "font_name": "Microsoft YaHei",
+   "text": "说明：期末结存是同一行三个字段的表达式结果，数据变化后自动重算，不需要手工维护余额列。",
+   "font_size": 9,
+   "fore_color": "#5A6B75",
+   "merge": {
+    "rows": 1,
+    "cols": 8
+   }
+  }
+ ]
+}

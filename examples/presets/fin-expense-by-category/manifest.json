@@ -1,0 +1,51 @@
+{
+  "data_dir": "data",
+  "description": "按部门和费用类别统计支出金额",
+  "id": "fin-expense-by-category",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "category",
+          "department",
+          "expense"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "财务"
+    ],
+    "examples": [
+      "按部门和费用类别统计支出金额"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "费用类别分析",
+      "部门费用",
+      "费用分析",
+      "支出分类"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "费用类别分析表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

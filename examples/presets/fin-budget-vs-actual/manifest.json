@@ -1,0 +1,59 @@
+{
+  "data_dir": "data",
+  "description": "按部门和预算项目对比预算与实际（value_type 预算/实际已规范到同一数据集）",
+  "id": "fin-budget-vs-actual",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "cellset",
+      "grand_total",
+      "group_col",
+      "group_row",
+      "subtotal"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "budget_item",
+          "department",
+          "value_type"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 2,
+    "domain": [
+      "财务"
+    ],
+    "examples": [
+      "按部门和预算项目对比预算与实际发生额"
+    ],
+    "extends": [
+      "row",
+      "col"
+    ],
+    "keywords": [
+      "预算对比",
+      "预算实际",
+      "预算执行",
+      "部门预算"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "crosstab"
+  },
+  "name": "预算执行对比表",
+  "tags": [
+    "agg_sum",
+    "cellset",
+    "crosstab",
+    "grand_total",
+    "group_col",
+    "group_row",
+    "subtotal"
+  ],
+  "template": "template.json",
+  "version": 1
+}

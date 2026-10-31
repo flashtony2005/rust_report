@@ -1,0 +1,301 @@
+//! 表达式语法分析 —— 手写 **Pratt（运算符优先级）解析器**。
+//!
+//! 算法正文见 `docs/m2-engine-design.md` §13.1（优先级表）与 §13.2（节点清单）。
+//!
+//! 本文件只管**什么时候结合**（结合力）；「结合成什么节点」在 [`super::atom`]，
+//! 参数切分与调用组装在 [`super::call`]。token 类型在 [`super::token`]，扫描在 [`super::lexer`]。
+//!
+//! # 为什么是 Pratt，而不是照抄产品的线性扫描
+//!
+//! 产品的 `Expression.create`（`Expression.java:289-456`）是一趟**线性扫描 + 右脊下探**的
+//! 运算符优先级解析器：每读到一个 token，就沿 `home` 的 `right` 指针下探到
+//! `priority` 不再更大的位置（`:442` 的严格 `<`），把新节点接上去（`:445` 的
+//! `node.setLeft(right)`）。它与 Pratt 解析器在**同一张优先级表**下产出**同构的二叉树**
+//! （左结合由严格 `<` 保证，见 §13.1 的等价性论证）。本切片选 Pratt 是因为它把
+//! "前缀/中缀/后缀"三类位置显式分开，可读、可测；绑定力数值**直接取产品源码的
+//! `priority`**，两边不会漂移。
+//!
+//! # 三条位置规则（都对齐产品）
+//!
+//! | 位置 | 绑定力 | 依据 |
+//! |------|--------|------|
+//! | 前缀 `!`/`not`/`&` | 16 | `Not.java:17`、`Address.java:24` |
+//! | 后缀 `(`/`[`（`Offset`/`Move`/`DSOffset`） | 17 | `Offset.java:18`、`Move.java:54`、`DSOffset.java:18` |
+//! | 前缀 `-`/`+` | 18 | `Negative.java:21`、`Plus.java:18` |
+//! | 原子 | 19 | `Node.java:54` 的默认值 |
+//!
+//! 于是 `not B2[1]` ⇒ `not (B2[1])`（后缀 17 ≥ 16），而 `-B2[1]` ⇒ `(-B2)[1]`（17 < 18）。
+//! 这两条**都是从优先级推出来的**，不是约定 —— 见 §13.1。
+//!
+//! # 为什么 Pratt 与线性右脊下探等价（`Node.java:57` 是关键）
+//!
+//! 括号里的节点会拿到 **`priority += inBrackets * 20`**（`Node.java:57`）—— 于是
+//! `(1+2)*3` 里括号子树的优先级是 33，任何运算符都插不进去，树的形状被锁死。
+//! Pratt 用上面的三处绑定力达到同一效果：`(1+2)` 走前缀位置的递归 `parse_bp(0)`，
+//! 等价于 `+20` 的作用。
+//!
+//! ⚠ **一处已知不建模**：函数节点的 `priority` 有三个类改过（`lefthead`/`tophead`=17、
+//! `mcorder`=16，见 [`super::names::fun_priority`]），而本切片把**所有调用当原子（19）**。
+//! 只有当这些函数与前缀/后缀混写时树形才可能不同，§13.5 已登记为未覆盖。
+
+use crate::error::Result;
+use crate::params::ParamTable;
+use crate::value::Value;
+
+use super::ast::{Expr, ParamKind, UnOp};
+use super::atom::unary;
+use super::classify::{err, infix};
+use super::lexer::lex;
+use super::token::Tok;
+
+/// 后缀 `(...)`/`[...]` 的绑定力（`SpecialFunction` 子类统一 17）。
+const POSTFIX_BP: u8 = 17;
+/// 前缀 `!` / `not` / `&`。
+const PREFIX_NOT_BP: u8 = 16;
+/// 前缀一元 `-` / `+`。
+const PREFIX_SIGN_BP: u8 = 18;
+
+/// 解析一条完整表达式（顶层）。要求整串被消费完。
+///
+/// **无参数表**版本（等价 [`ParamTable::EMPTY`]）：表达式里出现 `@名` 会在
+/// 建树期报 [`crate::error::EngineError::UnknownParam`]（显式失败，不静默当
+/// 无参数算）。需要参数语义的调用点用 [`parse_with`]。
+pub fn parse(src: &str) -> Result<Expr> {
+    parse_with(src, &ParamTable::EMPTY)
+}
+
+/// 带参数表解析（M3-01 参数通道）：`@名` / `@@名` 在建树期把参数值**内联**成
+/// [`Expr::Const`]（与产品 `Expression.java:183-188` 的 `Constant(getParamValue(id))`
+/// 同构；完整语义见 [`crate::params`] 模块文档）。
+pub fn parse_with(src: &str, params: &ParamTable) -> Result<Expr> {
+    let toks = lex(src)?;
+    parse_tokens_with(&toks, params)
+}
+
+/// 在给定 token 切片上解析一条表达式（无参数表版，见 [`parse`]）。
+pub fn parse_tokens(toks: &[Tok]) -> Result<Expr> {
+    parse_tokens_with(toks, &ParamTable::EMPTY)
+}
+
+/// 在给定 token 切片上解析一条表达式（参数/列表的每个子段都走这里）。
+pub fn parse_tokens_with(toks: &[Tok], params: &ParamTable) -> Result<Expr> {
+    let mut p = Parser {
+        toks,
+        pos: 0,
+        params,
+    };
+    let e = p.parse_bp(0)?;
+    if !matches!(p.peek(), Tok::Eof) {
+        return Err(err(format!(
+            "表达式在 {} 处无法继续解析（不支持的写法）",
+            p.peek().label()
+        )));
+    }
+    Ok(e)
+}
+
+/// Pratt 状态机：只带 token 切片与游标，**语义全在 [`super::atom`]**。
+pub(super) struct Parser<'a> {
+    pub(super) toks: &'a [Tok],
+    pub(super) pos: usize,
+    /// 参数表（M3-01）：`atom.rs` 的 `@名`/`@@名` 分支在建树期查它绑定值。
+    pub(super) params: &'a ParamTable,
+}
+
+impl<'a> Parser<'a> {
+    pub(super) fn peek(&self) -> &Tok {
+        self.toks.get(self.pos).unwrap_or(&Tok::Eof)
+    }
+
+    pub(super) fn bump(&mut self) {
+        if self.pos < self.toks.len() {
+            self.pos += 1;
+        }
+    }
+
+    /// Pratt 主循环。`min_bp` 是当前层要求的最小绑定力。
+    pub(super) fn parse_bp(&mut self, min_bp: u8) -> Result<Expr> {
+        let mut lhs = self.parse_prefix()?;
+        loop {
+            match self.peek() {
+                Tok::LParen if POSTFIX_BP >= min_bp => {
+                    self.bump();
+                    self.take_group(Tok::RParen)?; // Offset：参数对 is_extend 无用，丢弃
+                                                   // 占位下标：`(...)` 形态内容未被 AST 建模（与旧版同口径）
+                    lhs = Expr::Index {
+                        target: Box::new(lhs),
+                        index: Box::new(Expr::Const(Value::Null)),
+                    };
+                }
+                Tok::LBracket if POSTFIX_BP >= min_bp => {
+                    self.bump();
+                    // ⛔ 下标内容**不能先当表达式解析**：坐标里的 `;`（纵展链与横伸链的
+                    //    分隔符）不是中缀运算符，`parse_bp` 会在它前面停下。
+                    //    先取 token 片段，再按后缀形态分流（`.列` / 坐标 / 旧 Move 形态）。
+                    let inner = self.take_group(Tok::RBracket)?;
+                    // `.列` 后缀 ⇒ `ds[i].列`（DSOffset + DSMember 合成节点）。
+                    // `.` 不是分隔符 ⇒ 后缀粘在 word 上（lexer scanId）。
+                    // ⚠ 与产品**有意偏差**：产品按 left 求值结果分派
+                    // （`DSOffset.java:33-37`：非 DataSet ⇒ `DSMember.left` 错误），
+                    // 本仓按形态分流（Value 无 DataSet 变体，见 DsOffsetColumn 文档）。
+                    if let Tok::Word(c) = self.peek().clone() {
+                        if c.starts_with('.') && c.len() > 1 {
+                            self.bump();
+                            let index = parse_tokens_with(inner, self.params)?;
+                            // ds 名从 target 取（CellRef 的暂定 id / Unknown 的词）
+                            let ds = match &lhs {
+                                Expr::CellRef { id, .. } => id.clone(),
+                                Expr::Unknown(w) => w.clone(),
+                                other => {
+                                    return Err(err(format!(
+                                        "`[..].列` 的左操作数须是数据集名，实得 {other:?}"
+                                    )))
+                                }
+                            };
+                            lhs = Expr::DsOffsetColumn {
+                                ds,
+                                offset: Box::new(index),
+                                col: c[1..].to_string(),
+                            };
+                            continue;
+                        }
+                    }
+                    // 格号 + 坐标 ⇒ `Move`（层次坐标 / 位移坐标 / 根坐标）。
+                    // ⚠ 顺序：`.列` 分支必须在前面 —— `ds1` 形态上也是格号
+                    // （`is_cell_id("ds1")` 为真），先判坐标会把 `ds1[2].qty` 吞掉。
+                    if let Expr::CellRef { id, .. } = &lhs {
+                        let target = id.clone();
+                        let spec = super::coord::parse_coord(inner)?;
+                        lhs = Expr::Coord {
+                            target,
+                            spec: Box::new(spec),
+                        };
+                        continue;
+                    }
+                    // 其余 ⇒ Move/Offset 形态（eval 报 UnsupportedExpr）
+                    lhs = Expr::Index {
+                        target: Box::new(lhs),
+                        index: Box::new(parse_tokens_with(inner, self.params)?),
+                    };
+                }
+                // 后缀 `{...}`（`Select`，优先级 17）—— M7-8 补：
+                // 教程的格集/条件记号 `Cellx[坐标]{条件}`（`058_fzhz128`），
+                // 2010 设计文档把它写成 `Cellx{坐标}[条件]`（**写反了**，见 `coord.rs`）。
+                Tok::LBrace if POSTFIX_BP >= min_bp => {
+                    self.bump();
+                    lhs = self.parse_brace_after(lhs)?;
+                }
+                t => {
+                    let Some((op, bp)) = infix(t) else { break };
+                    if bp < min_bp {
+                        break;
+                    }
+                    self.bump();
+                    // 左结合 ⇒ 右操作数用 bp+1 绑定力
+                    let rhs = self.parse_bp(bp + 1)?;
+                    lhs = Expr::Binary {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    };
+                }
+            }
+        }
+        Ok(lhs)
+    }
+
+    fn parse_prefix(&mut self) -> Result<Expr> {
+        let t = self.peek().clone();
+        match t {
+            Tok::Bang => {
+                self.bump();
+                Ok(unary(UnOp::Not, self.parse_bp(PREFIX_NOT_BP)?))
+            }
+            Tok::Amp => {
+                self.bump();
+                Ok(unary(UnOp::Address, self.parse_bp(PREFIX_NOT_BP)?))
+            }
+            Tok::Minus => {
+                self.bump();
+                Ok(unary(UnOp::Neg, self.parse_bp(PREFIX_SIGN_BP)?))
+            }
+            Tok::Plus => {
+                self.bump();
+                Ok(unary(UnOp::Pos, self.parse_bp(PREFIX_SIGN_BP)?))
+            }
+            // `not` 是关键字式前缀运算符（Expression.java:163-165）
+            Tok::Word(ref w) if w.eq_ignore_ascii_case("not") => {
+                self.bump();
+                Ok(unary(UnOp::Not, self.parse_bp(PREFIX_NOT_BP)?))
+            }
+            // `(` 在原子位置是**分组**（Expression.java:302-317：preNode 为空或运算符时不起 Offset）
+            Tok::LParen => {
+                self.bump();
+                let inner = self.take_group(Tok::RParen)?;
+                // 成员列表 `(a,b)` 复用参数树的顶层切分；普通分组保留 Pratt 绑定力。
+                if super::classify::top_level_kind(inner) == ParamKind::Comma || inner.is_empty() {
+                    let (kind, items) = super::call::parse_params(inner, self.params)?;
+                    Ok(Expr::ValueList { kind, items })
+                } else {
+                    parse_tokens_with(inner, self.params)
+                }
+            }
+            Tok::LBracket => self.parse_value_list(),
+            Tok::LBrace => self.parse_select(),
+            Tok::Word(_) | Tok::Str(_) => self.parse_primary(),
+            other => Err(err(format!("表达式不能以 {} 开头", other.label()))),
+        }
+    }
+
+    /// 取到与 `close` 配对的括号，返回**不含括号**的 token 切片，并把游标推进到括号之后。
+    pub(super) fn take_group(&mut self, close: Tok) -> Result<&'a [Tok]> {
+        let toks: &'a [Tok] = self.toks;
+        let start = self.pos;
+        let mut depth = 0i32;
+        let mut end = None;
+        let mut i = self.pos;
+        while i < toks.len() {
+            match toks[i].clone() {
+                Tok::Eof => break,
+                Tok::LParen | Tok::LBracket | Tok::LBrace => depth += 1,
+                Tok::RParen | Tok::RBracket | Tok::RBrace => {
+                    if depth == 0 {
+                        if toks[i] == close {
+                            end = Some(i);
+                        } else {
+                            return Err(err(format!(
+                                "括号不匹配：期望 {}，遇到 {}",
+                                close.label(),
+                                toks[i].label()
+                            )));
+                        }
+                        break;
+                    }
+                    depth -= 1;
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        match end {
+            Some(e) => {
+                self.pos = e + 1;
+                Ok(&toks[start..e])
+            }
+            None => Err(err(format!("括号不匹配：缺少 {}", close.label()))),
+        }
+    }
+
+    pub(super) fn expect(&mut self, want: Tok) -> Result<()> {
+        if self.peek() == &want {
+            self.bump();
+            Ok(())
+        } else {
+            Err(err(format!(
+                "期望 {}，实际是 {}",
+                want.label(),
+                self.peek().label()
+            )))
+        }
+    }
+}

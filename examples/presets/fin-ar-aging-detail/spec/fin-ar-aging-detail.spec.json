@@ -1,0 +1,35 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "应收账款账龄明细表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "customer",
+      "label": "客户"
+    },
+    {
+      "field": "invoice_id",
+      "label": "发票号"
+    },
+    {
+      "field": "due_date",
+      "label": "到期日"
+    },
+    {
+      "field": "days_past_due",
+      "label": "逾期天数"
+    }
+  ],
+  "measures": [
+    {
+      "field": "amount",
+      "agg": "sum",
+      "label": "应收余额",
+      "format": "#,##0.00"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "销售订单明细表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "list",
+  "row_dims": [
+    {
+      "field": "order_id",
+      "label": "订单号"
+    },
+    {
+      "field": "order_date",
+      "label": "日期"
+    },
+    {
+      "field": "customer",
+      "label": "客户"
+    },
+    {
+      "field": "salesperson",
+      "label": "销售人员"
+    },
+    {
+      "field": "product",
+      "label": "产品"
+    }
+  ],
+  "measures": [
+    {
+      "field": "quantity",
+      "agg": "sum",
+      "label": "数量",
+      "format": "#,##0"
+    },
+    {
+      "field": "amount",
+      "agg": "sum",
+      "label": "销售金额",
+      "format": "#,##0.00"
+    }
+  ]
+}

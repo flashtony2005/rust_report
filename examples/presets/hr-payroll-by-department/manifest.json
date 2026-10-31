@@ -1,0 +1,50 @@
+{
+  "data_dir": "data",
+  "description": "按部门汇总薪酬总额",
+  "id": "hr-payroll-by-department",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "grand_total",
+      "group_row"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "department",
+          "salary"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 1,
+    "domain": [
+      "人事"
+    ],
+    "examples": [
+      "按部门汇总薪酬总额"
+    ],
+    "extends": [
+      "row"
+    ],
+    "keywords": [
+      "薪酬汇总",
+      "部门薪酬",
+      "工资总额",
+      "薪资"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "grouped"
+  },
+  "name": "部门薪酬汇总表",
+  "tags": [
+    "agg_sum",
+    "grand_total",
+    "group_row",
+    "grouped"
+  ],
+  "template": "template.json",
+  "version": 1
+}

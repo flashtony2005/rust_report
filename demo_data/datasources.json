@@ -1,0 +1,3 @@
+{
+  "demo": "sqlite:///Users/lushaohui/project/rust_report/rust_report/demo_data/report_demo.db"
+}

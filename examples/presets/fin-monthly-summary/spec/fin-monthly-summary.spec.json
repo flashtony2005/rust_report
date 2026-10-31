@@ -1,0 +1,33 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "月度收支汇总表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "grouped",
+  "row_dims": [
+    {
+      "field": "month",
+      "label": "月份",
+      "sort": "asc"
+    }
+  ],
+  "measures": [
+    {
+      "field": "income",
+      "agg": "sum",
+      "label": "收入",
+      "format": "#,##0.00"
+    },
+    {
+      "field": "expense",
+      "agg": "sum",
+      "label": "支出",
+      "format": "#,##0.00"
+    }
+  ],
+  "totals": {
+    "grand": true
+  }
+}

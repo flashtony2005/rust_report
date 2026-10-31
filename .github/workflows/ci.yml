@@ -1,0 +1,119 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: gate (Rust + Web + e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Check JSON-only build (no legacy RPX)
+        run: |
+          cargo check -p rpx-model --no-default-features
+          cargo check -p rpx-cli --no-default-features
+
+      - name: Run project gate G1-G9
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/gate.sh 2>&1 | tee /tmp/gate.log
+
+      - name: Run CLI + HTTP end-to-end smoke
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/e2e_smoke.sh 2>&1 | tee /tmp/e2e.log
+
+      - name: Run JSON-only smoke (no legacy RPX)
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/json_only_smoke.sh 2>&1 | tee /tmp/json-only.log
+
+      - name: Upload gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-logs
+          path: |
+            /tmp/gate.log
+            /tmp/e2e.log
+            /tmp/json-only.log
+          if-no-files-found: ignore
+
+  legacy:
+    name: legacy-rpx tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run legacy tests
+        shell: bash
+        run: bash scripts/legacy_tests.sh
+
+  web-e2e:
+    name: Web auth Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run auth E2E
+        working-directory: web
+        run: npm run e2e

@@ -1,0 +1,58 @@
+{
+  "data_dir": "data",
+  "description": "行按指定维度、列按另一维度展开，交叉格聚合指定指标",
+  "id": "generic-multidimensional-crosstab",
+  "meta": {
+    "capabilities": [
+      "agg_sum",
+      "cellset",
+      "grand_total",
+      "group_col",
+      "group_row",
+      "subtotal"
+    ],
+    "datasets": {
+      "count": 1,
+      "fields": {
+        "d": [
+          "amount",
+          "category",
+          "region"
+        ]
+      },
+      "requires_sql": false
+    },
+    "difficulty": 2,
+    "domain": [
+      "通用"
+    ],
+    "examples": [
+      "行按指定维度展开，列按另一维度展开，交叉格聚合指定指标"
+    ],
+    "extends": [
+      "row",
+      "col"
+    ],
+    "keywords": [
+      "多维交叉统计",
+      "多维聚合",
+      "任意维度交叉",
+      "行列交叉"
+    ],
+    "kind": "business",
+    "schema": "rpx-template-meta/v1",
+    "shape": "crosstab"
+  },
+  "name": "多维交叉统计表",
+  "tags": [
+    "agg_sum",
+    "cellset",
+    "crosstab",
+    "grand_total",
+    "group_col",
+    "group_row",
+    "subtotal"
+  ],
+  "template": "template.json",
+  "version": 1
+}

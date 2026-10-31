@@ -1,0 +1,27 @@
+{
+  "schema": "rpx-spec/v1",
+  "title": "应收账款账龄分组表",
+  "dataset": {
+    "name": "d",
+    "file": "sample.csv"
+  },
+  "layout": "grouped",
+  "row_dims": [
+    {
+      "field": "aging_bucket",
+      "label": "账龄区间",
+      "sort": "asc"
+    }
+  ],
+  "measures": [
+    {
+      "field": "amount",
+      "agg": "sum",
+      "label": "应收余额",
+      "format": "#,##0.00"
+    }
+  ],
+  "totals": {
+    "grand": true
+  }
+}

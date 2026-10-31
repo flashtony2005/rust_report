@@ -1,0 +1,668 @@
+{
+  "schema": "rpx-questions/v1",
+  "dsn": "demo-sqlite",
+  "note": "业务问题回归集（business_report_agent.md §10 P0 验收）。每条 = 一句业务说法 + 它对应的正确查询 + 可核对的结果形状。期望值不硬编码数字 —— 由独立 SQL 现算，避免样本换了测试就假红。",
+  "questions": [
+    {
+      "id": "q01",
+      "intent": "按区域看销售额",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "sort": [
+          {
+            "by": {
+              "metric": "sales_amount"
+            },
+            "direction": "desc"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 4,
+        "cols": 2,
+        "ordered_first": "华北",
+        "note": "华北 12755.5 最高"
+      }
+    },
+    {
+      "id": "q02",
+      "intent": "各个品类卖了多少件",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_qty"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_category"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 3,
+        "cols": 2
+      }
+    },
+    {
+      "id": "q03",
+      "intent": "按区域和品类交叉看销售额",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          },
+          {
+            "ref": "sales_category"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 12,
+        "cols": 3
+      }
+    },
+    {
+      "id": "q04",
+      "intent": "销售额超过 11000 的区域",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "filters": [
+          {
+            "metric": "sales_amount",
+            "op": "gt",
+            "value": 11000
+          }
+        ]
+      },
+      "expect": {
+        "rows": 2,
+        "sql_has": [
+          "HAVING"
+        ],
+        "note": "净额口径（SUM(amount)-SUM(discount)）>11000 只有华北/西南"
+      }
+    },
+    {
+      "id": "q05",
+      "intent": "只看区域总额超过 11000 的区域，但按区域+品类出数",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          },
+          {
+            "ref": "sales_category"
+          }
+        ],
+        "filters": [
+          {
+            "metric": "sales_amount",
+            "op": "gt",
+            "value": 11000,
+            "scope": "partition",
+            "partition_by": [
+              "sales_region"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "rows": 6,
+        "sql_has": [
+          "IN (SELECT",
+          "GROUP BY"
+        ],
+        "note": "region_total 语义：先算区域净额再筛（2 区域 × 3 品类）"
+      }
+    },
+    {
+      "id": "q06",
+      "intent": "排除办公用品后的区域销售额",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "filters": [
+          {
+            "ref": "sales_category",
+            "op": "ne",
+            "value": "办公用品"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 4,
+        "sql_has": [
+          "<>"
+        ]
+      }
+    },
+    {
+      "id": "q07",
+      "intent": "只看华北和华南",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "filters": [
+          {
+            "ref": "sales_region",
+            "op": "in",
+            "value": [
+              "华北",
+              "华南"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "rows": 2,
+        "cols": 2
+      }
+    },
+    {
+      "id": "q08",
+      "intent": "品类里带「设备」的",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_category"
+          }
+        ],
+        "filters": [
+          {
+            "ref": "sales_category",
+            "op": "like",
+            "value": "%设备%"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 1,
+        "first_dim": "电子设备"
+      }
+    },
+    {
+      "id": "q09",
+      "intent": "销售额最高的前三个区域",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "sort": [
+          {
+            "by": {
+              "metric": "sales_amount"
+            },
+            "direction": "desc"
+          }
+        ],
+        "limit": 3
+      },
+      "expect": {
+        "rows": 3,
+        "ordered_first": "华北",
+        "sql_has": [
+          "LIMIT 3"
+        ]
+      }
+    },
+    {
+      "id": "q10",
+      "intent": "整体销售额是多少",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": []
+      },
+      "expect": {
+        "rows": 1,
+        "cols": 1,
+        "note": "无维度 = 单行合计"
+      }
+    },
+    {
+      "id": "q11",
+      "intent": "销售额超过 999999 的区域（不可能达到）",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "filters": [
+          {
+            "metric": "sales_amount",
+            "op": "gt",
+            "value": 999999
+          }
+        ]
+      },
+      "expect": {
+        "rows": 0,
+        "note": "空结果是合法结果（形状核对会出 warning 而非报错）"
+      }
+    },
+    {
+      "id": "q12",
+      "intent": "2026 年 1 月 15 日的销售额",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "time_range": {
+          "field": "sales_sold_at",
+          "start": "2026-01-15",
+          "end": "2026-01-16"
+        }
+      },
+      "expect": {
+        "rows": 4,
+        "note": "左闭右开：含 1 月 15 日全天"
+      }
+    },
+    {
+      "id": "q13",
+      "intent": "2026 年 2 月的销售额（这个库没有）",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "time_range": {
+          "field": "sales_sold_at",
+          "start": "2026-02-01",
+          "end": "2026-03-01"
+        }
+      },
+      "expect": {
+        "rows": 0,
+        "note": "有维度时无数据就是 0 行（无维度才会出 1 行 NULL）"
+      }
+    },
+    {
+      "id": "q14",
+      "intent": "时间边界：右端开区间（1 月 16 日起不含 15 日数据）",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_qty"
+          }
+        ],
+        "dimensions": [],
+        "time_range": {
+          "field": "sales_sold_at",
+          "start": "2026-01-16",
+          "end": "2026-02-01"
+        }
+      },
+      "expect": {
+        "rows": 1,
+        "first_value_null": true,
+        "note": "右开区间 ⇒ 15 日的数据被排除"
+      }
+    },
+    {
+      "id": "q15",
+      "intent": "今年各区域销售额，和去年同期比",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "time_range": {
+          "field": "sales_sold_at",
+          "preset": "this_year"
+        },
+        "comparison": {
+          "type": "year_over_year"
+        }
+      },
+      "expect": {
+        "rows": 4,
+        "cols": 4,
+        "sql_has": [
+          "CASE WHEN",
+          "NULLIF",
+          "OR"
+        ],
+        "prev_all_null": true,
+        "note": "库里没有 2025 数据 ⇒ 对比列全 NULL、增长率为 NULL（不是除零错）"
+      }
+    },
+    {
+      "id": "q16",
+      "intent": "本月各区域销售额，和上月比",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "time_range": {
+          "field": "sales_sold_at",
+          "start": "2026-01-01",
+          "end": "2026-02-01"
+        },
+        "comparison": {
+          "type": "month_over_month"
+        }
+      },
+      "expect": {
+        "rows": 4,
+        "cols": 4,
+        "prev_all_null": true
+      }
+    },
+    {
+      "id": "q17",
+      "intent": "各品类的折扣总额",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_discount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_category"
+          }
+        ],
+        "sort": [
+          {
+            "by": {
+              "metric": "sales_discount"
+            },
+            "direction": "desc"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 3,
+        "sql_has": [
+          "SUM("
+        ],
+        "note": "折扣 = 相加（率/单价才走 AVG，见 _agg_of 词表）"
+      }
+    },
+    {
+      "id": "q18",
+      "intent": "各区域卖了多少件",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_qty"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "sort": [
+          {
+            "by": {
+              "dimension": "sales_region"
+            },
+            "direction": "asc"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 4,
+        "ordered_first": "华东",
+        "note": "按维度名升序（国内排序）"
+      }
+    },
+    {
+      "id": "q19",
+      "intent": "区域销售额和销量一起看",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          },
+          {
+            "ref": "sales_qty"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 4,
+        "cols": 3
+      }
+    },
+    {
+      "id": "q20",
+      "intent": "销售额（含税还是不含税没说清楚）",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "ambiguities": [
+          {
+            "text": "销售额含税还是不含税",
+            "candidates": [
+              "含税",
+              "不含税"
+            ],
+            "resolved_as": null
+          }
+        ]
+      },
+      "expect": {
+        "reject": true,
+        "reason": "needs_clarification",
+        "note": "未决歧义必须拒绝编译（§4.1）"
+      }
+    },
+    {
+      "id": "q21",
+      "intent": "用一个不存在的指标",
+      "query": {
+        "metrics": [
+          {
+            "ref": "gross_margin"
+          }
+        ],
+        "dimensions": []
+      },
+      "expect": {
+        "reject": true,
+        "reason": "unregistered",
+        "note": "未注册 = 口径未定义，拒绝编译"
+      }
+    },
+    {
+      "id": "q22",
+      "intent": "对比期缺时间窗（应该拒绝）",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [],
+        "comparison": {
+          "type": "year_over_year"
+        }
+      },
+      "expect": {
+        "reject": true,
+        "reason": "comparison_need_time",
+        "note": "没有本期窗口就平移不出对比期"
+      }
+    },
+    {
+      "id": "q23",
+      "intent": "区域总额超 12000 的区域，按月看（partition + 时间）",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_region"
+          }
+        ],
+        "filters": [
+          {
+            "metric": "sales_amount",
+            "op": "gte",
+            "value": 12000,
+            "scope": "partition",
+            "partition_by": [
+              "sales_region"
+            ]
+          }
+        ],
+        "time_range": {
+          "field": "sales_sold_at",
+          "preset": "this_year"
+        }
+      },
+      "expect": {
+        "rows": 1,
+        "ordered_first": "华北",
+        "sql_has": [
+          "IN (SELECT",
+          "HAVING"
+        ]
+      }
+    },
+    {
+      "id": "q24",
+      "intent": "品类是家具且区域是西南的销售额",
+      "query": {
+        "metrics": [
+          {
+            "ref": "sales_amount"
+          }
+        ],
+        "dimensions": [
+          {
+            "ref": "sales_category"
+          }
+        ],
+        "filters": [
+          {
+            "ref": "sales_category",
+            "op": "eq",
+            "value": "家具"
+          },
+          {
+            "ref": "sales_region",
+            "op": "eq",
+            "value": "西南"
+          }
+        ]
+      },
+      "expect": {
+        "rows": 1,
+        "first_dim": "家具",
+        "note": "两个明细筛 = AND"
+      }
+    }
+  ]
+}

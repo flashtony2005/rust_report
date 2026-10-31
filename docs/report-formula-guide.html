@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公式如何设定 —— ReportLite 表达式完全指南</title>
+<style>
+:root { --fg:#1f2328; --fg-muted:#57606a; --border:#d8dee4; --bg:#fff;
+  --bg-muted:#f6f8fa; --accent:#0969da; --accent-soft:#ddf4ff;
+  --green:#1a7f37; --green-soft:#dafbe1; --red:#cf222e; --red-soft:#ffebe9;
+  --amber:#9a6700; --amber-soft:#fff8c5; --purple:#8250df; --purple-soft:#fbefff; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg-muted); color:var(--fg);
+  font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+.wrap { max-width:1060px; margin:0 auto; padding:32px 28px 64px; }
+h1 { font-size:26px; margin:0 0 4px; }
+.sub { color:var(--fg-muted); font-size:13px; margin-bottom:24px; }
+h2 { font-size:20px; margin:40px 0 12px; padding-top:16px; border-top:1px solid var(--border); }
+h3 { font-size:16px; margin:22px 0 8px; }
+p { margin:8px 0; } code { background:var(--bg-muted); border:1px solid var(--border);
+  border-radius:4px; padding:0 5px; font:13px/1.5 ui-monospace,"SF Mono",Consolas,monospace; }
+table.grid { border-collapse:collapse; width:100%; margin:10px 0; font-size:13px; background:#fff; }
+table.grid th { background:var(--bg-muted); text-align:left; }
+table.grid th, table.grid td { border:1px solid var(--border); padding:5px 9px; vertical-align:top; }
+table.grid tr:nth-child(even) td { background:#fafbfc; }
+pre.json { background:#f6f8fa; border:1px solid var(--border); border-radius:8px;
+  padding:12px 14px; font:12.5px/1.55 ui-monospace,"SF Mono",Consolas,monospace;
+  overflow-x:auto; margin:10px 0; }
+.jkey { color:var(--purple); } .jstr { color:var(--green); }
+.jnum { color:var(--accent); } .jkw { color:var(--red); }
+.callout { border-radius:8px; padding:10px 14px; margin:12px 0; font-size:13.5px; border:1px solid; }
+.callout.blue { background:var(--accent-soft); border-color:#54aeff66; }
+.callout.green { background:var(--green-soft); border-color:#4ac26b66; }
+.callout.amber { background:var(--amber-soft); border-color:#d4a72c66; }
+.callout.red { background:var(--red-soft); border-color:#ff818266; }
+.callout b { font-weight:650; }
+.callout ol, .callout ul { margin:6px 0 0; padding-left:20px; }
+code.expr { background:#fff; border:1px solid var(--border); font-weight:600; }
+.pri { font-family:ui-monospace,monospace; font-size:12px; color:var(--purple); font-weight:600; }
+.true { color:var(--green); font-weight:650; } .false { color:var(--red); font-weight:650; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>公式如何设定 —— ReportLite 表达式完全指南</h1>
+<div class="sub">ReportLite Rust 重实现 · 引擎表达式语言（<code>cells[].expr</code>）· 2026-10-16（HEAD <code>d037719</code>）<br>
+契约依据 <code>docs/m2-engine-design.md</code> §13/§14 + <code>docs/format-contract.md</code> 附件 H（求值实测）；实例取自 <code>tests/fixtures/</code></div>
+
+
+<div class="callout red"><b>三个必记（都是反直觉的）</b>
+<ol>
+<li><b>这不是 Excel</b>：<code>sum(B2:B4)</code> = <b>100</b>（=B2，区域<b>不聚合</b>，
+只取操作数 1）。求和要写 <code>ds1.sum(col)</code>（操作数求值为 List 时才聚合）。</li>
+<li><b>扩展格只有 4 个</b>：<code>ds.select / ds.group / ds.filtercross / ds.plot</code> 才是
+「可扩展」公式；<code>sum/count/avg/max/min</code> <b>不是</b>——
+<code>sum(ds1.select(qty))</code> 的外层是假（is_extend <b>不向参数透传</b>）。</li>
+<li><b>格号优先于函数名</b>：解析第 9 步（格号）排在第 10 步（函数）之前 ⇒
+<code>B2(1)</code> 是「对 B2 取偏移」，<b>不是</b>函数调用。</li>
+</ol></div>
+
+
+<h2>1. 公式写在哪</h2>
+
+<table class="grid">
+<tr><th>字段</th><th>类型</th><th>规则</th></tr>
+<tr><td><code>cells[].expr</code></td><td>字符串</td><td>值表达式；与 <code>text</code> <b>互斥</b>
+（都给报错，都缺 = 合法空白格）</td></tr>
+</table>
+<p>坐标 <b>1 起</b>（<code>{row, col}</code> 在 1..=<code>grid.rows/cols</code>）。公式就是
+<code>expr</code> 的字符串值，<b>没有 <code>=</code> 前缀</b>（不是 Excel 语法）。</p>
+
+<p>实例（<code>tests/fixtures/out/extend_demo.json</code> 的三句公式）：</p>
+<pre class="json">{
+  "cells": [
+    { "row": 1, "col": 1, "text": "员工工资表", "bold": true },
+    { "row": 2, "col": 1, "text": "姓名" },
+    { "row": 2, "col": 2, "text": "工资" },
+    { "row": 3, "col": 1, "expr": "ds1.select(name)",   "extend_mode": "vertical" },
+    { "row": 3, "col": 2, "expr": "ds1.select(salary)", "extend_mode": "vertical" },
+    { "row": 4, "col": 2, "expr": "ds1.sum(salary)" }
+  ],
+  "datasets": [
+    { "name": "ds1", "sql": { "dsn": "demo", "sql": "SELECT name, salary FROM emp ORDER BY id" } }
+  ]
+}</pre>
+
+<h2>2. 语法骨架</h2>
+
+<h3>2.1 三层参数分隔（<code>;</code> &gt; <code>,</code> &gt; <code>:</code>）</h3>
+
+<table class="grid">
+<tr><th>层级</th><th>分隔符</th><th>用途（以 select 为例）</th></tr>
+<tr><td>最粗</td><td><code>;</code></td><td>多排序键段：<code>select(x, cond; key1, key2)</code></td></tr>
+<tr><td>中</td><td><code>,</code></td><td>函数参数：<code>select(选列, 过滤, 限量, 去重)</code></td></tr>
+<tr><td>最细</td><td><code>:</code></td><td>次序/区间：<code>select(dept:1)</code>（去重次序）、<code>B2:B4</code>（区域）</td></tr>
+</table>
+<div class="callout amber">⚠ <b>固定次序，不是「谁先出现」</b>：<code>ParamParser</code> 按
+<code>';' → ',' → ':'</code> 逐级判 <code>getType()</code> ⇒ <code>a:b,c</code> 的类别是
+<b><code>','</code></b> 不是 <code>':'</code>；只有整串没有 <code>,</code> 也没有 <code>;</code> 时
+<code>:</code> 才成为类别。这直接决定 <code>ValueList</code> 的 is_extend：
+<code>[a:b,c]</code> 为真、<code>[a:b]</code> 为假。</div>
+<div class="callout blue">词法两条：<b>①</b> <code>.</code> <b>不是分隔符</b> ——
+<code>ds1.select</code> 是<b>一个原子</b>（靠 <code>indexOf('.')</code> 切数据集名）；
+<b>②</b> <code>;</code> 是参数级分隔符，<b>永不作为 token 出现在表达式内部</b>。
+运算符两字符优先：<code>== != >= <= && ||</code>。</div>
+
+
+<h3>2.2 运算符优先级（19 档，全抄产品 <code>priority</code>）</h3>
+
+<table class="grid">
+<tr><th>优先级</th><th>记号</th><th>说明</th></tr>
+<tr><td><span class="pri">19</span></td><td>原子</td><td>字面量 / 格引用 / 数据集列 / 参数 / 未知符号 / <b>绝大多数函数</b></td></tr>
+<tr><td><span class="pri">18</span></td><td><code>- +</code>（前缀一元）</td><td>Negative / Plus</td></tr>
+<tr><td><span class="pri">17</span></td><td><code>[…]</code> <code>(…)</code> <code>{…}</code> 后缀 / <code>lefthead</code> <code>tophead</code></td><td>Move / Offset / DSOffset / Select</td></tr>
+<tr><td><span class="pri">16</span></td><td><code>! not &amp;</code>（前缀）/ <code>mcorder</code></td><td>Not / Address</td></tr>
+<tr><td><span class="pri">14</span></td><td><code>* / %</code></td><td rowspan="2">乘除模 &gt; 加减（都左结合）</td></tr>
+<tr><td><span class="pri">13</span></td><td><code>+ -</code>（二元）</td></tr>
+<tr><td><span class="pri">11</span></td><td><code>&gt; &gt;= &lt; &lt;=</code></td><td>比较</td></tr>
+<tr><td><span class="pri">10</span></td><td><code>== != in</code></td><td>相等 / 包含</td></tr>
+<tr><td><span class="pri">6</span></td><td><code>&amp;&amp; and</code></td><td rowspan="2">与 &gt; 或</td></tr>
+<tr><td><span class="pri">5</span></td><td><code>|| or</code></td></tr>
+<tr><td><span class="pri">4</span></td><td><code>:</code>（Link）</td><td>⚠ is_extend <b>恒假</b>（唯一覆写的运算符）</td></tr>
+<tr><td><span class="pri">2</span></td><td><code>=</code>（单）</td><td>Evaluate</td></tr>
+<tr><td><span class="pri">1</span></td><td><code>,</code></td><td>Comma</td></tr>
+</table>
+<p>优先级 3/7/8/9/12/15（位运算/移位）<b>不实现</b>——产品表达式包里没有任何类用这六档。
+括号隔离 = 优先级 +20。所有中缀<b>左结合</b>。两条从表算出来的树形（不是约定）：
+<code>not B2[1]</code> = <code>not(B2[1])</code>（后缀 17 ≥ 前缀 16）；
+<code>-B2[1]</code> = <code>(-B2)[1]</code>（前缀 18 &gt; 后缀 17）。</p>
+
+
+<h3>2.3 原子识别 12 步（顺序即契约）</h3>
+
+<table class="grid">
+<tr><th>步</th><th>形态</th><th>落成</th><th>⚠ 踩点</th></tr>
+<tr><td>1</td><td><code>"…"</code> / <code>'…'</code></td><td>字符串常量</td><td>转义 <code>\X</code></td></tr>
+<tr><td>2</td><td><code>{…}</code></td><td>Select</td><td>内容进 param，挂到前一个操作数</td></tr>
+<tr><td>3</td><td><code>[…]</code></td><td>Move / DSOffset / ValueList</td><td>按前一个节点类型三分</td></tr>
+<tr><td>4</td><td><code>and or not in</code></td><td>运算符</td><td>大小写不敏感</td></tr>
+<tr><td>5</td><td><code>$[…]</code></td><td>字符串常量</td><td>是<b>去转义的串</b>，不是格引用</td></tr>
+<tr><td>6</td><td><code>前缀.名</code>（前缀是已注册数据集）</td><td>DS 函数 / DSVariable</td><td>—</td></tr>
+<tr><td>7</td><td><code>@名</code> / <code>@@名</code> / <code>@</code></td><td>参数 / 宏参数 / CSCurrent</td><td>参数值是 List ⇒ is_extend 为真</td></tr>
+<tr><td>8</td><td><code>$格号</code></td><td>格引用（saved）</td><td><code>$</code> 只剥<b>一个</b>（<code>$B$2</code> 报错）</td></tr>
+<tr><td>9</td><td>格号（<code>B2</code>）</td><td>格引用</td><td>⛔ <b>排在函数之前</b> ⇒ <code>B2(1)</code> 是 Offset 不是调用</td></tr>
+<tr><td>10</td><td><code>名(</code></td><td>函数</td><td>先查普通函数表，裸 DS 名落 UnknownSymbol</td></tr>
+<tr><td>11</td><td>字面量</td><td>常量</td><td>null/true/false/0x…/int/double</td></tr>
+<tr><td>12</td><td>兜底</td><td>UnknownSymbol</td><td>is_extend = 假</td></tr>
+</table>
+<p>判序速记：<b>带点名 → <code>@</code>/<code>$</code> → 格号 → 数据集列 → 函数</b>。</p>
+
+
+<h2>3. 三种输入形态</h2>
+
+<table class="grid">
+<tr><th>形态</th><th>写法</th><th>语义</th></tr>
+<tr><td>格引用</td><td><code class="expr">B2</code> / <code class="expr">$B2</code> / <code class="expr">A3</code></td>
+<td>引用其他格；<code>$</code> = isSaved（用保存的 current 解析）；<code>A3</code> 是主子表关联的锚
+（<code>emp_id==A3</code> 取当前员工 id）</td></tr>
+<tr><td>参数</td><td><code class="expr">@topN</code> / <code class="expr">@@宏名</code></td>
+<td>渲染时注入的值建树期内联成常量；未登记参数 <b>UnknownParam</b>（显式失败，不静默当无参数）</td></tr>
+<tr><td>数据集列</td><td><code class="expr">ds1.qty</code></td>
+<td>Row 态取当前行；Root 态取首行</td></tr>
+<tr><td>DSOffset 下标</td><td><code class="expr">ds1[2].qty</code></td>
+<td>Root 态按行号取值（1 起）；越界（<code>[0]</code>/<code>[9]</code>）返回 <b>Null 不报错</b>；
+非整数下标报 paramTypeError；裸 <code>ds1[2]</code> 解析期显式拒绝</td></tr>
+</table>
+
+
+<h3>3.1 DS 函数（15 个）</h3>
+
+<table class="grid">
+<tr><th>DS 函数（15）</th><th>is_extend</th><th>DS 函数（15）</th><th>is_extend</th></tr>
+<tr><td><code>select</code> / <code>group</code> / <code>filtercross</code> / <code>plot</code></td>
+<td class="true">✅ 真</td>
+<td><code>avg</code> / <code>count</code> / <code>dcount</code> / <code>fcount</code> / <code>max</code> / <code>min</code> / <code>sum</code></td><td class="false">假</td></tr>
+<tr><td colspan="2" rowspan="2"></td>
+<td><code>bfind</code> / <code>field</code> / <code>fname</code> / <code>isfield</code></td><td class="false">假</td></tr>
+</table>
+<div class="callout amber"><b>双表名 6 个</b>：<code>avg / count / max / min / plot / sum</code>
+两张表都登记 —— <b>裸调用一律解析成普通函数</b>（先查普通表，命中即停）：
+<code>plot(x)</code> = 普通 Plot（假），只有 <code>ds1.plot(x)</code> = DSPlot（真）。
+查表大小写<b>敏感</b>（全小写登记）。</div>
+
+
+<h2>4. select 参数矩阵（最常用公式）</h2>
+
+<table class="grid">
+<tr><th>参数位</th><th>字段</th><th>语义</th><th>实例（取自 cross 夹具）</th></tr>
+<tr><td>1（必填）</td><td>选列表达式</td><td>取哪列</td><td><code class="expr">ds1.select(name)</code></td></tr>
+<tr><td>2</td><td>过滤表达式</td><td>条件过滤</td><td><code class="expr">ds2.select(item, amount&gt;=2000)</code>、<code class="expr">emp_id==A3</code></td></tr>
+<tr><td>3</td><td>限量（-1=不限）</td><td>取前 N 行</td><td><code class="expr">ds2.select(item, id==1, 1)</code>（偏移 1）</td></tr>
+<tr><td>4</td><td>去重表达式</td><td>去重主格（中式报表）</td><td><code class="expr">ds1.select(dept:1,,,dept)</code></td></tr>
+<tr><td><code>:</code> 段</td><td>次序</td><td>&gt;0 升 / &lt;0 降 / 0 不排序</td><td><code class="expr">ds1.select(region:1,,,region)</code></td></tr>
+<tr><td><code>;</code> 段</td><td>多排序键</td><td>键/次序对，复刻 ParamInfo2</td><td>排序段（第二段）</td></tr>
+</table>
+<p>另：<code>ds2.select(item:-1)</code> = DSOffset 形态（列名带偏移）；
+<code>ds2.select(item, , , item)</code> = 过滤空、偏移空、取值列 item；
+<code>ds2.item</code> = DSVariable；<code>ds2.count()</code> = 计数（聚合）。</p>
+
+
+<h2>5. 函数名表（124 普通 + 15 DS，大小写敏感）</h2>
+<table class="grid">
+<tr><th>主题</th><th>函数</th></tr>
+<tr><td>基础 / 单元格 / 数据集</td><td><code>avg subreport call case col row count value disp eval esproc spl cell ds if lefthead max maxc maxwidth mcorder min minc ifn plot query seq sort sublist sum throwe to tophead valueat map fread fexists barcode graph graph2 list</code></td></tr>
+<tr><td>datetime</td><td><code>after elapse age deq datetime day dayname days hour interval millisecond minute month now pdate second date time year</code></td></tr>
+<tr><td>math</td><td><code>abs acos asin atan ceil cos exp fact floor ln lg pi power rand round sign sin sqrt tan</code></td></tr>
+<tr><td>string</td><td><code>fill link left len like lower mid pos rmquote replace right space split trim upper urlencode wordcap</code></td></tr>
+<tr><td>convert</td><td><code>ifdate iftime ifnumber ifstring isalpha isdigit islower isupper isempty number int long bigint float double decimal string hexstring asc char rgb chn rmb sequence json</code></td></tr>
+<tr><td>分页</td><td><code>pno pcount pccount pcsum</code></td></tr>
+</table>
+<p>⚠ <b>全量转录不是装饰</b>：漏一个名字它就退化成 <code>UnknownSymbol</code>，
+is_extend 静默变假。函数优先级三个特例（<code>lefthead</code>/<code>tophead</code>=17、
+<code>mcorder</code>=16）当前<b>不接线</b>（P1 能力，产品真机有实测差异留档）。</p>
+
+<h2>6. extend_mode 与扩展格判定</h2>
+
+<h3>6.1 四态（运行时改写，不是按声明值）</h3>
+
+<table class="grid">
+<tr><th>声明 <code>extend_mode</code></th><th>码</th><th>计算态实际生效</th><th>值分布</th></tr>
+<tr><td>（缺省 DEFAULT）</td><td>16</td><td><b>18（运行时自动升为竖向）</b></td><td>每行一个</td></tr>
+<tr><td><code>"vertical"</code></td><td>18</td><td>18</td><td>每行一个</td></tr>
+<tr><td><code>"horizontal"</code></td><td>19</td><td>19</td><td>横向铺开</td></tr>
+<tr><td>NONE</td><td>17</td><td>17（由其他列驱动）</td><td><b>整列 List 塞一格</b></td></tr>
+</table>
+<ul>
+<li><b>extend=18 行数公式</b>：计算态行数 = 模板行数 +（数据集行数 − 1）；锚点占第 1 个数据行，
+其余 N−1 行插入（3 行模板 + 4 行数据 → 7×4）。</li>
+<li><b>横向边界</b>：单独一行用 19 时列数恒增 N−1；但 19 与 16/18 <b>同行</b>时列数不增
+（竖向扩展已把该行登记为可扩展行，横向被吞）。</li>
+<li>⛔ 必须复刻 <code>leftHead</code>/<code>topHead</code> 拓扑判定，否则「声明 16」与「声明 18」
+行为分叉。</li>
+</ul>
+
+
+<h3>6.2 is_extend 真值表（谁会成为扩展格）</h3>
+
+<table class="grid">
+<tr><th>节点</th><th>is_extend</th><th>依据</th></tr>
+<tr><td><code>Constant</code> / <code>@参数</code>（值是 List）</td><td class="true">真</td><td>值 instanceof List</td></tr>
+<tr><td>DS 函数 <code>select/group/filtercross/plot</code></td><td class="true">真</td><td>四个类显式覆写</td></tr>
+<tr><td>普通函数 <code>sort/sublist/to/split</code></td><td class="true">真</td><td>四个类显式覆写</td></tr>
+<tr><td>格引用 <code>B2</code>/<code>$B2</code> / <code>ds1.col</code> / UnknownSymbol</td><td class="false">假</td><td>无重写</td></tr>
+<tr><td><code>ValueList</code>（<code>[…]</code>/<code>[1,2]</code>/<code>[a,b:c]</code>）</td><td class="true">真</td><td>顶层类别 ≠ ':'</td></tr>
+<tr><td><code>[1:3]</code> / <code>Link</code>（<code>:</code>）</td><td class="false">假</td><td>Link 恒假（唯一覆写）</td></tr>
+<tr><td>其余全部运算符 / 其余 120 普通 + 11 DS 函数（含 sum/count/avg…）</td><td class="false">假</td><td>无重写</td></tr>
+</table>
+<p>三条传播规则：R1 运算符 = <b>左 || 右</b>；R2 SpecialFunction（<code>{…}</code>/<code>x[…]</code>）
+= <b>只看左</b>；R3 Function = <b>自身，不向参数透传</b>。</p>
+<div class="callout red"><b>头号回归</b>：<code>sum(ds1.select(qty))</code> ⇒ 外层 Sum 假、
+内层 DSSelect 真，但 R3 不透传 ⇒ <b>整体 is_extend = false</b>。
+⛔ is_extend <b>不能</b>用「是不是 DS 函数」近似（<code>isDSFunction</code> 的传播规则
+恰好相反：向参数透传）。</div>
+
+
+<h2>7. 求值语义（不是 Excel，六条铁律）</h2>
+
+<table class="grid">
+<tr><th>公式</th><th>实测值</th><th>结论</th></tr>
+<tr><td><code class="expr">sum(B2:B4)</code></td><td><b>100</b>（=B2）</td><td><b>区域不聚合</b>（只取操作数 1）—— M2 硬约束：禁止 Excel 式区域求和</td></tr>
+<tr><td><code class="expr">avg(B2:B4)</code></td><td>Double(120)（=B4）</td><td>avg 的操作数与 sum/max/min <b>不对称</b>（sub0/sub1 互换）</td></tr>
+<tr><td><code class="expr">max(B2:B4)</code> / <code class="expr">min(B2:B4)</code></td><td>100 / 100（=B2）</td><td>同上，区域形态走单格 else 分支</td></tr>
+<tr><td><code class="expr">ds1.sum(qty)</code></td><td><b>450</b></td><td>操作数求值为 <b>List</b> 才聚合</td></tr>
+<tr><td><code class="expr">ds1.sum(qty)</code>（数据集被扩展格引用）</td><td>100/200/150（随行）</td><td>被引用 ⇒ ds.current 被灌成 Row ⇒ 逐行退化</td></tr>
+<tr><td><code class="expr">ds2.sum(qty)</code>（未被引用）</td><td>450/450/450</td><td>未被引用 ⇒ 停在 RootGroup ⇒ 全量聚合</td></tr>
+<tr><td>空表 <code>avg</code> vs <code>sum</code></td><td>null vs Double(0.0)</td><td>avg 全空 = 0.0 且<b>先于除法判定</b>；sum 空表 = 0.0</td></tr>
+</table>
+<p>⛔ <b>类型即契约</b>：Integer/Long/Double/String/List <b>原样区分</b>，
+不得统一提升为 f64（expected.json 的 type 字段就是断言依据）。</p>
+
+
+<h2>8. 诚实清单（当前不支持 / 已知偏差）</h2>
+
+<table class="grid">
+<tr><th>#</th><th>写法</th><th>本切片行为</th><th>影响</th></tr>
+<tr><td>2</td><td><code>@多选参数</code>（值为 List）</td><td>取 false（拿不到参数值）</td><td>真实分叉：多选参数报表扩展行数算错（7+2 夹具零覆盖）</td></tr>
+<tr><td>3</td><td>数据集名前缀不存在</td><td>不校验，形态像就算 DS 函数</td><td>拼错的 ds 名被当成 DS 函数</td></tr>
+<tr><td>4</td><td>列名形如格号（<code>qty1</code>）</td><td>按形态判定</td><td>被误判成格引用（is_extend 两边都假，求值期必错）</td></tr>
+<tr><td>5</td><td>嵌套 <code>; , :</code> 参数树</td><td>只建模顶层一层</td><td>is_extend 不受影响；求值期受影响</td></tr>
+<tr><td>7</td><td><code>$[…]</code></td><td>当成格引用</td><td>求值期取错值</td></tr>
+<tr><td>8</td><td>日期字面量</td><td>落 UnknownSymbol</td><td>两边都假</td></tr>
+<tr><td>12</td><td>相邻无运算符（<code>sum(x) B2</code>）</td><td>严格二叉树 ⇒ 报错</td><td>产品是静默丢一个操作数；报错更安全</td></tr>
+</table>
+
+<p>完整 12 条不支持清单与 4 条已知偏差见 <code>docs/m2-engine-design.md</code> §13.5/§13.6
+（每条的「怎么补」都给了验证配方）。</p>
+
+<h2>9. 常用配方速查</h2>
+
+<table class="grid">
+<tr><th>要做什么</th><th>写法</th></tr>
+<tr><td>纵带（每数据行一行）</td><td><code class="expr">ds1.select(col)</code> + 该格 <code>extend_mode:"vertical"</code>（或缺省 16）</td></tr>
+<tr><td>横带（每数据行一列）</td><td><code class="expr">ds1.select(col)</code> + <code>"horizontal"</code></td></tr>
+<tr><td>主子表关联</td><td>主表 <code>ds1.select(id)</code>；子表 <code>ds2.select(item, emp_id==A3)</code>（<code>A3</code> = 主表当前行锚）</td></tr>
+<tr><td>去重主格</td><td><code class="expr">ds1.select(dept:1,,,dept)</code></td></tr>
+<tr><td>整列聚合</td><td><code class="expr">ds1.sum(col)</code> / <code>ds1.count()</code> / <code>ds1.avg/max/min(col)</code></td></tr>
+<tr><td>取指定行（Root 态）</td><td><code class="expr">ds1[2].qty</code>（越界返 Null）</td></tr>
+<tr><td>参数化</td><td><code class="expr">@topN</code>（静态有默认）/ <code class="expr">@region</code>（kind:dynamic，渲染必传）</td></tr>
+<tr><td>格间运算</td><td><code class="expr">B2*2</code> / <code class="expr">B1+"/"+A2</code>（交叉格拼接）</td></tr>
+<tr><td>排序</td><td><code class="expr">ds1.select(x; key, ...)</code>（<code>;</code> 段多排序键）</td></tr>
+</table>
+
+
+<div class="callout green"><b>证据口径</b>：语法/函数表/真值表逐条取自
+<code>docs/m2-engine-design.md</code> §13（产品契约）与 <code>expr/names.rs</code>（全量转录）；
+求值实测值取自 <code>docs/format-contract.md</code> 附件 H（探针实测，夹具
+<code>engine_sum/engine_ext/engine_avgrange</code> 等）。冲突时以证据为准。</div>
+
+</div>
+</body>
+</html>

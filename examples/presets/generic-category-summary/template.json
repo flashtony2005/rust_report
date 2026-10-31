@@ -1,0 +1,129 @@
+{
+  "cells": [
+    {
+      "bold": true,
+      "col": 1,
+      "font_name": "Microsoft YaHei",
+      "font_size": 16,
+      "fore_color": "#163D46",
+      "h_align": "center",
+      "merge": {
+        "cols": 2,
+        "rows": 1
+      },
+      "row": 1,
+      "text": "分类占比基础表",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 1,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "分类",
+      "v_align": "middle"
+    },
+    {
+      "back_color": "#2C4A5A",
+      "bold": true,
+      "col": 2,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "fore_color": "#FFFFFF",
+      "h_align": "center",
+      "row": 2,
+      "text": "数值",
+      "v_align": "middle"
+    },
+    {
+      "col": 1,
+      "expr": "d.group(category;category:1)",
+      "extend_mode": "vertical",
+      "font_name": "Microsoft YaHei",
+      "row": 3
+    },
+    {
+      "col": 2,
+      "expr": "d.sum(value,category==A3)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "format": "#,##0",
+      "h_align": "right",
+      "left_head": "A3",
+      "row": 3
+    },
+    {
+      "back_color": "#F1F4F7",
+      "bold": true,
+      "col": 1,
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "row": 4,
+      "text": "合计"
+    },
+    {
+      "back_color": "#F1F4F7",
+      "bold": true,
+      "col": 2,
+      "expr": "d.sum(value)",
+      "extend_mode": "none",
+      "font_name": "Microsoft YaHei",
+      "format": "#,##0",
+      "h_align": "right",
+      "row": 4
+    }
+  ],
+  "col_props": [
+    {
+      "col": 1,
+      "width": 24.0
+    },
+    {
+      "col": 2,
+      "width": 20.0
+    }
+  ],
+  "datasets": [
+    {
+      "file": {
+        "delimiter": ",",
+        "encoding": "UTF-8",
+        "file_name": "sample.csv"
+      },
+      "name": "d"
+    }
+  ],
+  "format": "rpx-report",
+  "format_version": 1,
+  "grid": {
+    "cols": 2,
+    "rows": 4
+  },
+  "printing": {
+    "auto_size": false
+  },
+  "row_props": [
+    {
+      "height": 13.0,
+      "row": 1
+    },
+    {
+      "height": 8.0,
+      "row": 2
+    },
+    {
+      "height": 7.0,
+      "row": 3
+    },
+    {
+      "height": 7.0,
+      "row": 4
+    }
+  ],
+  "schema": "rpx-report/v1",
+  "version": 1
+}

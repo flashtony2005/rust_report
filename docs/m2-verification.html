@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>M2 成果独立验证报告 — rpx-engine</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1c2024; --dim:#5b6570; --line:#e3e6ea;
+    --ok:#0f8a4d; --okbg:#e8f6ee; --warn:#a86600; --warnbg:#fdf3e3;
+    --bad:#c0392b; --badbg:#fdeceb; --na:#6b7280; --nabg:#eef0f3;
+    --accent:#1f5fa9; --accentbg:#eaf1fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 24px 72px;}
+  header{border-bottom:3px solid var(--accent);padding-bottom:18px;margin-bottom:26px;}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.3px;}
+  .sub{color:var(--dim);font-size:13.5px;}
+  h2{font-size:19px;margin:38px 0 12px;padding-left:11px;border-left:4px solid var(--accent);}
+  h3{font-size:16px;margin:24px 0 8px;}
+  p{margin:9px 0;}
+  code{background:#f0f2f5;padding:1.5px 5px;border-radius:4px;
+       font:13px/1.5 "Cascadia Mono",Consolas,monospace;}
+  pre{background:#1e242c;color:#e6edf3;padding:14px 16px;border-radius:8px;overflow-x:auto;
+      font:12.7px/1.65 "Cascadia Mono",Consolas,monospace;}
+  pre .c{color:#8b98a5}
+  .verdict{border-radius:10px;padding:20px 22px;margin:18px 0 8px;}
+  .verdict.bad{background:var(--badbg);border:1px solid #f0c4bf;border-left:5px solid var(--bad);}
+  .verdict h3{margin:0 0 8px;font-size:17px;color:var(--bad);}
+  .grid{display:grid;gap:14px;}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:820px){.g3,.g4{grid-template-columns:1fr 1fr}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:14px 16px;}
+  .stat .n{font-size:25px;font-weight:700;line-height:1.2;letter-spacing:-.5px;}
+  .stat .l{color:var(--dim);font-size:12.5px;margin-top:3px;}
+  table{width:100%;border-collapse:collapse;background:var(--card);
+        border:1px solid var(--line);border-radius:9px;overflow:hidden;font-size:13.6px;}
+  th{background:#f0f3f7;text-align:left;padding:9px 11px;font-weight:600;
+     border-bottom:1px solid var(--line);white-space:nowrap;}
+  td{padding:9px 11px;border-bottom:1px solid #eef1f4;vertical-align:top;}
+  tr:last-child td{border-bottom:0}
+  .tag{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11.5px;
+       font-weight:600;white-space:nowrap;}
+  .t-ok{background:var(--okbg);color:var(--ok)}
+  .t-warn{background:var(--warnbg);color:var(--warn)}
+  .t-bad{background:var(--badbg);color:var(--bad)}
+  .t-na{background:var(--nabg);color:var(--na)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:18px 20px;margin:14px 0;}
+  .card.f{border-left:5px solid var(--bad)}
+  .card.w{border-left:5px solid var(--warn)}
+  .card .hdr{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
+  .card .hdr b{font-size:15.5px}
+  .mono{font:12.7px/1.6 "Cascadia Mono",Consolas,monospace}
+  .kv{color:var(--dim);font-size:13px;margin-top:8px}
+  .bar{height:8px;border-radius:5px;background:#e8ebef;overflow:hidden;margin-top:6px}
+  .bar>i{display:block;height:100%}
+  blockquote{margin:12px 0;padding:10px 15px;background:var(--accentbg);
+             border-left:4px solid var(--accent);border-radius:0 7px 7px 0;font-size:14px;}
+  ul{margin:8px 0 8px 20px;padding:0}
+  li{margin:4px 0}
+  footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);
+         color:var(--dim);font-size:12.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>M2 成果独立验证报告</h1>
+  <div class="sub">
+    对象：<span class="mono">F:/project/report/rpx</span> 的 M2 交付物（规格 / 夹具 / 探针 / 基准）<br>
+    方法：重跑门禁 → 重编译 Java 探针 → 重新生成夹具并逐字节比对 → 写独立探针实测存疑语义<br>
+    时间：2026-10-12 14:16–14:30 · 验证人：项目总监（原独立验证方受 API 429 限流，2026-10-13 08:36 后可用，故本轮由总监亲自执行）
+  </div>
+</header>
+
+<div class="verdict bad">
+  <h3>结论：M2 验收未达成 —— 差的是一个 crate，不是一次修补</h3>
+  <p><b>M2 的验收对象是 <code>rpx-engine</code>，它不存在。</b>仓库里没有 <code>crates/rpx-engine/</code>，
+  一行引擎代码也没有；<code>cargo test --workspace</code> 跑的还是 M1 的 23 个测试。所以 15 条 M2 判据
+  （M2-01…M2-15）<b>已实现数 = 0</b>。</p>
+  <p>本轮验证的真实价值落在两处：<b>(1)</b> 判定"前置条件"是否真的够用 —— 规格 + 地面真值基准 + 探针工具链
+  <b>基本够用</b>（夹具可逐字节复现、门禁全绿）；<b>(2)</b> 在这套前置条件里找出 <b>4 处会直接让实现挂掉的缺陷</b>，
+  其中 3 处是<b>地面真值本身缺失</b>（P0 里 <b>M2-04 / M2-07 / M2-08 没有任何计算态基准</b>）。</p>
+  <p class="kv" style="color:#7b3f37">若现在就照 v0.3 规格开工，<code>$</code> 语义与
+  <code>sum</code> 归属两处会写出必挂 golden 的实现；合并类与循环引用三条 P0 则会在"实现完才发现没基准可对"的
+  位置爆掉。</p>
+</div>
+
+<div class="grid g4" style="margin-top:18px">
+  <div class="stat"><div class="n" style="color:var(--bad)">0 / 15</div><div class="l">M2 判据已实现</div><div class="bar"><i style="width:0%;background:var(--bad)"></i></div></div>
+  <div class="stat"><div class="n" style="color:var(--ok)">5</div><div class="l">地面真值充分可对拍</div><div class="bar"><i style="width:33%;background:var(--ok)"></i></div></div>
+  <div class="stat"><div class="n" style="color:var(--warn)">7</div><div class="l">基准部分 / 偏弱</div><div class="bar"><i style="width:47%;background:var(--warn)"></i></div></div>
+  <div class="stat"><div class="n" style="color:var(--bad)">3</div><div class="l">完全无基准（全为 P0）</div><div class="bar"><i style="width:20%;background:var(--bad)"></i></div></div>
+</div>
+
+<h2>1. 独立确认的部分（有原始证据）</h2>
+
+<table>
+<thead><tr><th>验证项</th><th>方法</th><th>结果</th></tr></thead>
+<tbody>
+<tr>
+  <td>M1 回归 + 门禁</td>
+  <td><code>cargo test --workspace</code>、<code>cargo clippy --all-targets -- -D warnings</code></td>
+  <td><span class="tag t-ok">通过</span> 23 测试（1 CLI + 11 单元 + 8 golden + 3 robustness）全绿；clippy exit 0</td>
+</tr>
+<tr>
+  <td>单文件 ≤300 行硬门禁</td>
+  <td><code>find crates -name "*.rs" -exec wc -l {} \;</code></td>
+  <td><span class="tag t-ok">通过</span> 最大 <code>report.rs</code> 288 行，19 个文件全部合规</td>
+</tr>
+<tr>
+  <td><b>夹具非手搓、可复现</b></td>
+  <td>复制 <code>*.java</code> 到独立目录 → <code>javac --release 8</code> 重编译（15 class）→ 三个生成器 <code>--verify</code> 重新产出 → <code>cmp</code> 逐字节比对</td>
+  <td><span class="tag t-ok">通过</span> <b>8 个 <code>.rpx</code> + 8 个 <code>.expected.json</code> 全部逐字节相同</b></td>
+</tr>
+<tr>
+  <td>扩展行数公式</td>
+  <td>对四个引擎夹具算 <code>模板行数 + 数据集行数 − 1</code></td>
+  <td><span class="tag t-ok">通过</span> 4/4 成立：6+3−1=8、3+5−1=7、6+3−1=8、4+40−1=43</td>
+</tr>
+<tr>
+  <td><code>$B$2</code> 必须报错</td>
+  <td>独立探针 <code>VerifyDollar.java</code> 覆写 D2 表达式</td>
+  <td><span class="tag t-ok">通过</span> <code>ReportError: 单元格D2中错误: 表达式（$B$2）: 未知的单元格$B$2</code></td>
+</tr>
+<tr>
+  <td>分页基准</td>
+  <td>读 <code>engine_pager.expected.json</code></td>
+  <td><span class="tag t-ok">通过</span> 40 行 → 4 页（14/14/14/4），<code>row_num_per_page=20</code> 存在但不参与切页，分组头每页重复</td>
+</tr>
+<tr>
+  <td><code>sum</code> 非 Excel 区域聚合</td>
+  <td>读 <code>engine_sum</code> 计算值 + 独立探针复测</td>
+  <td><span class="tag t-ok">通过</span> <code>sum(B2:B4)</code>=100（≠450）；两操作数往返 <code>sum(A:B)</code> 语义成立</td>
+</tr>
+</tbody>
+</table>
+
+<pre><span class="c"># 本轮实际执行的证据命令（可复现）</span>
+D:/Tools/jdk-21.0.2/bin/javac --release 8 -cp "F:/project/report/reportlite/lib/*" -d out *.java
+F:/project/report/common/jre/bin/java.exe -cp "F:/project/report/reportlite/lib/*;out" rpx.fixtures.GenEngineFixtures . --verify
+for f in simple merged full realmerge engine_sum engine_ext engine_expr engine_pager; do
+  cmp .verify_tmp/$f.rpx tests/fixtures/$f.rpx && cmp .verify_tmp/$f.expected.json tests/fixtures/$f.expected.json
+done          <span class="c"># → 16/16 SAME</span></pre>
+
+<h2>2. M2 判据覆盖矩阵</h2>
+
+<p>"已实现"一栏全部为否 —— 因为 <code>rpx-engine</code> 不存在。此表的重点是<b>第二栏：开工前手里有没有可对拍的基准</b>，
+这决定 M2 能不能被真正验收。</p>
+
+<table>
+<thead><tr><th>判据</th><th>内容</th><th>级别</th><th>已实现</th><th>计算态基准</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>M2-01</td><td>主格图 main_of</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-warn">间接</span></td><td>extend/subCells 可间接反映拓扑，但 <code>main_of</code> 分组本身无直接断言</td></tr>
+<tr><td>M2-02</td><td>扩展算法 + 附属格</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-ok">充分</span></td><td>extend=18 带 3/5 个 <code>sub_values</code>，可逐格对</td></tr>
+<tr><td>M2-03</td><td>非扩展格（17）</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-warn">不具区分性</span></td><td>17/18/19 三列实测都是 <code>sub_cells=1</code>，断言"不扩展"能被错误实现骗过</td></tr>
+<tr><td>M2-04</td><td>合并区扩展</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-bad">缺失</span></td><td><b>四个引擎夹具计算态全是 <code>row_merge=1/col_merge=1</code></b>（36/12/20/10 格无一例外）</td></tr>
+<tr><td>M2-05</td><td>算术求值</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-ok">充分</span></td><td><code>engine_expr</code> 给出 B2 / B2*2 / $B2*3 / B2+$B2 全格值</td></tr>
+<tr><td>M2-06</td><td>相对 / 绝对引用</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-ok">充分</span></td><td>engine_expr + 本轮新增 <code>VerifyDollar.java</code>（见发现 F1）</td></tr>
+<tr><td>M2-07</td><td>循环引用检测</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-bad">缺失</span></td><td>只有源码契约（附录 G.3），<b>没有任何成环夹具</b></td></tr>
+<tr><td>M2-08</td><td>同值合并 97–100</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-bad">缺失</span></td><td>仅 M1 的 <code>merged/realmerge</code> 是<b>模板态</b>；<b>计算态无任何 mergeSame/mergeNull 用例</b></td></tr>
+<tr><td>M2-09</td><td>逐格对拍链路</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-warn">仅数据侧</span></td><td>expected.json 的 <code>calculated</code> 齐备，但没有消费它的 Rust 断言（见发现 F4）</td></tr>
+<tr><td>M2-10</td><td>零依赖与门禁</td><td>P0</td><td><span class="tag t-na">N/A</span></td><td><span class="tag t-na">N/A</span></td><td>crate 不存在；M1 侧门禁已绿</td></tr>
+<tr><td>M2-13</td><td>聚合语义（非 Excel）</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-ok">充分</span></td><td>双数据集对照设计正确（见发现 F2 的表述更正）</td></tr>
+<tr><td>M2-14</td><td>类型保真</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-warn">部分</span></td><td>只有 <code>int</code>/<code>string</code>；<b>Long / Double / BigDecimal / List 无基准</b></td></tr>
+<tr><td>M2-15</td><td>extendMode 运行时改写</td><td>P0</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-warn">部分</span></td><td>只证到 16→18；"17 产出整列 List" 无任何夹具（见发现 F3）</td></tr>
+<tr><td>M2-11</td><td>分页</td><td>P1</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-ok">充分</span></td><td><code>engine_pager</code> 可逐页断言；<code>SimplePager</code> 3403 行契约仍未读</td></tr>
+<tr><td>M2-12</td><td>函数面</td><td>P1</td><td><span class="tag t-bad">否</span></td><td><span class="tag t-warn">偏弱</span></td><td>只有 <code>ds2.count()</code>=3；<b>avg / max / min 无基准</b>（源码里三者同样调用 saveCurrent/resumeCurrent）</td></tr>
+</tbody>
+</table>
+
+<h2>3. 本轮新发现</h2>
+
+<div class="card f">
+  <div class="hdr"><b>F1 · <code>$</code> 不是"绝对引用"，是 <span class="mono">isSaved</span></b><span class="tag t-bad">会写出必挂实现</span></div>
+  <p>规格（M2-06 / 附件 G.1）说 <code>$</code> 是"整格绝对引用前缀"，机制是"剥掉一个 <code>$</code> 后交给 <code>CellLocation.parse</code>"。
+  前半句对，<b>但漏了关键一半</b>：源码里 <code>$X</code> 走 <code>new CSVariable(cell, <u>true</u>)</code>、
+  无 <code>$</code> 走 <code>(cell, false)</code>，而 <code>calculate()</code> 里这个布尔是
+  <code>current = isSaved ? cs.getSavedCurrent() : cs.getCurrent()</code>
+  （<code>CSVariable.java:31-44,127</code>）。<b>它切换的是"用哪个 current 解析"，不是"引用是否绝对"。</b></p>
+  <p>我写了独立探针在同一次运行内并排实测（数据集 North/100、East/200、South/150）：</p>
+  <table style="margin-top:10px">
+    <thead><tr><th>表达式</th><th>行2</th><th>行3</th><th>行4</th><th>判读</th></tr></thead>
+    <tbody>
+    <tr><td><code>B2</code></td><td>100</td><td>200</td><td>150</td><td>标量相对</td></tr>
+    <tr><td><code>$B2</code></td><td>100</td><td>200</td><td>150</td><td><b>与 <code>B2</code> 完全一致</b></td></tr>
+    <tr><td><code>$B2*3</code></td><td>300</td><td>600</td><td>450</td><td>标量下 <code>$</code> 无差别</td></tr>
+    <tr style="background:#fdeceb"><td><code>sum(B2:B4)</code></td><td>100</td><td>100</td><td>100</td><td><b>常量</b></td></tr>
+    <tr style="background:#fdeceb"><td><code>sum($B2:B4)</code></td><td>100</td><td>200</td><td>150</td><td><b>逐行 ≠ 上一行</b></td></tr>
+    <tr><td><code>sum(B2:B2)</code> / <code>sum($B2:B2)</code></td><td>100</td><td>200</td><td>150</td><td>同格，无差别</td></tr>
+    </tbody>
+  </table>
+  <p class="kv"><b>影响：</b>若按"剥掉 <code>$</code> 当普通引用"实现，<code>sum($B2:B4)</code> 会算成 100/100/100，
+  而基准要求 100/200/150 → <b>golden 必挂</b>。断言的根因在 <code>Sum/Select/Average/Max/Min</code> 会调用
+  <code>saveCurrent()/resumeCurrent()</code>（<code>Sum.java:150,190</code>），此时 saved ≠ current，<code>$</code> 才显形。</p>
+  <p class="kv"><b>已固化：</b><code>tests/fixtures/VerifyDollar.java</code>（70 行，8 组表达式并排）作为永久复现证据；
+  规格 M2-06、§5、§8 与附件 G.1 均已改写。</p>
+</div>
+
+<div class="card f">
+  <div class="hdr"><b>F2 · M2-13 把 450 挂到了错的数据集上</b><span class="tag t-bad">判据与基准相反</span></div>
+  <p>规格原文要求 <code>ds1.sum(qty)</code> = 450。基准实测（<code>engine_sum.expected.json</code>，我已重新生成并逐字节比对）：</p>
+  <pre>(2,5) ds1.sum(qty)  => 100   <span class="c"># 被扩展格引用 → 逐行</span>
+(2,7) ds2.sum(qty)  => 450   <span class="c"># 未被引用 → 全量</span></pre>
+  <p>而 <code>GenEngineFixtures.java:155-161</code> 明确写着 ds2 是"<i>identical content but no extending cells referencing it</i>"
+  —— <b>两个数据集内容一模一样，差异纯粹来自"是否被扩展格引用"</b>。所以正确表述是 ds2 得 450、ds1 得 100，
+  原表述把两者写反了。若照抄，实现者会写出断言 ds1=450 的测试，与基准直接冲突。</p>
+  <p class="kv"><b>已修正</b>为「<code>ds2.sum(qty)</code>=450，而被引用的 <code>ds1.sum(qty)</code>=100（两者数据集相同）」。</p>
+</div>
+
+<div class="card f">
+  <div class="hdr"><b>F3 · <code>engine_ext</code> 无力区分 17 / 18 / 19</b><span class="tag t-bad">M2-15 只证了一半</span></div>
+  <p>该夹具的设计意图是覆盖"extendMode 16/17/18/19 四态改写"，但四个声明被放在<b>同一行</b>，实测结果：</p>
+  <pre>(2,1) 声明 16(默认) => 运行时 extend=18, sub_cells=<b>5</b>   <span class="c">✅ 16→18 改写成立</span>
+(2,2) 声明 17       => 运行时 extend=17, sub_cells=1
+(2,3) 声明 18       => 运行时 extend=18, sub_cells=1    <span class="c">⚠ 与被吞的 17/19 无法区分</span>
+(2,4) 声明 19       => 运行时 extend=19, sub_cells=1
+
+extend 值分布 = {16:8, 17:1, 18:2, 19:1}    任何 List 类型值：<b>无</b></pre>
+  <p>即：<b>16→18 改写与行数公式成立</b>（3+5−1=7 ✅），但"17 必须产出整列 <code>List</code>"以及 18/19 的独立行为
+  <b>没有任何基准能证明</b>。这个夹具改不动实现者的错——它会直接放过一个把 17/18/19 全当同一种处理的实现。</p>
+  <p class="kv"><b>建议：</b>拆成三个夹具，把 17/18/19 分别放在<b>不同的行</b>（各自独占扩展包络），并至少给 17 一个可断言的 <code>List</code> 值。</p>
+</div>
+
+<div class="card f">
+  <div class="hdr"><b>F4 · <code>calculated.cells[].source</code> 是可选键，M2-09 的"逐格断言"前提不成立</b><span class="tag t-bad">断言会误挂</span></div>
+  <p>M2-09 要求"<code>calculated</code> 段必须逐格断言（值 + <code>type</code> + <code>source</code> 六个子字段）"。但实测：</p>
+  <pre>engine_sum   cells=36  (无 source = 0)
+engine_ext   cells=24  (无 source = <b>12</b>)   <span class="c">← 一半的格没有 source</span>
+engine_expr  cells=20  (无 source = 0)
+engine_pager cells=124 (无 source = <b>114</b>)   <span class="c">← 绝大多数没有 source</span></pre>
+  <p>实现者若按字面写"每格必须有 <code>source</code> 且含六个子字段"，会对着一半以上的格子取到 <code>None</code>/<code>null</code> 而误判失败。
+  另外规格 §7 自身也有个笔误：括号里列了 <code>src_row/src_col/row_merge/col_merge/extend/sub_cells</code> <b>六个</b>名字，却写"五个子字段"。</p>
+  <p class="kv"><b>已修正</b>计数为六个，并在规格中标注 <code>source</code> 为可选键。</p>
+</div>
+
+<h2>4. 仍存缺口（本轮未能闭合）</h2>
+<table>
+<thead><tr><th>缺口</th><th>性质</th><th>后果 / 下一步</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>rpx-engine</code> 整体未实现</td>
+  <td><span class="tag t-bad">范围</span></td>
+  <td>M2 的主工作量 100% 未开始。P0 的扩展 + 求值 + 聚合基准最扎实，是推荐的第一刀</td>
+</tr>
+<tr>
+  <td>M2-04 / M2-07 / M2-08 无计算态基准</td>
+  <td><span class="tag t-bad">基准缺失</span></td>
+  <td>三条都是 P0。需补夹具：① 带 Area 的锚点格扩展后的 <code>row_merge/col_merge</code>；② 成环表达式（应报错）；③ 计算态 mergeSame/mergeNull</td>
+</tr>
+<tr>
+  <td><code>SimplePager</code> 3403 行契约未读</td>
+  <td><span class="tag t-warn">契约</span></td>
+  <td>分页基准已跑通（4 页 × 14 行），但契约未逐行核实；仍是 M2 剩余工作量最大的一块。是否拉进 P0 属范围决策</td>
+</tr>
+<tr>
+  <td><code>ExtCellSet</code> 3781 行 / <code>ExtNormalCell</code> 2719 行未逐行读</td>
+  <td><span class="tag t-warn">契约</span></td>
+  <td>P0 目标是输入/输出等价（对拍），不是结构等价，可接受；但 F1 说明"只读片段"确实会漏掉语义（<code>isSaved</code> 就藏在构造函数里）</td>
+</tr>
+<tr>
+  <td>按分组键动态生成分组头（<code>ds1.group(...)</code> + <code>DSGroup</code>）</td>
+  <td><span class="tag t-warn">未验证</span></td>
+  <td>只验了"独立 <code>-90</code> 行"这一种构造，且 <code>-90</code> 打在扩展锚点行上会 NPE（已记录）</td>
+</tr>
+<tr>
+  <td>函数注册时机（ServletContext）</td>
+  <td><span class="tag t-na">延后</span></td>
+  <td>Phase B 报"ServletContext 为空"；P1 函数面已被 <code>ds2.count()</code> 部分覆盖</td>
+</tr>
+<tr>
+  <td>M2-14 只有 int/string</td>
+  <td><span class="tag t-warn">基准偏弱</span></td>
+  <td>"禁止统一提升 f64"这条核心约束，目前只有 int 与 string 两种类型能对拍</td>
+</tr>
+</tbody>
+</table>
+
+<h2>5. 本轮对交付物做的修改</h2>
+<table>
+<thead><tr><th>文件</th><th>改动</th></tr></thead>
+<tbody>
+<tr><td class="mono">docs/spec-m2.md</td><td>升 v0.4：M2-06 与 §5/§8 的 <code>$</code> 语义改写为 isSaved；M2-13 的 450 归属更正为 ds2；新增"extendMode 夹具局限"一行；M2-09 子字段计数 5→6；补 v0.4 变更记录。结构核验 11 节完整</td></tr>
+<tr><td class="mono">docs/format-contract.md</td><td>附件 G.1 重写：标题改为"isSaved"，补 <code>CSVariable.java:31-44,127</code> 证据、<code>saveCurrent/getSavedCurrent</code> 机制、以及本轮 8 组表达式的实测表；两条硬约束（禁止 Excel 双 <code>$</code>；禁止简化为"剥掉即普通引用"）</td></tr>
+<tr><td class="mono">tests/fixtures/VerifyDollar.java</td><td>新增（70 行）：<code>$</code> 语义的永久复现探针，8 组表达式同一次运行内并排输出</td></tr>
+</tbody>
+</table>
+
+<blockquote>
+<b>放行判断：</b>把当前产物当作"M2 已达成"<b>不成立</b>；把它当作"M2 可开工的前置条件"则<b>基本成立</b>，
+但需先补 M2-04 / M2-07 / M2-08 三个 P0 基准，否则这三条判据在实现完之后无处可验。
+</blockquote>
+
+<h2>6. 建议的下一步</h2>
+<ul>
+  <li><b>P0-a（推荐先做）：</b>补三个缺失夹具 —— 合并区扩展（Area 锚点）、循环引用（成环应报错）、计算态 mergeSame/mergeNull。这三个是"实现推进到一半才发现没基准"的最大风险点。</li>
+  <li><b>P0-b：</b>拆 <code>engine_ext</code> 为三行独立的 17/18/19 夹具，并给 17 一个 List 断言，让 M2-15 真正可判。</li>
+  <li><b>P0-c：</b>开工 <code>crates/rpx-engine</code>，顺序按基准扎实度：扩展 + 主格图 → 表达式（算术/引用/<code>$</code> 的 isSaved）→ 聚合（List 判定）→ 类型保真 → 同值合并。</li>
+  <li><b>待你决策：</b>分页是否拉进 P0（基准已通，但需先补读 <code>SimplePager</code> 契约）；M2-14 的类型矩阵是否要扩到 Long/Double/BigDecimal。</li>
+  <li><b>独立复验：</b>API 限流 2026-10-13 08:36 解除后，把本轮发现 F1–F4 交给独立验证方做变异测试复验（改基准后测试必须失败才算闭环）。</li>
+</ul>
+
+<footer>
+  证据链条：门禁重跑 → Java 探针重编译（15 class）→ 夹具重生成（16 文件逐字节相同）→ 独立探针 <code>VerifyDollar.java</code> / 规格与源码逐条比对。<br>
+  报告中所有数值均来自本轮实际执行的命令输出，未引用任何未经复现的结论。
+</footer>
+
+</div>
+</body>
+</html>
