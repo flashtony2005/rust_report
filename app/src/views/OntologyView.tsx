@@ -1,116 +1,85 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ONTOLOGY } from '../data/ontology';
-import { ONTOLOGY_SUMMARY, resolve, toOntologyTrace } from '../services/ontology';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ApiError,
   fetchOntology,
-  getOntology,
   listDatasources,
-  listOntologies,
-  saveOntology,
   type Datasource,
   type OntoGraph,
   type OntologyGraphReply,
-  type OntologyListItem,
-  type OntologyTrace,
 } from '../services/api';
 
 /**
- * 本体大脑 · 解析器 —— 四步把一句话拆成安全 SQL。
- *
- * 排版原则：只用仓库自己的 CSS 变量与类（这个工程没有 Tailwind），一步一张卡、
- * 一块只说一件事；步骤条固定在顶部，正文与侧栏按 8px 节奏对齐。
- *
- * 数据来源分两层，页面上分两块讲清楚：
- *   1. **四步推理**（下方四个步骤）—— 仍用 `data/ontology.ts` 的示例夹具驱动，
- *      因为这是"教学核心"：任意模型的行级聚合要等服务端 `/query/run`，这里只演示方法。
- *   2. **真实模型图谱**（顶部卡片）—— 来自后端 `GET /bizmodels/{dsn}/ontology`，
- *      把该数据源真正的实体/关系/口径画出来；没有模型就明说退回示例。
- *   3. **四步痕迹**（保存 / 历史）—— `POST /ontology` 把当前演示结论落库，下次可复用，
- *      对应 `onto_*` 这组"记忆"表。
+ * 本体 · 实体与关系（图谱页）—— 从"本体大脑·解析器"拆出来的第一页。
+ * 只管两件事：真模型图谱 + 实体/关系目录（列出 / 搜索 / 分页 / 属性 / 刷新）。
+ * 四步解析拆到了 OntoResolveView（#/resolve）；两页共享记住的数据源选择（localStorage）。
  */
 
-const PRESETS = [
-  { label: '客户等级 × LTV × 逾期率', intent: '按客户等级看 LTV 和逾期率' },
-  { label: '大区 × 授信总额', intent: '按所属大区分析授信总额与逾期率' },
-];
+const SAVED_DSN_KEY = 'rpx.onto-dsn';
 
-const STEPS = [
-  { no: 1, title: '识别', sub: '命中的词 → 表与字段' },
-  { no: 2, title: '定主表', sub: '谁在中心，谁在分支' },
-  { no: 3, title: '分头聚合', sub: '防扇出：先收敛再连' },
-  { no: 4, title: '组装输出', sub: 'SQL / Polars / 预览' },
-] as const;
+/** 记住/读取数据源选择（两个本体页共享同一份）。 */
+export function rememberDsn(dsn: string) {
+  try {
+    localStorage.setItem(SAVED_DSN_KEY, dsn);
+  } catch {
+    /* 隐私模式忽略 */
+  }
+}
 
-type StepNo = 1 | 2 | 3 | 4;
+export function readSavedDsn(): string | null {
+  try {
+    return localStorage.getItem(SAVED_DSN_KEY);
+  } catch {
+    return null;
+  }
+}
 
 export const OntologyView: React.FC = () => {
-  const [text, setText] = useState(PRESETS[0].intent);
-  const [intent, setIntent] = useState(PRESETS[0].intent);
-  const [step, setStep] = useState<StepNo>(1);
-  const [tab, setTab] = useState<'sql' | 'polars'>('sql');
-
-  // —— 真实模型图谱 + 数据源选择 ——
+  // —— 真实模型图谱 + 数据源选择（记住上次的） ——
   const [sources, setSources] = useState<Datasource[]>([]);
   const [dsn, setDsn] = useState('');
   const [graph, setGraph] = useState<OntoGraph | null>(null);
-  const [hasModel, setHasModel] = useState(false);
   const [graphState, setGraphState] = useState<'loading' | 'ok' | 'none' | 'down'>('loading');
   const [graphMsg, setGraphMsg] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
 
-  // —— 四步痕迹：保存 + 历史复用 ——
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const [saveErr, setSaveErr] = useState(false);
-  const [history, setHistory] = useState<OntologyListItem[]>([]);
-  const [historyState, setHistoryState] = useState<'idle' | 'ok' | 'down'>('idle');
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [trace, setTrace] = useState<OntologyTrace | null>(null);
-
-  const res = useMemo(() => resolve(intent), [intent]);
-
-  const loadHistory = useCallback(async (d: string) => {
-    if (!d) return;
+  /** 导出本体为 MD 文件（实体清单 + 关系清单 + 源码证据，为后续工作做上下文）。 */
+  const exportMd = async () => {
+    if (!dsn || exporting) return;
+    setExporting(true);
+    setExportMsg(null);
     try {
-      const r = await listOntologies(d, 20);
-      setHistory(r.items);
-      if (r.store === 'disabled') {
-        setHistoryState('down');
-        setGraphMsg('语义库未启用（服务端没开 --semantic-db），保存/读取历史会被拒；图谱读取不受影响');
+      const r = await fetch(`/api/bizmodels/${encodeURIComponent(dsn)}/export`);
+      const rep = await r.json();
+      if (rep?.ok) setExportMsg(`已导出：${rep.path}`);
+      else setExportMsg(`导出失败：${rep?.error?.message || '未知错误'}`);
+    } catch {
+      setExportMsg('导出失败：服务不可达');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const loadDsn = useCallback(async (v: string) => {
+    if (!v) return;
+    setGraphState('loading');
+    try {
+      const r: OntologyGraphReply = await fetchOntology(v);
+      if (r.has_model && r.ontology) {
+        setGraph(r.ontology);
+        setGraphState('ok');
       } else {
-        setHistoryState('ok');
+        setGraph(null);
+        setGraphState('none');
       }
     } catch (e) {
-      setHistoryState('down');
-      setGraphMsg(e instanceof ApiError ? `${e.code}：${e.message}` : '读取历史失败');
+      setGraph(null);
+      setGraphState('down');
+      setGraphMsg(e instanceof ApiError ? `${e.code}：${e.message}` : '读取模型失败');
     }
   }, []);
-
-  const loadDsn = useCallback(
-    async (v: string) => {
-      if (!v) return;
-      setGraphState('loading');
-      try {
-        const r: OntologyGraphReply = await fetchOntology(v);
-        if (r.has_model && r.ontology) {
-          setGraph(r.ontology);
-          setHasModel(true);
-          setGraphState('ok');
-        } else {
-          setGraph(null);
-          setHasModel(false);
-          setGraphState('none');
-        }
-      } catch (e) {
-        setGraph(null);
-        setHasModel(false);
-        setGraphState('down');
-        setGraphMsg(e instanceof ApiError ? `${e.code}：${e.message}` : '读取模型失败');
-      }
-      await loadHistory(v);
-    },
-    [loadHistory],
-  );
 
   useEffect(() => {
     (async () => {
@@ -118,15 +87,20 @@ export const OntologyView: React.FC = () => {
         const page = await listDatasources();
         const items = page.items ?? [];
         setSources(items);
-        const def = items.find((s) => s.id === 'demo-sqlite')?.id ?? items[0]?.id ?? '';
+        // 优先记住的选择，其次 demo-sqlite，再退第一条
+        const saved = readSavedDsn();
+        const def =
+          items.find((s) => s.id === saved)?.id ??
+          items.find((s) => s.id === 'demo-sqlite')?.id ??
+          items[0]?.id ??
+          '';
         if (def) {
           setDsn(def);
-          await loadDsn(def);
+          void loadDsn(def);
         } else {
           setGraphState('none');
         }
       } catch {
-        // 即使数据源拉不到，四步演示照常用示例夹具跑
         setGraphState('none');
       }
     })();
@@ -134,66 +108,42 @@ export const OntologyView: React.FC = () => {
 
   const switchDsn = (v: string) => {
     setDsn(v);
-    setTrace(null);
+    setRefreshedAt(null);
+    rememberDsn(v);
     void loadDsn(v);
   };
 
-  const submit = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const next = text.trim();
-    if (!next) return;
-    setIntent(next);
-    setStep(1);
-  };
-
-  const pickPreset = (preset: string) => {
-    setText(preset);
-    setIntent(preset);
-    setStep(1);
-  };
-
-  const saveTrace = async () => {
-    if (!dsn) {
-      setSaveMsg('先选一个数据源再保存');
-      setSaveErr(true);
-      return;
-    }
-    setSaving(true);
-    setSaveMsg(null);
-    setSaveErr(false);
+  /** 刷新图谱：重新连库现算（外键/同名列候选可能随库结构变化）。 */
+  const refreshGraph = async () => {
+    if (!dsn || refreshing) return;
+    setRefreshing(true);
     try {
-      const req = toOntologyTrace(dsn, intent, res);
-      const r = await saveOntology(req);
-      setSaveMsg(`已保存本次演示结论（${r.id}）`);
-      await loadHistory(dsn);
+      const r: OntologyGraphReply = await fetchOntology(dsn);
+      if (r.has_model && r.ontology) {
+        setGraph(r.ontology);
+        setGraphState('ok');
+      } else {
+        setGraph(null);
+        setGraphState('none');
+      }
+      setRefreshedAt(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
     } catch (e) {
-      setSaveErr(true);
-      setSaveMsg(e instanceof ApiError ? `${e.code}：${e.message}` : '保存失败');
+      setGraphState('down');
+      setGraphMsg(e instanceof ApiError ? `${e.code}：${e.message}` : '刷新失败');
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const openTrace = async (id: string) => {
-    try {
-      const r = await getOntology(id);
-      setTrace(r);
-    } catch (e) {
-      setTrace(null);
-      setSaveMsg(e instanceof ApiError ? `${e.code}：${e.message}` : '读取失败');
-      setSaveErr(true);
+      setRefreshing(false);
     }
   };
 
   const badge = (() => {
-    if (graphState === 'down') return { cls: '', text: '后端未连接 · 示例演示' };
+    if (graphState === 'down') return { cls: '', text: '后端未连接' };
     if (graphState === 'ok' && graph) {
       return {
         cls: 'ran',
         text: `真实模型已接入 · ${graph.entities.length} 实体 / ${graph.edges.length} 关系`,
       };
     }
-    if (graphState === 'none') return { cls: '', text: '该数据源无本体模型 · 用示例演示' };
+    if (graphState === 'none') return { cls: '', text: '该数据源无本体模型' };
     return { cls: '', text: '加载中…' };
   })();
 
@@ -202,18 +152,15 @@ export const OntologyView: React.FC = () => {
       <div className="page-head">
         <div className="grow">
           <div className="eyebrow">Ontology</div>
-          <h1>本体大脑 · 解析器</h1>
-          <div className="sub">一句话 → 四步定表 → 分头聚合 → 安全 SQL；每步可单独核对</div>
+          <h1>本体 · 实体与关系</h1>
+          <div className="sub">
+            真连库现算：真实外键 + 源码确认 + 同名列候选；四步解析在「四步解析」页
+          </div>
         </div>
-        <span
-          className={`badge ${badge.cls}`}
-          title="顶部卡片读真实模型图谱（catalog.model）；四步演示用示例夹具，因为任意模型的行级聚合要等服务端 /query/run"
-        >
-          {badge.text}
-        </span>
+        <span className={`badge ${badge.cls}`}>{badge.text}</span>
       </div>
 
-      {/* 数据源选择 + 保存/历史 */}
+      {/* 数据源选择（记住上次的） */}
       <div className="row" style={{ gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
         <select
           value={dsn}
@@ -227,20 +174,13 @@ export const OntologyView: React.FC = () => {
           ))}
           {sources.length === 0 ? <option value="">（还没有数据源）</option> : null}
         </select>
-        <button type="button" className="btn small" onClick={saveTrace} disabled={saving}>
-          {saving ? '保存中…' : '保存解析结论'}
+        <button type="button" className="btn small" onClick={exportMd} disabled={exporting || graphState !== 'ok'}>
+          {exporting ? '导出中…' : '⬇ 导出 MD'}
         </button>
-        <button
-          type="button"
-          className="btn small"
-          onClick={() => setHistoryOpen((v) => !v)}
-          disabled={historyState === 'down' && history.length === 0}
-        >
-          {historyOpen ? '收起历史' : '历史解析'}
-        </button>
-        {saveMsg ? (
-          <span className={`tiny ${saveErr ? 'err' : ''}`} style={saveErr ? { color: '#ff8a8a' } : undefined}>
-            {saveMsg}
+        <span className="tiny muted">选择会被记住，两个本体页共用</span>
+        {exportMsg ? (
+          <span className="tiny" style={{ color: exportMsg.startsWith('已导出') ? 'var(--ok, #2e7d32)' : '#ff8a8a' }}>
+            {exportMsg}
           </span>
         ) : null}
       </div>
@@ -248,10 +188,10 @@ export const OntologyView: React.FC = () => {
       {/* 真实模型图谱 */}
       <section className="card pad" style={{ marginTop: 16 }}>
         <div className="eyebrow">Real Ontology</div>
-        <h2 className="step-h">真实模型图谱（来自后端 catalog.model）</h2>
+        <h2 className="step-h">真实模型图谱（连库现算）</h2>
         <p className="step-p">
-          这里画的是<b>该数据源真正的</b>实体 / 关系 / 口径，不是示例。没有关系（单表模型）时，
-          下方四步演示也能成立，只是没有扇出可看。
+          这里画的是<b>该数据源真正的</b>实体 / 关系，不是示例。关系 = 真实外键 + 源码确认 +
+          同名列候选，每条都带依据。
         </p>
         {graphState === 'ok' && graph ? (
           <OntologyGraph graph={graph} />
@@ -260,186 +200,20 @@ export const OntologyView: React.FC = () => {
         ) : graphState === 'down' ? (
           <div className="tiny" style={{ color: '#ff8a8a' }}>{graphMsg}</div>
         ) : (
-          <div className="tiny muted">
-            该数据源还没有本体模型（或语义库未启用）。下方四步演示用示例夹具跑通推理逻辑。
-          </div>
+          <div className="tiny muted">该数据源还没有可画的本体关系。</div>
         )}
       </section>
 
-      {/* 历史解析（复用 / 审计） */}
-      {historyOpen ? (
-        <section className="card pad" style={{ marginTop: 16 }}>
-          <div className="eyebrow">History</div>
-          <h2 className="step-h">历史解析（人确认过的结论，可复用）</h2>
-          {historyState === 'down' && history.length === 0 ? (
-            <div className="tiny" style={{ color: '#ff8a8a' }}>{graphMsg}</div>
-          ) : history.length === 0 ? (
-            <div className="tiny muted">还没有保存过解析结论（点上方「保存解析结论」即可落库）。</div>
-          ) : (
-            <div className="stack" style={{ gap: 8 }}>
-              {history.map((h) => (
-                <div key={h.id} className="row" style={{ gap: 10 }}>
-                  <button type="button" className="btn small" onClick={() => openTrace(h.id)}>
-                    查看
-                  </button>
-                  <span className="grow" style={{ fontSize: 13 }}>
-                    {h.question}
-                  </span>
-                  <span className="tiny muted">
-                    {h.center_entity ?? '—'} · {h.fanout_edges} 放大边 ·{' '}
-                    {h.created_at.slice(0, 19).replace('T', ' ')}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {trace ? (
-            <div className="card pad" style={{ marginTop: 12, background: '#1a2233' }}>
-              <div className="rail-head">#{trace.id}</div>
-              <div className="tiny">{trace.question} · 中心 {trace.center_entity ?? '—'}</div>
-              <pre className="sqlbox" style={{ maxHeight: 240, overflow: 'auto', marginTop: 8 }}>
-                {trace.sql ?? '（无 SQL）'}
-              </pre>
-              <div className="tiny muted" style={{ marginTop: 6 }}>
-                命中 {trace.hits.length} 条 · 步骤 {trace.steps.length} 步 · 状态 {trace.status}
-              </div>
-            </div>
-          ) : null}
-        </section>
+      {/* 实体 · 关系目录：列出 / 搜索 / 分页 / 点实体看属性 / 刷新 */}
+      {graphState === 'ok' && graph ? (
+        <OntologyCatalog
+          graph={graph}
+          dsn={dsn}
+          onRefresh={refreshGraph}
+          refreshing={refreshing}
+          refreshedAt={refreshedAt}
+        />
       ) : null}
-
-      <form className="ask" onSubmit={submit}>
-        <div className="ask-row">
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="例：按客户等级看 LTV 和逾期率"
-          />
-          <button type="submit" className="btn primary">
-            解析
-          </button>
-        </div>
-        <div className="ask-foot">
-          <span className="tiny">
-            规则匹配（维度词 / 度量词 → 表.字段），不做语义猜测。
-            当前：<b>{res.hits.filter((h) => h.kind !== 'entity').length}</b> 条命中 ·
-            需要 <b>{res.entities.length}</b> 张表 ·
-            {res.risk.multiple ? ' 检测到并列放大边' : ' 单放大边'}
-          </span>
-          <span className="row" style={{ gap: 8 }}>
-            {PRESETS.map((p) => (
-              <button
-                key={p.intent}
-                type="button"
-                className={`btn small ${intent === p.intent ? 'primary' : ''}`}
-                onClick={() => pickPreset(p.intent)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </span>
-        </div>
-      </form>
-
-      {/* 步骤条：固定在正文上方，点哪步看哪步 */}
-      <div className="stepper" role="tablist" aria-label="解析四步">
-        {STEPS.map((s) => (
-          <button
-            key={s.no}
-            type="button"
-            role="tab"
-            aria-selected={step === s.no}
-            className={`step ${step === s.no ? 'on' : ''} ${step > s.no ? 'done' : ''}`}
-            onClick={() => setStep(s.no)}
-          >
-            <span className="no">{step > s.no ? '✓' : s.no}</span>
-            <span className="grow" style={{ minWidth: 0 }}>
-              <span className="tt">{s.title}</span>
-              <span className="ss">{s.sub}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div className={step <= 2 ? 'split' : ''} style={{ marginTop: 18 }}>
-        <div className="stack">
-          {step === 1 ? <StepIdentify res={res} /> : null}
-          {step === 2 ? <StepCenter res={res} /> : null}
-          {step === 3 ? <StepGrain res={res} /> : null}
-          {step === 4 ? <StepOutput res={res} tab={tab} setTab={setTab} /> : null}
-
-          <div className="stepnav">
-            <button
-              type="button"
-              className="btn small"
-              onClick={() => setStep((s) => (s > 1 ? ((s - 1) as StepNo) : s))}
-              disabled={step === 1}
-            >
-              ← 上一步
-            </button>
-            <span className="tiny">
-              第 {step} / 4 步 · {STEPS[step - 1].title}
-            </span>
-            <button
-              type="button"
-              className="btn small primary"
-              onClick={() => setStep((s) => (s < 4 ? ((s + 1) as StepNo) : s))}
-              disabled={step === 4}
-            >
-              下一步 →
-            </button>
-          </div>
-        </div>
-
-        {step <= 2 ? (
-        <aside className="stack">
-          <div className="card pad rail-card">
-            <div className="rail-head">本体规模</div>
-            <div className="rail-stat">
-              <span>实体</span>
-              <b>{ONTOLOGY_SUMMARY.entities}</b>
-            </div>
-            <div className="rail-stat">
-              <span>关系</span>
-              <b>{ONTOLOGY_SUMMARY.edges}</b>
-            </div>
-            <div className="rail-stat">
-              <span>口径</span>
-              <b>{ONTOLOGY_SUMMARY.metrics}</b>
-            </div>
-            <div className="tiny" style={{ marginTop: 8 }}>
-              行数：客户 {ONTOLOGY_SUMMARY.rows.customer} · 订单 {ONTOLOGY_SUMMARY.rows.order} · 贷款{' '}
-              {ONTOLOGY_SUMMARY.rows.loan}
-            </div>
-          </div>
-
-          <div className="card pad rail-card">
-            <div className="rail-head">本次用到的表</div>
-            {res.entities.map((id) => (
-              <div key={id} className="rail-line">
-                <code className="sql-inline">{id}</code>
-                <span className="tiny">
-                  {res.edges.filter((e) => e.to === id).map((e) => `${e.cardinality} 放大`).join(' / ') || '主表'}
-                </span>
-              </div>
-            ))}
-            <div className="rail-head" style={{ marginTop: 16 }}>
-              口径
-            </div>
-            {res.metrics.map((id) => {
-              const m = ONTOLOGY.metrics.find((x) => x.id === id);
-              return (
-                <div key={id} className="rail-line">
-                  <span style={{ fontSize: 12 }}>{m?.label ?? id}</span>
-                  <span className="mono">{id}</span>
-                </div>
-              );
-            })}
-          </div>
-        </aside>
-        ) : null}
-      </div>
     </>
   );
 };
@@ -450,23 +224,32 @@ export const OntologyView: React.FC = () => {
 
 const OntologyGraph: React.FC<{ graph: OntoGraph }> = ({ graph }) => {
   const n = graph.entities.length;
-  const W = Math.max(640, n * 210);
-  const H = 150;
   const nodeW = 156;
   const nodeH = 60;
-  const slot = W / n;
+  // 小图谱（≤12 实体）：一行排开、弧形边；大图谱：网格排布、直线边（否则 200+ 节点排成 4 万像素长条）
+  const grid = n > 12;
+  const cols = grid ? Math.max(6, Math.min(10, Math.ceil(Math.sqrt(n) * 1.4))) : n;
+  const slot = nodeW + 34;
+  const rowH = nodeH + 56;
+  const W = Math.max(640, cols * slot);
+  const H = grid ? Math.ceil(n / cols) * rowH : 150;
   const pos = graph.entities.map((_, i) => ({
-    x: slot * i + (slot - nodeW) / 2,
-    y: H / 2 - nodeH / 2,
+    x: (i % cols) * slot + (slot - nodeW) / 2,
+    y: Math.floor(i / cols) * rowH + rowH / 2 - nodeH / 2,
   }));
   const cy = H / 2;
   const apexY = 16;
+  const center = (i: number) => ({
+    cx: pos[i].x + nodeW / 2,
+    cy: pos[i].y + nodeH / 2,
+  });
   return (
     <svg
       className="onto-graph"
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
-      height={H}
+      height={grid ? Math.min(H, 560) : H}
+      style={grid ? { overflow: 'auto', display: 'block' } : undefined}
       role="img"
       aria-label="本体关系图"
     >
@@ -487,14 +270,27 @@ const OntologyGraph: React.FC<{ graph: OntoGraph }> = ({ graph }) => {
         const fi = graph.entities.findIndex((x) => x.id === e.from);
         const ti = graph.entities.findIndex((x) => x.id === e.to);
         if (fi < 0 || ti < 0) return null;
-        const x1 = fi < ti ? pos[fi].x + nodeW : pos[fi].x;
-        const x2 = fi < ti ? pos[ti].x : pos[ti].x + nodeW;
-        const mx = (x1 + x2) / 2;
-        const d = `M ${x1} ${cy} C ${x1} ${apexY + 34}, ${x2} ${apexY + 34}, ${x2} ${cy}`;
+        let d: string;
+        let mx: number;
+        let my: number;
+        if (grid) {
+          // 直线边：任意两节点（可能跨行）
+          const a = center(fi);
+          const b = center(ti);
+          d = `M ${a.cx} ${a.cy} L ${b.cx} ${b.cy}`;
+          mx = (a.cx + b.cx) / 2;
+          my = (a.cy + b.cy) / 2;
+        } else {
+          const x1 = fi < ti ? pos[fi].x + nodeW : pos[fi].x;
+          const x2 = fi < ti ? pos[ti].x : pos[ti].x + nodeW;
+          mx = (x1 + x2) / 2;
+          my = apexY + 4;
+          d = `M ${x1} ${cy} C ${x1} ${apexY + 34}, ${x2} ${apexY + 34}, ${x2} ${cy}`;
+        }
         return (
           <g key={`${e.from}-${e.to}-${idx}`}>
             <path d={d} fill="none" stroke="#7c93ff" strokeWidth={1.6} markerEnd="url(#onto-arrow)" />
-            <g transform={`translate(${mx}, ${apexY + 4})`}>
+            <g transform={`translate(${mx}, ${my})`}>
               <rect x={-27} y={-11} width={54} height={18} rx={9} fill="#1b2233" stroke="#3a4a66" strokeWidth={1} />
               <text x={0} y={2} textAnchor="middle" fontSize={11} fill="#9fb0c9">
                 {e.cardinality}
@@ -507,10 +303,10 @@ const OntologyGraph: React.FC<{ graph: OntoGraph }> = ({ graph }) => {
         <g key={ent.id} transform={`translate(${pos[i].x}, ${pos[i].y})`}>
           <rect width={nodeW} height={nodeH} rx={10} fill="#222b3d" stroke="#3a4a66" strokeWidth={1.5} />
           <text x={14} y={24} fontSize={13} fontWeight={600} fill="#e6ebf5">
-            {ent.id}
+            {ent.id.replace('service.', '')}
           </text>
           <text x={14} y={44} fontSize={12} fill="#9fb0c9">
-            {ent.name}
+            {ent.name === ent.id ? '' : ent.name.slice(0, 12)}
           </text>
         </g>
       ))}
@@ -519,281 +315,289 @@ const OntologyGraph: React.FC<{ graph: OntoGraph }> = ({ graph }) => {
 };
 
 /* -------------------------------------------------------------------------- */
-/* 第 1 步：识别                                                              */
+/* 实体 · 关系目录：列出 / 搜索 / 分页 / 点实体看属性 / 刷新                    */
 /* -------------------------------------------------------------------------- */
 
-const StepIdentify: React.FC<{ res: ReturnType<typeof resolve> }> = ({ res }) => (
-  <section className="card pad">
-    <div className="eyebrow">Step 01 · Identify</div>
-    <h2 className="step-h">这句话命中了什么</h2>
-    <p className="step-p">
-      逐词匹配维度与度量，命中就给出去向：<b>落在哪张表的哪个字段</b>。没命中的部分下面会明说是兜底，
-      不假装理解了。
-    </p>
+const PAGE_SIZE = 20;
 
-    <table className="tbl">
-      <thead>
-        <tr>
-          <th style={{ width: '18%' }}>命中词</th>
-          <th style={{ width: '14%' }}>类型</th>
-          <th style={{ width: '34%' }}>落点</th>
-          <th>依据</th>
-        </tr>
-      </thead>
-      <tbody>
-        {res.hits.map((h, i) => (
-          <tr key={`${h.kind}-${h.token}-${i}`}>
-            <td>
-              <span className={`pill ${h.kind}`}>{h.token}</span>
-            </td>
-            <td className="mono">{h.kind}</td>
-            <td className="mono">{h.landing}</td>
-            <td className="muted">{h.evidence}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+const OntologyCatalog: React.FC<{
+  graph: OntoGraph;
+  dsn: string;
+  onRefresh: () => void;
+  refreshing: boolean;
+  refreshedAt: string | null;
+}> = ({ graph, dsn, onRefresh, refreshing, refreshedAt }) => {
+  const [tab, setTab] = useState<'entity' | 'edge'>('entity');
+  const [entQ, setEntQ] = useState('');
+  const [edgeQ, setEdgeQ] = useState('');
+  const [kind, setKind] = useState<'all' | '1:N' | '源码' | '候选'>('all');
+  // 分页
+  const [entPage, setEntPage] = useState(1);
+  const [edgePage, setEdgePage] = useState(1);
+  // 实体详情（列属性：列名 / 中文名 / 类型 / 主键）
+  const [sel, setSel] = useState<string | null>(null);
+  const [cols, setCols] = useState<{ name: string; cn: string; type: string; ispk: boolean }[] | null>(null);
+  const [colsErr, setColsErr] = useState<string | null>(null);
+  const [colsLoading, setColsLoading] = useState(false);
 
-    <div className="callout-line">
-      结论：需要 {res.entities.length} 张表（{res.entities.join(' · ')}），按「{res.dim === 'level' ? '客户等级' : '所属大区'}」分组
+  // 筛选条件变了就回到第一页
+  useEffect(() => setEntPage(1), [entQ]);
+  useEffect(() => setEdgePage(1), [edgeQ, kind]);
+
+  const openEntity = (id: string) => {
+    if (sel === id) {
+      setSel(null);
+      setCols(null);
+      return;
+    }
+    setSel(id);
+    setCols(null);
+    setColsErr(null);
+    setColsLoading(true);
+    fetch(`/api/datasources/${encodeURIComponent(dsn)}/columns?table=${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((rep: { ok: boolean; items?: { name: string; cn: string; type: string; ispk: boolean }[]; error?: { message?: string } }) => {
+        if (rep?.ok && rep.items) setCols(rep.items);
+        else setColsErr(rep?.error?.message || '读取列属性失败');
+      })
+      .catch(() => setColsErr('读取列属性失败'))
+      .finally(() => setColsLoading(false));
+  };
+
+  const ents = (() => {
+    const q = entQ.trim().toLowerCase();
+    if (!q) return graph.entities;
+    return graph.entities.filter(
+      (e) => e.id.toLowerCase().includes(q) || (e.name || '').toLowerCase().includes(q),
+    );
+  })();
+
+  const edges = (() => {
+    const q = edgeQ.trim().toLowerCase();
+    return graph.edges.filter((e) => {
+      if (kind !== 'all' && e.cardinality !== kind) return false;
+      if (!q) return true;
+      return `${e.from} ${e.to} ${e.evidence || ''}`.toLowerCase().includes(q);
+    });
+  })();
+
+  const relCount = (id: string) =>
+    graph.edges.filter((x) => x.from === id || x.to === id).length;
+
+  // 分页切片
+  const entPages = Math.max(1, Math.ceil(ents.length / PAGE_SIZE));
+  const entView = ents.slice((entPage - 1) * PAGE_SIZE, entPage * PAGE_SIZE);
+  const edgePages = Math.max(1, Math.ceil(edges.length / PAGE_SIZE));
+  const edgeView = edges.slice((edgePage - 1) * PAGE_SIZE, edgePage * PAGE_SIZE);
+
+  const pager = (page: number, pages: number, total: number, setPage: (p: number) => void) => (
+    <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center' }}>
+      <button type="button" className="btn small" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+        ← 上一页
+      </button>
+      <span className="tiny">
+        第 {page} / {pages} 页 · 共 {total} 条
+      </span>
+      <button type="button" className="btn small" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+        下一页 →
+      </button>
     </div>
-  </section>
-);
+  );
 
-/* -------------------------------------------------------------------------- */
-/* 第 2 步：定主表                                                            */
-/* -------------------------------------------------------------------------- */
-
-const StepCenter: React.FC<{ res: ReturnType<typeof resolve> }> = ({ res }) => (
-  <section className="card pad">
-    <div className="eyebrow">Step 02 · Topology</div>
-    <h2 className="step-h">谁是中心表</h2>
-    <p className="step-p">
-      关系图里只有两类边：<b>1:N</b>（放大，行数会变多）与 <b>N:1</b>（不放大）。
-      中心表 = 所有放大边的<b>起点</b>，从它出发左连，行数才不会被改变。
-    </p>
-
-    <table className="tbl">
-      <thead>
-        <tr>
-          <th style={{ width: '26%' }}>关系</th>
-          <th style={{ width: '14%' }}>基数</th>
-          <th>连接条件</th>
-        </tr>
-      </thead>
-      <tbody>
-        {res.edges.map((e) => (
-          <tr key={`${e.from}-${e.to}`}>
-            <td className="mono">
-              {e.from} → {e.to}
-            </td>
-            <td>
-              <span className={`pill ${e.cardinality === '1:N' ? 'warn' : 'ok'}`}>{e.cardinality}</span>
-            </td>
-            <td className="mono muted">{e.on}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-
-    <div className="center-box">
-      <div className="center-top">
-        <div>
-          <div className="tiny">中心表</div>
-          <div className="center-name">{res.center.entity}</div>
-        </div>
-        <span className={`badge ${res.risk.multiple ? 'analyzed' : 'ran'}`}>
-          {res.center.fanOut} 条放大边
-        </span>
-      </div>
-      <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.85 }}>
-        {res.center.why}
-      </div>
-    </div>
-
-    <div className={`note ${res.risk.multiple ? 'risk' : ''}`}>
-      {res.risk.notes.map((n) => (
-        <div key={n}>· {n}</div>
-      ))}
-    </div>
-  </section>
-);
-
-/* -------------------------------------------------------------------------- */
-/* 第 3 步：分头聚合（核心）                                                   */
-/* -------------------------------------------------------------------------- */
-
-const StepGrain: React.FC<{ res: ReturnType<typeof resolve> }> = ({ res }) => {
-  const { naive, grain, inflation, inflationMetric } = res.compare;
-  const label = inflationMetric === 'ltv' ? '客户价值' : '授信总额';
-  const fmt = (v: number) => `¥${Math.round(v).toLocaleString('zh-CN')}`;
   return (
-    <section className="card pad">
-      <div className="eyebrow">Step 03 · Grains Aligned</div>
-      <h2 className="step-h">不预聚合会怎样，预聚合后又怎样</h2>
+    <section className="card pad" style={{ marginTop: 16 }}>
+      <div className="eyebrow">Catalog</div>
+      <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <h2 className="step-h" style={{ margin: 0 }}>
+          实体 · 关系目录
+        </h2>
+        <span className="grow" />
+        {refreshedAt ? <span className="tiny muted">上次刷新 {refreshedAt}</span> : null}
+        <button type="button" className="btn small" onClick={onRefresh} disabled={refreshing}>
+          {refreshing ? '刷新中…' : '↻ 刷新图谱'}
+        </button>
+      </div>
       <p className="step-p">
-        同一条意图，两种写法。左边是「直接多表 JOIN」，右边是「各自先在 customer_id 收敛再 1:1 连」。
-        下面两张表的合计是<b>真算出来的</b>，不是示意。
+        实体 = 主库 service.* 全部表（名称取表注释）；关系 = 真实外键 + 源码确认 + 同名列候选。
+        点实体行展开属性（列/类型/注释/主键）；每页 {PAGE_SIZE} 条，可翻页。
       </p>
 
-      <div className="diff2">
-        <div className="diff-col bad">
-          <div className="diff-head">
-            <span className="badge failed">直接 JOIN</span>
-            <span className="tiny">行数 {naive.totals.rows}</span>
+      <div className="row" style={{ gap: 8, marginBottom: 10 }}>
+        <button
+          type="button"
+          className={`btn small ${tab === 'entity' ? 'primary' : ''}`}
+          onClick={() => setTab('entity')}
+        >
+          实体（{graph.entities.length}）
+        </button>
+        <button
+          type="button"
+          className={`btn small ${tab === 'edge' ? 'primary' : ''}`}
+          onClick={() => setTab('edge')}
+        >
+          关系（{graph.edges.length}）
+        </button>
+      </div>
+
+      {tab === 'entity' ? (
+        <>
+          <div className="row" style={{ gap: 8, marginBottom: 8 }}>
+            <input
+              type="text"
+              value={entQ}
+              onChange={(e) => setEntQ(e.target.value)}
+              placeholder="搜实体 id 或名称（如 user、单位、GZ）"
+              style={{ flex: 1 }}
+            />
+            <span className="tiny muted">
+              显示 {ents.length} / {graph.entities.length}
+            </span>
           </div>
           <table className="tbl compact">
             <thead>
               <tr>
-                {naive.headers.map((h) => (
-                  <th key={h}>{h}</th>
-                ))}
+                <th style={{ width: '36%' }}>实体</th>
+                <th style={{ width: '32%' }}>名称（表注释）</th>
+                <th style={{ width: '12%' }}>类型</th>
+                <th>关系数</th>
               </tr>
             </thead>
             <tbody>
-              {naive.rows.map((r, i) => (
-                <tr key={i}>
-                  {r.map((c, j) => (
-                    <td key={j} className={j >= 2 ? 'num' : ''}>
-                      {c}
-                    </td>
-                  ))}
+              {entView.map((e) => (
+                <tr
+                  key={e.id}
+                  style={{ cursor: 'pointer', background: sel === e.id ? '#f5f1ea' : undefined }}
+                  title="点这行 → 展开实体属性（列/类型/注释/主键）"
+                  onClick={() => openEntity(e.id)}
+                >
+                  <td className="mono">{e.id}</td>
+                  <td>
+                    {e.name === e.id ? <span className="muted">（无注释）</span> : e.name}
+                  </td>
+                  <td>{e.kind === 'view' ? <span className="pill ok">视图</span> : '表'}</td>
+                  <td>{relCount(e.id) || <span className="muted">0</span>}</td>
                 </tr>
               ))}
-              <tr className="tot">
-                <td>合计</td>
-                <td className="num">{naive.totals.rows} 行</td>
-                {naive.cols.map((c) => (
-                  <td key={c} className="num">
-                    {fmt(naive.totals[c])}
+              {entView.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    没有匹配的实体
                   </td>
-                ))}
-              </tr>
+                </tr>
+              ) : null}
             </tbody>
           </table>
-          <div className="diff-foot">明细只列被放大的 {naive.rows.length} 个客户；合计按全部 8 个客户算</div>
-        </div>
+          {pager(entPage, entPages, ents.length, setEntPage)}
 
-        <div className="diff-col good">
-          <div className="diff-head">
-            <span className="badge ran">分头聚合</span>
-            <span className="tiny">行数 {grain.totals.rows}</span>
+          {/* 实体详情：列属性 + 相关关系入口 */}
+          {sel ? (
+            <div className="card pad" style={{ marginTop: 12 }}>
+              <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                <div className="rail-head">#{sel}</div>
+                <span className="grow" />
+                <button
+                  type="button"
+                  className="btn small"
+                  onClick={() => {
+                    setEdgeQ(sel);
+                    setTab('edge');
+                  }}
+                >
+                  查它的关系 →
+                </button>
+              </div>
+              {colsLoading ? (
+                <div className="tiny" style={{ marginTop: 8 }}>读取列属性中…</div>
+              ) : colsErr ? (
+                <div className="tiny" style={{ color: '#ff8a8a', marginTop: 8 }}>{colsErr}</div>
+              ) : cols ? (
+                <>
+                  <table className="tbl compact" style={{ marginTop: 8 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '28%' }}>列名</th>
+                        <th style={{ width: '28%' }}>中文名</th>
+                        <th style={{ width: '32%' }}>类型</th>
+                        <th>主键</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cols.map((c) => (
+                        <tr key={c.name}>
+                          <td className="mono">{c.name}</td>
+                          <td>{c.cn || <span className="muted">—</span>}</td>
+                          <td className="mono muted">{c.type}</td>
+                          <td>{c.ispk ? <span className="pill ok">PK</span> : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="tiny muted" style={{ marginTop: 6 }}>
+                    共 {cols.length} 列 · 中文名：本表列注释优先，缺失时用同名列在其它表注释里的多数票兜底
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div className="row" style={{ gap: 8, marginBottom: 8 }}>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value as 'all' | '1:N' | '源码' | '候选')}
+              style={{ flex: '0 0 150px' }}
+            >
+              <option value="all">全部类型</option>
+              <option value="1:N">真外键 1:N</option>
+              <option value="源码">源码确认</option>
+              <option value="候选">同名列候选</option>
+            </select>
+            <input
+              type="text"
+              value={edgeQ}
+              onChange={(e) => setEdgeQ(e.target.value)}
+              placeholder="搜表名或依据（如 user、单位代码）"
+              style={{ flex: 1 }}
+            />
+            <span className="tiny muted">
+              显示 {edges.length} / {graph.edges.length}
+            </span>
           </div>
           <table className="tbl compact">
             <thead>
               <tr>
-                {grain.headers.map((h) => (
-                  <th key={h}>{h}</th>
-                ))}
+                <th style={{ width: '34%' }}>关系（1 → N）</th>
+                <th style={{ width: '12%' }}>基数</th>
+                <th>依据</th>
               </tr>
             </thead>
             <tbody>
-              {grain.rows.map((r, i) => (
-                <tr key={i}>
-                  {r.map((c, j) => (
-                    <td key={j} className={j >= 2 ? 'num' : ''}>
-                      {c}
-                    </td>
-                  ))}
+              {edgeView.map((e, i) => (
+                <tr key={`${e.from}-${e.to}-${i}`}>
+                  <td className="mono">
+                    {e.from} → {e.to}
+                  </td>
+                  <td>
+                    <span className={`pill ${e.cardinality === '1:N' ? 'warn' : 'ok'}`}>
+                      {e.cardinality}
+                    </span>
+                  </td>
+                  <td className="muted">{e.evidence || '—'}</td>
                 </tr>
               ))}
-              <tr className="tot">
-                <td>合计</td>
-                <td className="num">{grain.totals.rows} 行</td>
-                {grain.cols.map((c) => (
-                  <td key={c} className="num">
-                    {fmt(grain.totals[c])}
+              {edgeView.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="muted">
+                    没有匹配的关系
                   </td>
-                ))}
-              </tr>
+                </tr>
+              ) : null}
             </tbody>
           </table>
-          <div className="diff-foot">每个客户都已收敛成 1 行，明细同样只列 {grain.rows.length} 个</div>
-        </div>
-      </div>
-
-      <div className="note risk" style={{ marginTop: 16 }}>
-        <div>
-          · 直接 JOIN 把 {grain.totals.rows} 行放大到 <b>{naive.totals.rows}</b> 行，
-          {label}虚增 <b>{(inflation * 100).toFixed(1)}%</b>
-          （{fmt(grain.totals[inflationMetric])} → {fmt(naive.totals[inflationMetric])}）。
-        </div>
-        <div>· 根因：客户 C001 有 2 笔订单 × 2 笔贷款，展开成 4 行后同一笔金额被重复计入 2 次。</div>
-        <div>
-          · 处置：<code className="sql-inline">order_grain</code> 与{' '}
-          <code className="sql-inline">loan_grain</code> 各自{' '}
-          <code className="sql-inline">GROUP BY customer_id</code> 收敛成一行，再左连主表。
-        </div>
-      </div>
+          {pager(edgePage, edgePages, edges.length, setEdgePage)}
+        </>
+      )}
     </section>
   );
 };
-
-/* -------------------------------------------------------------------------- */
-/* 第 4 步：组装输出                                                          */
-/* -------------------------------------------------------------------------- */
-
-const StepOutput: React.FC<{
-  res: ReturnType<typeof resolve>;
-  tab: 'sql' | 'polars';
-  setTab: (t: 'sql' | 'polars') => void;
-}> = ({ res, tab, setTab }) => (
-  <section className="card pad">
-    <div className="eyebrow">Step 04 · Compose</div>
-    <h2 className="step-h">拼成可执行的计划</h2>
-    <p className="step-p">
-      同一份计划，两种落地形式：给数据库的 CTE SQL，或给 Rust 侧 Polars 的惰性管道。
-      下面的预览是按示例夹具现算的，与服务端执行结果无关。
-    </p>
-
-    <div className="row" style={{ gap: 8, marginBottom: 10 }}>
-      <button type="button" className={`btn small ${tab === 'sql' ? 'primary' : ''}`} onClick={() => setTab('sql')}>
-        Grain-Aligned SQL
-      </button>
-      <button type="button" className={`btn small ${tab === 'polars' ? 'primary' : ''}`} onClick={() => setTab('polars')}>
-        Polars Lazy
-      </button>
-      <span className="grow" />
-      <span className="tiny">{tab === 'sql' ? 'ANSI SQL · 可直连三方言' : 'Rust · 与 SQL 等价'}</span>
-    </div>
-
-    <pre className="sqlbox tall">{tab === 'sql' ? res.sql : res.polars}</pre>
-
-    <div className="section-title" style={{ marginTop: 22 }}>
-      结果预览 <span className="tiny">示例夹具现算，不是服务端返回</span>
-    </div>
-    <table className="tbl compact">
-      <thead>
-        <tr>
-          {res.preview.headers.map((h, i) => (
-            <th key={h} className={i > 0 ? 'num' : ''}>
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {res.preview.rows.map((r, i) => (
-          <tr key={i}>
-            {r.map((c, j) => (
-              <td key={j} className={j > 0 ? 'num' : ''}>
-                {c}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-
-    <div className="note" style={{ marginTop: 16 }}>
-      <div>
-        · 执行与「在 Univer 里打开」要等 Rust 端点：
-        <code className="sql-inline">POST /query/plan</code>、
-        <code className="sql-inline">POST /query/execute</code>。
-      </div>
-      <div>
-        · 端点就位后，这一页只需把 <code className="sql-inline">resolve()</code> 的入参换成真模型，界面不用改。
-      </div>
-    </div>
-  </section>
-);

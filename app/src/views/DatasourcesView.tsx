@@ -60,6 +60,8 @@ export const DatasourcesView: React.FC = () => {
   const [probe, setProbe] = useState<Probe | null>(null);
   const [probeError, setProbeError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 两步行内确认（预览面板 webview 会吞掉 window.confirm 原生弹窗，不能用）
+  const [armedDel, setArmedDel] = useState<string | null>(null);
 
   const reason = (e: unknown) =>
     e instanceof ApiError ? `${e.code}：${e.message}` : e instanceof Error ? e.message : String(e);
@@ -154,7 +156,12 @@ export const DatasourcesView: React.FC = () => {
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm(`删除数据源 ${id}？注册表里的记录会被移除（库本身不动）。`)) return;
+    // 两步行内确认（预览面板 webview 会吞掉 window.confirm 原生弹窗，不能用）
+    if (armedDel !== id) {
+      setArmedDel(id);
+      return;
+    }
+    setArmedDel(null);
     try {
       await deleteDatasource(id);
       if (selected === id) {
@@ -317,13 +324,13 @@ export const DatasourcesView: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="btn small ghost"
+                className={`btn small ${armedDel === ds.id ? 'primary' : 'ghost'}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   void remove(ds.id);
                 }}
               >
-                删除
+                {armedDel === ds.id ? '确认删除？' : '删除'}
               </button>
             </div>
           ))

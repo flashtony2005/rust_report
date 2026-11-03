@@ -9,6 +9,7 @@ export type NavView =
   | 'bizmodel'
   | 'datasources'
   | 'ontology'
+  | 'resolve'
   | 'analysis';
 
 interface SidebarProps {
@@ -30,7 +31,8 @@ const LABEL: Record<NavView, string> = {
   runs: '运行记录',
   bizmodel: '业务知识',
   datasources: '数据源',
-  ontology: '本体解析',
+  ontology: '实体关系',
+  resolve: '四步解析',
   analysis: '归因分析',
 };
 
@@ -68,14 +70,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => 
           onClick={() => onNavigate(view)}
           title={
             view === 'ontology'
-              ? '四步把一句话拆成安全 SQL（示例夹具）'
-              : view === 'datasources'
-                ? '真连库：注册表 + 探测（列画像 / 抽样 / 主键）'
-                : view === 'bizmodel'
-                  ? '从库结构发现的实体/关系/指标/维度（confirmed 只能人工晋升）'
-                : PENDING.includes(view)
-                  ? '语义层端点还没到 Rust，页面只说明缺口'
-                  : '服务端 8090 上的实例库'
+              ? '主库实体与关系（连库现算：图谱 + 目录）'
+              : view === 'resolve'
+                ? '一句话四步拆成 SQL，自动留历史'
+                : view === 'datasources'
+                  ? '真连库：注册表 + 探测（列画像 / 抽样 / 主键）'
+                  : view === 'bizmodel'
+                    ? '从库结构发现的实体/关系/指标/维度（confirmed 只能人工晋升）'
+                    : PENDING.includes(view)
+                      ? '语义层端点还没到 Rust，页面只说明缺口'
+                      : '服务端 8090 上的实例库'
           }
         >
           {LABEL[view]}

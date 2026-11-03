@@ -515,3 +515,189 @@ export function toOntologyTrace(
 }
 
 export type { OrderRow, LoanRow };
+
+// ---------------------------------------------------------------------------
+// 真模型词表解析（postgres 数据源）：命中库注释里的真实维度/度量词，生成单表聚合 SQL
+// ---------------------------------------------------------------------------
+
+import type { Lexicon, LexiconWord } from './api';
+
+export interface RealResult {
+  hits: { token: string; kind: 'dim' | 'metric' | 'time'; landing: string; evidence: string; table: string }[];
+  entities: string[];
+  dimTokens: LexiconWord[];
+  metricHits: LexiconWord[];
+  center: string | null;
+  why: string;
+  notes: string[];
+  sql: string;
+}
+
+/** 把一句话在真词表里匹配：token 是列的中文注释，命中即给出去向（表.列）。
+ *  排序：匹配长度优先（所属镇>单位），备份/临时表（_bak/del_/快照月表）降权；某类词零命中时用"去尾字"模糊兜底（所属镇街↔所属镇区）。 */
+export function resolveFromLexicon(question: string, lex: Lexicon): RealResult {
+  const q = question.trim();
+  const JUNK = /(^del_|(_bak|_backup|_copy|_tmp)\d*$|_\d{6})/i;
+  const HUB = 'service.dwxxb'; // 维度枢纽表（源码分析结论）：同分时优先
+  const scan = (words: LexiconWord[], kind: 'dim' | 'metric' | 'time') => {
+    const out: { token: string; kind: 'dim' | 'metric' | 'time'; landing: string; evidence: string; table: string; _score: number }[] = [];
+    for (const w of words) {
+      if (!w.token || w.token.length < 2) continue;
+      const junk = JUNK.test(w.table);
+      let weak = false;
+      let hitLen = 0;
+      if (q.includes(w.token)) hitLen = w.token.length;
+      else if (w.token.length >= 3 && q.includes(w.token.slice(0, -1))) {
+        hitLen = w.token.length - 1;
+        weak = true;
+      }
+      if (!hitLen) continue;
+      out.push({
+        token: w.token,
+        kind,
+        landing: w.landing,
+        table: w.table,
+        evidence:
+          (weak ? '模糊命中（词尾不同）：' : '') +
+          w.evidence +
+          (junk ? '（备份/临时表，建议换正表）' : ''),
+        _score: hitLen - (junk ? 10 : 0) + (w.table === HUB ? 2 : 0),
+      });
+    }
+    return out.sort((a, b) => b._score - a._score).slice(0, 8);
+  };
+  const dimHits = scan(lex.dims, 'dim');
+  const metricHitsRaw = scan(lex.metrics, 'metric');
+  const timeHits = scan(lex.times, 'time');
+  const hits = [...dimHits, ...metricHitsRaw, ...timeHits];
+
+  // 去重：dimTokens 按词去重（同名维只留排名最高的一条落点），度量按落点去重
+  const seenToken = new Set<string>();
+  const dims = dimHits.filter((h) => !seenToken.has(h.token) && seenToken.add(h.token));
+  const seenLanding2 = new Set<string>();
+  const mets = metricHitsRaw.filter((h) => !seenLanding2.has(h.landing) && seenLanding2.add(h.landing));
+  const entities = [...new Set(hits.map((h) => h.landing.split('.').slice(0, 2).join('.')))];
+  const dimTokens = dims.slice(0, 3);
+  const center = dimTokens[0]?.table ?? mets[0]?.table ?? null;
+  // 度量只保留中心表自己的列 —— 别表的度量列拼进单表 SQL 会直接报错
+  const metricHits = mets.filter((m) => m.table === center).slice(0, 6);
+
+  const notes: string[] = [];
+  if (!center) {
+    notes.push('没有命中任何维度/度量词 —— 请换说法，或先给相关表/列补中文注释');
+  } else {
+    if (entities.length > 1) {
+      notes.push(`命中 ${entities.length} 张表（${entities.join('、')}），SQL 只用中心表 —— 跨表聚合需人工确认关联键后再 JOIN，防扇出`);
+    }
+    const dropped = mets.filter((m) => m.table !== center).length;
+    if (dropped) {
+      notes.push(`有 ${dropped} 个度量落在其它表，未纳入本 SQL（避免跨表列名错误）`);
+    }
+  }
+  if (timeHits.length) {
+    notes.push(`命中时间词（${timeHits.map((h) => h.token).join('、')}）但未生成过滤条件 —— 时间窗口请在执行前手工加 WHERE`);
+  }
+
+  // 单表聚合 SQL：维度 GROUP BY，度量 SUM，恒带 COUNT
+  let sql = '';
+  if (center) {
+    sql = buildGroupSql(
+      center,
+      dimTokens.map((d) => ({ col: d.landing.split('.')[2], alias: d.token })),
+      metricHits.map((m) => ({ col: m.landing.split('.')[2], alias: `${m.token}合计` })),
+    );
+  }
+
+  return {
+    hits,
+    entities,
+    dimTokens,
+    metricHits,
+    center,
+    why: center
+      ? `维度落在 ${dimTokens[0]?.table ?? center}，单表聚合即可满足；无需跨表 JOIN（本次词表命中未发现并列放大边）`
+      : '未命中词表',
+    notes,
+    sql,
+  };
+}
+
+/** 由中心表+维度/度量（列名+别名）拼单表聚合 SQL —— 自动解析与人工修订后的重新生成共用。 */
+export function buildGroupSql(
+  center: string,
+  dims: { col: string; alias: string }[],
+  metrics: { col: string; alias: string }[],
+): string {
+  const sel: string[] = [];
+  const groupCols: string[] = [];
+  for (const d of dims) {
+    sel.push(`t."${d.col}" AS "${d.alias}"`);
+    groupCols.push(`t."${d.col}"`);
+  }
+  sel.push(`COUNT(*) AS "行数"`);
+  for (const m of metrics) {
+    sel.push(`SUM(t."${m.col}") AS "${m.alias}"`);
+  }
+  const lines = ['SELECT', sel.map((s) => `  ${s}`).join(',\n')];
+  lines.push(`FROM ${center} t`);
+  if (groupCols.length) {
+    lines.push('GROUP BY');
+    lines.push(`  ${groupCols.join(',\n  ')}`);
+    lines.push('ORDER BY');
+    lines.push(`  ${groupCols[0]}`);
+  }
+  return lines.join('\n') + ';';
+}
+
+/** 真模式痕迹落库结构（对齐 onto_step/onto_hit 字段）。 */
+export function toRealTrace(
+  dsn: string,
+  question: string,
+  rr: RealResult,
+): {
+  dsn: string;
+  question: string;
+  status: string;
+  center_entity: string | null;
+  fanout_edges: number;
+  sql: string;
+  steps: { step_no: number; kind: string; title: string; detail?: string; sql?: string }[];
+  hits: { ord: number; token?: string; kind: string; target?: string; evidence?: string }[];
+} {
+  return {
+    dsn,
+    question,
+    status: 'auto',
+    center_entity: rr.center,
+    fanout_edges: 0,
+    sql: rr.sql,
+    steps: [
+      {
+        step_no: 1,
+        kind: 'identify',
+        title: '识别（真词表）',
+        detail: `命中 ${rr.hits.length} 条：${rr.hits.map((h) => h.token).join('、') || '无'}`,
+      },
+      {
+        step_no: 2,
+        kind: 'center',
+        title: '定主表',
+        detail: rr.why,
+      },
+      {
+        step_no: 4,
+        kind: 'compose',
+        title: '组装输出',
+        sql: rr.sql,
+        detail: '单表聚合 SQL（执行要等 /query/execute）',
+      },
+    ],
+    hits: rr.hits.map((h, i) => ({
+      ord: i,
+      token: h.token,
+      kind: h.kind,
+      target: h.landing,
+      evidence: h.evidence,
+    })),
+  };
+}

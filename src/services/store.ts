@@ -67,6 +67,17 @@ class ReportStudioStore {
 
   private init() {
     this.datasources = [...INITIAL_DATASOURCES];
+    // 数据源：从服务端 JSON 注册表拉取（examples/library/.datasources.json）
+    // 拉取成功即覆盖内存种子；失败静默（保持种子数据可演示）
+    fetch('/api/datasources')
+      .then((r) => r.json())
+      .then((rep: { items?: Datasource[] }) => {
+        if (rep && Array.isArray(rep.items) && rep.items.length > 0) {
+          this.datasources = rep.items;
+          this.notify();
+        }
+      })
+      .catch(() => {});
     this.schedules = [...INITIAL_SCHEDULES];
     this.alerts = [...INITIAL_ALERTS];
     this.versions = { ...INITIAL_VERSIONS };
@@ -766,14 +777,16 @@ class ReportStudioStore {
     if (ds.id) {
       const idx = this.datasources.findIndex((x) => x.id === ds.id);
       if (idx !== -1) {
-        this.datasources[idx] = {
+        const updated: Datasource = {
           ...this.datasources[idx],
           ...ds,
           driver_label: ds.driver === 'sqlite' ? 'SQLite 文件' : ds.driver === 'postgres' ? 'PostgreSQL / Kingbase' : 'MySQL',
           has_password: !!ds.password || this.datasources[idx].has_password,
         } as Datasource;
+        this.datasources[idx] = updated;
         this.notify();
-        return this.datasources[idx];
+        this.persistDatasource(updated);
+        return updated;
       }
     }
 
@@ -792,12 +805,23 @@ class ReportStudioStore {
     };
     this.datasources.push(newDs);
     this.notify();
+    this.persistDatasource(newDs);
     return newDs;
+  }
+
+  /** 持久化到服务端 JSON 注册表（失败不阻塞界面，下次打开重新拉取）。 */
+  private persistDatasource(ds: Datasource) {
+    fetch('/api/datasources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ds),
+    }).catch(() => {});
   }
 
   public deleteDatasource(id: string) {
     this.datasources = this.datasources.filter((x) => x.id !== id);
     this.notify();
+    fetch(`/api/datasources/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
   }
 
   // --- BizModel Management ---

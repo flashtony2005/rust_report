@@ -14,11 +14,24 @@ export const DatasourcesView: React.FC = () => {
   const handleTestConnection = (id: string) => {
     setTestingId(id);
     setConnStates((prev) => ({ ...prev, [id]: '连接测试中…' }));
-    setTimeout(() => {
-      setTestingId(null);
-      setConnStates((prev) => ({ ...prev, [id]: '✓ 连接成功 (响应 18 ms)' }));
-      toast(`数据源 ${id} 连接正常`);
-    }, 500);
+    fetch(`/api/datasources/${encodeURIComponent(id)}/test`, { method: 'POST' })
+      .then((r) => r.json())
+      .then((rep: { ok: boolean; latency_ms?: number; detail?: string; error?: string }) => {
+        setTestingId(null);
+        if (rep?.ok) {
+          const suffix = rep.latency_ms != null ? ` (响应 ${rep.latency_ms} ms)` : rep.detail ? ` (${rep.detail})` : '';
+          setConnStates((prev) => ({ ...prev, [id]: `✓ 连接成功${suffix}` }));
+          toast(`数据源 ${id} 连接正常`);
+        } else {
+          setConnStates((prev) => ({ ...prev, [id]: `✗ ${rep?.error || '连接失败'}` }));
+          toast(`数据源 ${id} 连接失败：${rep?.error || '未知错误'}`, true);
+        }
+      })
+      .catch(() => {
+        setTestingId(null);
+        setConnStates((prev) => ({ ...prev, [id]: '✗ 服务不可达' }));
+        toast(`数据源 ${id} 连接失败：服务不可达`, true);
+      });
   };
 
   const handleDelete = (id: string) => {

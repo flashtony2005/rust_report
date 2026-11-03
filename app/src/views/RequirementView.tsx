@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ApiError,
   createRequirement,
+  fetchCanon,
   getBizModel,
   listDatasources,
   listShapes,
   type BizModel,
+  type CanonItem,
   type Datasource,
   type RequirementReply,
   type ShapeInfo,
@@ -15,12 +17,19 @@ import {
   type TriageResult,
   type QuickFixOption,
 } from '../services/triage';
+import { readSavedDsn } from './OntologyView';
 
 interface Props {
   onOpenReport: (id: string) => void;
 }
 
 const PRESET_QUERIES = [
+  {
+    tag: '🟢 标准口径',
+    title: '按所属镇街统计单位上报情况',
+    text: '按所属镇街统计单位上报情况',
+    desc: '命中口径 dw-sbzk-by-sszq：分类 × 镇区，已确认/待处理/已下载/单位总数（连库真跑数）',
+  },
   {
     tag: '🟢 经典全绿',
     title: '按客户等级看 LTV 和逾期率',
@@ -65,7 +74,7 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
   const [model, setModel] = useState<BizModel | null>(null);
   const [shapes, setShapes] = useState<ShapeInfo[]>([]);
 
-  const [text, setText] = useState('按客户等级看 LTV 和逾期率');
+  const [text, setText] = useState('按所属镇街统计单位上报情况');
   const [title, setTitle] = useState('');
   const [pickedMetrics, setPickedMetrics] = useState<string[]>([]);
   const [pickedDims, setPickedDims] = useState<string[]>([]);
@@ -89,7 +98,15 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
       .then(([ds, sh]) => {
         if (!alive) return;
         setSources(ds.items ?? []);
-        if ((ds.items ?? []).length > 0) setDsn(ds.items[0].id);
+        if ((ds.items ?? []).length > 0) {
+          // 优先用上次记住的数据源；否则挑 gongzi-pg（工资统发主库），再退第一个
+          const remembered = readSavedDsn();
+          const ids = (ds.items ?? []).map((x) => x.id);
+          const preferred =
+            (remembered && ids.includes(remembered) ? remembered : null) ??
+            (ids.includes('gongzi-pg') ? 'gongzi-pg' : ds.items[0].id);
+          setDsn(preferred);
+        }
         if (sh?.ok) setShapes(sh.items);
       })
       .catch((e) => alive && setError(errText(e)));
@@ -122,6 +139,30 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
     return triageRequirement(text, model, dsn, pickedMetrics, pickedDims, shape);
   }, [text, model, dsn, pickedMetrics, pickedDims, shape]);
 
+  // 标准口径命中（有权威实现的经典问题）：命中即走权威 SQL，不算"域外"
+  const [canon, setCanon] = useState<CanonItem | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const q = text.trim();
+    if (!dsn || q.length < 4) {
+      setCanon(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchCanon(dsn, q)
+        .then((r) => {
+          if (alive) setCanon(r?.item ?? null);
+        })
+        .catch(() => {
+          if (alive) setCanon(null);
+        });
+    }, 260);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [text, dsn]);
+
   // 应用快速修补 (Quick Fix)
   const applyQuickFix = (fix: QuickFixOption) => {
     if (fix.action === 'set_metric') {
@@ -147,7 +188,7 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
       setError('先选一个数据源');
       return;
     }
-    if (triage.branch === 'reject') {
+    if (triage.branch === 'reject' && !canon) {
       setError('此需求已被可行性分诊拦截：关键槽在词表外或物理库缺数据，系统永不假装懂。');
       return;
     }
@@ -180,6 +221,8 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
 
   const decision = result?.decision;
   const runFailed = result?.run && !result.run.ok;
+  /** 有效闸门：命中标准口径 = 有权威实现，按"可做到"放行（不算域外）。 */
+  const gate: 'ready' | 'clarify' | 'reject' = canon ? 'ready' : triage.branch;
 
   return (
     <>
@@ -303,8 +346,24 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
               }`,
             }}
           >
-            当前实时判定：{triage.branchTitle}
+            当前实时判定：{canon ? '🟢 可以做到 · 命中标准口径（权威实现）' : triage.branchTitle}
           </span>
+          {canon ? (
+            <span
+              style={{
+                fontSize: 12,
+                padding: '2px 10px',
+                borderRadius: 999,
+                background: '#e3f4ec',
+                color: '#157055',
+                border: '1px solid #157055',
+                whiteSpace: 'nowrap',
+              }}
+              title={canon.basis}
+            >
+              命中标准口径 · {canon.id}
+            </span>
+          ) : null}
         </div>
 
         {/* 分诊器与确定性五条规则 */}
@@ -395,7 +454,7 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
           >
             <div style={{ fontWeight: 700, color: '#157055', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
               <span>🟢 可以做到</span>
-              {triage.branch === 'ready' && <span style={{ fontSize: 11, background: '#157055', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>当前命中</span>}
+              {gate === 'ready' && <span style={{ fontSize: 11, background: '#157055', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>当前命中</span>}
             </div>
             <div style={{ fontSize: 13, color: '#2c4a3f' }}>指标命中、槽位齐或有默认、无歧义、证据足够</div>
             <div style={{ marginTop: 8, fontSize: 13, background: '#fffcf7', borderRadius: 8, padding: '6px 8px', color: '#4c4239' }}>
@@ -419,7 +478,7 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
           >
             <div style={{ fontWeight: 700, color: '#946200', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
               <span>🟡 可以做到 · 要先补</span>
-              {triage.branch === 'clarify' && <span style={{ fontSize: 11, background: '#946200', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>当前命中</span>}
+              {gate === 'clarify' && <span style={{ fontSize: 11, background: '#946200', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>当前命中</span>}
             </div>
             <div style={{ fontSize: 13, color: '#4c4239' }}>歧义未消 / 时间窗缺且无默认 / 形态证据不足 / 待确认候选列</div>
             <div style={{ marginTop: 8, fontSize: 13, background: '#fffcf7', borderRadius: 8, padding: '6px 8px', color: '#4c4239' }}>
@@ -443,7 +502,7 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
           >
             <div style={{ fontWeight: 700, color: '#b42318', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
               <span>🔴 不可以做到</span>
-              {triage.branch === 'reject' && <span style={{ fontSize: 11, background: '#b42318', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>当前命中</span>}
+              {gate === 'reject' && <span style={{ fontSize: 11, background: '#b42318', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>当前命中</span>}
             </div>
             <div style={{ fontSize: 13, color: '#4c4239' }}>关键槽在词表外 / 含未知词 / 物理库缺数据 / 结构缺到补不了</div>
             <div style={{ marginTop: 8, fontSize: 13, background: '#fffcf7', borderRadius: 8, padding: '6px 8px', color: '#4c4239' }}>
@@ -982,16 +1041,11 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
 
         <div className="form-actions" style={{ marginTop: 18 }}>
           <button
-            className={`btn ${triage.branch === 'ready' ? 'primary' : ''}`}
-            disabled={busy || triage.branch === 'reject'}
+            className={`btn ${gate === 'ready' ? 'primary' : ''}`}
+            disabled={busy || gate === 'reject'}
             onClick={() => void submit()}
             style={{
-              background:
-                triage.branch === 'ready'
-                  ? '#157055'
-                  : triage.branch === 'clarify'
-                  ? '#946200'
-                  : '#b42318',
+              background: gate === 'ready' ? '#157055' : gate === 'clarify' ? '#946200' : '#b42318',
               color: '#fff',
               border: 'none',
               padding: '8px 18px',
@@ -1000,9 +1054,11 @@ export const RequirementView: React.FC<Props> = ({ onOpenReport }) => {
           >
             {busy
               ? '生成中…'
-              : triage.branch === 'ready'
+              : canon
+              ? '🟢 命中标准口径 → 直接出报表'
+              : gate === 'ready'
               ? '🟢 直接生成：spec → run → 真报表'
-              : triage.branch === 'clarify'
+              : gate === 'clarify'
               ? '🟡 建议先补齐槽位 → 再生成'
               : '🔴 域外拒绝：不可生成'}
           </button>

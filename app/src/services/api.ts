@@ -839,6 +839,8 @@ export interface OntoEntity {
   name: string;
   table: string | null;
   status: string;
+  /** table=基表 / view=视图（含物化视图）；老后端可能不给。 */
+  kind?: 'table' | 'view' | string;
 }
 
 export interface OntoEdge {
@@ -967,6 +969,58 @@ export interface OntologyTrace extends OntologySaveRequest {
 /** 取一条完整痕迹（四步 + 命中），复用 / 审计用。 */
 export function getOntology(id: string): Promise<OntologyTrace> {
   return request<OntologyTrace>(`/api/ontology/${encodeURIComponent(id)}`);
+}
+
+// ---------------------------------------------------------------------------
+// 真模型词表（四步解析用）：维度/度量/时间/实体，从列注释现算
+// ---------------------------------------------------------------------------
+
+export interface LexiconWord {
+  token: string;
+  landing: string;
+  table: string;
+  evidence: string;
+  agg?: string;
+  /** 备份/临时表标记（匹配时降权）。 */
+  junk?: number;
+}
+
+export interface Lexicon {
+  ok: boolean;
+  /** real=有词表 / none=该数据源没有（走示例夹具）。 */
+  mode: 'real' | 'none' | string;
+  reason?: string;
+  dims: LexiconWord[];
+  metrics: LexiconWord[];
+  times: LexiconWord[];
+  entities: { id: string; name: string; kind: string }[];
+  counts?: { dims: number; metrics: number; times: number; entities: number };
+}
+
+/** 真模型词表（postgres 数据源才有；sqlite 回示例夹具）。 */
+export function fetchLexicon(dsn: string): Promise<Lexicon> {
+  return request<Lexicon>(`/api/bizmodels/${encodeURIComponent(dsn)}/lexicon`);
+}
+
+/** 标准问题库条目（业务上有权威口径的经典问题）。 */
+export interface CanonItem {
+  id: string;
+  title: string;
+  match: string;
+  sql: string;
+  basis: string;
+  notes?: string[];
+  center_entity?: string;
+}
+
+/** 命中标准问题库（无命中 item=null）——权威口径优先于词表临时拼装。 */
+export function fetchCanon(
+  dsn: string,
+  question: string,
+): Promise<{ ok: boolean; item: CanonItem | null }> {
+  return request<{ ok: boolean; item: CanonItem | null }>(
+    `/api/bizmodels/${encodeURIComponent(dsn)}/canon?question=${encodeURIComponent(question)}`,
+  );
 }
 
 // ---------------------------------------------------------------------------

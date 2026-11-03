@@ -150,6 +150,8 @@ __pycache__/
 # app/（React 壳）：依赖与构建产物
 /app/node_modules/
 /app/dist/
-/node_modules/
+# 根目录 node_modules 是指向 app/node_modules 的软链接（`ln -s`），
+# 尾部带 `/` 的规则匹配不到软链接本身 ⇒ 必须写成不带斜杠的形式，否则会以 `?? node_modules` 混进提交。
+/node_modules
 /dist/
 /.aistudio/

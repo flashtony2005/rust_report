@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { artifactUrl, getReportLedger, type ReportLedger } from '../services/api';
+import { LightGrid } from '../components/LightGrid';
 import {
   fmtDuration,
   fmtTime,
@@ -236,35 +237,62 @@ export const ReportView: React.FC<Props> = ({ reportId, onBack, onDesign }) => {
         </div>
       ) : null}
 
-      {/* 业务口径声明横幅 & 沉淀至业务模型飞轮 */}
-      <CaliberBanner
-        dsnId="demo_sqlite"
-        reportName={manifest.name || reportId}
-        caliber={{
-          metricName: manifest.name?.includes('逾期')
-            ? '客户价值 (LTV) 与逾期率'
-            : manifest.name?.includes('毛利')
-            ? '综合毛利率'
-            : manifest.name?.includes('走势')
-            ? '月度销售额与环比'
-            : '区域销售额',
-          formula: manifest.name?.includes('逾期')
-            ? 'SUM(orders.amount) - SUM(loans.losses) · 逾期率 = SUM(is_overdue)/COUNT(1)'
-            : manifest.name?.includes('毛利')
-            ? '(SUM(amount) - SUM(cost)) / SUM(amount)'
-            : 'SUM(amount)',
-          dimensions: manifest.name?.includes('逾期')
-            ? ['客户等级 (tier)']
-            : manifest.name?.includes('毛利')
-            ? ['产品品类 (cat)']
-            : manifest.name?.includes('走势')
-            ? ['月份 (month)']
-            : ['大区 (region)', '产品品类 (cat)'],
-          timeWindow: '2026年累计 (基准时间: 2026-10-30)',
-          safetyGuarantee: '已通过确定性规则与物理 Schema 审计，无笛卡尔积，粒度完全对齐',
-        }}
-      />
-
+      {/* 业务口径声明横幅 & 沉淀至业务模型飞轮：
+          生成报表用 manifest.meta.generated 的真口径；示例报表沿用原演示口径 */}
+      {(() => {
+        const gen = (
+          manifest as unknown as { meta?: { generated?: Record<string, unknown> } }
+        ).meta?.generated as
+          | { dsn?: string; question?: string; canon_id?: string; center_entity?: string; row_count?: number }
+          | undefined;
+        if (gen) {
+          return (
+            <CaliberBanner
+              dsnId={gen.dsn || ''}
+              reportName={manifest.name || reportId}
+              caliber={{
+                metricName: gen.question || manifest.name || reportId,
+                formula: `标准口径 ${gen.canon_id || '—'} · 中心表 ${gen.center_entity || '—'} · 取数 ${
+                  gen.row_count ?? 0
+                } 行`,
+                dimensions: ['市级财政 / 镇区财政', '工资 / 绩效 / 税金'],
+                timeWindow: '当月单位集 service.current_dwxxb',
+                safetyGuarantee:
+                  '口径取自 dashboard 权威实现（DwxxbService.listMain），三分类各取自己的状态列，无跨表扇出',
+              }}
+            />
+          );
+        }
+        return (
+          <CaliberBanner
+            dsnId="demo_sqlite"
+            reportName={manifest.name || reportId}
+            caliber={{
+              metricName: manifest.name?.includes('逾期')
+                ? '客户价值 (LTV) 与逾期率'
+                : manifest.name?.includes('毛利')
+                ? '综合毛利率'
+                : manifest.name?.includes('走势')
+                ? '月度销售额与环比'
+                : '区域销售额',
+              formula: manifest.name?.includes('逾期')
+                ? 'SUM(orders.amount) - SUM(loans.losses) · 逾期率 = SUM(is_overdue)/COUNT(1)'
+                : manifest.name?.includes('毛利')
+                ? '(SUM(amount) - SUM(cost)) / SUM(amount)'
+                : 'SUM(amount)',
+              dimensions: manifest.name?.includes('逾期')
+                ? ['客户等级 (tier)']
+                : manifest.name?.includes('毛利')
+                ? ['产品品类 (cat)']
+                : manifest.name?.includes('走势')
+                ? ['月份 (month)']
+                : ['大区 (region)', '产品品类 (cat)'],
+              timeWindow: '2026年累计 (基准时间: 2026-10-30)',
+              safetyGuarantee: '已通过确定性规则与物理 Schema 审计，无笛卡尔积，粒度完全对齐',
+            }}
+          />
+        );
+      })()}
       {/* 模板网格预览（带 Title） */}
       {(() => {
         const cells = ((detail?.template as any)?.cells ?? {}) as Record<string, { v?: string | number }>;
@@ -284,6 +312,16 @@ export const ReportView: React.FC<Props> = ({ reportId, onBack, onDesign }) => {
           rows.push(row);
         }
         if (rows.length === 0) return null;
+
+        // 模板前两行通常是「标题 / 口径说明」（合并单元格），网格从真正的表头行开始
+        const headerIdx = (() => {
+          for (let i = 0; i < rows.length; i++) {
+            const filled = rows[i].filter((v) => v !== '' && v != null).length;
+            if (filled >= 3) return i;
+          }
+          return 0;
+        })();
+        const gridRows = rows.slice(headerIdx).filter((r, i) => i === 0 || r.filter((v) => v !== '' && v != null).length >= 2);
 
         return (
           <div
@@ -345,70 +383,8 @@ export const ReportView: React.FC<Props> = ({ reportId, onBack, onDesign }) => {
               ) : null}
             </div>
 
-            <div style={{ overflowX: 'auto', padding: '16px 20px', background: 'var(--paper-2)' }}>
-              <table
-                style={{
-                  borderCollapse: 'collapse',
-                  width: '100%',
-                  fontSize: 13.5,
-                  borderRadius: 'var(--r-s)',
-                  overflow: 'hidden',
-                  border: '1px solid var(--border)',
-                }}
-              >
-                <thead>
-                  <tr style={{ background: 'var(--paper-3)', borderBottom: '1px solid var(--line-2)' }}>
-                    {rows[0]?.map((col, idx) => (
-                      <th
-                        key={idx}
-                        style={{
-                          padding: '10px 14px',
-                          textAlign: idx > 0 ? 'right' : 'left',
-                          fontWeight: 600,
-                          fontSize: '12.5px',
-                          fontFamily: idx > 0 ? 'var(--font-mono)' : 'inherit',
-                          color: 'var(--ink-2)',
-                          borderRight: idx < (rows[0]?.length || 0) - 1 ? '1px solid var(--border-subtle)' : 'none',
-                        }}
-                      >
-                        {col}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(1).map((r, rIdx) => {
-                    const isTotal = String(r[0] || '').includes('合计') || String(r[0] || '').includes('总计');
-                    return (
-                      <tr
-                        key={rIdx}
-                        style={{
-                          background: isTotal ? 'var(--paper-3)' : rIdx % 2 === 1 ? '#fdfcf9' : '#ffffff',
-                          fontWeight: isTotal ? 700 : 400,
-                          borderBottom: '1px solid var(--border-subtle)',
-                          transition: 'background var(--t-fast)',
-                        }}
-                      >
-                        {r.map((c, cIdx) => (
-                          <td
-                            key={cIdx}
-                            style={{
-                              padding: '10px 14px',
-                              textAlign: cIdx > 0 ? 'right' : 'left',
-                              color: isTotal ? 'var(--accent-ink)' : 'var(--ink)',
-                              fontVariantNumeric: 'tabular-nums',
-                              fontFamily: cIdx > 0 ? 'var(--font-mono)' : 'inherit',
-                              borderRight: cIdx < r.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                            }}
-                          >
-                            {c}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div style={{ padding: '16px 20px', background: 'var(--paper-2)' }}>
+              <LightGrid rows={gridRows} storageKey={'report:' + reportId} />
             </div>
           </div>
         );

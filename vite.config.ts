@@ -1,6 +1,39 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  listDatasources,
+  upsertDatasource,
+  deleteDatasource,
+  probeDatasource,
+  probeRecord,
+  listTables,
+  listColumns,
+} from './dev-server/datasource-store.mjs';
+import {
+  saveOntologyTrace,
+  listOntologyTraces,
+  getOntologyTrace,
+  deleteOntologyTrace,
+  buildOntologyGraph,
+  buildLexicon,
+  autoParse,
+  matchCanon,
+  exportOntologyMd,
+} from './dev-server/ontology-store.mjs';
+import { buildReportFromText, loadGeneratedReports } from './dev-server/report-build.mjs';
+
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve) => {
+    let s = '';
+    req.on('data', (c) => {
+      s += c;
+    });
+    req.on('end', () => resolve(s));
+  });
+}
 
 const initialMockReports: Record<string, any> = {
   customer_ltv_overdue: {
@@ -401,6 +434,10 @@ function createHtmlReport(
 function devApiMockPlugin(): Plugin {
   const mockReports = { ...initialMockReports };
   const mockRuns = [...initialMockRuns];
+  // 磁盘上的生成报表（重启后仍在）：manifest.meta.generated 才接管
+  const generated = loadGeneratedReports();
+  for (const r of generated.reports) mockReports[r.id] = r;
+  for (const r of generated.runs) mockRuns.unshift(r);
   (devApiMockPlugin as any).mockReports = mockReports;
   (devApiMockPlugin as any).mockRuns = mockRuns;
 
@@ -452,150 +489,31 @@ function devApiMockPlugin(): Plugin {
 
         // Requirements creation endpoint (Agent execution pipeline)
         if (url === '/api/requirements' && req.method === 'POST') {
-          let bodyStr = '';
-          req.on('data', (chunk) => {
-            bodyStr += chunk;
-          });
-          req.on('end', () => {
-            let parsed: any = {};
-            try {
-              parsed = JSON.parse(bodyStr || '{}');
-            } catch {
-              parsed = {};
-            }
-            const rawText = parsed.text || parsed.title || '新报表';
-            const id = 'req_' + (rawText.includes('毛利') ? 'sales_margin' : rawText.includes('走势') ? 'sales_trend' : 'sales_crosstab_' + Date.now().toString(36).slice(-4));
-            const title = parsed.title || rawText;
-
-            const isMargin = rawText.includes('毛利');
-            const isTrend = rawText.includes('走势') || rawText.includes('月');
-
-            let cells: Record<string, any> = {};
-            if (isMargin) {
-              cells = {
-                "0,0": { v: "产品品类" },
-                "0,1": { v: "销售总额(元)" },
-                "0,2": { v: "核算销售成本(元)" },
-                "0,3": { v: "综合毛利率" },
-                "1,0": { v: "办公用品" },
-                "1,1": { v: 668400 },
-                "1,2": { v: 421000 },
-                "1,3": { v: "37.0%" },
-                "2,0": { v: "数码配件" },
-                "2,1": { v: 846400 },
-                "2,2": { v: 516300 },
-                "2,3": { v: "39.0%" },
-                "3,0": { v: "家居清洁" },
-                "3,1": { v: 541400 },
-                "3,2": { v: 368100 },
-                "3,3": { v: "32.0%" },
-                "4,0": { v: "全品类合计" },
-                "4,1": { v: 2056200 },
-                "4,2": { v: 1305400 },
-                "4,3": { v: "36.5%" },
-              };
-            } else if (isTrend) {
-              cells = {
-                "0,0": { v: "月份" },
-                "0,1": { v: "销售额(元)" },
-                "0,2": { v: "环比变动率" },
-                "1,0": { v: "2026-07" },
-                "1,1": { v: 625000 },
-                "1,2": { v: "—" },
-                "2,0": { v: "2026-08" },
-                "2,1": { v: 653700 },
-                "2,2": { v: "+4.6%" },
-                "3,0": { v: "2026-09" },
-                "3,1": { v: 777500 },
-                "3,2": { v: "+18.9%" },
-              };
-            } else {
-              cells = {
-                "0,0": { v: "大区" },
-                "0,1": { v: "办公用品" },
-                "0,2": { v: "数码配件" },
-                "0,3": { v: "家居清洁" },
-                "0,4": { v: "大区总计" },
-                "1,0": { v: "华东" },
-                "1,1": { v: 334900 },
-                "1,2": { v: 293200 },
-                "1,3": { v: 275000 },
-                "1,4": { v: 903100 },
-                "2,0": { v: "华南" },
-                "2,1": { v: 245500 },
-                "2,2": { v: 378000 },
-                "2,3": { v: 208500 },
-                "2,4": { v: 832000 },
-                "3,0": { v: "华北" },
-                "3,1": { v: 191000 },
-                "3,2": { v: 254000 },
-                "3,3": { v: 155000 },
-                "3,4": { v: 600000 },
-                "4,0": { v: "全国总计" },
-                "4,1": { v: 771400 },
-                "4,2": { v: 925200 },
-                "4,3": { v: 638500 },
-                "4,4": { v: 2335100 },
-              };
-            }
-
-            const runId = 'run_' + Date.now().toString(36);
-            const newReport = {
-              id,
-              revision: 'rev_01',
-              manifest: {
-                id,
-                name: title,
-                description: `来自报表 Agent 确定性分诊生成：【${title}】· 事实数据源: ${parsed.dsn || 'demo_sqlite'}`,
-                tags: ['Agent生成', '已对齐事实', '确定性分诊'],
-                version: '1.0.0',
-              },
-              template: { cells },
-              result_state: 'current_revision',
-              display_run_id: runId,
-            };
-
-            const runRecord = {
-              run_id: runId,
-              report_id: id,
-              report_name: title,
-              revision: 'rev_01',
-              status: 'succeeded',
-              trigger: 'agent',
-              started_at: new Date(Date.now() - 1500).toISOString(),
-              finished_at: new Date().toISOString(),
-              duration_ms: 1500,
-              layout: { page_count: 1, rows: Object.keys(cells).length > 0 ? 5 : 4, cols: 4 },
-              artifacts: {
-                'workbook.json': 'artifacts/workbook.json',
-                'result.json': 'artifacts/result.json',
-                'report.pdf': 'artifacts/report.pdf',
-              },
-              error_code: null,
-              error_message: null,
-              artifact_count: 3,
-              artifact_bytes: 42100,
-            };
-
-            (newReport as any).display_run = runRecord;
-            (newReport as any).latest_attempt = runRecord;
-            devApiMockPlugin.mockReports[id] = newReport;
-            devApiMockPlugin.mockRuns.unshift(runRecord);
-
+          const body = await readBody(req);
+          let parsed: any = {};
+          try {
+            parsed = JSON.parse(body || '{}');
+          } catch {
+            parsed = {};
+          }
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          try {
+            // 真链路：一句话 → 标准口径 → 连库取数 → 生成报表资产（manifest/template/data/runs）
+            const built = await buildReportFromText({
+              dsn: parsed.dsn,
+              text: parsed.text,
+              title: parsed.title,
+              limit: parsed.limit,
+            });
+            devApiMockPlugin.mockReports[built.report.id] = built.report;
+            devApiMockPlugin.mockRuns.unshift(built.run);
+            res.end(JSON.stringify(built.reply));
+          } catch (e: any) {
+            res.statusCode = 400;
             res.end(
-              JSON.stringify({
-                ok: true,
-                id,
-                report_id: id,
-                report_name: title,
-                spec_created: true,
-                shape_chosen: parsed.shape || 'crosstab',
-                template_id: 'tpl_' + id,
-                template_rev: 'rev_01',
-                run: { ok: true, status: 'succeeded', run_id: runId },
-              })
+              JSON.stringify({ error: { code: 'REQUIREMENT', message: String(e?.message || e) } })
             );
-          });
+          }
           return;
         }
 
@@ -666,6 +584,30 @@ function devApiMockPlugin(): Plugin {
           const artMatch = url.match(/\/api\/reports\/([^/?]+)\/runs\/([^/?]+)\/artifacts\/([^/?]+)$/);
           if (artMatch) {
             const [, rId, runId, artName] = artMatch;
+            // 生成报表：产物优先给磁盘上的真文件（examples/library/<id>/runs/<run>/<name>）
+            {
+              const libRoot = path.resolve(process.cwd(), 'examples/library');
+              const disk = path.resolve(
+                libRoot,
+                decodeURIComponent(rId),
+                'runs',
+                decodeURIComponent(runId),
+                decodeURIComponent(artName)
+              );
+              if (disk.startsWith(libRoot + path.sep) && fs.existsSync(disk) && fs.statSync(disk).isFile()) {
+                const ct = artName.endsWith('.json')
+                  ? 'application/json; charset=utf-8'
+                  : artName.endsWith('.csv')
+                  ? 'text/csv; charset=utf-8'
+                  : artName.endsWith('.html')
+                  ? 'text/html; charset=utf-8'
+                  : 'application/octet-stream';
+                res.setHeader('Content-Type', ct);
+                res.setHeader('Content-Disposition', `inline; filename="${artName}"`);
+                fs.createReadStream(disk).pipe(res);
+                return;
+              }
+            }
             const rep = devApiMockPlugin.mockReports[rId] || devApiMockPlugin.mockReports['customer_ltv_overdue'] || Object.values(devApiMockPlugin.mockReports)[0];
             const rows = extractTableRows(rep?.template);
             const title = rep?.manifest?.name || rId;
@@ -917,23 +859,97 @@ function devApiMockPlugin(): Plugin {
         }
 
         if (url.startsWith('/api/datasources')) {
-          res.end(
-            JSON.stringify({
-              items: [
-                {
-                  id: 'demo_sqlite',
-                  label: 'Demo SQLite (演示库)',
-                  driver: 'sqlite',
-                  database: 'demo_data/report_demo.db',
-                  url_masked: 'sqlite://demo_data/report_demo.db',
-                  created_at: '2026-10-30T08:00:00Z'
-                }
-              ],
-              total: 1,
-              registry: 'demo_data/datasources.json'
-            })
-          );
-          return;
+          const json = (v: unknown, status = 200) => {
+            res.statusCode = status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(v));
+          };
+          // 错误体对齐服务端契约：{error:{code,message}}（前端 request() 据此抛 ApiError）
+          const fail = (status: number, message: string) =>
+            json({ error: { code: 'DATASOURCE', message } }, status);
+
+          // 列表（JSON 注册表，脱敏：password 恒空串）
+          if (req.method === 'GET' && /^\/api\/datasources\/?$/.test(url)) {
+            const items = listDatasources();
+            return json({
+              ok: true,
+              items,
+              total: items.length,
+              registry: 'examples/library/.datasources.json',
+            });
+          }
+
+          // 新建/更新（upsert，口令留空 = 保留）
+          if (req.method === 'POST' && /^\/api\/datasources\/?$/.test(url)) {
+            const body = await readBody(req);
+            try {
+              return json({ ok: true, item: upsertDatasource(JSON.parse(body || '{}')) });
+            } catch (e: any) {
+              return fail(400, String(e?.message || e));
+            }
+          }
+
+          // 表单「测试连接」：用未保存记录探测（必须在 /:id/probe 之前匹配）
+          if (req.method === 'POST' && url === '/api/datasources/probe') {
+            const body = JSON.parse((await readBody(req)) || '{}');
+            try {
+              return json({ ok: true, probe: await probeRecord(body.record || {}, body) });
+            } catch (e: any) {
+              return fail(400, String(e?.message || e));
+            }
+          }
+
+          // 已保存数据源探测：{table?|sql?|limit?}，{} = select 1 连通性
+          const idProbe = url.match(/^\/api\/datasources\/([^/?]+)\/probe$/);
+          if (req.method === 'POST' && idProbe) {
+            const body = JSON.parse((await readBody(req)) || '{}');
+            try {
+              return json({
+                ok: true,
+                probe: await probeDatasource(decodeURIComponent(idProbe[1]), body),
+              });
+            } catch (e: any) {
+              return fail(400, String(e?.message || e));
+            }
+          }
+
+          // 表清单（增强项）
+          const idTables = url.match(/^\/api\/datasources\/([^/?]+)\/tables(\?.*)?$/);
+          if (req.method === 'GET' && idTables) {
+            try {
+              return json({ ok: true, items: await listTables(decodeURIComponent(idTables[1])) });
+            } catch (e: any) {
+              return fail(400, String(e?.message || e));
+            }
+          }
+
+          // 表的列属性（?table=schema.表）：列名/类型/注释/主键
+          const idCols = url.match(/^\/api\/datasources\/([^/?]+)\/columns(\?.*)?$/);
+          if (req.method === 'GET' && idCols) {
+            const q = new URL(url, 'http://x').searchParams;
+            try {
+              return json({
+                ok: true,
+                items: await listColumns(decodeURIComponent(idCols[1]), q.get('table') || ''),
+              });
+            } catch (e: any) {
+              return fail(400, String(e?.message || e));
+            }
+          }
+
+          // 删除
+          const delMatch = url.match(/^\/api\/datasources\/([^/?]+)(\?.*)?$/);
+          if (req.method === 'DELETE' && delMatch) {
+            try {
+              const id = decodeURIComponent(delMatch[1]);
+              deleteDatasource(id);
+              return json({ ok: true, id });
+            } catch (e: any) {
+              return fail(404, String(e?.message || e));
+            }
+          }
+
+          return fail(404, `datasources 未匹配的路由: ${req.method} ${url}`);
         }
 
         if (url.startsWith('/api/shapes')) {
@@ -950,6 +966,74 @@ function devApiMockPlugin(): Plugin {
               ]
             })
           );
+          return;
+        }
+
+        // 真模型词表（给四步解析用）：维度/度量/时间/实体
+        const lexMatch = url.match(/^\/api\/bizmodels\/([^/?]+)\/lexicon$/);
+        if (req.method === 'GET' && lexMatch) {
+          try {
+            res.end(JSON.stringify(await buildLexicon(decodeURIComponent(lexMatch[1]))));
+          } catch (e: any) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: { code: 'ONTOLOGY', message: String(e?.message || e) } }));
+          }
+          return;
+        }
+
+        // 标准问题库命中查询：GET /api/bizmodels/{dsn}/canon?question=...（页面用；命中返回权威 SQL）
+        const canonMatch = url.match(/^\/api\/bizmodels\/([^/?]+)\/canon(\?.*)?$/);
+        if (req.method === 'GET' && canonMatch) {
+          const q = new URL(url, 'http://x').searchParams.get('question') || '';
+          try {
+            const item = matchCanon(q);
+            res.end(JSON.stringify({ ok: true, item: item || null }));
+          } catch (e: any) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: { code: 'ONTOLOGY', message: String(e?.message || e) } }));
+          }
+          return;
+        }
+
+        // Agent/独立系统自动解析入口：POST /api/bizmodels/{dsn}/auto-parse {question, save?}
+        const autoMatch = url.match(/^\/api\/bizmodels\/([^/?]+)\/auto-parse$/);
+        if (req.method === 'POST' && autoMatch) {
+          const body = JSON.parse((await readBody(req)) || '{}');
+          try {
+            const r = await autoParse(decodeURIComponent(autoMatch[1]), body.question || '', {
+              save: body.save !== false,
+            });
+            res.end(JSON.stringify({ ok: true, ...r }));
+          } catch (e: any) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: { code: 'ONTOLOGY', message: String(e?.message || e) } }));
+          }
+          return;
+        }
+
+        // 导出本体 MD（为后续工作/上下文准备）：写成文件并回传路径
+        const ontoExportMatch = url.match(/^\/api\/bizmodels\/([^/?]+)\/export$/);
+        if (req.method === 'GET' && ontoExportMatch) {
+          try {
+            const r = await exportOntologyMd(decodeURIComponent(ontoExportMatch[1]));
+            res.end(JSON.stringify({ ok: true, path: r.path }));
+          } catch (e: any) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: { code: 'ONTOLOGY', message: String(e?.message || e) } }));
+          }
+          return;
+        }
+
+        // 真实本体图谱（现算：真实外键 + 同名列候选）—— 必须在通用 bizmodels mock 之前
+        const ontoGraphMatch = url.match(/^\/api\/bizmodels\/([^/?]+)\/ontology$/);
+        if (req.method === 'GET' && ontoGraphMatch) {
+          try {
+            const g = await buildOntologyGraph(decodeURIComponent(ontoGraphMatch[1]));
+            res.end(JSON.stringify({ ok: true, ...g }));
+          } catch (e: any) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: { code: 'ONTOLOGY', message: String(e?.message || e) } }));
+          }
           return;
         }
 
@@ -986,24 +1070,55 @@ function devApiMockPlugin(): Plugin {
           return;
         }
 
+        // 本体解析痕迹：落 SQLite（examples/library/.ontology.db，onto_intent/step/hit）
         if (url.startsWith('/api/ontology')) {
-          res.end(
-            JSON.stringify({
-              ok: true,
-              items: [
-                {
-                  id: 'trace_001',
-                  question: '按客户等级看 LTV 和逾期率',
-                  status: 'confirmed',
-                  center_entity: 'customer',
-                  fanout_edges: 2,
-                  created_at: '2026-10-30T10:45:00Z'
-                }
-              ],
-              returned: 1
-            })
-          );
-          return;
+          const json = (v: unknown, status = 200) => {
+            res.statusCode = status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(v));
+          };
+          const fail = (status: number, message: string) =>
+            json({ error: { code: 'ONTOLOGY', message } }, status);
+
+          // 保存（按 id upsert；steps/hits 整体替换）
+          if (req.method === 'POST' && /^\/api\/ontology\/?$/.test(url)) {
+            const body = JSON.parse((await readBody(req)) || '{}');
+            try {
+              return json({ ok: true, id: saveOntologyTrace(body).id });
+            } catch (e: any) {
+              return fail(400, String(e?.message || e));
+            }
+          }
+
+          // 列表（?dsn=&limit=）
+          if (req.method === 'GET' && /^\/api\/ontology\/?(\?.*)?$/.test(url)) {
+            const q = new URL(url, 'http://x').searchParams;
+            const dsn = q.get('dsn') || '';
+            if (!dsn) return fail(400, '缺少 dsn 参数');
+            return json(listOntologyTraces(dsn, Number(q.get('limit')) || 50));
+          }
+
+          // 读取单条完整痕迹
+          const idMatch = url.match(/^\/api\/ontology\/([^/?]+)$/);
+          if (req.method === 'GET' && idMatch) {
+            try {
+              return json(getOntologyTrace(decodeURIComponent(idMatch[1])));
+            } catch (e: any) {
+              return fail(404, String(e?.message || e));
+            }
+          }
+
+          // 删除一条历史痕迹（含 steps/hits）
+          const idDel = url.match(/^\/api\/ontology\/([^/?]+)$/);
+          if (req.method === 'DELETE' && idDel) {
+            try {
+              return json(deleteOntologyTrace(decodeURIComponent(idDel[1])));
+            } catch (e: any) {
+              return fail(404, String(e?.message || e));
+            }
+          }
+
+          return fail(404, `ontology 未匹配的路由: ${req.method} ${url}`);
         }
 
         next();

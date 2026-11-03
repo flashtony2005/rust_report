@@ -7,6 +7,7 @@ import { RequirementView } from './views/RequirementView';
 import { RunsView } from './views/RunsView';
 import { ReportView } from './views/ReportView';
 import { OntologyView } from './views/OntologyView';
+import { OntoResolveView } from './views/OntoResolveView';
 import { DatasourcesView } from './views/DatasourcesView';
 import { BizModelView } from './views/BizModelView';
 import { AnalysisView } from './views/AnalysisView';
@@ -22,7 +23,8 @@ import { DesignerView } from './views/DesignerView';
  * - `#/design/:id`  设计器（轻量版）：读 template.json 只读渲染 + 少量单元格编辑；重活深链 5288
  * - `#/bizmodel`    业务知识：实体 / 维度 / 指标 / 规则 / 金样例
  * - `#/datasources` 数据源：真连库（注册表 + 探测）
- * - `#/ontology`    本体解析（四步，仍是示例夹具）
+ * - `#/ontology`    实体关系（连库现算：图谱 + 目录）
+ * - `#/resolve`     四步解析（一句话 → SQL，自动留历史）
  * - `#/analysis`    归因分析：多步受控拆解
  *
  * 与 master 的差异：master 有「需求（Requirement）」这一层（`#/req/:id`），
@@ -53,6 +55,7 @@ export const App: React.FC = () => {
   else if (clean.startsWith('/report/')) currentNav = 'library';
   else if (clean.startsWith('/design/')) currentNav = 'library';
   else if (clean.startsWith('/ontology')) currentNav = 'ontology';
+  else if (clean.startsWith('/resolve')) currentNav = 'resolve';
   else if (clean.startsWith('/datasources')) currentNav = 'datasources';
   else if (clean.startsWith('/bizmodel')) currentNav = 'bizmodel';
   else if (clean.startsWith('/analysis')) currentNav = 'analysis';
@@ -84,6 +87,9 @@ export const App: React.FC = () => {
     if (clean === '/ontology') {
       return <OntologyView />;
     }
+    if (clean === '/resolve') {
+      return <OntoResolveView />;
+    }
     if (clean === '/datasources') {
       return <DatasourcesView />;
     }
@@ -112,6 +118,7 @@ export const App: React.FC = () => {
             else if (view === 'library') navigate('#/library');
             else if (view === 'runs') navigate('#/runs');
             else if (view === 'ontology') navigate('#/ontology');
+            else if (view === 'resolve') navigate('#/resolve');
             else if (view === 'datasources') navigate('#/datasources');
             else if (view === 'bizmodel') navigate('#/bizmodel');
             else if (view === 'analysis') navigate('#/analysis');
