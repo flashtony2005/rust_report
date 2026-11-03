@@ -22,6 +22,9 @@ import {
   autoParse,
   matchCanon,
   exportOntologyMd,
+  autoDiscoverOntology,
+  exportNvidiaOntologyYaml,
+  certifyOntologyItem,
 } from './dev-server/ontology-store.mjs';
 import { buildReportFromText, loadGeneratedReports } from './dev-server/report-build.mjs';
 
@@ -1020,6 +1023,52 @@ function devApiMockPlugin(): Plugin {
           } catch (e: any) {
             res.statusCode = 400;
             res.end(JSON.stringify({ error: { code: 'ONTOLOGY', message: String(e?.message || e) } }));
+          }
+          return;
+        }
+
+        // NVIDIA Auto-Ontology: 自动逆向发现本体 (POST /api/bizmodels/:dsn/auto-discover)
+        const ontoDiscoverMatch = url.match(/^\/api\/bizmodels\/([^/?]+)\/auto-discover$/);
+        if (req.method === 'POST' && ontoDiscoverMatch) {
+          try {
+            const r = await autoDiscoverOntology(decodeURIComponent(ontoDiscoverMatch[1]));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(r));
+          } catch (e: any) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: { code: 'AUTO_ONTOLOGY', message: String(e?.message || e) } }));
+          }
+          return;
+        }
+
+        // NVIDIA Auto-Ontology: 导出标准 YAML (GET /api/bizmodels/:dsn/export-nvidia)
+        const ontoExportNvidiaMatch = url.match(/^\/api\/bizmodels\/([^/?]+)\/export-nvidia$/);
+        if (req.method === 'GET' && ontoExportNvidiaMatch) {
+          try {
+            const r = await exportNvidiaOntologyYaml(decodeURIComponent(ontoExportNvidiaMatch[1]));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(r));
+          } catch (e: any) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: { code: 'AUTO_ONTOLOGY', message: String(e?.message || e) } }));
+          }
+          return;
+        }
+
+        // NVIDIA Auto-Ontology: 阶段准入认证 (POST /api/bizmodels/:dsn/certify)
+        const ontoCertifyMatch = url.match(/^\/api\/bizmodels\/([^/?]+)\/certify$/);
+        if (req.method === 'POST' && ontoCertifyMatch) {
+          try {
+            const body = JSON.parse((await readBody(req)) || '{}');
+            const r = await certifyOntologyItem(decodeURIComponent(ontoCertifyMatch[1]), body);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(r));
+          } catch (e: any) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: { code: 'AUTO_ONTOLOGY', message: String(e?.message || e) } }));
           }
           return;
         }

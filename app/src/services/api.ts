@@ -885,6 +885,83 @@ export function fetchOntology(dsn: string): Promise<OntologyGraphReply> {
   return request<OntologyGraphReply>(`/api/bizmodels/${encodeURIComponent(dsn)}/ontology`);
 }
 
+export interface NvidiaDiscoveredOntology {
+  ok: boolean;
+  dsn: string;
+  framework: string;
+  spec_version: string;
+  discovered_at: string;
+  summary: {
+    entities_count: number;
+    measures_count: number;
+    dimensions_count: number;
+    relationships_count: number;
+    confirmed_relationships: number;
+    candidate_relationships: number;
+  };
+  entities: Array<{
+    id: string;
+    name: string;
+    table: string;
+    kind: string;
+    primary_key: string[];
+    status: string;
+    columns_count: number;
+  }>;
+  measures: Array<{
+    id: string;
+    label: string;
+    entity: string;
+    column: string;
+    data_type?: string;
+    default_aggregation: string;
+    expression: string;
+    status: string;
+  }>;
+  dimensions: Array<{
+    id: string;
+    label: string;
+    entity: string;
+    column: string;
+    kind?: string;
+    grain?: string;
+    status: string;
+  }>;
+  relationships: Array<{
+    from: string;
+    to: string;
+    cardinality: string;
+    join_key: string;
+    status: string;
+    evidence: string;
+  }>;
+}
+
+/** NVIDIA Auto-Ontology: 自动探查数据源逆向发现本体 (Entities, Measures, Dimensions, Relationships) */
+export function autoDiscoverOntology(dsn: string): Promise<NvidiaDiscoveredOntology> {
+  return request<NvidiaDiscoveredOntology>(`/api/bizmodels/${encodeURIComponent(dsn)}/auto-discover`, {
+    method: 'POST',
+  });
+}
+
+/** NVIDIA Auto-Ontology: 导出官方标准 YAML 规范 */
+export function exportNvidiaYaml(dsn: string): Promise<{ ok: boolean; path: string; yaml: string }> {
+  return request<{ ok: boolean; path: string; yaml: string }>(
+    `/api/bizmodels/${encodeURIComponent(dsn)}/export-nvidia`,
+  );
+}
+
+/** NVIDIA Auto-Ontology: 准入认证 (Candidate -> Certified) */
+export function certifyOntologyItem(
+  dsn: string,
+  payload: { item_type: 'entities' | 'measures' | 'dimensions' | 'relationships'; id: string; action: 'certify' | 'reject' },
+): Promise<{ ok: boolean; dsn: string; item_type: string; id: string; status: string }> {
+  return request(`/api/bizmodels/${encodeURIComponent(dsn)}/certify`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 /** 四步痕迹里的一步（落库/复用时用的形状，字段名对齐 `onto_step`）。 */
 export interface OntoStep {
   step_no: number;

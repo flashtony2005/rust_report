@@ -861,3 +861,398 @@ export async function exportOntologyMd(dsn) {
   fs.writeFileSync(outPath, md, 'utf8');
   return { path: outPath, md };
 }
+
+// ---------------------------------------------------------------------------
+// NVIDIA Auto-Ontology 体系：自动逆向推导、阶段准入认证 (Candidate -> Certified) 与 YAML 规范导出
+// ---------------------------------------------------------------------------
+
+/**
+ * 自动逆向发现本体 (Automated Baseline Ontology Discovery)：
+ * 借鉴 NVIDIA Auto-Ontology 阶段 1 流水线：
+ * 扫描数据库表、主外键、列类型与列注释，自动推导出 Entities、Measures、Dimensions 及关系拓扑图。
+ */
+export async function autoDiscoverOntology(dsn, options = {}) {
+  const regPath = path.resolve(__dirname, '../examples/library/.datasources.json');
+  let d;
+  try {
+    d = JSON.parse(fs.readFileSync(regPath, 'utf8'))[dsn];
+  } catch {
+    d = null;
+  }
+  if (!d) {
+    // 降级检查 demo_data/datasources.json
+    try {
+      d = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../demo_data/datasources.json'), 'utf8'))[dsn];
+    } catch {
+      d = null;
+    }
+  }
+  if (!d) throw new Error(`数据源不存在: ${dsn}`);
+
+  const entities = [];
+  const measures = [];
+  const dimensions = [];
+  const relationships = [];
+
+  const MEASURE_KEYWORDS = /(amount|price|salary|fee|cost|val|qty|cnt|count|total|sum|yfgz|sfgz|gz|money|rate|ratio|金额|工资|总额|数量|费用|差价|毛利)/i;
+  const TIME_KEYWORDS = /(date|time|quarter|month|year|ym|created_at|updated_at|day|时间|日期|月份|季度|年份)/i;
+  const ID_KEYWORDS = /(_id$|_code$|代码$|编号$|^id$)/i;
+
+  if (d.driver === 'postgres') {
+    if (!d.host || !Number(d.port)) throw new Error('主机/端口未配置');
+    const conn = new PgConn(d);
+    try {
+      await conn.connect();
+      const allTables = await conn.query(
+        `select table_name, table_type from information_schema.tables
+         where table_schema = '${ONLY_SCHEMA}'
+         order by table_name`,
+      );
+      const cols = await conn.query(
+        `select table_name, column_name, data_type, is_nullable
+         from information_schema.columns
+         where table_schema = '${ONLY_SCHEMA}'`,
+      );
+      const pks = await conn.query(
+        `select tc.table_name, kcu.column_name
+         from information_schema.table_constraints tc
+         join information_schema.key_column_usage kcu
+           on tc.constraint_name = kcu.constraint_name and tc.table_schema = kcu.table_schema
+         where tc.constraint_type = 'PRIMARY KEY' and tc.table_schema = '${ONLY_SCHEMA}'`,
+      );
+      const fks = await conn.query(
+        `select tc.table_name as fk_table, ccu.table_name as ref_table, kcu.column_name as fk_col
+         from information_schema.table_constraints tc
+         join information_schema.key_column_usage kcu
+           on tc.constraint_name = kcu.constraint_name and tc.table_schema = kcu.table_schema
+         join information_schema.constraint_column_usage ccu
+           on ccu.constraint_name = tc.constraint_name and ccu.table_schema = tc.table_schema
+         where tc.constraint_type = 'FOREIGN KEY' and tc.table_schema = '${ONLY_SCHEMA}'`,
+      );
+
+      let comments = new Map();
+      try {
+        const cm = await conn.query(
+          `select c.relname as tbl, d.description as comment
+           from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           left join pg_description d on d.objoid = c.oid and d.objsubid = 0
+           where n.nspname = '${ONLY_SCHEMA}' and c.relkind in ('r', 'v', 'm')`,
+        );
+        comments = new Map(cm.rows.map((r) => [r[0], r[1]]));
+      } catch {
+        // 注释拿不到忽略
+      }
+
+      const pkMap = new Map();
+      for (const [tbl, col] of pks.rows) {
+        if (!pkMap.has(tbl)) pkMap.set(tbl, []);
+        pkMap.get(tbl).push(col);
+      }
+
+      const colsByTable = new Map();
+      for (const [tbl, col, type, nullable] of cols.rows) {
+        if (!colsByTable.has(tbl)) colsByTable.set(tbl, []);
+        colsByTable.get(tbl).push({ col, type, nullable });
+      }
+
+      // 组装 Entities
+      for (const [tbl, tblType] of allTables.rows) {
+        const id = `${ONLY_SCHEMA}.${tbl}`;
+        const name = comments.get(tbl) || tbl;
+        const kind = tblType === 'VIEW' ? 'view' : 'table';
+        const pk = pkMap.get(tbl) || ['id'];
+        entities.push({
+          id,
+          name,
+          table: id,
+          kind,
+          primary_key: pk,
+          status: 'confirmed',
+          columns_count: (colsByTable.get(tbl) || []).length,
+        });
+
+        // 识别度量与维度
+        for (const { col, type } of colsByTable.get(tbl) || []) {
+          const isNum = /(int|numeric|decimal|float|double|bigint)/i.test(type);
+          const isDate = /(date|timestamp|time)/i.test(type) || TIME_KEYWORDS.test(col);
+          const isKey = ID_KEYWORDS.test(col);
+
+          if (isNum && !isKey && MEASURE_KEYWORDS.test(col)) {
+            measures.push({
+              id: `${tbl}_${col}`,
+              label: `${col} (${name})`,
+              entity: id,
+              column: col,
+              data_type: type,
+              default_aggregation: /rate|ratio|percent|比例|率/i.test(col) ? 'AVG' : 'SUM',
+              expression: `SUM(${tbl}."${col}")`,
+              status: 'candidate',
+            });
+          } else if (isDate) {
+            dimensions.push({
+              id: `${tbl}_${col}`,
+              label: `${col} (${name})`,
+              entity: id,
+              column: col,
+              kind: 'time',
+              grain: /month|ym|月/i.test(col) ? 'month' : /year|年/i.test(col) ? 'year' : 'day',
+              status: 'candidate',
+            });
+          } else if (!isKey) {
+            dimensions.push({
+              id: `${tbl}_${col}`,
+              label: `${col} (${name})`,
+              entity: id,
+              column: col,
+              kind: 'categorical',
+              status: 'candidate',
+            });
+          }
+        }
+      }
+
+      // 组装外键边
+      for (const [fkTable, refTable, fkCol] of fks.rows) {
+        relationships.push({
+          from: `${ONLY_SCHEMA}.${refTable}`,
+          to: `${ONLY_SCHEMA}.${fkTable}`,
+          cardinality: '1:N',
+          join_key: `${refTable}.id = ${fkTable}.${fkCol}`,
+          status: 'confirmed',
+          evidence: `外键约束 (${fkTable}.${fkCol} ➔ ${refTable})`,
+        });
+      }
+    } finally {
+      conn.end();
+    }
+  } else {
+    // SQLite 处理分支（包括 demo-sqlite）
+    let dbFile = d.database || 'demo_data/report_demo.db';
+    if (dbFile.startsWith('sqlite://')) dbFile = dbFile.replace('sqlite://', '');
+    const absPath = path.resolve(__dirname, '..', dbFile);
+    if (!fs.existsSync(absPath)) throw new Error(`SQLite 库文件不存在: ${absPath}`);
+
+    const sdb = new DatabaseSync(absPath);
+    try {
+      const tblRows = sdb.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'").all();
+      for (const { name: tbl, type: tblType } of tblRows) {
+        const colInfos = sdb.prepare(`PRAGMA table_info("${tbl}")`).all();
+        const pkCols = colInfos.filter((c) => c.pk > 0).map((c) => c.name);
+        const fkInfos = sdb.prepare(`PRAGMA foreign_key_list("${tbl}")`).all();
+
+        entities.push({
+          id: tbl,
+          name: tbl === 'sales' ? '销售流水表 (sales)' : tbl === 'emp' ? '员工档案表 (emp)' : tbl,
+          table: tbl,
+          kind: tblType,
+          primary_key: pkCols.length ? pkCols : ['id'],
+          status: 'confirmed',
+          columns_count: colInfos.length,
+        });
+
+        for (const col of colInfos) {
+          const colName = col.name;
+          const colType = String(col.type || '').toUpperCase();
+          const isNum = /(INT|REAL|NUM|FLOAT|DEC|DOUB)/i.test(colType);
+          const isDate = TIME_KEYWORDS.test(colName);
+          const isKey = ID_KEYWORDS.test(colName);
+
+          if (isNum && !isKey && MEASURE_KEYWORDS.test(colName)) {
+            measures.push({
+              id: `${tbl}_${colName}`,
+              label: colName === 'amount' ? '销售金额 (元)' : colName === 'qty' ? '销售数量 (件)' : colName,
+              entity: tbl,
+              column: colName,
+              data_type: colType,
+              default_aggregation: 'SUM',
+              expression: `SUM(${tbl}."${colName}")`,
+              status: 'candidate',
+            });
+          } else if (isDate) {
+            dimensions.push({
+              id: `${tbl}_${colName}`,
+              label: colName === 'quarter' ? '销售季度' : colName === 'month' ? '业务月份' : colName,
+              entity: tbl,
+              column: colName,
+              kind: 'time',
+              grain: colName === 'quarter' ? 'quarter' : 'month',
+              status: 'candidate',
+            });
+          } else if (!isKey) {
+            dimensions.push({
+              id: `${tbl}_${colName}`,
+              label: colName === 'product' ? '产品品类' : colName === 'region' ? '销售大区' : colName === 'title' ? '职位头衔' : colName,
+              entity: tbl,
+              column: colName,
+              kind: 'categorical',
+              status: 'candidate',
+            });
+          }
+        }
+
+        // 外键
+        for (const fk of fkInfos) {
+          relationships.push({
+            from: fk.table,
+            to: tbl,
+            cardinality: '1:N',
+            join_key: `${fk.table}.${fk.to || 'id'} = ${tbl}.${fk.from}`,
+            status: 'confirmed',
+            evidence: `外键关联 (${tbl}.${fk.from} ➔ ${fk.table})`,
+          });
+        }
+      }
+
+      // SQLite 同名候选边推断 (若 sales.emp_id 且 emp 表存在)
+      const tableNames = tblRows.map((t) => t.name);
+      if (tableNames.includes('sales') && tableNames.includes('emp')) {
+        const hasDirectFk = relationships.some((r) => r.from === 'emp' && r.to === 'sales');
+        if (!hasDirectFk) {
+          relationships.push({
+            from: 'emp',
+            to: 'sales',
+            cardinality: '1:N',
+            join_key: 'emp.id = sales.emp_id',
+            status: 'candidate',
+            evidence: '同名外键候选推断 (sales.emp_id ➔ emp.id)',
+          });
+        }
+      }
+    } finally {
+      sdb.close();
+    }
+  }
+
+  const result = {
+    ok: true,
+    dsn,
+    framework: 'NVIDIA Auto-Ontology / RPX Semantic Reasoning Engine',
+    spec_version: 'nvidia-auto-ontology/v1.0',
+    discovered_at: new Date().toISOString(),
+    summary: {
+      entities_count: entities.length,
+      measures_count: measures.length,
+      dimensions_count: dimensions.length,
+      relationships_count: relationships.length,
+      confirmed_relationships: relationships.filter((r) => r.status === 'confirmed').length,
+      candidate_relationships: relationships.filter((r) => r.status === 'candidate').length,
+    },
+    entities,
+    measures,
+    dimensions,
+    relationships,
+  };
+
+  // 缓存推导结果
+  const cachePath = path.resolve(__dirname, `../examples/library/.ontology-${dsn}-discovered.json`);
+  try {
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, JSON.stringify(result, null, 2) + '\n', 'utf8');
+  } catch {
+    // 忽略缓存写入错误
+  }
+
+  return result;
+}
+
+/**
+ * 导出 NVIDIA Auto-Ontology 官方标准 YAML 格式
+ */
+export async function exportNvidiaOntologyYaml(dsn) {
+  const discovered = await autoDiscoverOntology(dsn);
+
+  const lines = [];
+  lines.push('# ==============================================================================');
+  lines.push('# NVIDIA Auto-Ontology Semantic Catalog (v1.0 Specification)');
+  lines.push('# Generated by Report Studio / RPX Autonomous Ontology Engine');
+  lines.push(`# Target Datasource: ${dsn}`);
+  lines.push(`# Generated At: ${discovered.discovered_at}`);
+  lines.push('# ==============================================================================');
+  lines.push('');
+  lines.push('version: "1.0"');
+  lines.push(`catalog_name: "${dsn.replace(/[^a-zA-Z0-9_]/g, '_')}_semantic_catalog"`);
+  lines.push('');
+  lines.push('metadata:');
+  lines.push(`  datasource_id: "${dsn}"`);
+  lines.push('  engine: "rpx-auto-ontology"');
+  lines.push('  compliance_policy: "staged_certification"');
+  lines.push('');
+
+  lines.push('entities:');
+  for (const e of discovered.entities) {
+    lines.push(`  - id: "${e.id}"`);
+    lines.push(`    name: "${e.name}"`);
+    lines.push(`    table: "${e.table}"`);
+    lines.push(`    type: "${e.kind === 'view' ? 'view_entity' : 'table_entity'}"`);
+    lines.push(`    primary_key: [${(e.primary_key || []).map((k) => `"${k}"`).join(', ')}]`);
+    lines.push(`    status: "${e.status || 'confirmed'}"`);
+  }
+  lines.push('');
+
+  lines.push('measures:');
+  for (const m of discovered.measures) {
+    lines.push(`  - id: "${m.id}"`);
+    lines.push(`    label: "${m.label}"`);
+    lines.push(`    entity: "${m.entity}"`);
+    lines.push(`    column: "${m.column}"`);
+    lines.push(`    default_aggregation: "${m.default_aggregation || 'SUM'}"`);
+    lines.push(`    expression: "${m.expression}"`);
+    lines.push(`    status: "${m.status || 'candidate'}"`);
+  }
+  lines.push('');
+
+  lines.push('dimensions:');
+  for (const d of discovered.dimensions) {
+    lines.push(`  - id: "${d.id}"`);
+    lines.push(`    label: "${d.label}"`);
+    lines.push(`    entity: "${d.entity}"`);
+    lines.push(`    column: "${d.column}"`);
+    lines.push(`    type: "${d.kind || 'categorical'}"`);
+    if (d.grain) lines.push(`    grain: "${d.grain}"`);
+    lines.push(`    status: "${d.status || 'candidate'}"`);
+  }
+  lines.push('');
+
+  lines.push('relationships:');
+  for (const r of discovered.relationships) {
+    lines.push(`  - from: "${r.from}"`);
+    lines.push(`    to: "${r.to}"`);
+    lines.push(`    cardinality: "${r.cardinality === '1:N' ? 'one_to_many' : 'many_to_one'}"`);
+    lines.push(`    join_keys: ["${r.join_key}"]`);
+    lines.push(`    evidence: "${r.evidence || 'inferred'}"`);
+    lines.push(`    status: "${r.status || 'candidate'}"`);
+  }
+  lines.push('');
+
+  const yamlContent = lines.join('\n');
+  const outDir = path.resolve(__dirname, '../docs');
+  fs.mkdirSync(outDir, { recursive: true });
+  const outPath = path.join(outDir, `ontology-${dsn}-nvidia.yaml`);
+  fs.writeFileSync(outPath, yamlContent, 'utf8');
+
+  return { ok: true, path: outPath, yaml: yamlContent };
+}
+
+/**
+ * 认证或调整本体条目 (Candidate -> Certified)
+ */
+export async function certifyOntologyItem(dsn, payload) {
+  const { item_type, id, action } = payload;
+  const certPath = path.resolve(__dirname, `../examples/library/.ontology-${dsn}-certified.json`);
+  let cert = { entities: {}, measures: {}, dimensions: {}, relationships: {} };
+  try {
+    cert = JSON.parse(fs.readFileSync(certPath, 'utf8'));
+  } catch {
+    // 忽略
+  }
+  if (!cert[item_type]) cert[item_type] = {};
+  cert[item_type][id] = {
+    status: action === 'reject' ? 'rejected' : 'confirmed',
+    updated_at: new Date().toISOString(),
+  };
+  fs.mkdirSync(path.dirname(certPath), { recursive: true });
+  fs.writeFileSync(certPath, JSON.stringify(cert, null, 2) + '\n', 'utf8');
+  return { ok: true, dsn, item_type, id, status: cert[item_type][id].status };
+}
+

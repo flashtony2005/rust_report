@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PgConn } from './pg-probe.mjs';
-import { autoParse, buildLexicon, exportOntologyMd } from './ontology-store.mjs';
+import { autoParse, buildLexicon, exportOntologyMd, autoDiscoverOntology, exportNvidiaOntologyYaml } from './ontology-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DS_PATH = path.resolve(__dirname, '../examples/library/.datasources.json');
@@ -69,6 +69,21 @@ const TOOLS = [
     description: '导出本体 MD（实体+关系+视图+业务组说明+校验规则+dashboard 口径），返回文件路径，供后续工作做上下文。',
     inputSchema: { type: 'object', properties: { dsn: { type: 'string' } } },
   },
+  {
+    name: 'onto_auto_discover',
+    description: 'NVIDIA Auto-Ontology: 自动探查数据源逆向生成实体、度量、维度与候选关系拓扑（Baseline Ontology Discovery）。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dsn: { type: 'string', description: `数据源 id，默认 ${DEFAULT_DSN}` },
+      },
+    },
+  },
+  {
+    name: 'onto_export_nvidia',
+    description: '导出 NVIDIA Auto-Ontology 官方标准 YAML 语义元数据规范文件（供外部 Agent 接入）。',
+    inputSchema: { type: 'object', properties: { dsn: { type: 'string' } } },
+  },
 ];
 
 const ok = (id, result) => ({ jsonrpc: '2.0', id, result });
@@ -114,6 +129,14 @@ async function callTool(id, name, args = {}) {
     if (name === 'onto_export_md') {
       const r = await exportOntologyMd(dsn);
       return text(id, { path: r.path });
+    }
+    if (name === 'onto_auto_discover') {
+      const r = await autoDiscoverOntology(dsn);
+      return text(id, r);
+    }
+    if (name === 'onto_export_nvidia') {
+      const r = await exportNvidiaOntologyYaml(dsn);
+      return text(id, { path: r.path, yaml: r.yaml });
     }
     return fail(id, `未知工具: ${name}`);
   } catch (e) {
