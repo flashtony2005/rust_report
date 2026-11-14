@@ -11,7 +11,17 @@
   <link rel="icon" type="image/png" href="/logo-mark.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+  <!--
+    外部字体**不能阻塞首屏**：内网/国内环境访问 fonts.googleapis.com 会一直挂着，
+    <link rel="stylesheet"> 会拖住模块脚本执行（DOMContentLoaded 永不触发，页面白屏）。
+    这里用 media="print" + onload 换成异步加载：拿不到就走本地字体回退，页面照常可用。
+  -->
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    media="print"
+    onload="this.media='all'"
+  />
 </head>
 <body>
   <div id="root"></div>
